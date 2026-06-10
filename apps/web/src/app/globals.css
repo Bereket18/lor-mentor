@@ -1,0 +1,170 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ══════════════════════════════════════════════
+   LOWER MENTOR — LORCAN MEDICAL COLLEGE
+   Design Tokens — Light & Dark Mode
+   ══════════════════════════════════════════════ */
+
+:root {
+  /* Brand Teal Palette */
+  --t800: #0D3B3B;
+  --t700: #147878;
+  --t600: #1A8A8A;
+  --t500: #1A9494;
+  --t400: #78AAAE;
+  --t200: #B8D8DA;
+  --t100: #D9ECED;
+  --t50: #F0F8F8;
+
+  /* Light Mode Surfaces */
+  --bg-base: #F0F8F8;
+  --bg-surface: #FFFFFF;
+  --bg-elevated: #F8FCFC;
+  --bg-subtle: #EFF7F7;
+
+  /* Light Mode Borders */
+  --border-default: #E2E8F0;
+  --border-subtle: #D9ECED;
+
+  /* Light Mode Text */
+  --text-primary: #0F1F1F;
+  --text-secondary: #475569;
+  --text-muted: #94A3B8;
+
+  /* Brand Accent */
+  --accent-primary: #147878;
+  --accent-hover: #1A8A8A;
+
+  /* AI Feature Color */
+  --ai-accent: #0D9488;
+  --ai-text: #2DD4BF;
+
+  /* Semantic States */
+  --state-success: #16A34A;
+  --state-warning: #D97706;
+  --state-error: #DC2626;
+
+  /* Sidebar — always dark in both modes */
+  --sidebar-bg: #0D3B3B;
+
+  /* Fonts */
+  --font-inter: 'Inter', system-ui, sans-serif;
+  --font-jakarta: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* ── Dark Mode ─────────────────────────────── */
+[data-theme="dark"] {
+  --bg-base: #0B1919;
+  --bg-surface: #0F2424;
+  --bg-elevated: #142E2E;
+  --bg-subtle: #162828;
+  --border-default: #1E3C3C;
+  --border-subtle: #2A4040;
+  --text-primary: #EFF8F8;
+  --text-secondary: #8BBCBC;
+  --text-muted: #4A7070;
+  --accent-primary: #1A9494;
+  --accent-hover: #1A8A8A;
+  --state-success: #22C55E;
+  --state-warning: #FBBF24;
+  --state-error: #F87171;
+}
+
+/* ── Base Styles ───────────────────────────── */
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-inter);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-jakarta);
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    width: 5px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-default);
+    border-radius: 10px;
+  }
+
+  /* Focus ring */
+  :focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+/* ── Component Utilities ───────────────────── */
+@layer components {
+  .card {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: 0.75rem;
+    padding: 1rem;
+  }
+
+  .progress-track {
+    background-color: var(--border-default);
+    border-radius: 9999px;
+    height: 4px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    background-color: var(--accent-primary);
+    border-radius: 9999px;
+    height: 100%;
+    transition: width 0.5s ease;
+  }
+
+  .badge-ai {
+    background-color: rgba(13, 148, 136, 0.12);
+    color: var(--ai-text);
+    border: 1px solid rgba(13, 148, 136, 0.25);
+    padding: 2px 10px;
+    border-radius: 9999px;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .page-container {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+    width: 100%;
+  }
+}
