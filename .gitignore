@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+.next/
+dist/
+build/
+
+# Environment variables — NEVER commit these
+.env
+.env.local
+.env.production
+
+# Database
+*.db
+*.sqlite
+
+# Uploads and secure files
+uploads/
+secure-uploads/
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+.idea/
