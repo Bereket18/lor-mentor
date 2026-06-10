@@ -1,7 +1,7 @@
 {
-  "name": "lower-mentor",
+  "name": "lor-mentor",
   "version": "1.0.0",
-  "description": "Ethiopia's most advanced medical learning platform",
+  "description": "Lor Mentor — Lorcan Medical College's AI-powered learning platform",
   "private": true,
   "workspaces": [
     "apps/*",
