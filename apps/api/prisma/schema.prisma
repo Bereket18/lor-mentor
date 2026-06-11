@@ -1,24 +1,452 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
-generator client {
-  provider = "prisma-client-js"
-  output   = "../generated/prisma"
-}
-
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-
 //generator client {
- // provider = "prisma-client"
- // output   = "../generated/prisma"
+  //provider = "prisma-client-js"
 //}
 
 //datasource db {
   //provider = "postgresql"
+  //url      = env("DATABASE_URL")
 //}
+
+generator client {
+  provider = "prisma-client"
+  output   = "./../node_modules/@prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Note: Your database URL is safely handled via your prisma.config.ts now!
+}
+
+// ─── ENUMS ────────────────────────────────────
+// Enums are fixed lists of allowed values
+
+enum Role {
+  GUEST
+  STUDENT
+  TEACHER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum MaterialType {
+  PDF
+  IMAGE
+  YOUTUBE
+}
+
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AiStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum NotificationType {
+  PAYMENT_APPROVED
+  PAYMENT_REJECTED
+  SUBSCRIPTION_EXPIRING
+  SUBSCRIPTION_EXPIRED
+  NEW_CONTENT
+  NEW_ANNOUNCEMENT
+  FORUM_REPLY
+  AI_COMPLETE
+}
+
+// ─── USERS ────────────────────────────────────
+model User {
+  id                  String    @id @default(cuid())
+  email               String    @unique
+  passwordHash        String
+  fullName            String
+  avatarPath          String?
+  role                Role      @default(STUDENT)
+  isActive            Boolean   @default(true)
+  isEmailVerified     Boolean   @default(false)
+  emailVerifyToken    String?
+  emailVerifyExpiry   DateTime?
+  passwordResetToken  String?
+  passwordResetExpiry DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  // Relations
+  subscription     Subscription?
+  payments         Payment[]
+  teacherCourses   Course[]           @relation("CourseTeacher")
+  progressRecords  ProgressRecord[]
+  quizAttempts     QuizAttempt[]
+  flashcardReviews FlashcardReview[]
+  aiHistory        AiHistory[]
+  forumPosts       ForumPost[]
+  forumReplies     ForumReply[]
+  notifications    Notification[]
+  auditLogs        AuditLog[]
+
+  @@index([email])
+  @@index([role])
+}
+
+// ─── SUBSCRIPTIONS ────────────────────────────
+model SubscriptionPlan {
+  id             String    @id @default(cuid())
+  name           String
+  description    String?
+  priceETB       Decimal
+  durationMonths Int
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  subscriptions Subscription[]
+  payments      Payment[]
+}
+
+model Subscription {
+  id        String             @id @default(cuid())
+  userId    String             @unique
+  planId    String
+  status    SubscriptionStatus @default(PENDING)
+  startDate DateTime?
+  endDate   DateTime?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  user     User             @relation(fields: [userId], references: [id])
+  plan     SubscriptionPlan @relation(fields: [planId], references: [id])
+  payments Payment[]
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  userId          String
+  planId          String
+  subscriptionId  String?
+  receiptPath     String
+  status          PaymentStatus @default(PENDING)
+  rejectionReason String?
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  user         User              @relation(fields: [userId], references: [id])
+  plan         SubscriptionPlan  @relation(fields: [planId], references: [id])
+  subscription Subscription?     @relation(fields: [subscriptionId], references: [id])
+}
+
+// ─── ACADEMIC STRUCTURE ───────────────────────
+model Department {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  coverImage  String?
+  isArchived  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  academicYears AcademicYear[]
+}
+
+model AcademicYear {
+  id           String   @id @default(cuid())
+  departmentId String
+  label        String
+  isArchived   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  department Department @relation(fields: [departmentId], references: [id])
+  semesters  Semester[]
+}
+
+model Semester {
+  id             String   @id @default(cuid())
+  academicYearId String
+  name           String
+  isArchived     Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
+  courses      Course[]
+}
+
+// ─── COURSES ──────────────────────────────────
+model Course {
+  id          String   @id @default(cuid())
+  semesterId  String
+  teacherId   String?
+  title       String
+  description String?
+  coverImage  String?
+  isPublished Boolean  @default(false)
+  isArchived  Boolean  @default(false)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  semester      Semester       @relation(fields: [semesterId], references: [id])
+  teacher       User?          @relation("CourseTeacher", fields: [teacherId], references: [id])
+  materials     Material[]
+  quizzes       Quiz[]
+  announcements Announcement[]
+  
+  // Clean 1-to-1 pointer back to ForumSection
+  forumSection  ForumSection? 
+}
+
+// ─── MATERIALS ────────────────────────────────
+model Material {
+  id          String       @id @default(cuid())
+  courseId    String
+  title       String
+  type        MaterialType
+  filePath    String?
+  youtubeUrl  String?
+  isSample    Boolean      @default(false)
+  sortOrder   Int          @default(0)
+  uploadedBy  String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  course          Course           @relation(fields: [courseId], references: [id])
+  aiContent       AiContent?
+  progressRecords ProgressRecord[]
+}
+
+// ─── AI CONTENT ───────────────────────────────
+model AiContent {
+  id                String   @id @default(cuid())
+  materialId        String   @unique
+  status            AiStatus @default(PENDING)
+  summary           String?
+  keyTopics         Json?
+  illustrationPath  String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  material     Material      @relation(fields: [materialId], references: [id])
+  flashcardSet FlashcardSet?
+  quizBank     QuizBank?
+}
+
+// ─── FLASHCARDS ───────────────────────────────
+model FlashcardSet {
+  id          String   @id @default(cuid())
+  aiContentId String   @unique
+  title       String
+  createdAt   DateTime @default(now())
+
+  aiContent AiContent        @relation(fields: [aiContentId], references: [id])
+  cards     Flashcard[]
+  reviews   FlashcardReview[]
+}
+
+model Flashcard {
+  id             String @id @default(cuid())
+  flashcardSetId String
+  front          String
+  back           String
+  sortOrder      Int    @default(0)
+
+  flashcardSet FlashcardSet @relation(fields: [flashcardSetId], references: [id])
+}
+
+model FlashcardReview {
+  id             String   @id @default(cuid())
+  userId         String
+  flashcardSetId String
+  cardId         String
+  isKnown        Boolean
+  reviewedAt     DateTime @default(now())
+
+  user         User         @relation(fields: [userId], references: [id])
+  flashcardSet FlashcardSet @relation(fields: [flashcardSetId], references: [id])
+
+  @@unique([userId, cardId])
+}
+
+// ─── QUIZZES ──────────────────────────────────
+model QuizBank {
+  id          String   @id @default(cuid())
+  aiContentId String   @unique
+  createdAt   DateTime @default(now())
+
+  aiContent AiContent  @relation(fields: [aiContentId], references: [id])
+  questions Question[]
+}
+
+model Quiz {
+  id            String   @id @default(cuid())
+  courseId      String
+  title         String
+  isAiGenerated Boolean  @default(false)
+  createdBy     String
+  createdAt     DateTime @default(now())
+
+  course    Course        @relation(fields: [courseId], references: [id])
+  questions Question[]
+  attempts  QuizAttempt[]
+}
+
+model Question {
+  id            String  @id @default(cuid())
+  quizId        String?
+  quizBankId    String?
+  text          String
+  options       Json
+  correctOption String
+  explanation   String?
+  sortOrder     Int     @default(0)
+
+  quiz     Quiz?     @relation(fields: [quizId], references: [id])
+  quizBank QuizBank? @relation(fields: [quizBankId], references: [id])
+  answers  QuizAnswer[]
+}
+
+model QuizAttempt {
+  id          String   @id @default(cuid())
+  userId      String
+  quizId      String
+  score       Float
+  totalQ      Int
+  timeTaken   Int
+  completedAt DateTime @default(now())
+
+  user    User         @relation(fields: [userId], references: [id])
+  quiz    Quiz         @relation(fields: [quizId], references: [id])
+  answers QuizAnswer[]
+}
+
+model QuizAnswer {
+  id         String  @id @default(cuid())
+  attemptId  String
+  questionId String
+  selected   String
+  isCorrect  Boolean
+
+  attempt  QuizAttempt @relation(fields: [attemptId], references: [id])
+  question Question    @relation(fields: [questionId], references: [id])
+}
+
+// ─── AI TUTOR HISTORY ─────────────────────────
+model AiHistory {
+  id         String   @id @default(cuid())
+  userId     String
+  courseId   String?
+  materialId String?
+  prompt     String
+  response   String
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+// ─── FORUM ────────────────────────────────────
+model ForumSection {
+  id       String  @id @default(cuid())
+  courseId String? @unique
+  type     String
+
+  // This properly maps the 1-to-1 relationship with Course
+  course   Course?     @relation(fields: [courseId], references: [id])
+  posts    ForumPost[]
+}
+
+model ForumPost {
+  id        String   @id @default(cuid())
+  sectionId String
+  authorId  String
+  title     String
+  content   String
+  isPinned  Boolean  @default(false)
+  isRemoved Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  section ForumSection @relation(fields: [sectionId], references: [id])
+  author  User         @relation(fields: [authorId], references: [id])
+  replies ForumReply[]
+}
+
+model ForumReply {
+  id        String   @id @default(cuid())
+  postId    String
+  authorId  String
+  content   String
+  isRemoved Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  post   ForumPost @relation(fields: [postId], references: [id])
+  author User      @relation(fields: [authorId], references: [id])
+}
+
+// ─── NOTIFICATIONS ────────────────────────────
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  meta      Json?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, isRead])
+}
+
+// ─── PROGRESS ─────────────────────────────────
+model ProgressRecord {
+  id         String   @id @default(cuid())
+  userId     String
+  materialId String
+  viewedAt   DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id])
+  material Material @relation(fields: [materialId], references: [id])
+
+  @@unique([userId, materialId])
+}
+
+// ─── ANNOUNCEMENTS ────────────────────────────
+model Announcement {
+  id        String   @id @default(cuid())
+  courseId  String
+  authorId  String
+  title     String
+  content   String
+  createdAt DateTime @default(now())
+
+  course Course @relation(fields: [courseId], references: [id])
+}
+
+// ─── AUDIT LOGS ───────────────────────────────
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  entityType String?
+  entityId   String?
+  meta       Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+}
