@@ -1,12 +1,9 @@
 {
   "compilerOptions": {
-    "strict": true, // Enables the full suite of strong type checks
+    "strict": true,
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "target": "ES2022",
-    "ignoreDeprecations": "6.0",
-    "baseUrl": "./",
-
     "resolvePackageJsonExports": true,
     "esModuleInterop": true,
     "isolatedModules": true,
@@ -20,8 +17,6 @@
     "incremental": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-
-    // Removed manual "false" overrides to let "strict" do its job flawlessly
     "noFallthroughCasesInSwitch": false
   }
 }
