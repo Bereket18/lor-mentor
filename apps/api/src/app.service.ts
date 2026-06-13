@@ -4,4 +4,8 @@ import { Injectable } from '@nestjs/common';
 // Feature logic lives in feature modules
 // Example: AuthModule, CoursesModule, etc.
 @Injectable()
-export class AppService {}
+export class AppService {
+  getHello(): string {
+    return 'Lor Mentor API is up and running!';
+  }
+}
