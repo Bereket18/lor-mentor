@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { Prisma, Role } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
@@ -111,5 +112,115 @@ export class UsersService {
     return this.prisma.user.findFirst({
       where: { passwordResetToken: token },
     });
+  }
+  // Get paginated list of all users — admin dashboard
+  async findAll(options: {
+    page: number;
+    limit: number;
+    search: string;
+    role: string;
+  }) {
+    const { page, limit, search, role } = options;
+    const skip = (page - 1) * limit;
+
+    // Use Prisma's generated type — it knows role must be Role enum
+    const where: Prisma.UserWhereInput = {};
+
+    if (search) {
+      where.OR = [
+        { fullName: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    // Cast role string to Role enum — safe because we validate it
+    if (role && Object.values(Role).includes(role as Role)) {
+      where.role = role as Role;
+    }
+
+    const [users, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          email: true,
+          fullName: true,
+          role: true,
+          isActive: true,
+          isEmailVerified: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    return {
+      users,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  // Change a user's role — admin action
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async changeRole(userId: string, role: string, _actorId: string) {
+    const validRoles = ['STUDENT', 'TEACHER', 'ADMIN', 'SUPER_ADMIN'];
+    if (!validRoles.includes(role)) {
+      throw new Error('Invalid role provided');
+    }
+
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { role: role as 'STUDENT' | 'TEACHER' | 'ADMIN' | 'SUPER_ADMIN' },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+      },
+    });
+
+    return { message: `Role updated to ${role}`, user };
+  }
+
+  // Activate or deactivate a user — admin action
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async changeStatus(userId: string, isActive: boolean, _actorId: string) {
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { isActive },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        isActive: true,
+      },
+    });
+
+    const status = isActive ? 'activated' : 'deactivated';
+    return { message: `Account ${status}`, user };
+  }
+
+  // Student updates their own profile
+  async updateProfile(userId: string, data: { fullName?: string }) {
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data,
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        avatarPath: true,
+      },
+    });
+
+    return { message: 'Profile updated', user };
   }
 }

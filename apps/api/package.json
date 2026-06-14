@@ -32,13 +32,15 @@
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "clsx": "^2.1.1",
     "cookie-parser": "^1.4.7",
     "helmet": "^8.2.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pg": "^8.21.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
