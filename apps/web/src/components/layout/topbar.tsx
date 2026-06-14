@@ -65,6 +65,9 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
       <div className="flex items-center gap-3">
         {/* Mobile hamburger — hidden on desktop */}
         <button
+          type="button"
+          title="Toggle Menu"
+          aria-label="Open main navigation menu"
           onClick={onMenuToggle}
           className="lg:hidden text-muted hover:text-primary
             transition-colors"

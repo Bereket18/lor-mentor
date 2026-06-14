@@ -57,6 +57,7 @@ export default function RegisterPage() {
       });
 
       // Redirect to verify email page with the email
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       router.push(`/verify-email?email=${encodeURIComponent(data.email)}`);
     } catch (err: any) {
       // Show the error message from the server
