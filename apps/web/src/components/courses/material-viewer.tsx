@@ -49,6 +49,7 @@ export function MaterialViewer({
         // This URL only works in THIS browser tab, and only until revoked
         objectUrl = URL.createObjectURL(res.data);
         setBlobUrl(objectUrl);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
         setError(
           err?.response?.status === 403
@@ -89,6 +90,7 @@ export function MaterialViewer({
           <p className="text-sm font-medium text-primary truncate">{title}</p>
           <button
             onClick={onClose}
+            aria-label="Close modal"
             className="text-muted hover:text-primary transition-colors p-1"
           >
             <X className="h-4 w-4" />

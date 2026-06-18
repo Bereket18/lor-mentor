@@ -11,7 +11,7 @@ import {
   BookOpen,
   FileText,
   Image as ImageIcon,
-  Youtube,
+  Video,
   Upload,
   Trash2,
 } from "lucide-react";
@@ -27,7 +27,7 @@ interface Material {
   type: "PDF" | "IMAGE" | "YOUTUBE";
 }
 
-const typeIcon = { PDF: FileText, IMAGE: ImageIcon, YOUTUBE: Youtube };
+const typeIcon = { PDF: FileText, IMAGE: ImageIcon, YOUTUBE: Video };
 
 export default function AdminCoursesPage() {
   const [level, setLevel] = useState<Level>("departments");
@@ -54,9 +54,12 @@ export default function AdminCoursesPage() {
     "PDF",
   );
   const [materialTitle, setMaterialTitle] = useState("");
-  const [youtubeUrl, setYoutubeUrl] = useState("");
+  const [youtubeUrl, setYoutubeUrl] = useState<string>("");
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Incremented whenever materialType changes so the file input
+  // fully remounts — prevents the uncontrolled→controlled React warning
+  const [fileInputKey, setFileInputKey] = useState(0);
 
   useEffect(() => {
     loadDepartments();
@@ -237,6 +240,7 @@ export default function AdminCoursesPage() {
       setMaterialTitle("");
       setYoutubeUrl("");
       if (fileInputRef.current) fileInputRef.current.value = "";
+      setFileInputKey((k) => k + 1); // remount the file input to clear it
       await loadMaterials(selectedCourse.id);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
@@ -376,7 +380,14 @@ export default function AdminCoursesPage() {
             {(["PDF", "IMAGE", "YOUTUBE"] as const).map((t) => (
               <button
                 key={t}
-                onClick={() => setMaterialType(t)}
+                onClick={() => {
+                  setMaterialType(t);
+                  // Reset youtube URL when leaving YOUTUBE mode
+                  if (t !== "YOUTUBE") setYoutubeUrl("");
+                  // Remount the file input so React doesn't warn about
+                  // uncontrolled→controlled transition
+                  if (t !== "YOUTUBE") setFileInputKey((k) => k + 1);
+                }}
                 className={cn(
                   "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
                   materialType === t
@@ -409,8 +420,12 @@ export default function AdminCoursesPage() {
             />
           ) : (
             <input
+              key={fileInputKey}
+              id="course-material-upload"
               ref={fileInputRef}
               type="file"
+              aria-label="Upload course material file"
+              title="Upload course material file"
               accept={materialType === "PDF" ? "application/pdf" : "image/*"}
               className="w-full text-sm text-secondary file:mr-3 file:py-2 file:px-3
                 file:rounded-lg file:border-0 file:bg-accent-dim file:text-accent

@@ -23,7 +23,14 @@ export default function CourseDetailPage() {
   useEffect(() => {
     api
       .get(`/courses/${id}`)
-      .then((res) => setCourse(res.data))
+      .then((res) => {
+        const data = res.data;
+        // Normalise — API may return the course nested or materials may be absent
+        setCourse({
+          ...data,
+          materials: data.materials ?? [],
+        });
+      })
       .finally(() => setLoading(false));
   }, [id]);
 

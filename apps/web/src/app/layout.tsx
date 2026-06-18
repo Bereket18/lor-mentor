@@ -26,6 +26,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
+      data-scroll-behavior="smooth"
       // No data-theme here — script below sets it from localStorage
       // This prevents flash of wrong theme
     >

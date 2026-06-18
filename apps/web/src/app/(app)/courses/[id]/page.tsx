@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { Loader2, FileText, Image as ImageIcon, Youtube } from "lucide-react";
+import { Loader2, FileText, Image as ImageIcon, Video } from "lucide-react";
 import api from "@/lib/api";
 import { MaterialViewer } from "@/components/courses/material-viewer";
 
@@ -24,7 +24,7 @@ interface CourseDetail {
 const typeIcon = {
   PDF: FileText,
   IMAGE: ImageIcon,
-  YOUTUBE: Youtube,
+  YOUTUBE: Video,
 };
 
 export default function CourseDetailPage() {
@@ -38,7 +38,13 @@ export default function CourseDetailPage() {
   useEffect(() => {
     api
       .get(`/courses/${id}`)
-      .then((res) => setCourse(res.data))
+      .then((res) => {
+        const data = res.data;
+        setCourse({
+          ...data,
+          materials: data.materials ?? [],
+        });
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
