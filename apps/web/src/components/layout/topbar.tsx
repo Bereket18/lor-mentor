@@ -35,9 +35,18 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
   // Get the page title or fall back to the path
   const title = pageTitles[pathname] ?? "Lor Mentor";
 
+  // function handleThemeToggle() {
+  //   const next = toggleTheme();
+  //   setIsDark(next === "dark");
+  // }
+
   function handleThemeToggle() {
-    const next = toggleTheme();
-    setIsDark(next === "dark");
+    // 1. Run the side-effects (updates DOM & localStorage)
+    toggleTheme();
+
+    // 2. Read the new state cleanly using your getter helper
+    const currentTheme = getTheme();
+    setIsDark(currentTheme === "dark");
   }
 
   // Get initials from the user's full name

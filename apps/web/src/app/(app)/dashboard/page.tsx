@@ -1,363 +1,334 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
 import {
-  BookOpen,
-  Brain,
-  Flame,
-  Target,
   ArrowRight,
-  Zap,
-  Clock,
+  Sparkles,
+  MessageSquare,
+  Cards as CardsIcon,
+  FileText,
+  Flame,
 } from "lucide-react";
-import Link from "next/link";
 import { useAuth } from "@/hooks/use-auth";
-import { cn } from '@/lib/utils';
+import { cn } from "@/lib/utils";
 
-// ── Animation helpers ─────────────────────────────────────────
+// ── Animation helpers ───────────────────────────────────────────
 const fadeUp = {
   hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0 },
-};
-
-const container = {
-  hidden: {},
   show: {
-    transition: { staggerChildren: 0.07 },
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.4, ease: [0.4, 0, 0.2, 1] },
   },
 };
 
-// ── KPI Card ─────────────────────────────────────────────────
-function KpiCard({
-  label,
-  value,
-  color,
-  icon: Icon,
-}: {
-  label: string;
-  value: string;
-  color: string;
-  icon: React.ElementType;
-}) {
-  return (
-    <motion.div variants={fadeUp} className="card">
-      <div className={cn("flex items-center gap-3 mb-3")}>
-        <div
-          className={cn(
-            "w-8 h-8 rounded-lg flex items-center justify-center",
-            "bg-accent/10",
-          )}
-        >
-          <Icon className="h-4 w-4 text-accent" />
-        </div>
-        <span
-          className="text-xs font-medium text-muted uppercase
-          tracking-wider"
-        >
-          {label}
-        </span>
-      </div>
-      <p className={cn("text-3xl font-bold", color)}>{value}</p>
-    </motion.div>
-  );
-}
+// ── Placeholder data — real data comes in Sprint 3 ───────────────
+const continueCourse = {
+  title: "Human Anatomy I",
+  chapter: "Chapter 3 · Brachial Plexus",
+  progress: 64,
+  timeLeft: "12 min left in this chapter",
+};
 
-// ── Course Progress Row ────────────────────────────────────────
-function CourseRow({
-  title,
-  teacher,
-  progress,
-}: {
-  title: string;
-  teacher: string;
-  progress: number;
-}) {
-  return (
-    <div
-      className="flex items-center gap-4 py-3
-      border-b border-border last:border-0"
-    >
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-primary truncate">{title}</p>
-        <p className="text-xs text-muted">{teacher}</p>
-      </div>
-      <div className="flex items-center gap-3 flex-shrink-0">
-        <div className="w-24">
-          <div className="progress-track">
-            <div className="progress-fill" style={{ width: `${progress}%` }} />
-          </div>
-        </div>
-        <span
-          className="text-xs font-medium text-accent w-8
-          text-right"
-        >
-          {progress}%
-        </span>
-      </div>
-    </div>
-  );
-}
+const enrolledCourses = [
+  { title: "Human Anatomy I", teacher: "Dr. Aisha Mohammed", progress: 64 },
+  { title: "Physiology Basics", teacher: "Dr. Tadesse Bekele", progress: 38 },
+  { title: "Biochemistry I", teacher: "Dr. Sara Ahmed", progress: 22 },
+];
 
-// ── Dashboard Page ────────────────────────────────────────────
+const recommendedCourses = [
+  {
+    title: "Histology",
+    teacher: "Dr. Mihret Tesfaye",
+    reason: "Next in your semester",
+  },
+];
+
+const recentActivity = [
+  { label: "AI flashcards ready — Anatomy Ch.3", time: "2m", color: "bg-ai" },
+  { label: "Quiz generated — Cardiac cycle", time: "1h", color: "bg-accent" },
+  { label: "Summary ready — Biochemistry Ch.1", time: "3h", color: "bg-teal" },
+];
+
 export default function DashboardPage() {
   const { user } = useAuth();
-
-  // Get first name for the greeting
   const firstName = user?.fullName?.split(" ")[0] ?? "Student";
 
-  // Greeting based on time of day
   const hour = new Date().getHours();
   const greeting =
     hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
   return (
-    <motion.div
-      variants={container}
-      initial="hidden"
-      animate="show"
-      className="max-w-6xl mx-auto space-y-6"
-    >
-      {/* ── Header ───────────────────────────────────── */}
+    <div className="max-w-3xl mx-auto space-y-10">
+      {/* ── Minimal header — no card, just typography ───────── */}
       <motion.div
+        initial="hidden"
+        animate="show"
         variants={fadeUp}
-        className="flex items-start justify-between"
+        className="flex items-center justify-between"
       >
-        <div>
-          <h2 className="text-2xl font-bold text-primary">
-            {greeting}, {firstName} 👋
-          </h2>
-          <p className="text-secondary text-sm mt-1">
-            Ready to study? Your AI tools are waiting.
-          </p>
-        </div>
-
-        {/* Streak badge */}
-        <div
-          className="
-          flex items-center gap-2 px-4 py-2
-          bg-[#FFFBEB] dark:bg-[#1A1400]
-          border border-[#FDE68A] dark:border-[#2A2000]
-          rounded-xl
-        "
-        >
-          <Flame className="h-4 w-4 text-orange-500" />
-          <span
-            className="text-sm font-semibold
-            text-orange-700 dark:text-yellow-400"
-          >
-            5-day streak
-          </span>
+        <h1 className="font-display text-2xl font-semibold text-primary">
+          {greeting}, {firstName}
+        </h1>
+        <div className="flex items-center gap-1.5 text-xs text-secondary">
+          <Flame className="h-3.5 w-3.5 text-warning" />
+          <span>5-day streak</span>
         </div>
       </motion.div>
 
-      {/* ── KPI Cards ────────────────────────────────── */}
+      {/* ── SECTION 1: Continue Learning — Hero ─────────────── */}
       <motion.div
-        variants={container}
-        className="grid grid-cols-2 lg:grid-cols-4 gap-4"
+        initial="hidden"
+        animate="show"
+        variants={fadeUp}
+        transition={{ delay: 0.05 }}
       >
-        <KpiCard
-          label="Courses"
-          value="12"
-          color="text-accent"
-          icon={BookOpen}
-        />
-        <KpiCard
-          label="Quizzes taken"
-          value="47"
-          color="text-ai"
-          icon={Brain}
-        />
-        <KpiCard
-          label="Cards reviewed"
-          value="234"
-          color="text-accent"
-          icon={Zap}
-        />
-        <KpiCard
-          label="Study hours"
-          value="38h"
-          color="text-secondary"
-          icon={Clock}
-        />
+        <p className="text-xs font-medium text-muted tracking-wide mb-3">
+          CONTINUE LEARNING
+        </p>
+        <Link href="/courses">
+          <div
+            className={cn(
+              "relative rounded-2xl p-8 overflow-hidden",
+              "bg-surface border border-default",
+              "hover:border-accent/30 transition-all duration-200 group",
+            )}
+          >
+            {/* Subtle ambient glow */}
+            <div
+              className="absolute -top-12 -right-12 w-48 h-48
+              bg-accent/[0.08] rounded-full blur-3xl"
+            />
+
+            <div className="relative z-10">
+              <h2
+                className="font-display text-xl font-semibold
+                text-primary mb-1"
+              >
+                {continueCourse.title}
+              </h2>
+              <p className="text-sm text-secondary mb-6">
+                {continueCourse.chapter}
+              </p>
+
+              <div className="mb-5 max-w-xs">
+                <div className="progress-track h-1.5">
+                  <div
+                    className="progress-fill h-1.5"
+                    style={{ width: `${continueCourse.progress}%` }}
+                  />
+                </div>
+                <p className="text-xs text-muted mt-2">
+                  {continueCourse.progress}% complete
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-2 px-4 py-2.5",
+                    "bg-accent text-white rounded-xl text-sm font-medium",
+                    "group-hover:bg-accent-hover transition-colors",
+                  )}
+                >
+                  Resume
+                  <ArrowRight
+                    className="h-3.5 w-3.5 transition-transform
+                    group-hover:translate-x-0.5"
+                  />
+                </span>
+                <span className="text-xs text-muted">
+                  {continueCourse.timeLeft}
+                </span>
+              </div>
+            </div>
+          </div>
+        </Link>
       </motion.div>
 
-      {/* ── Main grid ────────────────────────────────── */}
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Continue studying — takes 2 columns */}
-        <motion.div variants={fadeUp} className="lg:col-span-2 card">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-primary">Continue studying</h3>
-            <Link
-              href="/courses"
-              className="text-xs text-accent hover:underline
-                flex items-center gap-1"
-            >
-              View all
-              <ArrowRight className="h-3 w-3" />
-            </Link>
+      {/* ── SECTION 2: AI Study Assistant ───────────────────── */}
+      <motion.div
+        initial="hidden"
+        animate="show"
+        variants={fadeUp}
+        transition={{ delay: 0.1 }}
+      >
+        <Link href="/ai-tutor">
+          <div
+            className={cn(
+              "relative rounded-2xl px-6 py-5 overflow-hidden",
+              "bg-ai-dim border border-ai/20",
+              "hover:border-ai/40 transition-all duration-200 group",
+            )}
+          >
+            <div
+              className="absolute inset-0 bg-gradient-to-r
+              from-ai/[0.03] to-transparent"
+            />
+            <div className="relative z-10 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <div
+                  className="w-9 h-9 rounded-xl bg-ai/15
+                  flex items-center justify-center flex-shrink-0
+                  animate-pulse-glow"
+                >
+                  <Sparkles className="h-4 w-4 text-ai" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-primary">
+                    AI Study Assistant
+                  </p>
+                  <p className="text-xs text-secondary truncate">
+                    Ask me about the brachial plexus, or anything in your
+                    courses.
+                  </p>
+                </div>
+              </div>
+              <span
+                className="flex-shrink-0 text-xs font-medium
+                text-ai flex items-center gap-1
+                group-hover:gap-2 transition-all"
+              >
+                Ask
+                <ArrowRight className="h-3 w-3" />
+              </span>
+            </div>
           </div>
+        </Link>
+      </motion.div>
 
-          {/* Placeholder courses — will use real data in Sprint 3 */}
-          <CourseRow
-            title="Human Anatomy I"
-            teacher="Dr. Aisha Mohammed"
-            progress={64}
-          />
-          <CourseRow
-            title="Physiology Basics"
-            teacher="Dr. Tadesse Bekele"
-            progress={38}
-          />
-          <CourseRow
-            title="Biochemistry I"
-            teacher="Dr. Sara Ahmed"
-            progress={22}
-          />
-          <CourseRow
-            title="Histology"
-            teacher="Dr. Mihret Tesfaye"
-            progress={5}
-          />
-
+      {/* ── SECTION 3: My Courses ────────────────────────────── */}
+      <motion.div
+        initial="hidden"
+        animate="show"
+        variants={fadeUp}
+        transition={{ delay: 0.15 }}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold text-primary">My Courses</h2>
           <Link
             href="/courses"
-            className="
-              mt-4 flex items-center justify-center gap-2
-              w-full py-2.5 rounded-xl
-              border border-border
-              text-sm font-medium text-secondary
-              hover:border-accent hover:text-accent
-              transition-all
-            "
+            className="text-xs text-accent hover:text-accent-hover
+              flex items-center gap-1 transition-colors"
           >
-            Browse all courses
-            <ArrowRight className="h-4 w-4" />
+            View all
+            <ArrowRight className="h-3 w-3" />
           </Link>
-        </motion.div>
+        </div>
 
-        {/* AI Activity panel */}
-        <motion.div variants={fadeUp} className="card">
-          <h3 className="font-semibold text-primary mb-4">AI activity</h3>
-
-          <div className="space-y-3">
-            {[
-              {
-                label: "Flashcards ready",
-                sub: "Anatomy Ch.3 · 24 cards",
-                time: "2 min ago",
-                href: "/flashcards",
-              },
-              {
-                label: "Quiz generated",
-                sub: "Physiology: Cardiac cycle",
-                time: "1 hr ago",
-                href: "/quiz",
-              },
-              {
-                label: "Summary ready",
-                sub: "Biochemistry Ch.1",
-                time: "3 hrs ago",
-                href: "/courses",
-              },
-            ].map((item) => (
-              <Link key={item.label} href={item.href}>
-                <div
-                  className="
-                  flex items-start gap-3 p-3 rounded-xl
-                  hover:bg-elevated transition-colors cursor-pointer
-                  border border-transparent
-                  hover:border-border
-                "
-                >
-                  <div
-                    className="
-                    w-7 h-7 rounded-lg bg-ai/10 flex-shrink-0
-                    flex items-center justify-center mt-0.5
-                  "
-                  >
-                    <Brain className="h-3.5 w-3.5 text-ai" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-primary">
-                      {item.label}
-                    </p>
-                    <p className="text-xs text-muted truncate">{item.sub}</p>
+        <div className="space-y-0">
+          {enrolledCourses.map((course, i) => (
+            <Link key={course.title} href="/courses">
+              <div
+                className={cn(
+                  "flex items-center gap-4 py-3.5 px-2 -mx-2 rounded-lg",
+                  "hover:bg-elevated transition-colors duration-150",
+                  i < enrolledCourses.length - 1 && "border-b border-subtle",
+                )}
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-primary truncate">
+                    {course.title}
+                  </p>
+                  <p className="text-xs text-muted">{course.teacher}</p>
+                </div>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <div className="w-20 progress-track">
+                    <div
+                      className="progress-fill"
+                      style={{ width: `${course.progress}%` }}
+                    />
                   </div>
                   <span
-                    className="text-[10px] text-muted
-                    flex-shrink-0 mt-0.5"
+                    className="text-xs font-medium text-secondary
+                    w-8 text-right"
                   >
-                    {item.time}
+                    {course.progress}%
                   </span>
                 </div>
-              </Link>
-            ))}
-          </div>
+              </div>
+            </Link>
+          ))}
 
-          <Link
-            href="/ai-tutor"
-            className="
-              mt-4 flex items-center justify-center gap-2
-              w-full py-2.5 rounded-xl
-              bg-ai/10 border border-ai/20
-              text-sm font-medium text-ai
-              hover:bg-ai/20 transition-all
-            "
-          >
-            <Brain className="h-4 w-4" />
-            Open AI Tutor
-          </Link>
-        </motion.div>
-      </div>
-
-      {/* ── Exam readiness ───────────────────────────── */}
-      <motion.div variants={fadeUp} className="card">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Target className="h-4 w-4 text-accent" />
-            <h3 className="font-semibold text-primary">
-              Exam readiness — Anatomy I
-            </h3>
-          </div>
-          <span
-            className="
-            px-2.5 py-1 rounded-full text-xs font-medium
-            bg-accent/10 text-accent
-          "
-          >
-            14 days to exam
-          </span>
-        </div>
-
-        <div className="flex items-center gap-6">
-          <div className="flex-1">
-            <div
-              className="flex justify-between text-xs
-              text-muted mb-2"
-            >
-              <span>Overall readiness</span>
-              <span className="text-accent font-semibold">64%</span>
-            </div>
-            <div className="progress-track h-2 rounded-full">
+          {/* Recommended — visually distinct, lighter weight */}
+          {recommendedCourses.map((course) => (
+            <Link key={course.title} href="/courses">
               <div
-                className="progress-fill h-2 rounded-full"
-                style={{ width: "64%" }}
-              />
-            </div>
-          </div>
-          <Link
-            href="/quiz"
-            className="
-              flex-shrink-0 px-4 py-2
-              bg-accent text-white
-              rounded-xl text-sm font-semibold
-              hover:bg-accent-hover transition-all
-            "
-          >
-            Take a quiz
-          </Link>
+                className="flex items-center gap-4 py-3.5 px-2 -mx-2
+                rounded-lg hover:bg-elevated transition-colors duration-150
+                border-t border-subtle mt-1"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-secondary truncate">
+                      {course.title}
+                    </p>
+                    <span
+                      className="text-[10px] font-medium text-teal
+                      bg-teal-dim px-2 py-0.5 rounded-full"
+                    >
+                      Recommended
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted">{course.reason}</p>
+                </div>
+                <ArrowRight className="h-3.5 w-3.5 text-muted flex-shrink-0" />
+              </div>
+            </Link>
+          ))}
         </div>
       </motion.div>
-    </motion.div>
+
+      {/* ── SECTION 4: Recent Activity ──────────────────────── */}
+      <motion.div
+        initial="hidden"
+        animate="show"
+        variants={fadeUp}
+        transition={{ delay: 0.2 }}
+      >
+        <h2 className="text-sm font-semibold text-primary mb-4">
+          Recent Activity
+        </h2>
+        <div className="space-y-3">
+          {recentActivity.map((item) => (
+            <div key={item.label} className="flex items-center gap-3">
+              <div
+                className={cn(
+                  "w-1.5 h-1.5 rounded-full flex-shrink-0",
+                  item.color,
+                )}
+              />
+              <p className="text-sm text-secondary flex-1">{item.label}</p>
+              <span className="text-xs text-muted">{item.time}</span>
+            </div>
+          ))}
+        </div>
+      </motion.div>
+
+      {/* ── SECTION 5: Community Highlights — single line ──── */}
+      <motion.div
+        initial="hidden"
+        animate="show"
+        variants={fadeUp}
+        transition={{ delay: 0.25 }}
+      >
+        <Link href="/forum">
+          <div
+            className="flex items-center gap-2.5 py-3 px-4 -mx-4
+            rounded-xl hover:bg-elevated transition-colors group"
+          >
+            <MessageSquare className="h-3.5 w-3.5 text-muted flex-shrink-0" />
+            <p className="text-sm text-secondary flex-1">
+              12 new replies in Anatomy I forum this week
+            </p>
+            <ArrowRight
+              className="h-3.5 w-3.5 text-muted
+              group-hover:translate-x-0.5 transition-transform"
+            />
+          </div>
+        </Link>
+      </motion.div>
+    </div>
   );
 }

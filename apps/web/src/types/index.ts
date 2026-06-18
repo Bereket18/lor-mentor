@@ -28,3 +28,34 @@ export interface ApiError {
   message: string;
   statusCode: number;
 }
+// ── Academic structure ───────────────────────────────────────
+export interface Department {
+  id:          string
+  name:        string
+  description?: string | null
+  isArchived?: boolean
+  _count?: {
+    academicYears: number
+    students?:     number
+  }
+}
+
+export interface AcademicYear {
+  id:    string
+  label: string
+  _count?: { semesters: number }
+}
+
+export interface Semester {
+  id:   string
+  name: string
+  _count?: { courses: number }
+}
+
+export interface Course {
+  id:          string
+  title:       string
+  description?: string | null
+  isPublished: boolean
+  teacher?:    { fullName: string } | null
+}

@@ -11,6 +11,7 @@ import * as crypto from 'crypto';
 import { UsersService } from '../users/users.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class AuthService {
@@ -18,6 +19,7 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
+    private readonly prisma: PrismaService,
   ) {}
 
   // ── REGISTER ──────────────────────────────────────────
@@ -30,16 +32,41 @@ export class AuthService {
       );
     }
 
-    // 2. Hash the password
-    // bcrypt with 12 rounds — takes ~300ms — too slow to brute force
-    // but fast enough that users do not notice
+    // 2. Verify the department exists
+    const department = await this.prisma.department.findUnique({
+      where: { id: dto.departmentId },
+    });
+    if (!department || department.isArchived) {
+      throw new BadRequestException('Selected department is not valid');
+    }
+
+    // 3. Verify the academic year exists AND belongs to that department
+    // This prevents a student submitting a mismatched departmentId/academicYearId
+    // pair by manipulating the request directly (Zero Trust — never trust client data)
+    const academicYear = await this.prisma.academicYear.findUnique({
+      where: { id: dto.academicYearId },
+    });
+    if (
+      !academicYear ||
+      academicYear.isArchived ||
+      academicYear.departmentId !== dto.departmentId
+    ) {
+      throw new BadRequestException(
+        'Selected academic year does not belong to the selected department',
+      );
+    }
+
+    // 4. Hash the password
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
-    // 3. Create the user in the database
+    // 5. Create the user in the database
     const user = await this.usersService.create({
       email: dto.email,
       passwordHash,
       fullName: dto.fullName,
+      departmentId: dto.departmentId,
+      academicYearId: dto.academicYearId,
+      phoneNumber: dto.phoneNumber,
     });
 
     // 4. Generate email verification token

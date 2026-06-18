@@ -9,25 +9,23 @@ export function useAuth() {
   const router = useRouter();
 
   // The currently logged-in user
-  // null means not logged in
-  // undefined means we are still checking
+  // null  → confirmed not logged in
+  // undefined → still checking (loading)
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
 
-  // Check if user is logged in when the hook first runs
+  // Check auth status once on mount
   useEffect(() => {
     checkAuth();
   }, []);
 
   async function checkAuth() {
     try {
-      // Try to get the current user from the backend
-      // If the cookie is valid this succeeds
-      // If not it throws a 401 error
+      // Try to fetch the current user using the JWT cookie
       const res = await api.get("/me");
       setUser(res.data.user);
     } catch {
-      // Not logged in
+      // 401 or network error — treat as logged out
       setUser(null);
     } finally {
       setLoading(false);
@@ -41,21 +39,21 @@ export function useAuth() {
   }
 
   async function logout() {
-    await api.post("/auth/logout");
+    try {
+      await api.post("/auth/logout");
+    } catch {
+      // Ignore errors — still clear state and redirect
+    }
     setUser(null);
     router.push("/login");
   }
 
   async function register(fullName: string, email: string, password: string) {
-    const res = await api.post("/auth/register", {
-      fullName,
-      email,
-      password,
-    });
+    const res = await api.post("/auth/register", { fullName, email, password });
     return res.data;
   }
 
-  // Helper properties
+  // Convenience booleans
   const isLoggedIn = !!user;
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
   const isTeacher = user?.role === "TEACHER";

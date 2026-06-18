@@ -41,12 +41,18 @@ export class UsersService {
     email: string;
     passwordHash: string;
     fullName: string;
+    departmentId: string;
+    academicYearId: string;
+    phoneNumber: string;
   }) {
     return this.prisma.user.create({
       data: {
         email: data.email,
         passwordHash: data.passwordHash,
         fullName: data.fullName,
+        departmentId: data.departmentId,
+        academicYearId: data.academicYearId,
+        phoneNumber: data.phoneNumber,
       },
     });
   }

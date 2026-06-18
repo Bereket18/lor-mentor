@@ -1,56 +1,50 @@
-import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
+// import { clsx, type ClassValue } from "clsx"
+// import { twMerge } from "tailwind-merge"
 
-// Merges Tailwind classes safely
-// Handles conflicts and conditional classes
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
+// export function cn(...inputs: ClassValue[]) {
+//   return twMerge(clsx(inputs))
+// }
+
+import { clsx, type ClassValue } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+export function cn(...inputs: ClassValue[]): string {
+  return twMerge(clsx(inputs))
 }
 
-// Toggle light/dark mode and save to localStorage
-export function toggleTheme(): "light" | "dark" {
-  const current =
-    document.documentElement.getAttribute("data-theme") ?? "light";
-  const next = current === "light" ? "dark" : "light";
-  document.documentElement.setAttribute("data-theme", next);
-  localStorage.setItem("lm-theme", next);
-  return next;
-}
-
-// Read current theme from localStorage
+/**
+ * Resolves the active theme state safely for both SSR and Client environments
+ */
 export function getTheme(): "light" | "dark" {
-  if (typeof window === "undefined") return "light";
-  return (localStorage.getItem("lm-theme") as "light" | "dark") ?? "light";
+  if (typeof window === "undefined") return "light"
+
+  const savedTheme = localStorage.getItem("theme")
+  if (savedTheme === "light" || savedTheme === "dark") {
+    return savedTheme
+  }
+
+  const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+  return systemPrefersDark ? "dark" : "light"
 }
 
-// "Bereket Adamsseged" → "BA"
-export function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-}
+/**
+ * Toggles the DOM theme class list and updates localStorage
+ */
+export function toggleTheme(): void {
+  if (typeof window === "undefined") return
 
-// "2025-01-01" → "2 hours ago"
-export function formatRelativeTime(date: Date | string): string {
-  const d = typeof date === "string" ? new Date(date) : date;
-  const diffMs = Date.now() - d.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
-  const diffHr = Math.floor(diffMin / 60);
-  const diffDay = Math.floor(diffHr / 24);
+  const currentTheme = getTheme()
+  const newTheme = currentTheme === "dark" ? "light" : "dark"
+  
+  const root = window.document.documentElement
+  
+  // Update the DOM classes for Tailwind's dark: variant modifiers
+  if (newTheme === "dark") {
+    root.classList.add("dark")
+  } else {
+    root.classList.remove("dark")
+  }
 
-  if (diffMin < 1) return "Just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
-  if (diffHr < 24) return `${diffHr}h ago`;
-  if (diffDay < 7) return `${diffDay}d ago`;
-
-  return d.toLocaleDateString("en-ET", { month: "short", day: "numeric" });
-}
-
-// Shorten long text with ellipsis
-export function truncate(text: string, maxLength: number): string {
-  if (text.length <= maxLength) return text;
-  return text.slice(0, maxLength - 3) + "…";
+  // Persist preference across page reloads
+  localStorage.setItem("theme", newTheme)
 }

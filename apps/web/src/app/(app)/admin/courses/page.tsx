@@ -1,0 +1,374 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  Plus, ChevronRight, Archive, Loader2, FolderTree, BookOpen,
+} from 'lucide-react'
+import api from '@/lib/api'
+import { cn } from '@/lib/utils'
+import type { Department, AcademicYear, Semester, Course } from '@/types'
+
+type Level = 'departments' | 'years' | 'semesters' | 'courses'
+
+export default function AdminCoursesPage() {
+  const [level, setLevel] = useState<Level>('departments')
+
+  const [departments, setDepartments] = useState<Department[]>([])
+  const [years, setYears]             = useState<AcademicYear[]>([])
+  const [semesters, setSemesters]     = useState<Semester[]>([])
+  const [courses, setCourses]         = useState<Course[]>([])
+
+  const [selectedDept, setSelectedDept]         = useState<Department | null>(null)
+  const [selectedYear, setSelectedYear]         = useState<AcademicYear | null>(null)
+  const [selectedSemester, setSelectedSemester] = useState<Semester | null>(null)
+
+  const [loading, setLoading]   = useState(true)
+  const [newName, setNewName]   = useState('')
+  const [creating, setCreating] = useState(false)
+
+  useEffect(() => { loadDepartments() }, [])
+
+  async function loadDepartments() {
+    setLoading(true)
+    try {
+      const res = await api.get('/departments/admin')
+      setDepartments(res.data)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function loadYears(deptId: string) {
+    setLoading(true)
+    try {
+      const res = await api.get(`/academic-years?departmentId=${deptId}`)
+      setYears(res.data)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function loadSemesters(yearId: string) {
+    setLoading(true)
+    try {
+      const res = await api.get(`/semesters?academicYearId=${yearId}`)
+      setSemesters(res.data)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function loadCourses(semesterId: string) {
+    setLoading(true)
+    try {
+      const res = await api.get(`/courses?semesterId=${semesterId}`)
+      setCourses(res.data)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function openDepartment(dept: Department) {
+    setSelectedDept(dept)
+    setLevel('years')
+    loadYears(dept.id)
+  }
+
+  function openYear(year: AcademicYear) {
+    setSelectedYear(year)
+    setLevel('semesters')
+    loadSemesters(year.id)
+  }
+
+  function openSemester(sem: Semester) {
+    setSelectedSemester(sem)
+    setLevel('courses')
+    loadCourses(sem.id)
+  }
+
+  // Breadcrumb navigation — jump back to any earlier level
+  function goBack(target: Level) {
+    setLevel(target)
+    if (target === 'departments') {
+      setSelectedDept(null); setSelectedYear(null); setSelectedSemester(null)
+    }
+    if (target === 'years') {
+      setSelectedYear(null); setSelectedSemester(null)
+    }
+    if (target === 'semesters') {
+      setSelectedSemester(null)
+    }
+  }
+
+  async function handleCreate() {
+    if (!newName.trim()) return
+    setCreating(true)
+    try {
+      if (level === 'departments') {
+        await api.post('/departments', { name: newName })
+        await loadDepartments()
+      } else if (level === 'years' && selectedDept) {
+        await api.post('/academic-years', {
+          departmentId: selectedDept.id,
+          label:        newName,
+        })
+        await loadYears(selectedDept.id)
+      } else if (level === 'semesters' && selectedYear) {
+        await api.post('/semesters', {
+          academicYearId: selectedYear.id,
+          name:           newName,
+        })
+        await loadSemesters(selectedYear.id)
+      } else if (level === 'courses' && selectedSemester) {
+        await api.post('/courses', {
+          semesterId:  selectedSemester.id,
+          title:       newName,
+          isPublished: true,
+        })
+        await loadCourses(selectedSemester.id)
+      }
+      setNewName('')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
+      alert(err?.response?.data?.message ?? 'Failed to create')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  async function handleArchiveCourse(id: string) {
+    await api.patch(`/courses/${id}/archive`)
+    if (selectedSemester) loadCourses(selectedSemester.id)
+  }
+
+  const placeholders: Record<Level, string> = {
+    departments: 'New department name (e.g. Pharmacy)',
+    years:       'New year label (e.g. Year 2)',
+    semesters:   'New semester name (e.g. Semester 2)',
+    courses:     'New course title (e.g. Physiology II)',
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-6">
+
+      {/* ── Header ───────────────────────────────────────── */}
+      <div className="flex items-center justify-between">
+        <h1 className="font-display text-2xl font-semibold text-primary">
+          Academic Structure
+        </h1>
+      </div>
+
+      {/* ── Breadcrumb ───────────────────────────────────── */}
+      <div className="flex items-center gap-2 text-sm">
+        <button
+          onClick={() => goBack('departments')}
+          className={cn(
+            'transition-colors',
+            level === 'departments' ? 'text-primary font-medium' : 'text-muted hover:text-secondary'
+          )}
+        >
+          Departments
+        </button>
+
+        {selectedDept && (
+          <>
+            <ChevronRight className="h-3.5 w-3.5 text-muted" />
+            <button
+              onClick={() => goBack('years')}
+              className={cn(
+                'transition-colors',
+                level === 'years' ? 'text-primary font-medium' : 'text-muted hover:text-secondary'
+              )}
+            >
+              {selectedDept.name}
+            </button>
+          </>
+        )}
+
+        {selectedYear && (
+          <>
+            <ChevronRight className="h-3.5 w-3.5 text-muted" />
+            <button
+              onClick={() => goBack('semesters')}
+              className={cn(
+                'transition-colors',
+                level === 'semesters' ? 'text-primary font-medium' : 'text-muted hover:text-secondary'
+              )}
+            >
+              {selectedYear.label}
+            </button>
+          </>
+        )}
+
+        {selectedSemester && (
+          <>
+            <ChevronRight className="h-3.5 w-3.5 text-muted" />
+            <span className="text-primary font-medium">
+              {selectedSemester.name}
+            </span>
+          </>
+        )}
+      </div>
+
+      {/* ── Add new row ──────────────────────────────────── */}
+      <div className="flex items-center gap-2">
+        <input
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+          placeholder={placeholders[level]}
+          className="
+            flex-1 bg-surface border border-default rounded-xl
+            px-4 py-2.5 text-sm text-primary placeholder:text-muted
+            focus:outline-none focus:border-accent
+            focus:ring-2 focus:ring-accent/20 transition-all
+          "
+        />
+        <button
+          onClick={handleCreate}
+          disabled={creating || !newName.trim()}
+          className="
+            flex items-center gap-1.5 px-4 py-2.5
+            bg-accent hover:bg-accent-hover text-white
+            rounded-xl text-sm font-medium transition-colors
+            disabled:opacity-50 disabled:cursor-not-allowed
+          "
+        >
+          {creating
+            ? <Loader2 className="h-4 w-4 animate-spin" />
+            : <Plus className="h-4 w-4" />
+          }
+          Add
+        </button>
+      </div>
+
+      {/* ── List ─────────────────────────────────────────── */}
+      <div className="min-h-[200px]">
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-5 w-5 animate-spin text-muted" />
+          </div>
+        ) : (
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={level}
+              initial={{ opacity: 0, x: 8 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -8 }}
+              transition={{ duration: 0.2 }}
+              className="space-y-0"
+            >
+              {/* DEPARTMENTS */}
+              {level === 'departments' && departments.map((dept, i) => (
+                <button
+                  key={dept.id}
+                  onClick={() => openDepartment(dept)}
+                  className={cn(
+                    'w-full flex items-center gap-3 py-3.5 px-2 -mx-2 rounded-lg text-left',
+                    'hover:bg-elevated transition-colors duration-150',
+                    i < departments.length - 1 && 'border-b border-subtle'
+                  )}
+                >
+                  <FolderTree className="h-4 w-4 text-accent flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-primary">{dept.name}</p>
+                    <p className="text-xs text-muted">
+                      {dept._count?.academicYears ?? 0} year{dept._count?.academicYears === 1 ? '' : 's'}
+                      {' · '}
+                      {dept._count?.students ?? 0} student{dept._count?.students === 1 ? '' : 's'}
+                    </p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted flex-shrink-0" />
+                </button>
+              ))}
+
+              {/* YEARS */}
+              {level === 'years' && years.map((year, i) => (
+                <button
+                  key={year.id}
+                  onClick={() => openYear(year)}
+                  className={cn(
+                    'w-full flex items-center gap-3 py-3.5 px-2 -mx-2 rounded-lg text-left',
+                    'hover:bg-elevated transition-colors duration-150',
+                    i < years.length - 1 && 'border-b border-subtle'
+                  )}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-primary">{year.label}</p>
+                    <p className="text-xs text-muted">
+                      {year._count?.semesters ?? 0} semester{year._count?.semesters === 1 ? '' : 's'}
+                    </p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted flex-shrink-0" />
+                </button>
+              ))}
+
+              {/* SEMESTERS */}
+              {level === 'semesters' && semesters.map((sem, i) => (
+                <button
+                  key={sem.id}
+                  onClick={() => openSemester(sem)}
+                  className={cn(
+                    'w-full flex items-center gap-3 py-3.5 px-2 -mx-2 rounded-lg text-left',
+                    'hover:bg-elevated transition-colors duration-150',
+                    i < semesters.length - 1 && 'border-b border-subtle'
+                  )}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-primary">{sem.name}</p>
+                    <p className="text-xs text-muted">
+                      {sem._count?.courses ?? 0} course{sem._count?.courses === 1 ? '' : 's'}
+                    </p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted flex-shrink-0" />
+                </button>
+              ))}
+
+              {/* COURSES */}
+              {level === 'courses' && courses.map((course, i) => (
+                <div
+                  key={course.id}
+                  className={cn(
+                    'flex items-center gap-3 py-3.5 px-2 -mx-2 rounded-lg',
+                    'hover:bg-elevated transition-colors duration-150',
+                    i < courses.length - 1 && 'border-b border-subtle'
+                  )}
+                >
+                  <BookOpen className="h-4 w-4 text-teal flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-primary">{course.title}</p>
+                    <p className="text-xs text-muted">
+                      {course.teacher?.fullName ?? 'No teacher assigned'}
+                      {' · '}
+                      {course.isPublished ? 'Published' : 'Draft'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleArchiveCourse(course.id)}
+                    className="text-muted hover:text-error transition-colors p-1.5"
+                    title="Archive course"
+                  >
+                    <Archive className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+
+              {/* Empty state */}
+              {!loading && (
+                (level === 'departments' && departments.length === 0) ||
+                (level === 'years' && years.length === 0) ||
+                (level === 'semesters' && semesters.length === 0) ||
+                (level === 'courses' && courses.length === 0)
+              ) && (
+                <p className="text-sm text-muted text-center py-12">
+                  Nothing here yet — add the first one above.
+                </p>
+              )}
+            </motion.div>
+          </AnimatePresence>
+        )}
+      </div>
+    </div>
+  )
+}

@@ -2,94 +2,165 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ══════════════════════════════════════════════
-   LOWER MENTOR — LORCAN MEDICAL COLLEGE
-   Design Tokens — Light & Dark Mode
-   ══════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════
+   LOR MENTOR — DESIGN SYSTEM
+   Lorcan Medical College · Addis Ababa, Ethiopia
+   
+   Design DNA: Apple Education + Linear + Notion + Medical Intelligence
+   Mood: Elegant · Focused · Professional · Premium · Calm
+   ════════════════════════════════════════════════════════════════ */
 
+/* ── ShadCN compatibility layer ─────────────────────────────── */
+@layer base {
+  :root {
+    --background: 222 47% 6%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 199 89% 48%;
+    --primary-foreground: 222 47% 6%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 55%;
+    --accent: 174 72% 40%;
+    --accent-foreground: 222 47% 6%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 199 89% 48%;
+    --radius: 0.75rem;
+  }
+
+  /* Light mode override */
+  [data-theme="light"] {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 6%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 6%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 6%;
+    --primary: 199 89% 40%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 6%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 174 72% 36%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 199 89% 40%;
+  }
+}
+
+/* ── Lor Mentor Design Tokens — Dark First ─────────────────── */
 :root {
-  /* Brand Teal Palette */
-  --t800: #0D3B3B;
-  --t700: #147878;
-  --t600: #1A8A8A;
-  --t500: #1A9494;
-  --t400: #78AAAE;
-  --t200: #B8D8DA;
-  --t100: #D9ECED;
-  --t50: #F0F8F8;
+  /* ── Core backgrounds ──────────────────────────────────────── */
+  --bg-base: #060B14;
+  /* Deep medical midnight */
+  --bg-surface: #0F172A;
+  /* Card surface */
+  --bg-elevated: #111827;
+  /* Elevated card */
+  --bg-subtle: #1E293B;
+  /* Subtle highlight */
+  --bg-glass: rgba(15, 23, 42, 0.7);
+  /* Glassmorphism */
 
-  /* Light Mode Surfaces */
-  --bg-base: #F0F8F8;
+  /* ── Borders ────────────────────────────────────────────────── */
+  --border-default: rgba(255, 255, 255, 0.06);
+  --border-subtle: rgba(255, 255, 255, 0.04);
+  --border-glass: rgba(255, 255, 255, 0.08);
+  --border-accent: rgba(14, 165, 233, 0.3);
+
+  /* ── Text ───────────────────────────────────────────────────── */
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-muted: #475569;
+  --text-faint: #1E293B;
+
+  /* ── Primary accent — Medical Blue ─────────────────────────── */
+  --accent-primary: #0EA5E9;
+  --accent-hover: #38BDF8;
+  --accent-dim: rgba(14, 165, 233, 0.12);
+  --accent-glow: rgba(14, 165, 233, 0.25);
+
+  /* ── Secondary accent — Medical Teal ───────────────────────── */
+  --teal: #14B8A6;
+  --teal-hover: #2DD4BF;
+  --teal-dim: rgba(20, 184, 166, 0.12);
+  --teal-glow: rgba(20, 184, 166, 0.25);
+
+  /* ── AI feature color ───────────────────────────────────────── */
+  --ai-primary: #A78BFA;
+  --ai-secondary: #7C3AED;
+  --ai-dim: rgba(167, 139, 250, 0.12);
+  --ai-glow: rgba(167, 139, 250, 0.2);
+
+  /* ── Lorcan brand (logo only) ───────────────────────────────── */
+  --lorcan-teal: #147878;
+  --lorcan-dark: #0D3B3B;
+
+  /* ── Semantic states ────────────────────────────────────────── */
+  --state-success: #10B981;
+  --state-warning: #F59E0B;
+  --state-error: #EF4444;
+
+  /* ── Glassmorphism ──────────────────────────────────────────── */
+  --glass-bg: rgba(15, 23, 42, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.07);
+  --glass-blur: 12px;
+}
+
+/* ── Light mode token overrides ─────────────────────────────── */
+[data-theme="light"] {
+  --bg-base: #F0F4F8;
   --bg-surface: #FFFFFF;
-  --bg-elevated: #F8FCFC;
-  --bg-subtle: #EFF7F7;
-
-  /* Light Mode Borders */
-  --border-default: #E2E8F0;
-  --border-subtle: #D9ECED;
-
-  /* Light Mode Text */
-  --text-primary: #0F1F1F;
+  --bg-elevated: #F8FAFC;
+  --bg-subtle: #F1F5F9;
+  --bg-glass: rgba(255, 255, 255, 0.8);
+  --border-default: rgba(0, 0, 0, 0.08);
+  --border-subtle: rgba(0, 0, 0, 0.04);
+  --border-glass: rgba(0, 0, 0, 0.06);
+  --border-accent: rgba(14, 165, 233, 0.25);
+  --text-primary: #0F172A;
   --text-secondary: #475569;
   --text-muted: #94A3B8;
-
-  /* Brand Accent */
-  --accent-primary: #147878;
-  --accent-hover: #1A8A8A;
-
-  /* AI Feature Color */
-  --ai-accent: #0D9488;
-  --ai-text: #2DD4BF;
-
-  /* Semantic States */
-  --state-success: #16A34A;
-  --state-warning: #D97706;
-  --state-error: #DC2626;
-
-  /* Sidebar — always dark in both modes */
-  --sidebar-bg: #0D3B3B;
-
-  /* Fonts */
-  --font-inter: 'Inter', system-ui, sans-serif;
-  --font-jakarta: 'Plus Jakarta Sans', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  --text-faint: #CBD5E1;
+  --accent-dim: rgba(14, 165, 233, 0.08);
+  --teal-dim: rgba(20, 184, 166, 0.08);
+  --ai-dim: rgba(167, 139, 250, 0.08);
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(0, 0, 0, 0.06);
 }
 
-/* ── Dark Mode ─────────────────────────────── */
-[data-theme="dark"] {
-  --bg-base: #0B1919;
-  --bg-surface: #0F2424;
-  --bg-elevated: #142E2E;
-  --bg-subtle: #162828;
-  --border-default: #1E3C3C;
-  --border-subtle: #2A4040;
-  --text-primary: #EFF8F8;
-  --text-secondary: #8BBCBC;
-  --text-muted: #4A7070;
-  --accent-primary: #1A9494;
-  --accent-hover: #1A8A8A;
-  --state-success: #22C55E;
-  --state-warning: #FBBF24;
-  --state-error: #F87171;
-}
-
-/* ── Base Styles ───────────────────────────── */
+/* ════════════════════════════════════════════════════════════════
+   BASE STYLES
+   ════════════════════════════════════════════════════════════════ */
 @layer base {
   * {
+    border-color: var(--border-default);
     box-sizing: border-box;
-    margin: 0;
-    padding: 0;
   }
 
   html {
     scroll-behavior: smooth;
+    background-color: var(--bg-base);
   }
 
   body {
     background-color: var(--bg-base);
     color: var(--text-primary);
-    font-family: var(--font-inter);
+    font-family: 'Inter', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    line-height: 1.6;
   }
 
   h1,
@@ -98,14 +169,17 @@
   h4,
   h5,
   h6 {
-    font-family: var(--font-jakarta);
+    font-family: 'Geist', 'Inter', system-ui, sans-serif;
     font-weight: 600;
+    letter-spacing: -0.02em;
     color: var(--text-primary);
+    line-height: 1.2;
   }
 
   /* Scrollbar */
   ::-webkit-scrollbar {
-    width: 5px;
+    width: 3px;
+    height: 3px;
   }
 
   ::-webkit-scrollbar-track {
@@ -117,42 +191,257 @@
     border-radius: 10px;
   }
 
+  /* Selection */
+  ::selection {
+    background: var(--accent-dim);
+    color: var(--accent-primary);
+  }
+
   /* Focus ring */
   :focus-visible {
     outline: 2px solid var(--accent-primary);
     outline-offset: 2px;
-    border-radius: 4px;
+    border-radius: 6px;
   }
 }
 
-/* ── Component Utilities ───────────────────── */
-@layer components {
-  .card {
-    background-color: var(--bg-surface);
-    border: 1px solid var(--border-default);
-    border-radius: 0.75rem;
-    padding: 1rem;
+/* ════════════════════════════════════════════════════════════════
+   ANIMATION SYSTEM
+   ════════════════════════════════════════════════════════════════ */
+
+/* 1. Floating effect — for hero elements and 3D previews */
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0px);
   }
 
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+/* 2. Gentle bounce — for notification badges, CTA buttons */
+@keyframes bounce-soft {
+
+  0%,
+  100% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+  }
+
+  50% {
+    transform: translateY(-6px);
+    animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+  }
+}
+
+/* 3. Fade up — for cards and content appearing */
+@keyframes fade-up {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 4. Fade in — simple opacity */
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
+/* 5. Shimmer — for skeleton loaders */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* 6. Pulse glow — for AI elements */
+@keyframes pulse-glow {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--accent-glow);
+  }
+
+  50% {
+    box-shadow: 0 0 24px 4px var(--accent-glow);
+  }
+}
+
+/* 7. Word reveal — for hero text animation */
+@keyframes word-reveal {
+  0% {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0%);
+  }
+}
+
+/* 8. Gradient shift — for animated gradient backgrounds */
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* 9. Scale in — for modals and cards appearing */
+@keyframes scale-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* 10. Slide in from right */
+@keyframes slide-in-right {
+  0% {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   COMPONENT UTILITIES
+   ════════════════════════════════════════════════════════════════ */
+@layer components {
+
+  /* ── Glass card ─────────────────────────────────────────────── */
+  .glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+    border-radius: 0.75rem;
+  }
+
+  /* ── Standard card ──────────────────────────────────────────── */
+  .card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+  }
+
+  .card-hover {
+    @apply card transition-all duration-200;
+  }
+
+  .card-hover:hover {
+    border-color: var(--border-accent);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px var(--accent-glow);
+  }
+
+  /* ── Glow effects ───────────────────────────────────────────── */
+  .glow-accent {
+    box-shadow: 0 0 24px var(--accent-glow), 0 0 48px rgba(14, 165, 233, 0.1);
+  }
+
+  .glow-teal {
+    box-shadow: 0 0 24px var(--teal-glow), 0 0 48px rgba(20, 184, 166, 0.1);
+  }
+
+  .glow-ai {
+    box-shadow: 0 0 24px var(--ai-glow), 0 0 48px rgba(167, 139, 250, 0.1);
+  }
+
+  /* ── Progress bar ───────────────────────────────────────────── */
   .progress-track {
-    background-color: var(--border-default);
+    background: var(--bg-subtle);
     border-radius: 9999px;
     height: 4px;
     overflow: hidden;
   }
 
   .progress-fill {
-    background-color: var(--accent-primary);
+    background: linear-gradient(90deg, var(--accent-primary), var(--teal));
     border-radius: 9999px;
     height: 100%;
-    transition: width 0.5s ease;
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
+  /* ── Gradient text ──────────────────────────────────────────── */
+  .text-gradient-blue {
+    background: linear-gradient(135deg, var(--accent-primary) 0%, var(--teal) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .text-gradient-ai {
+    background: linear-gradient(135deg, var(--ai-primary) 0%, var(--accent-primary) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ── Animated gradient background ──────────────────────────── */
+  .bg-gradient-animated {
+    background: linear-gradient(-45deg,
+        #060B14,
+        #0F172A,
+        #0EA5E910,
+        #14B8A610);
+    background-size: 400% 400%;
+    animation: gradient-shift 15s ease infinite;
+  }
+
+  /* ── Skeleton loader ────────────────────────────────────────── */
+  .skeleton {
+    background: linear-gradient(90deg,
+        var(--bg-surface) 25%,
+        var(--bg-subtle) 50%,
+        var(--bg-surface) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 0.5rem;
+  }
+
+  /* ── AI badge ───────────────────────────────────────────────── */
   .badge-ai {
-    background-color: rgba(13, 148, 136, 0.12);
-    color: var(--ai-text);
-    border: 1px solid rgba(13, 148, 136, 0.25);
-    padding: 2px 10px;
+    background: var(--ai-dim);
+    color: var(--ai-primary);
+    border: 1px solid rgba(167, 139, 250, 0.2);
+    padding: 3px 10px;
     border-radius: 9999px;
     font-size: 0.6875rem;
     font-weight: 500;
@@ -161,10 +450,70 @@
     gap: 4px;
   }
 
+  /* ── High Yield badge ───────────────────────────────────────── */
+  .badge-hy {
+    background: rgba(245, 158, 11, 0.12);
+    color: #F59E0B;
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    padding: 3px 10px;
+    border-radius: 9999px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+  }
+
+  /* ── Parallax container ─────────────────────────────────────── */
+  .parallax-container {
+    position: relative;
+    overflow: hidden;
+    transform-style: preserve-3d;
+  }
+
+  .parallax-layer {
+    will-change: transform;
+    transition: transform 0.1s linear;
+  }
+
+  /* ── Fade up on scroll — base state ────────────────────────── */
+  .reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1),
+      transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* ── Word by word reveal ────────────────────────────────────── */
+  .word-reveal span {
+    display: inline-block;
+    overflow: hidden;
+    vertical-align: bottom;
+  }
+
+  .word-reveal span>span {
+    display: inline-block;
+    animation: word-reveal 0.6s cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+
+  /* ── Page container ─────────────────────────────────────────── */
   .page-container {
     max-width: 1280px;
     margin: 0 auto;
     padding: 0 1.5rem;
     width: 100%;
+  }
+
+  /* ── Dot grid background ────────────────────────────────────── */
+  .bg-dot-grid {
+    background-image: radial-gradient(circle,
+        rgba(255, 255, 255, 0.04) 1px,
+        transparent 1px);
+    background-size: 24px 24px;
   }
 }
