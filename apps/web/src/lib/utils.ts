@@ -14,11 +14,12 @@ export function cn(...inputs: ClassValue[]): string {
 
 /**
  * Resolves the active theme state safely for both SSR and Client environments
+ * Uses 'lm-theme' as the localStorage key — matches the layout script
  */
 export function getTheme(): "light" | "dark" {
-  if (typeof window === "undefined") return "light"
+  if (typeof window === "undefined") return "dark"
 
-  const savedTheme = localStorage.getItem("theme")
+  const savedTheme = localStorage.getItem("lm-theme")
   if (savedTheme === "light" || savedTheme === "dark") {
     return savedTheme
   }
@@ -28,23 +29,18 @@ export function getTheme(): "light" | "dark" {
 }
 
 /**
- * Toggles the DOM theme class list and updates localStorage
+ * Toggles the DOM data-theme attribute and updates localStorage
+ * Uses 'lm-theme' as the localStorage key — matches the layout script
  */
 export function toggleTheme(): void {
   if (typeof window === "undefined") return
 
   const currentTheme = getTheme()
   const newTheme = currentTheme === "dark" ? "light" : "dark"
-  
-  const root = window.document.documentElement
-  
-  // Update the DOM classes for Tailwind's dark: variant modifiers
-  if (newTheme === "dark") {
-    root.classList.add("dark")
-  } else {
-    root.classList.remove("dark")
-  }
+
+  // Update the data-theme attribute — Tailwind reads this for dark mode
+  document.documentElement.setAttribute("data-theme", newTheme)
 
   // Persist preference across page reloads
-  localStorage.setItem("theme", newTheme)
+  localStorage.setItem("lm-theme", newTheme)
 }
