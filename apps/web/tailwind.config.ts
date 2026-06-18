@@ -1,8 +1,9 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-  // Default is dark — light is the override
-  darkMode: ["selector", '[data-theme="light"]'],
+  // dark mode activates when <html data-theme="dark"> — the default
+  // light mode is the override via [data-theme="light"] token overrides in globals.css
+  darkMode: ["selector", '[data-theme="dark"]'],
 
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
@@ -48,6 +49,24 @@ const config: Config = {
           dark: "var(--lorcan-dark)",
         },
 
+        // ── Brand palette (sidebar uses these) ───────────────
+        // Mapped to the Lorcan teal scale so the sidebar always
+        // renders in the brand dark-teal regardless of theme
+        brand: {
+          950: "#020D0D",
+          900: "#061212",
+          800: "#0A1A1A",
+          750: "#0D2424",
+          700: "#147878",
+          600: "#1A8A8A",
+          500: "#1A9494",
+          400: "#78AAAE",
+          300: "#9EC4C7",
+          200: "#B8D8DA",
+          100: "#D9ECED",
+          50:  "#F0F8F8",
+        },
+
         // ── Borders ───────────────────────────────────────────
         border: {
           DEFAULT: "var(--border-default)",
@@ -55,6 +74,12 @@ const config: Config = {
           accent: "var(--border-accent)",
           glass: "var(--border-glass)",
         },
+
+        // ── Shorthand aliases so border-default / border-glass work ──
+        // Without these, Tailwind only generates border-border (the DEFAULT)
+        // but not border-default or border-glass as standalone classes
+        default: "var(--border-default)",
+        glass: "var(--border-glass)",
 
         // ── Semantic ──────────────────────────────────────────
         success: "var(--state-success)",
