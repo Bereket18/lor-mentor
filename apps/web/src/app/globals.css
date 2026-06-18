@@ -12,6 +12,7 @@
 
 /* ── ShadCN compatibility layer ─────────────────────────────── */
 @layer base {
+  /* Dark mode (default) */
   :root {
     --background: 222 47% 6%;
     --foreground: 210 40% 98%;
@@ -133,9 +134,17 @@
   --text-secondary: #475569;
   --text-muted: #94A3B8;
   --text-faint: #CBD5E1;
+  --accent-primary: #0EA5E9;
+  --accent-hover: #38BDF8;
   --accent-dim: rgba(14, 165, 233, 0.08);
+  --accent-glow: rgba(14, 165, 233, 0.20);
+  --teal: #0D9488;
+  --teal-hover: #14B8A6;
   --teal-dim: rgba(20, 184, 166, 0.08);
   --ai-dim: rgba(167, 139, 250, 0.08);
+  --state-success: #16A34A;
+  --state-warning: #D97706;
+  --state-error: #DC2626;
   --glass-bg: rgba(255, 255, 255, 0.7);
   --glass-border: rgba(0, 0, 0, 0.06);
 }
