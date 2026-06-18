@@ -93,22 +93,16 @@ export default function LoginPage() {
       "
       >
         <div className="relative z-10">
-          {/* Lorcan brand badge — small, intentional */}
+          {/* Lorcan brand badge */}
           <div
-            className="
-            inline-flex items-center gap-2
-            bg-lorcan-dark/60 border border-lorcan/20
-            rounded-full px-3 py-1.5 mb-10
-          "
+            style={{ backgroundColor: "#0D3B3B", border: "1px solid rgba(20,120,120,0.3)" }}
+            className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 mb-10"
           >
             <div
-              className="w-1.5 h-1.5 rounded-full bg-lorcan
-              animate-pulse-glow"
+              style={{ backgroundColor: "#14B8A6" }}
+              className="w-1.5 h-1.5 rounded-full animate-pulse-glow"
             />
-            <span
-              className="text-[11px] font-medium text-lorcan
-              tracking-wide"
-            >
+            <span style={{ color: "#14B8A6" }} className="text-[11px] font-medium tracking-wide">
               LORCAN MEDICAL COLLEGE
             </span>
           </div>

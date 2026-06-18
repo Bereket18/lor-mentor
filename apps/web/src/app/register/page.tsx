@@ -115,32 +115,38 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex bg-base relative overflow-hidden">
-      {/* Ambient glow — matches login page */}
+    <div className="min-h-screen flex bg-[#060B14] relative overflow-hidden">
+      {/* Ambient glow orbs — matches login page */}
       <div
+        style={{ background: "radial-gradient(circle, rgba(14,165,233,0.18) 0%, transparent 70%)" }}
         className="absolute top-0 left-0 w-[600px] h-[600px]
-        bg-accent/[0.07] rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2
+        rounded-full blur-3xl -translate-x-1/3 -translate-y-1/3
         pointer-events-none"
       />
       <div
+        style={{ background: "radial-gradient(circle, rgba(20,184,166,0.14) 0%, transparent 70%)" }}
         className="absolute bottom-0 right-0 w-[500px] h-[500px]
-        bg-teal/[0.06] rounded-full blur-3xl translate-x-1/3 translate-y-1/3
+        rounded-full blur-3xl translate-x-1/3 translate-y-1/3
         pointer-events-none"
       />
 
       {/* ── Left panel ───────────────────────────────────────── */}
       <div
+        style={{ borderRight: "1px solid rgba(255,255,255,0.08)" }}
         className="hidden lg:flex lg:w-[460px] flex-shrink-0
-        relative flex-col justify-between p-12 border-r border-glass"
+        relative flex-col justify-between p-12"
       >
         <div className="relative z-10">
+          {/* Lorcan brand badge */}
           <div
-            className="inline-flex items-center gap-2
-            bg-lorcan-dark/60 border border-lorcan/20
-            rounded-full px-3 py-1.5 mb-10"
+            style={{ backgroundColor: "#0D3B3B", border: "1px solid rgba(20,120,120,0.3)" }}
+            className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 mb-10"
           >
-            <div className="w-1.5 h-1.5 rounded-full bg-lorcan animate-pulse-glow" />
-            <span className="text-[11px] font-medium text-lorcan tracking-wide">
+            <div
+              style={{ backgroundColor: "#14B8A6" }}
+              className="w-1.5 h-1.5 rounded-full animate-pulse-glow"
+            />
+            <span style={{ color: "#14B8A6" }} className="text-[11px] font-medium tracking-wide">
               LORCAN MEDICAL COLLEGE
             </span>
           </div>
@@ -162,7 +168,7 @@ export default function RegisterPage() {
 
       {/* ── Right panel — form ───────────────────────────────── */}
       <div className="flex-1 flex items-center justify-center p-6 relative z-10">
-        <div className="w-full max-w-[420px] animate-fade-up">
+        <div className="w-full max-w-[420px] animate-fade-up" style={{ animationFillMode: "both" }}>
           <div className="mb-7">
             <h2 className="font-display text-2xl font-semibold text-primary mb-1.5">
               Create your account
