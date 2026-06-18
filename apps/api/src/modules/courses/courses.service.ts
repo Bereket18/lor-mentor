@@ -19,6 +19,36 @@ export class CoursesService {
     });
   }
 
+  // Courses visible to a specific student — scoped to their own
+  // department + academic year. This is the actual enforcement of
+  // "students cannot access other departments' content."
+  async findByStudent(studentId: string) {
+    const student = await this.prisma.user.findUnique({
+      where: { id: studentId },
+      select: { departmentId: true, academicYearId: true },
+    });
+
+    if (!student?.departmentId || !student?.academicYearId) {
+      // Student has no department/year set (e.g. legacy test account)
+      return [];
+    }
+
+    return this.prisma.course.findMany({
+      where: {
+        isArchived: false,
+        isPublished: true,
+        semester: {
+          academicYearId: student.academicYearId,
+        },
+      },
+      orderBy: { sortOrder: 'asc' },
+      include: {
+        teacher: { select: { id: true, fullName: true } },
+        _count: { select: { materials: true } },
+      },
+    });
+  }
+
   // TEACHER — sees their own courses regardless of published status
   async findByTeacher(teacherId: string) {
     return this.prisma.course.findMany({

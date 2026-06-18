@@ -47,6 +47,14 @@ export class CoursesController {
     return this.service.findAllAdmin();
   }
 
+  // GET /api/v1/courses/my-year — courses in the student's own department + year
+  // This enforces "cannot access other department" at the data level
+  @Get('my-year')
+  @UseGuards(JwtAuthGuard)
+  async findMyYear(@CurrentUser() user: AuthUser) {
+    return this.service.findByStudent(user.id);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.service.findOne(id);

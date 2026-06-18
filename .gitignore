@@ -30,3 +30,8 @@ Thumbs.db
 # Editor
 .vscode/settings.json
 .idea/
+
+# Uploaded files — never commit actual user content
+uploads/*
+!uploads/.gitkeep
+echo. > uploads\.gitkeep

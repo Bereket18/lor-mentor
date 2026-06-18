@@ -9,6 +9,7 @@ import { DepartmentsModule } from './modules/departments/departments.module';
 import { AcademicYearsModule } from './modules/academic-years/academic-years.module';
 import { SemestersModule } from './modules/semesters/semesters.module';
 import { CoursesModule } from './modules/courses/courses.module';
+import { MaterialsModule } from './modules/materials/materials.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { CoursesModule } from './modules/courses/courses.module';
     AcademicYearsModule,
     SemestersModule,
     CoursesModule,
+    MaterialsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
