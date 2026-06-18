@@ -78,8 +78,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
           title="Toggle Menu"
           aria-label="Open main navigation menu"
           onClick={onMenuToggle}
-          className="lg:hidden text-muted hover:text-primary
-            transition-colors"
+          className="lg:hidden text-muted hover:text-primary transition-colors"
         >
           <Menu className="h-5 w-5" />
         </button>
@@ -99,13 +98,14 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
             hover:bg-elevated
             transition-all
           "
-          aria-label="Toggle dark mode"
+          aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
         >
           {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </button>
 
         {/* Notifications bell */}
         <button
+          aria-label="Notifications"
           className="
           w-9 h-9 rounded-lg relative
           flex items-center justify-center
@@ -115,7 +115,6 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
         "
         >
           <Bell className="h-4 w-4" />
-          {/* Unread badge — we will wire this up in Sprint 9 */}
           <span
             className="
             absolute top-1.5 right-1.5
@@ -125,15 +124,15 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
           />
         </button>
 
-        {/* User avatar */}
+        {/* User avatar — always teal so it's visible in both modes */}
         <div
+          style={{ backgroundColor: "#147878" }}
           className="
           w-8 h-8 rounded-full
-          bg-accent
           flex items-center justify-center
           text-white text-xs font-bold
-          cursor-pointer
-          ml-1
+          cursor-pointer ml-1
+          select-none
         "
         >
           {user?.fullName ? getInitials(user.fullName) : "?"}
