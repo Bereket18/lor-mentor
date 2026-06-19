@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma, Role } from '@prisma/client';
+import * as bcrypt  from 'bcrypt'
+import * as crypto  from 'crypto'
 
 @Injectable()
 export class UsersService {
@@ -228,5 +230,48 @@ export class UsersService {
     });
 
     return { message: 'Profile updated', user };
+  }
+  // Create a teacher or admin account directly — admin action only
+  // The new account gets a random temporary password
+  // In production this will email them an invite link (future sprint)
+  async createStaffAccount(
+    data: { fullName: string; email: string; role: 'TEACHER' | 'ADMIN' },
+    _actorId: string,
+  ) {
+    const existing = await this.prisma.user.findUnique({
+      where: { email: data.email },
+    });
+    if (existing) {
+      throw new Error(`An account with ${data.email} already exists`);
+    }
+
+    // Generate a temporary password
+    const tempPassword = crypto.randomBytes(8).toString('hex');
+    const passwordHash = await bcrypt.hash(tempPassword, 12);
+
+    const user = await this.prisma.user.create({
+      data: {
+        email: data.email,
+        fullName: data.fullName,
+        passwordHash,
+        role: data.role,
+        isEmailVerified: true, // Staff accounts are pre-verified
+        isActive: true,
+      },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+      },
+    });
+
+    // TODO Sprint 7: email the temp password instead of returning it
+    // For now return it so admin can communicate it manually
+    return {
+      message: `${data.role} account created`,
+      user,
+      temporaryPassword: tempPassword,
+    };
   }
 }

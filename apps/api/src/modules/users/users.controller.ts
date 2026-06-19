@@ -6,6 +6,7 @@ import {
   Body,
   UseGuards,
   Query,
+  Post,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -41,6 +42,20 @@ export class UsersController {
   @Get()
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
+  // POST /api/v1/users/create-staff
+  // ADMIN only — creates a teacher or admin account directly
+  // This is the ONLY way to create accounts above STUDENT role
+  // Sends a temporary password; teacher must change on first login
+  @Post('create-staff')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  createStaff(
+    @Body()
+    body: { fullName: string; email: string; role: 'TEACHER' | 'ADMIN' },
+    @CurrentUser() actor: AuthUser,
+  ) {
+    return this.usersService.createStaffAccount(body, actor.id);
+  }
   findAll(
     @Query('page') page = '1',
     @Query('limit') limit = '20',

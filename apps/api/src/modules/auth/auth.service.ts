@@ -169,6 +169,18 @@ export class AuthService {
     return this.generateTokens(userId, user.email, user.role);
   }
 
+  // Verify a refresh token and return its payload
+  // Used by the refresh controller route
+  verifyRefreshToken(token: string): { sub: string } {
+    try {
+      return this.jwtService.verify(token, {
+        secret: this.config.get<string>('JWT_REFRESH_SECRET'),
+      });
+    } catch {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+  }
+
   // ── FORGOT PASSWORD ───────────────────────────────────
   async forgotPassword(email: string) {
     const user = await this.usersService.findByEmail(email);

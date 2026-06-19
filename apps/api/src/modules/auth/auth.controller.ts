@@ -5,8 +5,9 @@ import {
   Res,
   HttpCode,
   HttpStatus,
+  UnauthorizedException,
 } from '@nestjs/common';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -60,6 +61,40 @@ export class AuthController {
       message: result.message,
       user: result.user,
     };
+  }
+
+  // POST /api/v1/auth/refresh
+  // Called automatically by the axios interceptor when access token expires
+  // Uses the refresh token cookie to issue a new access token
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  async refresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    // Read the refresh token from the HTTP-only cookie
+    const refreshToken = (req as any).cookies?.refresh_token;
+    if (!refreshToken) {
+      throw new UnauthorizedException('No refresh token provided');
+    }
+
+    try {
+      // Verify the refresh token and get the user ID from it
+      const payload = this.authService.verifyRefreshToken(refreshToken);
+      const tokens = await this.authService.refreshTokens(payload.sub);
+
+      // Set the new access token cookie
+      res.cookie('access_token', tokens.accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 15 * 60 * 1000,
+      });
+
+      return { message: 'Token refreshed' };
+    } catch {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
   }
 
   // POST /api/v1/auth/logout
