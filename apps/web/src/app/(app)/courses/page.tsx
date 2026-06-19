@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Search, Loader2 } from "lucide-react";
 import api from "@/lib/api";
 import { CourseListItem } from "@/components/courses/course-list-item";
+import { SubscriptionGuard } from "@/components/subscription/subscription-guard";
 
 interface CourseData {
   id: string;
@@ -31,7 +32,8 @@ export default function CoursesPage() {
   );
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <SubscriptionGuard>
+      <div className="max-w-3xl mx-auto space-y-6">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
@@ -94,6 +96,7 @@ export default function CoursesPage() {
           ))}
         </div>
       )}
-    </div>
+      </div>
+    </SubscriptionGuard>
   );
 }

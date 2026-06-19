@@ -169,6 +169,12 @@ export class AuthService {
     return this.generateTokens(userId, user.email, user.role);
   }
 
+  async verifyRefreshToken(token: string) {
+    return this.jwtService.verifyAsync<{ sub: string }>(token, {
+      secret: this.config.get('JWT_REFRESH_SECRET'),
+    });
+  }
+
   // ── FORGOT PASSWORD ───────────────────────────────────
   async forgotPassword(email: string) {
     const user = await this.usersService.findByEmail(email);

@@ -5,8 +5,10 @@ import {
   Res,
   HttpCode,
   HttpStatus,
+  Req,
+  UnauthorizedException,
 } from '@nestjs/common';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -60,6 +62,45 @@ export class AuthController {
       message: result.message,
       user: result.user,
     };
+  }
+
+  // POST /api/v1/auth/refresh
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  async refresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    // Cast req.cookies to a record type so TS safely checks it
+    const cookies = req.cookies as Record<string, string | undefined>;
+    const refreshToken = cookies?.refresh_token;
+
+    if (!refreshToken) {
+      throw new UnauthorizedException('No refresh token');
+    }
+
+    try {
+      const payload = await this.authService.verifyRefreshToken(refreshToken);
+      const tokens = await this.authService.refreshTokens(payload.sub);
+
+      res.cookie('access_token', tokens.accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 15 * 60 * 1000,
+      });
+
+      res.cookie('refresh_token', tokens.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+
+      return { message: 'Token refreshed' };
+    } catch {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
   }
 
   // POST /api/v1/auth/logout

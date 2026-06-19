@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { Loader2, FileText, Image as ImageIcon, Youtube } from "lucide-react";
 import api from "@/lib/api";
 import { MaterialViewer } from "@/components/courses/material-viewer";
+import { SubscriptionGuard } from "@/components/subscription/subscription-guard";
 
 interface Material {
   id: string;
@@ -59,7 +60,8 @@ export default function CourseDetailPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8">
+    <SubscriptionGuard>
+      <div className="max-w-3xl mx-auto space-y-8">
       <div>
         <h1 className="font-display text-2xl font-semibold text-primary mb-2">
           {course.title}
@@ -123,6 +125,7 @@ export default function CourseDetailPage() {
           onClose={() => setActiveMaterial(null)}
         />
       )}
-    </div>
+      </div>
+    </SubscriptionGuard>
   );
 }

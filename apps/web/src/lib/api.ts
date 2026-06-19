@@ -33,7 +33,9 @@ api.interceptors.response.use(
       // on an auth page — prevents infinite loop
       const isAuthPage =
         window.location.pathname.startsWith("/login") ||
-        window.location.pathname.startsWith("/register");
+        window.location.pathname.startsWith("/register") ||
+        window.location.pathname.startsWith("/admin-login") ||
+        window.location.pathname.startsWith("/pricing");
 
       if (!isAuthPage) {
         try {

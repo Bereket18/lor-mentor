@@ -10,6 +10,9 @@ import { AcademicYearsModule } from './modules/academic-years/academic-years.mod
 import { SemestersModule } from './modules/semesters/semesters.module';
 import { CoursesModule } from './modules/courses/courses.module';
 import { MaterialsModule } from './modules/materials/materials.module';
+import { PlansModule } from './modules/plans/plans.module';
+import { PaymentsModule } from './modules/payments/payments.module';
+import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -22,6 +25,9 @@ import { MaterialsModule } from './modules/materials/materials.module';
     SemestersModule,
     CoursesModule,
     MaterialsModule,
+    PlansModule,
+    PaymentsModule,
+    SubscriptionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

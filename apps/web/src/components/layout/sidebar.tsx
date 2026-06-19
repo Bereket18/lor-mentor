@@ -35,6 +35,7 @@ const adminNav = [
   { href: "/admin", icon: LayoutDashboard, label: "Overview" },
   { href: "/admin/users", icon: User, label: "Users" },
   { href: "/admin/payments", icon: CreditCard, label: "Payments" },
+  { href: "/admin/plans", icon: CreditCard, label: "Plans" },
   { href: "/admin/courses", icon: BookOpen, label: "Courses" },
   { href: "/admin/audit", icon: BarChart3, label: "Audit Logs" },
 ];

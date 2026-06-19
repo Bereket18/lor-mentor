@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Post,
   Patch,
   Param,
   Body,
@@ -53,6 +54,21 @@ export class UsersController {
       search,
       role,
     });
+  }
+
+  // POST /api/v1/users/create-staff
+  @Post('create-staff')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  createStaff(
+    @Body()
+    body: {
+      fullName: string;
+      email: string;
+      role: 'TEACHER' | 'ADMIN';
+    },
+  ) {
+    return this.usersService.createStaff(body);
   }
 
   // PATCH /api/v1/users/:id/role
