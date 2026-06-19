@@ -1,8 +1,8 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-  // Default is dark — light is the override
-  darkMode: ["selector", '[data-theme="light"]'],
+  // dark mode is default (data-theme="dark"), light mode is the override
+  darkMode: ["selector", '[data-theme="dark"]'],
 
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
@@ -48,6 +48,26 @@ const config: Config = {
           dark: "var(--lorcan-dark)",
         },
 
+        // ── Brand palette (sidebar + auth panel) ─────────────
+        brand: {
+          950: "#020D0D",
+          900: "#061212",
+          800: "#0A1A1A",
+          750: "#0D2424",
+          700: "#147878",
+          600: "#1A8A8A",
+          500: "#1A9494",
+          400: "#78AAAE",
+          300: "#9EC4C7",
+          200: "#B8D8DA",
+          100: "#D9ECED",
+          50: "#F0F8F8",
+        },
+
+        // ── Top-level aliases so border-default/glass/default work ──
+        default: "var(--border-default)",
+        glass: "var(--border-glass)",
+
         // ── Borders ───────────────────────────────────────────
         border: {
           DEFAULT: "var(--border-default)",
@@ -87,7 +107,7 @@ const config: Config = {
         "glow-sm": "0 0 12px var(--accent-glow)",
         glow: "0 0 24px var(--accent-glow)",
         "glow-lg": "0 0 48px var(--accent-glow)",
-        "glow-teal": "0 0 24px var(--teal-glow)",
+        "glow-teal": "0 0 32px rgba(20,184,166,0.5), 0 0 60px rgba(20,184,166,0.2)",
         "glow-ai": "0 0 24px var(--ai-glow)",
         glass:
           "0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)",
