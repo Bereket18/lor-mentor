@@ -1,8 +1,7 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-  // dark mode activates when <html data-theme="dark"> — the default
-  // light mode is the override via [data-theme="light"] token overrides in globals.css
+  // dark mode is default (data-theme="dark"), light mode is the override
   darkMode: ["selector", '[data-theme="dark"]'],
 
   content: [
@@ -49,9 +48,7 @@ const config: Config = {
           dark: "var(--lorcan-dark)",
         },
 
-        // ── Brand palette (sidebar uses these) ───────────────
-        // Mapped to the Lorcan teal scale so the sidebar always
-        // renders in the brand dark-teal regardless of theme
+        // ── Brand palette (sidebar + auth panel) ─────────────
         brand: {
           950: "#020D0D",
           900: "#061212",
@@ -64,8 +61,12 @@ const config: Config = {
           300: "#9EC4C7",
           200: "#B8D8DA",
           100: "#D9ECED",
-          50:  "#F0F8F8",
+          50: "#F0F8F8",
         },
+
+        // ── Top-level aliases so border-default/glass/default work ──
+        default: "var(--border-default)",
+        glass: "var(--border-glass)",
 
         // ── Borders ───────────────────────────────────────────
         border: {
@@ -112,7 +113,7 @@ const config: Config = {
         "glow-sm": "0 0 12px var(--accent-glow)",
         glow: "0 0 24px var(--accent-glow)",
         "glow-lg": "0 0 48px var(--accent-glow)",
-        "glow-teal": "0 0 24px var(--teal-glow)",
+        "glow-teal": "0 0 32px rgba(20,184,166,0.5), 0 0 60px rgba(20,184,166,0.2)",
         "glow-ai": "0 0 24px var(--ai-glow)",
         glass:
           "0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)",

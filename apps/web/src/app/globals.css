@@ -121,32 +121,38 @@
 
 /* ── Light mode token overrides ─────────────────────────────── */
 [data-theme="light"] {
-  --bg-base: #F0F4F8;
-  --bg-surface: #FFFFFF;
-  --bg-elevated: #F8FAFC;
-  --bg-subtle: #F1F5F9;
-  --bg-glass: rgba(255, 255, 255, 0.8);
-  --border-default: rgba(0, 0, 0, 0.08);
-  --border-subtle: rgba(0, 0, 0, 0.04);
-  --border-glass: rgba(0, 0, 0, 0.06);
-  --border-accent: rgba(14, 165, 233, 0.25);
-  --text-primary: #0F172A;
-  --text-secondary: #475569;
-  --text-muted: #94A3B8;
-  --text-faint: #CBD5E1;
-  --accent-primary: #0EA5E9;
-  --accent-hover: #38BDF8;
-  --accent-dim: rgba(14, 165, 233, 0.08);
-  --accent-glow: rgba(14, 165, 233, 0.20);
-  --teal: #0D9488;
-  --teal-hover: #14B8A6;
-  --teal-dim: rgba(20, 184, 166, 0.08);
-  --ai-dim: rgba(167, 139, 250, 0.08);
-  --state-success: #16A34A;
-  --state-warning: #D97706;
-  --state-error: #DC2626;
-  --glass-bg: rgba(255, 255, 255, 0.7);
-  --glass-border: rgba(0, 0, 0, 0.06);
+  --bg-base:       #EEF4F4;
+  --bg-surface:    #FFFFFF;
+  --bg-elevated:   #F8FCFC;
+  --bg-subtle:     #EAF4F4;
+  --bg-glass:      rgba(255, 255, 255, 0.85);
+  --border-default: rgba(0, 0, 0, 0.07);
+  --border-subtle:  rgba(0, 0, 0, 0.04);
+  --border-glass:   rgba(0, 0, 0, 0.06);
+  --border-accent:  rgba(14, 116, 144, 0.3);
+  --text-primary:   #0A1A1A;
+  --text-secondary: #2C5F5F;
+  --text-muted:     #7AA9A9;
+  --text-faint:     #B8D8DA;
+  /* Teal accent in light mode — darker for contrast */
+  --accent-primary: #0E7A7A;
+  --accent-hover:   #147878;
+  --accent-dim:     rgba(14, 122, 122, 0.10);
+  --accent-glow:    rgba(14, 122, 122, 0.22);
+  --teal:           #0D9488;
+  --teal-hover:     #14B8A6;
+  --teal-dim:       rgba(13, 148, 136, 0.10);
+  --teal-glow:      rgba(13, 148, 136, 0.22);
+  --ai-primary:     #7C3AED;
+  --ai-dim:         rgba(124, 58, 237, 0.08);
+  --ai-glow:        rgba(124, 58, 237, 0.18);
+  --lorcan-teal:    #0E7A7A;
+  --lorcan-dark:    #0A4A4A;
+  --state-success:  #0D6B4E;
+  --state-warning:  #B45309;
+  --state-error:    #B91C1C;
+  --glass-bg:       rgba(255, 255, 255, 0.75);
+  --glass-border:   rgba(0, 0, 0, 0.06);
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -430,6 +436,17 @@
         #0F172A,
         #0EA5E910,
         #14B8A610);
+    background-size: 400% 400%;
+    animation: gradient-shift 15s ease infinite;
+  }
+
+  /* Light mode variant */
+  [data-theme="light"] .bg-gradient-animated {
+    background: linear-gradient(-45deg,
+        #EEF4F4,
+        #F0FAFA,
+        rgba(14,122,122,0.06),
+        rgba(13,148,136,0.06));
     background-size: 400% 400%;
     animation: gradient-shift 15s ease infinite;
   }
