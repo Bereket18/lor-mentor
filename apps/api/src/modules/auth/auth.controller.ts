@@ -5,6 +5,7 @@ import {
   Res,
   HttpCode,
   HttpStatus,
+  Req,
   UnauthorizedException,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
@@ -64,26 +65,24 @@ export class AuthController {
   }
 
   // POST /api/v1/auth/refresh
-  // Called automatically by the axios interceptor when access token expires
-  // Uses the refresh token cookie to issue a new access token
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   async refresh(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    // Read the refresh token from the HTTP-only cookie
-    const refreshToken = (req as any).cookies?.refresh_token;
+    // Cast req.cookies to a record type so TS safely checks it
+    const cookies = req.cookies as Record<string, string | undefined>;
+    const refreshToken = cookies?.refresh_token;
+
     if (!refreshToken) {
-      throw new UnauthorizedException('No refresh token provided');
+      throw new UnauthorizedException('No refresh token');
     }
 
     try {
-      // Verify the refresh token and get the user ID from it
-      const payload = this.authService.verifyRefreshToken(refreshToken);
+      const payload = await this.authService.verifyRefreshToken(refreshToken);
       const tokens = await this.authService.refreshTokens(payload.sub);
 
-      // Set the new access token cookie
       res.cookie('access_token', tokens.accessToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -91,9 +90,16 @@ export class AuthController {
         maxAge: 15 * 60 * 1000,
       });
 
+      res.cookie('refresh_token', tokens.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+
       return { message: 'Token refreshed' };
     } catch {
-      throw new UnauthorizedException('Invalid or expired refresh token');
+      throw new UnauthorizedException('Invalid refresh token');
     }
   }
 

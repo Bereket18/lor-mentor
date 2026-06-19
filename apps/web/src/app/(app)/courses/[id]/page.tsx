@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { Loader2, FileText, Image as ImageIcon, Video } from "lucide-react";
+import { Loader2, FileText, Image as ImageIcon, PlayCircle } from "lucide-react";
 import api from "@/lib/api";
 import { MaterialViewer } from "@/components/courses/material-viewer";
+import { SubscriptionGuard } from "@/components/subscription/subscription-guard";
 
 interface Material {
   id: string;
@@ -24,7 +25,7 @@ interface CourseDetail {
 const typeIcon = {
   PDF: FileText,
   IMAGE: ImageIcon,
-  YOUTUBE: Video,
+  YOUTUBE: PlayCircle,
 };
 
 export default function CourseDetailPage() {
@@ -65,7 +66,8 @@ export default function CourseDetailPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8">
+    <SubscriptionGuard>
+      <div className="max-w-3xl mx-auto space-y-8">
       <div>
         <h1 className="font-display text-2xl font-semibold text-primary mb-2">
           {course.title}
@@ -129,6 +131,7 @@ export default function CourseDetailPage() {
           onClose={() => setActiveMaterial(null)}
         />
       )}
-    </div>
+      </div>
+    </SubscriptionGuard>
   );
 }

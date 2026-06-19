@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Eye, EyeOff, Loader2, Shield } from "lucide-react";
+import { Eye, EyeOff, Loader2, ArrowRight, Shield } from "lucide-react";
 import api from "@/lib/api";
 
 const schema = z.object({
@@ -35,68 +36,44 @@ export default function AdminLoginPage() {
       const res = await api.post("/auth/login", data);
       const user = res.data.user;
 
-      // Only allow ADMIN and TEACHER roles through this portal
-      if (!["ADMIN", "SUPER_ADMIN", "TEACHER"].includes(user.role)) {
+      if (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN") {
         await api.post("/auth/logout");
-        setServerError(
-          "This portal is for staff only. Students please use the main login page.",
-        );
-        setIsSubmitting(false);
+        setServerError("This portal is for administrators only.");
         return;
       }
 
-      if (user.role === "TEACHER") {
-        router.push("/teacher");
-      } else {
-        router.push("/admin");
-      }
-    } catch (err: any) {
-      setServerError(err?.response?.data?.message ?? "Something went wrong.");
+      router.push("/admin");
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message ?? "Something went wrong.";
+      setServerError(message);
     } finally {
       setIsSubmitting(false);
     }
   }
 
   return (
-    <div className="min-h-screen bg-base flex items-center justify-center p-6 relative overflow-hidden">
-      {/* Ambient glow */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div
-          className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-96
-          rounded-full blur-3xl"
-          style={{
-            background:
-              "radial-gradient(circle, rgba(20,120,120,0.12) 0%, transparent 70%)",
-          }}
-        />
-      </div>
-
-      <div className="w-full max-w-sm relative z-10 animate-fade-up">
-        {/* Logo and portal label */}
-        <div className="text-center mb-8">
-          <div
-            className="inline-flex items-center justify-center w-12 h-12
-            rounded-2xl mb-4"
-            style={{
-              backgroundColor: "#0D3B3B",
-              border: "1px solid rgba(20,120,120,0.3)",
-            }}
-          >
-            <Shield className="h-5 w-5" style={{ color: "#14B8A6" }} />
-          </div>
-          <h1 className="font-display text-2xl font-semibold text-primary mb-1">
-            Staff Portal
-          </h1>
-          <p className="text-sm text-secondary">Lorcan Medical College</p>
-          <p className="text-xs text-muted mt-1">
-            For administrators and teachers only
-          </p>
+    <div className="min-h-screen flex items-center justify-center bg-base p-6">
+      <div className="w-full max-w-[400px] animate-fade-up">
+        <div className="flex items-center gap-2 mb-6">
+          <Shield className="h-5 w-5 text-accent" />
+          <span className="text-xs font-medium text-accent tracking-wide uppercase">
+            Admin Portal
+          </span>
         </div>
+
+        <h1 className="font-display text-2xl font-semibold text-primary mb-1.5">
+          Administrator sign in
+        </h1>
+        <p className="text-secondary text-sm mb-8">
+          Lor Mentor · Lorcan Medical College
+        </p>
 
         {serverError && (
           <div
-            className="bg-red-500/10 border border-red-500/20 text-red-400
-            rounded-xl px-4 py-3 text-sm mb-6 animate-scale-in"
+            className="bg-error/10 border border-error/20 text-error
+            rounded-xl px-4 py-3 text-sm mb-6"
           >
             {serverError}
           </div>
@@ -110,16 +87,14 @@ export default function AdminLoginPage() {
             <input
               {...register("email")}
               type="email"
-              placeholder="you@lorcan.edu.et"
-              className="w-full bg-surface border rounded-xl px-4 py-3 text-sm
-                text-primary placeholder:text-muted focus:outline-none
-                focus:ring-2 transition-all duration-150"
-              style={{ borderColor: "var(--border-default)" }}
+              placeholder="admin@lorcan.edu.et"
+              className="w-full bg-surface border border-default rounded-xl
+                px-4 py-3 text-sm text-primary placeholder:text-muted
+                focus:outline-none focus:border-accent focus:ring-2
+                focus:ring-accent/20 transition-all"
             />
             {errors.email && (
-              <p className="text-red-400 text-xs mt-1.5">
-                {errors.email.message}
-              </p>
+              <p className="text-error text-xs mt-1.5">{errors.email.message}</p>
             )}
           </div>
 
@@ -132,10 +107,10 @@ export default function AdminLoginPage() {
                 {...register("password")}
                 type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
-                className="w-full bg-surface border rounded-xl px-4 py-3 pr-11
-                  text-sm text-primary placeholder:text-muted focus:outline-none
-                  focus:ring-2 transition-all duration-150"
-                style={{ borderColor: "var(--border-default)" }}
+                className="w-full bg-surface border border-default rounded-xl
+                  px-4 py-3 pr-11 text-sm text-primary placeholder:text-muted
+                  focus:outline-none focus:border-accent focus:ring-2
+                  focus:ring-accent/20 transition-all"
               />
               <button
                 type="button"
@@ -151,7 +126,7 @@ export default function AdminLoginPage() {
               </button>
             </div>
             {errors.password && (
-              <p className="text-red-400 text-xs mt-1.5">
+              <p className="text-error text-xs mt-1.5">
                 {errors.password.message}
               </p>
             )}
@@ -160,10 +135,9 @@ export default function AdminLoginPage() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full text-white font-medium rounded-xl py-3 mt-2
-              flex items-center justify-center gap-2 transition-all duration-200
-              disabled:opacity-60 disabled:cursor-not-allowed"
-            style={{ backgroundColor: "#147878" }}
+            className="group w-full bg-accent hover:bg-accent-hover text-white
+              font-medium rounded-xl py-3 flex items-center justify-center gap-2
+              transition-all disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {isSubmitting ? (
               <>
@@ -171,16 +145,19 @@ export default function AdminLoginPage() {
                 Signing in...
               </>
             ) : (
-              "Sign in to Staff Portal"
+              <>
+                Sign in to admin
+                <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
+              </>
             )}
           </button>
         </form>
 
-        <p className="text-center text-xs text-muted mt-8">
-          Are you a student?{" "}
-          <a href="/login" className="underline" style={{ color: "#14B8A6" }}>
-            Go to student login
-          </a>
+        <p className="text-xs text-muted text-center mt-8">
+          Student or teacher?{" "}
+          <Link href="/login" className="text-accent hover:text-accent-hover">
+            Use the regular login
+          </Link>
         </p>
       </div>
     </div>

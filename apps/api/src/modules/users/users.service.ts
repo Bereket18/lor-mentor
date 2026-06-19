@@ -1,8 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma, Role } from '@prisma/client';
-import * as bcrypt  from 'bcrypt'
-import * as crypto  from 'crypto'
+import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class UsersService {
@@ -214,6 +214,41 @@ export class UsersService {
 
     const status = isActive ? 'activated' : 'deactivated';
     return { message: `Account ${status}`, user };
+  }
+
+  // Create a teacher or admin account — admin action
+  async createStaff(data: {
+    fullName: string;
+    email: string;
+    role: 'TEACHER' | 'ADMIN';
+  }) {
+    const existing = await this.findByEmail(data.email);
+    if (existing) {
+      throw new BadRequestException(
+        'An account with this email already exists',
+      );
+    }
+
+    const temporaryPassword = crypto.randomBytes(6).toString('hex');
+    const passwordHash = await bcrypt.hash(temporaryPassword, 12);
+
+    const user = await this.prisma.user.create({
+      data: {
+        email: data.email,
+        passwordHash,
+        fullName: data.fullName,
+        role: data.role,
+        isEmailVerified: true,
+      },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+      },
+    });
+
+    return { user, temporaryPassword };
   }
 
   // Student updates their own profile

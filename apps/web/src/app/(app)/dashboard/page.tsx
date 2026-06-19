@@ -6,8 +6,6 @@ import {
   ArrowRight,
   Sparkles,
   MessageSquare,
-  SquareStack as CardsIcon,
-  FileText,
   Flame,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
@@ -19,10 +17,7 @@ const fadeUp = {
   show: {
     opacity: 1,
     y: 0,
-    transition: {
-      duration: 0.4,
-      ease: [0.4, 0, 0.2, 1] as const,
-    },
+    transition: { duration: 0.4, ease: "easeOut" as const },
   },
 };
 

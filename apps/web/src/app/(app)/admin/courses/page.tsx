@@ -11,7 +11,7 @@ import {
   BookOpen,
   FileText,
   Image as ImageIcon,
-  Video,
+  PlayCircle,
   Upload,
   Trash2,
 } from "lucide-react";
@@ -27,7 +27,7 @@ interface Material {
   type: "PDF" | "IMAGE" | "YOUTUBE";
 }
 
-const typeIcon = { PDF: FileText, IMAGE: ImageIcon, YOUTUBE: Video };
+const typeIcon = { PDF: FileText, IMAGE: ImageIcon, YOUTUBE: PlayCircle };
 
 export default function AdminCoursesPage() {
   const [level, setLevel] = useState<Level>("departments");

@@ -5,6 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import {
   CreateMaterialDto,
   MaterialTypeInput,
@@ -19,7 +20,10 @@ export class MaterialsService {
   // Absolute path to our private uploads folder — never inside /public
   private readonly uploadDir = path.join(process.cwd(), 'uploads', 'materials');
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly subscriptionsService: SubscriptionsService,
+  ) {}
 
   // ── List materials for a course (used inside course detail) ────
   async findByCourse(courseId: string) {
@@ -177,6 +181,13 @@ export class MaterialsService {
       student?.academicYearId !== material.course.semester.academicYearId
     ) {
       throw new ForbiddenException('You do not have access to this material');
+    }
+
+    if (student?.role === 'STUDENT') {
+      await this.subscriptionsService.ensureActiveForStudent(
+        studentId,
+        student.role,
+      );
     }
 
     const fullPath = path.join(this.uploadDir, material.filePath);

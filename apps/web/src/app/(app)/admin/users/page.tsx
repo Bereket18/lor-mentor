@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Plus, Loader2, Shield, UserCheck } from "lucide-react";
 import api from "@/lib/api";
-import { Select } from "radix-ui";
 
 interface User {
   id: string;
@@ -58,6 +57,7 @@ export default function AdminUsersPage() {
       setCreatedPassword(res.data.temporaryPassword);
       setNewStaff({ fullName: "", email: "", role: "TEACHER" });
       await loadUsers();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       alert(err?.response?.data?.message ?? "Failed to create account");
     } finally {
@@ -261,6 +261,7 @@ export default function AdminUsersPage() {
                 <select
                   value={user.role}
                   onChange={(e) => handleRoleChange(user.id, e.target.value)}
+                  aria-label={`Change role for ${user.fullName || 'user'}`}
                   className={`text-xs font-medium bg-transparent
                     focus:outline-none cursor-pointer ${roleColors[user.role] ?? "text-secondary"}`}
                 >

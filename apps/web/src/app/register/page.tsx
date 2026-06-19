@@ -115,16 +115,16 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex bg-[#060B14] relative overflow-hidden">
-      {/* Ambient glow orbs — matches login page */}
+    <div suppressHydrationWarning className="min-h-screen flex bg-base relative overflow-hidden">
+      {/* Ambient glow — matches login page */}
       <div
-        style={{ background: "radial-gradient(circle, rgba(14,165,233,0.18) 0%, transparent 70%)" }}
+        suppressHydrationWarning
         className="absolute top-0 left-0 w-[600px] h-[600px]
         rounded-full blur-3xl -translate-x-1/3 -translate-y-1/3
         pointer-events-none"
       />
       <div
-        style={{ background: "radial-gradient(circle, rgba(20,184,166,0.14) 0%, transparent 70%)" }}
+        suppressHydrationWarning
         className="absolute bottom-0 right-0 w-[500px] h-[500px]
         rounded-full blur-3xl translate-x-1/3 translate-y-1/3
         pointer-events-none"
