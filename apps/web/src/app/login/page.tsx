@@ -191,12 +191,16 @@ export default function LoginPage() {
 
           {/* ── Footer ───────────────────────────────────── */}
           <div className="mt-8 pt-6" style={{ borderTop: "1px solid rgba(45,212,191,0.1)" }}>
-            <p className="text-white/30 text-xs">
-              Addis Ababa, Ethiopia · Est. 2020
-            </p>
-            <p className="text-white/20 text-[10px] mt-1">
-              © 2024 Lorcan Medical College. All rights reserved.
-            </p>
+            <p className="text-white/50 text-xs font-medium mb-2">Lorcan Medical College</p>
+            <div className="space-y-1">
+              <a href="https://lorcancm.edu.et" target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-white/30 hover:text-white/60 text-[11px] transition-colors">
+                🌐 lorcancm.edu.et
+              </a>
+              <p className="text-white/30 text-[11px]">📞 +251 11 863 4387 / +251 91 196 0059</p>
+              <p className="text-white/30 text-[11px]">✉️ lorcancm@gmail.com</p>
+              <p className="text-white/20 text-[10px] mt-1.5">CMC Square, behind Tsehay Real Estate,<br />beside ICMC Hospital · Addis Ababa</p>
+            </div>
           </div>
         </div>
       </div>
@@ -405,7 +409,7 @@ export default function LoginPage() {
             <div className="mt-8 flex items-center gap-2 justify-center">
               <Sparkles className="h-3 w-3" style={{ color: "#14B8A6" }} />
               <span className="text-xs text-muted">
-                Powered by AI · Built for Lorcan Medical College
+                Powered by Cornerstone Technologies Built for Lorcan Medical College
               </span>
             </div>
           </motion.div>
