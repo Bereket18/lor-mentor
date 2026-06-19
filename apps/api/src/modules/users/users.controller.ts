@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Param,
   Body,
   UseGuards,
@@ -15,8 +16,6 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UsersService } from './users.service';
 
-// ── Typed user shape returned by JwtStrategy.validate() ──────
-// We define the shape here so we never use 'any'
 interface AuthUser {
   id: string;
   email: string;
@@ -38,8 +37,7 @@ export class UsersController {
     return { user };
   }
 
-  // GET /api/v1/users
-  // Admin only — paginated list with search and role filter
+  // GET /api/v1/users?search=&role=&sortBy=role
   @Get()
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
@@ -59,15 +57,17 @@ export class UsersController {
   }
   findAll(
     @Query('page') page = '1',
-    @Query('limit') limit = '20',
+    @Query('limit') limit = '50',
     @Query('search') search = '',
     @Query('role') role = '',
+    @Query('sortBy') sortBy = '',
   ) {
     return this.usersService.findAll({
       page: parseInt(page, 10),
       limit: parseInt(limit, 10),
       search,
       role,
+      sortBy,
     });
   }
 
@@ -81,13 +81,22 @@ export class UsersController {
       fullName: string;
       email: string;
       role: 'TEACHER' | 'ADMIN';
+      departmentId?: string;
     },
   ) {
     return this.usersService.createStaff(body);
   }
 
+  // DELETE /api/v1/users/inactive — SUPER_ADMIN only
+  // Permanently removes student/guest accounts inactive for 12+ months
+  @Delete('inactive')
+  @UseGuards(RolesGuard)
+  @Roles('SUPER_ADMIN')
+  deleteInactive() {
+    return this.usersService.deleteInactiveUsers();
+  }
+
   // PATCH /api/v1/users/:id/role
-  // Admin only — change a user's role
   @Patch(':id/role')
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
@@ -100,7 +109,6 @@ export class UsersController {
   }
 
   // PATCH /api/v1/users/:id/status
-  // Admin only — activate or deactivate account
   @Patch(':id/status')
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
@@ -113,7 +121,6 @@ export class UsersController {
   }
 
   // PATCH /api/v1/users/me/profile
-  // Any logged-in user can update their own profile
   @Patch('me/profile')
   updateProfile(
     @CurrentUser() user: AuthUser,

@@ -1,26 +1,30 @@
 "use client";
 
-import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { Bell, Sun, Moon, Menu } from "lucide-react";
-import { toggleTheme, getTheme, cn } from "@/lib/utils";
+import { Bell, Menu } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { ThemeToggle } from "@/components/shared/theme-toggle";
 
-// Map routes to human-readable page titles
 const pageTitles: Record<string, string> = {
-  "/dashboard": "Dashboard",
-  "/courses": "My Courses",
-  "/ai-tutor": "AI Tutor",
-  "/flashcards": "Flashcards",
-  "/quiz": "Quizzes",
-  "/forum": "Forum",
-  "/progress": "Progress",
-  "/notifications": "Notifications",
-  "/profile": "Profile",
-  "/admin": "Admin Overview",
-  "/admin/users": "User Management",
-  "/admin/payments": "Payment Approvals",
-  "/teacher": "Teacher Dashboard",
+  "/dashboard":        "Dashboard",
+  "/courses":          "My Courses",
+  "/ai-tutor":         "AI Tutor",
+  "/flashcards":       "Flashcards",
+  "/quiz":             "Quizzes",
+  "/forum":            "Forum",
+  "/progress":         "Progress",
+  "/notifications":    "Notifications",
+  "/profile":          "Profile",
+  "/admin":            "Admin Overview",
+  "/admin/users":      "User Management",
+  "/admin/payments":   "Payment Approvals",
+  "/admin/plans":      "Subscription Plans",
+  "/admin/courses":    "Academic Structure",
+  "/admin/audit":      "Audit Logs",
+  "/teacher":          "Teacher Dashboard",
+  "/teacher/courses":  "My Courses",
+  "/teacher/analytics":"Analytics",
 };
 
 interface TopbarProps {
@@ -29,111 +33,90 @@ interface TopbarProps {
 
 export function Topbar({ onMenuToggle }: TopbarProps) {
   const pathname = usePathname();
-  const { user } = useAuth();
-  const [isDark, setIsDark] = useState(getTheme() === "dark");
+  const { user }  = useAuth();
 
-  // Get the page title or fall back to the path
   const title = pageTitles[pathname] ?? "Lor Mentor";
 
-  // function handleThemeToggle() {
-  //   const next = toggleTheme();
-  //   setIsDark(next === "dark");
-  // }
-
-  function handleThemeToggle() {
-    // 1. Run the side-effects (updates DOM & localStorage)
-    toggleTheme();
-
-    // 2. Read the new state cleanly using your getter helper
-    const currentTheme = getTheme();
-    setIsDark(currentTheme === "dark");
-  }
-
-  // Get initials from the user's full name
-  // Example: "Bereket Adamsseged" → "BA"
   function getInitials(name: string) {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .slice(0, 2)
-      .join("")
-      .toUpperCase();
+    return name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
   }
 
   return (
     <header
-      className="
-      h-14 flex-shrink-0
-      bg-surface border-b border-border
-      flex items-center justify-between
-      px-6
-      sticky top-0 z-40
-    "
+      className="h-14 flex-shrink-0 flex items-center justify-between px-5 sticky top-0 z-40"
+      style={{
+        background: "rgba(8, 20, 20, 0.85)",
+        backdropFilter: "blur(16px)",
+        WebkitBackdropFilter: "blur(16px)",
+        borderBottom: "1px solid rgba(45,212,191,0.1)",
+        boxShadow: "0 1px 0 rgba(45,212,191,0.05)",
+      }}
     >
-      {/* ── Left: mobile menu + page title ───────────── */}
+      {/* ── Left ─────────────────────────────────────── */}
       <div className="flex items-center gap-3">
-        {/* Mobile hamburger — hidden on desktop */}
+        {/* Mobile hamburger */}
         <button
           type="button"
-          title="Toggle Menu"
-          aria-label="Open main navigation menu"
+          aria-label="Open navigation menu"
           onClick={onMenuToggle}
-          className="lg:hidden text-muted hover:text-primary transition-colors"
+          className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg transition-colors"
+          style={{ color: "rgba(255,255,255,0.5)" }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.9)";
+            (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.5)";
+            (e.currentTarget as HTMLElement).style.background = "";
+          }}
         >
           <Menu className="h-5 w-5" />
         </button>
 
-        <h1 className="text-base font-semibold text-primary">{title}</h1>
+        <h1
+          className="text-sm font-semibold tracking-wide"
+          style={{ color: "rgba(255,255,255,0.85)" }}
+        >
+          {title}
+        </h1>
       </div>
 
-      {/* ── Right: theme toggle, notifications, avatar ─ */}
-      <div className="flex items-center gap-2">
-        {/* Theme toggle */}
-        <button
-          onClick={handleThemeToggle}
-          className="
-            w-9 h-9 rounded-lg
-            flex items-center justify-center
-            text-muted hover:text-primary
-            hover:bg-elevated
-            transition-all
-          "
-          aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-        >
-          {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-        </button>
+      {/* ── Right ────────────────────────────────────── */}
+      <div className="flex items-center gap-1.5">
+        {/* Theme toggle — pill variant from shared component */}
+        <ThemeToggle variant="pill" />
 
-        {/* Notifications bell */}
+        {/* Notifications */}
         <button
           aria-label="Notifications"
-          className="
-          w-9 h-9 rounded-lg relative
-          flex items-center justify-center
-          text-muted hover:text-primary
-          hover:bg-elevated
-          transition-all
-        "
+          className="relative w-9 h-9 flex items-center justify-center rounded-xl transition-all"
+          style={{ color: "rgba(255,255,255,0.5)" }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)";
+            (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.9)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.background = "";
+            (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.5)";
+          }}
         >
           <Bell className="h-4 w-4" />
           <span
-            className="
-            absolute top-1.5 right-1.5
-            w-2 h-2 rounded-full
-            bg-error
-          "
+            className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full"
+            style={{ background: "#EF4444" }}
           />
         </button>
 
-        {/* User avatar — always teal so it's visible in both modes */}
+        {/* Avatar */}
         <div
-          style={{ backgroundColor: "#147878" }}
-          className="
-          w-8 h-8 rounded-full
-          flex items-center justify-center
-          text-white text-xs font-bold
-          cursor-pointer ml-1
-          select-none
-        "
+          className={cn(
+            "w-8 h-8 rounded-full flex items-center justify-center",
+            "text-white text-xs font-bold cursor-pointer ml-1 select-none",
+          )}
+          style={{
+            background: "linear-gradient(135deg, #147878 0%, #1A9494 100%)",
+            boxShadow: "0 0 12px rgba(45,212,191,0.3)",
+          }}
         >
           {user?.fullName ? getInitials(user.fullName) : "?"}
         </div>

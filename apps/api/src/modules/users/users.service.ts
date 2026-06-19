@@ -127,11 +127,11 @@ export class UsersService {
     limit: number;
     search: string;
     role: string;
+    sortBy?: string;
   }) {
-    const { page, limit, search, role } = options;
+    const { page, limit, search, role, sortBy } = options;
     const skip = (page - 1) * limit;
 
-    // Use Prisma's generated type — it knows role must be Role enum
     const where: Prisma.UserWhereInput = {};
 
     if (search) {
@@ -141,17 +141,22 @@ export class UsersService {
       ];
     }
 
-    // Cast role string to Role enum — safe because we validate it
     if (role && Object.values(Role).includes(role as Role)) {
       where.role = role as Role;
     }
+
+    // Role sort order: SUPER_ADMIN > ADMIN > TEACHER > STUDENT > GUEST
+    // Prisma doesn't support enum ordering natively, so we fetch all
+    // and sort in memory only when sortBy=role is requested
+    const orderBy: Prisma.UserOrderByWithRelationInput =
+      sortBy === 'role' ? { role: 'asc' } : { createdAt: 'desc' };
 
     const [users, total] = await Promise.all([
       this.prisma.user.findMany({
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         select: {
           id: true,
           email: true,
@@ -160,19 +165,66 @@ export class UsersService {
           isActive: true,
           isEmailVerified: true,
           createdAt: true,
+          updatedAt: true,
+          departmentId: true,
+          department: { select: { id: true, name: true } },
         },
       }),
       this.prisma.user.count({ where }),
     ]);
 
+    // Custom role sort to get meaningful order
+    const roleOrder: Record<string, number> = {
+      SUPER_ADMIN: 0,
+      ADMIN: 1,
+      TEACHER: 2,
+      STUDENT: 3,
+      GUEST: 4,
+    };
+    if (sortBy === 'role') {
+      users.sort(
+        (a, b) => (roleOrder[a.role] ?? 9) - (roleOrder[b.role] ?? 9),
+      );
+    }
+
     return {
       users,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  // SUPER_ADMIN: delete accounts inactive for more than 12 months
+  async deleteInactiveUsers() {
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - 12);
+
+    // Find users who haven't updated their record in 12+ months AND are inactive
+    const inactive = await this.prisma.user.findMany({
+      where: {
+        isActive: false,
+        updatedAt: { lt: cutoff },
+        // Never auto-delete staff or admins
+        role: { in: ['STUDENT', 'GUEST'] },
       },
+      select: { id: true, email: true, fullName: true },
+    });
+
+    if (inactive.length === 0) {
+      return { message: 'No inactive accounts found older than 12 months', deleted: 0 };
+    }
+
+    const ids = inactive.map((u) => u.id);
+
+    // Delete in correct FK order
+    await this.prisma.progressRecord.deleteMany({ where: { userId: { in: ids } } });
+    await this.prisma.notification.deleteMany({ where: { userId: { in: ids } } });
+    await this.prisma.aiHistory.deleteMany({ where: { userId: { in: ids } } });
+    await this.prisma.user.deleteMany({ where: { id: { in: ids } } });
+
+    return {
+      message: `Deleted ${ids.length} inactive account(s)`,
+      deleted: ids.length,
+      users: inactive,
     };
   }
 
@@ -221,12 +273,23 @@ export class UsersService {
     fullName: string;
     email: string;
     role: 'TEACHER' | 'ADMIN';
+    departmentId?: string;
   }) {
     const existing = await this.findByEmail(data.email);
     if (existing) {
       throw new BadRequestException(
         'An account with this email already exists',
       );
+    }
+
+    // Validate department if provided
+    if (data.departmentId) {
+      const dept = await this.prisma.department.findUnique({
+        where: { id: data.departmentId },
+      });
+      if (!dept || dept.isArchived) {
+        throw new BadRequestException('Selected department is not valid');
+      }
     }
 
     const temporaryPassword = crypto.randomBytes(6).toString('hex');
@@ -239,12 +302,14 @@ export class UsersService {
         fullName: data.fullName,
         role: data.role,
         isEmailVerified: true,
+        ...(data.departmentId ? { departmentId: data.departmentId } : {}),
       },
       select: {
         id: true,
         email: true,
         fullName: true,
         role: true,
+        departmentId: true,
       },
     });
 
