@@ -55,30 +55,22 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex bg-[#060B14] relative overflow-hidden">
-      {/* ── Ambient glow orbs — top-left and bottom-right corners ── */}
-      {/* Using inline style because Tailwind v3 can't apply opacity   */}
-      {/* modifiers to CSS-variable-based colors                       */}
+    <div suppressHydrationWarning className="min-h-screen flex bg-base relative overflow-hidden">
+      {/* ── Ambient glow orbs ── */}
       <div
-        style={{
-          background:
-            "radial-gradient(circle, rgba(14,165,233,0.18) 0%, transparent 70%)",
-        }}
+        suppressHydrationWarning
         className="
           absolute top-0 left-0 w-[600px] h-[600px]
-          rounded-full blur-3xl
+          bg-accent/[0.07] rounded-full blur-3xl
           -translate-x-1/3 -translate-y-1/3
           pointer-events-none
         "
       />
       <div
-        style={{
-          background:
-            "radial-gradient(circle, rgba(20,184,166,0.14) 0%, transparent 70%)",
-        }}
+        suppressHydrationWarning
         className="
           absolute bottom-0 right-0 w-[500px] h-[500px]
-          rounded-full blur-3xl
+          bg-teal/[0.06] rounded-full blur-3xl
           translate-x-1/3 translate-y-1/3
           pointer-events-none
         "
@@ -86,10 +78,10 @@ export default function LoginPage() {
 
       {/* ── Left panel — brand + glass divider ──────────────────── */}
       <div
-        style={{ borderRight: "1px solid rgba(255,255,255,0.08)" }}
         className="
         hidden lg:flex lg:w-[460px] flex-shrink-0
         relative flex-col justify-between p-12
+        border-r border-glass
       "
       >
         <div className="relative z-10">
@@ -138,7 +130,6 @@ export default function LoginPage() {
       >
         <div
           className="w-full max-w-[380px] animate-fade-up"
-          style={{ animationFillMode: "both" }}
         >
           <div className="mb-8">
             <h2

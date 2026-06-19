@@ -115,14 +115,16 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex bg-base relative overflow-hidden">
+    <div suppressHydrationWarning className="min-h-screen flex bg-base relative overflow-hidden">
       {/* Ambient glow — matches login page */}
       <div
+        suppressHydrationWarning
         className="absolute top-0 left-0 w-[600px] h-[600px]
         bg-accent/[0.07] rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2
         pointer-events-none"
       />
       <div
+        suppressHydrationWarning
         className="absolute bottom-0 right-0 w-[500px] h-[500px]
         bg-teal/[0.06] rounded-full blur-3xl translate-x-1/3 translate-y-1/3
         pointer-events-none"

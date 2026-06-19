@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { Loader2, FileText, Image as ImageIcon, Youtube } from "lucide-react";
+import { Loader2, FileText, Image as ImageIcon, PlayCircle } from "lucide-react";
 import api from "@/lib/api";
 import { MaterialViewer } from "@/components/courses/material-viewer";
 import { SubscriptionGuard } from "@/components/subscription/subscription-guard";
@@ -25,7 +25,7 @@ interface CourseDetail {
 const typeIcon = {
   PDF: FileText,
   IMAGE: ImageIcon,
-  YOUTUBE: Youtube,
+  YOUTUBE: PlayCircle,
 };
 
 export default function CourseDetailPage() {
