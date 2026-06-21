@@ -273,6 +273,39 @@ export class UsersService {
     return { message: `Account ${status}`, user };
   }
 
+  // Delete a single user by ID — role-restricted
+  // SUPER_ADMIN: can delete ADMIN, TEACHER, STUDENT, GUEST (not other SUPER_ADMINs)
+  // ADMIN: can only delete STUDENT and GUEST accounts
+  async deleteUser(userId: string, actorRole: string) {
+    const target = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true, fullName: true, email: true },
+    });
+
+    if (!target) throw new Error('User not found');
+
+    // Prevent deleting any SUPER_ADMIN account
+    if (target.role === 'SUPER_ADMIN') {
+      throw new Error('Super admin accounts cannot be deleted');
+    }
+
+    // Admins can only delete students/guests
+    if (
+      actorRole === 'ADMIN' &&
+      !['STUDENT', 'GUEST'].includes(target.role)
+    ) {
+      throw new Error('Admins can only delete student or guest accounts');
+    }
+
+    // Delete in FK-safe order
+    await this.prisma.progressRecord.deleteMany({ where: { userId } });
+    await this.prisma.notification.deleteMany({ where: { userId } });
+    await this.prisma.aiHistory.deleteMany({ where: { userId } });
+    await this.prisma.user.delete({ where: { id: userId } });
+
+    return { message: `Account deleted`, deletedUser: target };
+  }
+
   // Create a teacher or admin account — admin action
   async createStaff(data: {
     fullName: string;

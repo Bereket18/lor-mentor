@@ -8,6 +8,8 @@ import {
   Body,
   UseGuards,
   Query,
+  ForbiddenException,
+  NotFoundException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -115,5 +117,24 @@ export class UsersController {
     @Body() body: { fullName?: string },
   ) {
     return this.usersService.updateProfile(user.id, body);
+  }
+
+  // DELETE /api/v1/users/:id
+  // SUPER_ADMIN: can delete ADMIN, TEACHER, STUDENT, GUEST
+  // ADMIN: can only delete STUDENT and GUEST
+  @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  async deleteUser(
+    @Param('id') id: string,
+    @CurrentUser() actor: AuthUser,
+  ) {
+    try {
+      return await this.usersService.deleteUser(id, actor.role);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Delete failed';
+      if (message === 'User not found') throw new NotFoundException(message);
+      throw new ForbiddenException(message);
+    }
   }
 }
