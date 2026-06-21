@@ -13,13 +13,13 @@ const COLLAPSED_KEY = "lm-sidebar-collapsed";
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, loading } = useAuth();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    // Lazily initialize from localStorage so no effect + setState cascade is needed
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem(COLLAPSED_KEY) === "true";
+  });
 
-  // Restore sidebar state from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem(COLLAPSED_KEY);
-    if (saved === "true") setCollapsed(true);
-  }, []);
+  // Restore sidebar state from localStorage — handled by lazy initializer above
 
   function handleToggle() {
     setCollapsed((prev) => {

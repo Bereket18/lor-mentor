@@ -18,7 +18,6 @@ function VerifyEmailContent() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [resending, setResending] = useState(false);
 
   async function handleVerify() {
     if (!token.trim()) {
@@ -35,8 +34,9 @@ function VerifyEmailContent() {
 
       // Redirect to login after 2 seconds
       setTimeout(() => router.push("/login"), 2000);
-    } catch (err: any) {
-      setError(err?.response?.data?.message ?? "Invalid or expired token.");
+    } catch (err: unknown) {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(message ?? "Invalid or expired token.");
     } finally {
       setLoading(false);
     }

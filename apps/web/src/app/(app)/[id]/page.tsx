@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { Loader2, BookOpen, FileText } from "lucide-react";
+import { Loader2, FileText } from "lucide-react";
 import api from "@/lib/api";
 
 interface CourseDetail {

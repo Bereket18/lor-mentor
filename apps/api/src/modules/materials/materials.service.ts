@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { AiService } from '../ai/ai.service';
 import {
   CreateMaterialDto,
   MaterialTypeInput,
@@ -13,16 +14,18 @@ import {
 import { UpdateMaterialDto } from './dto/update-material.dto';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as crypto from 'crypto';
 
 @Injectable()
 export class MaterialsService {
   // Absolute path to our private uploads folder — never inside /public
   private readonly uploadDir = path.join(process.cwd(), 'uploads', 'materials');
-
+  async getAiStatusForMaterial(materialId: string) {
+    return this.aiService.getStatus(materialId);
+  }
   constructor(
     private readonly prisma: PrismaService,
     private readonly subscriptionsService: SubscriptionsService,
+    private readonly aiService: AiService,
   ) {}
 
   // ── List materials for a course (used inside course detail) ────
@@ -81,6 +84,16 @@ export class MaterialsService {
         uploadedBy,
       },
     });
+
+    // Only PDFs get AI processing — images have no extractable text.
+    // This is fire-and-forget from here: the upload response goes back
+    // to the teacher immediately while the job runs independently.
+    if (dto.type === MaterialTypeInput.PDF) {
+      await this.aiService.enqueueGeneration(
+        material.id,
+        uploadedFile.filename,
+      );
+    }
 
     return this.stripFilePath(material);
   }
@@ -211,8 +224,12 @@ export class MaterialsService {
   }
 
   // Never send filePath to the frontend — it's an internal server detail
-  private stripFilePath(material: any) {
-    const { filePath, ...safe } = material;
+  private stripFilePath(material: {
+    filePath?: string | null;
+    [key: string]: unknown;
+  }) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { filePath: _filePath, ...safe } = material;
     return safe;
   }
 }

@@ -18,7 +18,9 @@ interface CourseListItemProps {
 export function CourseListItem({
   id,
   title,
-  description,
+  // description is part of the public API but not rendered in the list view
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  description: _description,
   teacherName,
   materialsCount = 0,
   progress,
