@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, Loader2, Shield, UserCheck, Trash2,
-  ChevronUp, ChevronDown, Search, AlertTriangle,
+  ChevronUp, ChevronDown, Search, AlertTriangle, UserX,
 } from "lucide-react";
 import api from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
@@ -122,6 +122,18 @@ export default function AdminUsersPage() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       alert(err?.response?.data?.message ?? "Failed to update status");
+    }
+  }
+
+  async function handleDeleteUser(userId: string, userRole: string) {
+    const confirmMsg = `Permanently delete this ${userRole.toLowerCase()} account? This cannot be undone.`;
+    if (!confirm(confirmMsg)) return;
+    try {
+      await api.delete(`/users/${userId}`);
+      setUsers((prev) => prev.filter((u) => u.id !== userId));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
+      alert(err?.response?.data?.message ?? "Failed to delete user");
     }
   }
 
@@ -269,7 +281,7 @@ export default function AdminUsersPage() {
                         style={
                           newStaff.role === r
                             ? { background: "linear-gradient(135deg, #147878, #1A9494)", color: "#fff", boxShadow: "0 0 12px rgba(45,212,191,0.25)" }
-                            : { background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(45,212,191,0.1)" }
+                            : { background: "var(--bg-subtle)", color: "var(--text-secondary)", border: "1px solid rgba(45,212,191,0.1)" }
                         }
                       >
                         {r}
@@ -418,10 +430,12 @@ export default function AdminUsersPage() {
                       onChange={(e) => handleRoleChange(user.id, e.target.value)}
                       aria-label={`Role for ${user.fullName}`}
                       className="text-xs font-semibold px-2 py-1 rounded-lg outline-none cursor-pointer transition-all"
-                      style={{ background: badge.bg, color: badge.color, border: "none" }}
+                      style={{ background: badge.bg, color: badge.color, border: "1px solid transparent" }}
                     >
                       {roleGroups.map((r) => (
-                        <option key={r} value={r}>{ROLE_BADGE[r]?.label ?? r}</option>
+                        <option key={r} value={r} style={{ background: "var(--bg-elevated)", color: "var(--text-primary)" }}>
+                          {ROLE_BADGE[r]?.label ?? r}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -441,6 +455,23 @@ export default function AdminUsersPage() {
                     >
                       {user.isActive ? "Active" : "Inactive"}
                     </button>
+
+                    {/* Delete button — SUPER_ADMIN can delete anyone except other SUPER_ADMINs;
+                        ADMIN can only delete STUDENT/GUEST */}
+                    {user.role !== "SUPER_ADMIN" && (
+                      (isSuperAdmin || ["STUDENT", "GUEST"].includes(user.role))
+                    ) && (
+                      <button
+                        onClick={() => handleDeleteUser(user.id, user.role)}
+                        title="Delete account"
+                        className="p-1.5 rounded-lg transition-all"
+                        style={{ color: "rgba(239,68,68,0.5)" }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "#EF4444"; (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,0.1)"; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(239,68,68,0.5)"; (e.currentTarget as HTMLElement).style.background = ""; }}
+                      >
+                        <UserX className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               );
