@@ -182,9 +182,7 @@ export class UsersService {
       GUEST: 4,
     };
     if (sortBy === 'role') {
-      users.sort(
-        (a, b) => (roleOrder[a.role] ?? 9) - (roleOrder[b.role] ?? 9),
-      );
+      users.sort((a, b) => (roleOrder[a.role] ?? 9) - (roleOrder[b.role] ?? 9));
     }
 
     return {
@@ -210,14 +208,21 @@ export class UsersService {
     });
 
     if (inactive.length === 0) {
-      return { message: 'No inactive accounts found older than 12 months', deleted: 0 };
+      return {
+        message: 'No inactive accounts found older than 12 months',
+        deleted: 0,
+      };
     }
 
     const ids = inactive.map((u) => u.id);
 
     // Delete in correct FK order
-    await this.prisma.progressRecord.deleteMany({ where: { userId: { in: ids } } });
-    await this.prisma.notification.deleteMany({ where: { userId: { in: ids } } });
+    await this.prisma.progressRecord.deleteMany({
+      where: { userId: { in: ids } },
+    });
+    await this.prisma.notification.deleteMany({
+      where: { userId: { in: ids } },
+    });
     await this.prisma.aiHistory.deleteMany({ where: { userId: { in: ids } } });
     await this.prisma.user.deleteMany({ where: { id: { in: ids } } });
 

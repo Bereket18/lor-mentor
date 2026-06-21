@@ -13,6 +13,18 @@ interface JwtPayload {
   role: string;
 }
 
+// The shape returned by UsersService.findById — excludes passwordHash
+interface SafeUser {
+  id: string;
+  email: string;
+  fullName: string;
+  role: string;
+  avatarPath: string | null;
+  isActive: boolean;
+  isEmailVerified: boolean;
+  createdAt: Date;
+}
+
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(
@@ -23,8 +35,13 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       // Tell Passport where to find the token
       // We read it from the HTTP-only cookie called 'access_token'
       jwtFromRequest: ExtractJwt.fromExtractors([
-        (request: Request) => {
-          return request?.cookies?.access_token ?? null;
+        (request: Request): string | null => {
+          // express cookie-parser adds cookies to req but types it as any;
+          // we safely cast to Record then extract the string value
+          const cookies = request?.cookies as
+            | Record<string, string>
+            | undefined;
+          return cookies?.access_token ?? null;
         },
       ]),
 
@@ -43,7 +60,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   // This runs automatically after the token signature is verified
   // Whatever we return here is attached to request.user
   // So in any controller we can use @CurrentUser() to get this
-  async validate(payload: JwtPayload) {
+  async validate(payload: JwtPayload): Promise<SafeUser> {
     const user = await this.usersService.findById(payload.sub);
 
     if (!user) {

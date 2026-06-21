@@ -28,7 +28,9 @@ export class PlansService {
   }
 
   async findOne(id: string) {
-    const plan = await this.prisma.subscriptionPlan.findUnique({ where: { id } });
+    const plan = await this.prisma.subscriptionPlan.findUnique({
+      where: { id },
+    });
     if (!plan) throw new NotFoundException('Plan not found');
     return plan;
   }

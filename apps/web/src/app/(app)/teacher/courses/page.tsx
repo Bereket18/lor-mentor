@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   BookOpen, FileText, PlayCircle, ImageIcon, Upload,
@@ -32,7 +32,8 @@ const typeColor = {
 };
 
 function GlowInput(props: React.InputHTMLAttributes<HTMLInputElement> & { hasError?: boolean }) {
-  const { hasError, className: _c, ...rest } = props;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { hasError, className: _className, ...rest } = props;
   return (
     <input
       {...rest}
@@ -56,9 +57,7 @@ export default function TeacherCoursesPage() {
   const [error,         setError]         = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { loadCourses(); }, []);
-
-  async function loadCourses() {
+  const loadCourses = useCallback(async () => {
     setLoading(true);
     try {
       const r = await api.get("/courses/mine");
@@ -73,7 +72,10 @@ export default function TeacherCoursesPage() {
       );
       setCourses(withMaterials);
     } finally { setLoading(false); }
-  }
+  }, []);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { loadCourses(); }, [loadCourses]);
 
   async function handleUpload() {
     if (!selectedCourse || !matTitle.trim()) { setError("Please enter a material title."); return; }

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -13,10 +14,18 @@ import { MaterialsModule } from './modules/materials/materials.module';
 import { PlansModule } from './modules/plans/plans.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
+import { AiModule } from './modules/ai/ai.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    // Root Redis connection — every BullMQ queue in the app shares this
+    BullModule.forRoot({
+      connection: {
+        host: process.env.REDIS_HOST ?? 'localhost',
+        port: parseInt(process.env.REDIS_PORT ?? '6379', 10),
+      },
+    }),
     PrismaModule,
     AuthModule,
     UsersModule,
@@ -28,6 +37,7 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
     PlansModule,
     PaymentsModule,
     SubscriptionsModule,
+    AiModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -56,7 +56,10 @@ export class UsersController {
     });
   }
 
-  // POST /api/v1/users/create-staff
+  // POST /api/v1/users/create-staff — ADMIN/SUPER_ADMIN only
+  // Creates a TEACHER or ADMIN account directly with a temp password,
+  // optionally assigning a department/program at creation time.
+  // This is the ONLY way to create accounts above STUDENT role.
   @Post('create-staff')
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
