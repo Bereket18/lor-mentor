@@ -101,11 +101,10 @@ export class MaterialsController {
 
     // Stream the file directly — never load the whole thing into memory
     res.setHeader('Content-Type', mimeType);
-    // 'inline' = browser displays it; 'attachment' would force a download.
-    // We use inline + we never include a download-friendly filename,
-    // making casual downloading slightly harder (full prevention
-    // requires more advanced PDF.js viewer restrictions — future sprint)
-    res.setHeader('Content-Disposition', 'inline');
+    // Security headers to discourage casual downloading
+    res.setHeader('Content-Disposition', 'inline; filename="material.pdf"');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'no-store');
     res.sendFile(fullPath);
   }
 

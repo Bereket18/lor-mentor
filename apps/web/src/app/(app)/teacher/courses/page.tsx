@@ -4,9 +4,10 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   BookOpen, FileText, PlayCircle, ImageIcon, Upload,
-  Loader2, Trash2, ChevronRight, Plus,
+  Loader2, Trash2, ChevronRight, Plus, AlertCircle,
 } from "lucide-react";
 import api from "@/lib/api";
+import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 
 interface Material {
@@ -46,8 +47,10 @@ function GlowInput(props: React.InputHTMLAttributes<HTMLInputElement> & { hasErr
 }
 
 export default function TeacherCoursesPage() {
+  const { user: currentUser } = useAuth();
   const [courses,       setCourses]       = useState<Course[]>([]);
   const [loading,       setLoading]       = useState(true);
+  const [loadError,     setLoadError]     = useState<string | null>(null);
   const [selectedCourse,setSelectedCourse]= useState<Course | null>(null);
   const [matType,       setMatType]       = useState<"PDF"|"IMAGE"|"YOUTUBE">("PDF");
   const [matTitle,      setMatTitle]      = useState("");
@@ -59,6 +62,7 @@ export default function TeacherCoursesPage() {
 
   const loadCourses = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const r = await api.get("/courses/mine");
       // For each course, also load its materials
@@ -71,6 +75,9 @@ export default function TeacherCoursesPage() {
         })
       );
       setCourses(withMaterials);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (e: any) {
+      setLoadError(`Error ${e?.response?.status ?? "unknown"}: ${e?.response?.data?.message ?? "Could not load courses."}`);
     } finally { setLoading(false); }
   }, []);
 
@@ -129,13 +136,31 @@ export default function TeacherCoursesPage() {
           <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#2DD4BF" }} />
         </div>
       ) : courses.length === 0 ? (
-        <div
-          className="rounded-2xl p-12 text-center"
-          style={{ border: "1px dashed rgba(45,212,191,0.2)" }}
-        >
-          <BookOpen className="h-10 w-10 mx-auto mb-4" style={{ color: "rgba(45,212,191,0.3)" }} />
-          <p className="text-secondary text-sm">No courses assigned to you yet.</p>
-          <p className="text-muted text-xs mt-1">Ask an admin to assign a course.</p>
+        <div>
+          {loadError ? (
+            <div
+              className="rounded-2xl p-8 flex items-start gap-3"
+              style={{ border: "1px solid rgba(239,68,68,0.2)", background: "rgba(239,68,68,0.07)" }}
+            >
+              <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" style={{ color: "#EF4444" }} />
+              <div>
+                <p className="text-sm font-semibold text-primary mb-1">Could not load courses</p>
+                <p className="text-xs" style={{ color: "#EF4444" }}>{loadError}</p>
+              </div>
+            </div>
+          ) : (
+            <div
+              className="rounded-2xl p-12 text-center"
+              style={{ border: "1px dashed rgba(45,212,191,0.2)" }}
+            >
+              <BookOpen className="h-10 w-10 mx-auto mb-4" style={{ color: "rgba(45,212,191,0.3)" }} />
+              <p className="text-secondary text-sm">No courses assigned to you yet.</p>
+              <p className="text-muted text-xs mt-1">
+                Your role: <span className="font-mono font-medium">{currentUser?.role ?? "unknown"}</span>
+                {" — ask an admin to assign a course to your account."}
+              </p>
+            </div>
+          )}
         </div>
       ) : (
         <div className="grid lg:grid-cols-5 gap-6">
@@ -153,7 +178,7 @@ export default function TeacherCoursesPage() {
                 style={
                   selectedCourse?.id === course.id
                     ? { background: "linear-gradient(135deg, rgba(20,120,120,0.25) 0%, rgba(45,212,191,0.1) 100%)", border: "1px solid rgba(45,212,191,0.3)" }
-                    : { background: "rgba(255,255,255,0.02)", border: "1px solid rgba(45,212,191,0.08)" }
+                    : { background: "var(--bg-surface)", border: "1px solid var(--border-subtle)" }
                 }
               >
                 <div className="flex items-center gap-3">
@@ -273,7 +298,7 @@ export default function TeacherCoursesPage() {
                               key={m.id}
                               className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all group"
                               style={{ border: "1px solid rgba(45,212,191,0.07)" }}
-                              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(45,212,191,0.03)"; }}
+                              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--accent-dim)"; }}
                               onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = ""; }}
                             >
                               <div

@@ -23,6 +23,8 @@ interface SafeUser {
   isActive: boolean;
   isEmailVerified: boolean;
   createdAt: Date;
+  department?: { id: string; name: string } | null;
+  academicYear?: { id: string; label: string } | null;
 }
 
 @Injectable()

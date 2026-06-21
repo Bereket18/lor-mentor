@@ -542,3 +542,23 @@
     background-size: 24px 24px;
   }
 }
+
+/* ── Light mode fixes ────────────────────────────────────────── */
+[data-theme="light"] .bg-dot-grid {
+  background-image: radial-gradient(circle,
+    rgba(0, 0, 0, 0.06) 1px,
+    transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Ensure select option text is always readable regardless of OS */
+[data-theme="light"] select option {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+/* Fix course/material cards that use inline rgba(255,255,255,...) borders
+   by providing a higher-specificity light-mode border token */
+[data-theme="light"] .border-default {
+  border-color: var(--border-default);
+}

@@ -33,6 +33,8 @@ export class UsersService {
         isActive: true,
         isEmailVerified: true,
         createdAt: true,
+        department: { select: { id: true, name: true } },
+        academicYear: { select: { id: true, label: true } },
       },
     });
   }
@@ -255,18 +257,29 @@ export class UsersService {
     return { message: `Role updated to ${role}`, user };
   }
 
-  // Activate or deactivate a user — admin action
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async changeStatus(userId: string, isActive: boolean, _actorId: string) {
+  // Activate or deactivate a user — role-restricted
+  // SUPER_ADMIN: can deactivate anyone except other SUPER_ADMINs
+  // ADMIN: can only deactivate STUDENT and GUEST accounts
+  async changeStatus(userId: string, isActive: boolean, actorRole: string) {
+    const target = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true },
+    });
+
+    if (!target) throw new Error('User not found');
+
+    if (target.role === 'SUPER_ADMIN') {
+      throw new Error('Super admin accounts cannot be deactivated');
+    }
+
+    if (actorRole === 'ADMIN' && !['STUDENT', 'GUEST'].includes(target.role)) {
+      throw new Error('Admins can only deactivate student or guest accounts');
+    }
+
     const user = await this.prisma.user.update({
       where: { id: userId },
       data: { isActive },
-      select: {
-        id: true,
-        email: true,
-        fullName: true,
-        isActive: true,
-      },
+      select: { id: true, email: true, fullName: true, isActive: true },
     });
 
     const status = isActive ? 'activated' : 'deactivated';

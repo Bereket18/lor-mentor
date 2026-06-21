@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -37,70 +37,73 @@ const highlights = [
   { icon: Users,  label: "Student Community",  sub: "Connect with 1 000+ fellow students" },
 ];
 
-// Reusable styled input with teal focus glow
-function GlowInput({
-  hasError,
-  ...props
-}: React.InputHTMLAttributes<HTMLInputElement> & { hasError?: boolean }) {
-  return (
-    <input
-      {...props}
-      className="
-        w-full rounded-xl px-4 py-3 text-sm text-primary
-        placeholder:text-muted/60 outline-none transition-all duration-200
-      "
-      style={{
-        background: "var(--bg-surface)",
-        border: hasError ? "1px solid rgba(239,68,68,0.5)" : "1px solid var(--border-default)",
-      }}
-      onFocus={(e) => {
-        if (!hasError) {
-          e.currentTarget.style.border = "1px solid rgba(20,184,166,0.6)";
-          e.currentTarget.style.boxShadow = "0 0 0 3px rgba(20,184,166,0.12), 0 0 20px rgba(20,184,166,0.08)";
-        }
-        props.onFocus?.(e);
-      }}
-      onBlur={(e) => {
-        e.currentTarget.style.border = hasError ? "1px solid rgba(239,68,68,0.5)" : "1px solid var(--border-default)";
-        e.currentTarget.style.boxShadow = "none";
-        props.onBlur?.(e);
-      }}
-    />
-  );
-}
+// Reusable styled input with teal focus glow — uses forwardRef so
+// React Hook Form's register() ref is properly forwarded
+const GlowInput = React.forwardRef<
+  HTMLInputElement,
+  React.InputHTMLAttributes<HTMLInputElement> & { hasError?: boolean }
+>(({ hasError, ...props }, ref) => (
+  <input
+    {...props}
+    ref={ref}
+    className="
+      w-full rounded-xl px-4 py-3 text-sm text-primary
+      placeholder:text-muted/60 outline-none transition-all duration-200
+    "
+    style={{
+      background: "var(--bg-surface)",
+      border: hasError ? "1px solid rgba(239,68,68,0.5)" : "1px solid var(--border-default)",
+      color: "var(--text-primary)",
+    }}
+    onFocus={(e) => {
+      if (!hasError) {
+        e.currentTarget.style.border = "1px solid rgba(20,184,166,0.6)";
+        e.currentTarget.style.boxShadow = "0 0 0 3px rgba(20,184,166,0.12), 0 0 20px rgba(20,184,166,0.08)";
+      }
+      props.onFocus?.(e);
+    }}
+    onBlur={(e) => {
+      e.currentTarget.style.border = hasError ? "1px solid rgba(239,68,68,0.5)" : "1px solid var(--border-default)";
+      e.currentTarget.style.boxShadow = "none";
+      props.onBlur?.(e);
+    }}
+  />
+));
+GlowInput.displayName = "GlowInput";
 
-function GlowSelect({
-  hasError,
-  children,
-  ...props
-}: React.SelectHTMLAttributes<HTMLSelectElement> & { hasError?: boolean }) {
-  return (
-    <select
-      {...props}
-      className="
-        w-full rounded-xl px-4 py-3 text-sm text-primary
-        outline-none transition-all duration-200
-        disabled:opacity-50 disabled:cursor-not-allowed
-      "
-      style={{
-        background: "var(--bg-surface)",
-        border: hasError ? "1px solid rgba(239,68,68,0.5)" : "1px solid var(--border-default)",
-      }}
-      onFocus={(e) => {
-        if (!hasError) {
-          e.currentTarget.style.border = "1px solid rgba(20,184,166,0.6)";
-          e.currentTarget.style.boxShadow = "0 0 0 3px rgba(20,184,166,0.12), 0 0 20px rgba(20,184,166,0.08)";
-        }
-      }}
-      onBlur={(e) => {
-        e.currentTarget.style.border = hasError ? "1px solid rgba(239,68,68,0.5)" : "1px solid var(--border-default)";
-        e.currentTarget.style.boxShadow = "none";
-      }}
-    >
-      {children}
-    </select>
-  );
-}
+// forwardRef so React Hook Form register() ref is passed through
+const GlowSelect = React.forwardRef<
+  HTMLSelectElement,
+  React.SelectHTMLAttributes<HTMLSelectElement> & { hasError?: boolean }
+>(({ hasError, children, ...props }, ref) => (
+  <select
+    {...props}
+    ref={ref}
+    className="
+      w-full rounded-xl px-4 py-3 text-sm
+      outline-none transition-all duration-200
+      disabled:opacity-50 disabled:cursor-not-allowed
+    "
+    style={{
+      background: "var(--bg-surface)",
+      border: hasError ? "1px solid rgba(239,68,68,0.5)" : "1px solid var(--border-default)",
+      color: "var(--text-primary)",
+    }}
+    onFocus={(e) => {
+      if (!hasError) {
+        e.currentTarget.style.border = "1px solid rgba(20,184,166,0.6)";
+        e.currentTarget.style.boxShadow = "0 0 0 3px rgba(20,184,166,0.12), 0 0 20px rgba(20,184,166,0.08)";
+      }
+    }}
+    onBlur={(e) => {
+      e.currentTarget.style.border = hasError ? "1px solid rgba(239,68,68,0.5)" : "1px solid var(--border-default)";
+      e.currentTarget.style.boxShadow = "none";
+    }}
+  >
+    {children}
+  </select>
+));
+GlowSelect.displayName = "GlowSelect";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -112,6 +115,8 @@ export default function RegisterPage() {
   const [years,         setYears]         = useState<AcademicYear[]>([]);
   const [loadingDepts,  setLoadingDepts]  = useState(true);
   const [loadingYears,  setLoadingYears]  = useState(false);
+  const [deptError,     setDeptError]     = useState("");
+  const [yearError,     setYearError]     = useState("");
 
   const { register, handleSubmit, watch, setValue, formState: { errors } } =
     useForm<FormData>({ resolver: zodResolver(schema) });
@@ -119,15 +124,28 @@ export default function RegisterPage() {
   const selectedDeptId = watch("departmentId");
 
   useEffect(() => {
-    api.get("/departments").then((r) => setDepartments(r.data)).finally(() => setLoadingDepts(false));
+    api.get("/departments")
+      .then((r) => {
+        const data = r.data ?? [];
+        setDepartments(data);
+        if (!data.length) setDeptError("No departments available. Please contact support.");
+      })
+      .catch(() => setDeptError("Could not load departments. Please check your connection and refresh."))
+      .finally(() => setLoadingDepts(false));
   }, []);
 
   useEffect(() => {
-    if (!selectedDeptId) { setYears([]); return; }
+    if (!selectedDeptId) { setYears([]); setYearError(""); return; }
     setLoadingYears(true);
+    setYearError("");
     setValue("academicYearId", "");
     api.get(`/academic-years?departmentId=${selectedDeptId}`)
-      .then((r) => setYears(r.data))
+      .then((r) => {
+        const data = r.data ?? [];
+        setYears(data);
+        if (!data.length) setYearError("No academic years available for this department.");
+      })
+      .catch(() => setYearError("Could not load academic years. Please try again."))
       .finally(() => setLoadingYears(false));
   }, [selectedDeptId, setValue]);
 
@@ -392,14 +410,16 @@ export default function RegisterPage() {
                     {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
                   </GlowSelect>
                   {errors.departmentId && <p className="text-xs mt-1" style={{ color: "#EF4444" }}>{errors.departmentId.message}</p>}
+                  {deptError && <p className="text-xs mt-1" style={{ color: "#EF4444" }}>{deptError}</p>}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-secondary mb-1.5 tracking-widest uppercase">Year</label>
                   <GlowSelect {...register("academicYearId")} disabled={!selectedDeptId || loadingYears} hasError={!!errors.academicYearId}>
-                    <option value="">{!selectedDeptId ? "Dept first" : loadingYears ? "Loading…" : "Select"}</option>
+                    <option value="">{!selectedDeptId ? "Dept first" : loadingYears ? "Loading…" : years.length === 0 && !loadingYears && selectedDeptId ? "No years available" : "Select"}</option>
                     {years.map((y) => <option key={y.id} value={y.id}>{y.label}</option>)}
                   </GlowSelect>
                   {errors.academicYearId && <p className="text-xs mt-1" style={{ color: "#EF4444" }}>{errors.academicYearId.message}</p>}
+                  {yearError && <p className="text-xs mt-1" style={{ color: "#EF4444" }}>{yearError}</p>}
                 </div>
               </div>
 

@@ -399,7 +399,7 @@ export default function AdminUsersPage() {
                   key={user.id}
                   className="grid grid-cols-12 gap-4 px-5 py-3.5 items-center transition-colors"
                   style={{ borderTop: i > 0 ? "1px solid rgba(45,212,191,0.05)" : undefined }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(45,212,191,0.02)"; }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--accent-dim)"; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = ""; }}
                 >
                   {/* Name */}
@@ -442,19 +442,21 @@ export default function AdminUsersPage() {
 
                   {/* Actions */}
                   <div className="col-span-2 flex items-center gap-2">
-                    <button
-                      onClick={() => handleStatusToggle(user.id, user.isActive)}
-                      className="text-xs font-semibold px-2.5 py-1 rounded-lg transition-all"
-                      style={
-                        user.isActive
-                          ? { background: "rgba(16,185,129,0.1)", color: "#10B981" }
-                          : { background: "rgba(239,68,68,0.1)", color: "#EF4444" }
-                      }
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.75"; }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
-                    >
-                      {user.isActive ? "Active" : "Inactive"}
-                    </button>
+                    {(isSuperAdmin || ["STUDENT", "GUEST"].includes(user.role)) && (
+                      <button
+                        onClick={() => handleStatusToggle(user.id, user.isActive)}
+                        className="text-xs font-semibold px-2.5 py-1 rounded-lg transition-all"
+                        style={
+                          user.isActive
+                            ? { background: "rgba(16,185,129,0.1)", color: "#10B981" }
+                            : { background: "rgba(239,68,68,0.1)", color: "#EF4444" }
+                        }
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.75"; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
+                      >
+                        {user.isActive ? "Active" : "Inactive"}
+                      </button>
+                    )}
 
                     {/* Delete button — SUPER_ADMIN can delete anyone except other SUPER_ADMINs;
                         ADMIN can only delete STUDENT/GUEST */}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowRight,
   Sparkles,
@@ -13,10 +13,12 @@ import {
   Loader2,
   GraduationCap,
   Flame,
+  X,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { PdfViewer } from "@/components/shared/pdf-viewer";
 
 interface Material {
   id: string;
@@ -58,6 +60,8 @@ export default function DashboardPage() {
   const [expandedCourse, setExpandedCourse] = useState<string | null>(null);
   const [materials,      setMaterials]      = useState<Record<string, Material[]>>({});
   const [loadingMats,    setLoadingMats]    = useState<Record<string, boolean>>({});
+  // PDF viewer modal
+  const [pdfMaterial, setPdfMaterial] = useState<{ id: string; title: string } | null>(null);
 
   useEffect(() => {
     api.get("/courses/my-year")
@@ -87,6 +91,7 @@ export default function DashboardPage() {
   const yearLabel = (user as unknown as Record<string, { label?: string } | null>)?.academicYear?.label ?? null;
 
   return (
+    <>
     <div className="max-w-3xl mx-auto space-y-10">
 
       {/* ── Header ───────────────────────────────────────────── */}
@@ -152,7 +157,9 @@ export default function DashboardPage() {
             <BookOpen className="h-8 w-8 mx-auto mb-3" style={{ color: "rgba(45,212,191,0.3)" }} />
             <p className="text-secondary text-sm font-medium">No courses available yet</p>
             <p className="text-muted text-xs mt-1">
-              Courses for your department and year will appear here once published by your teachers.
+              {!deptLabel && !yearLabel
+                ? "Your account has no department or academic year assigned yet. Please contact an administrator."
+                : "Courses for your department and year will appear here once published by your teachers."}
             </p>
           </div>
         ) : (
@@ -167,7 +174,7 @@ export default function DashboardPage() {
                 <div
                   key={course.id}
                   className="rounded-2xl overflow-hidden transition-all"
-                  style={{ border: isExpanded ? "1px solid rgba(45,212,191,0.25)" : "1px solid rgba(45,212,191,0.1)", background: isExpanded ? "rgba(45,212,191,0.03)" : "transparent" }}
+                  style={{ border: isExpanded ? "1px solid rgba(45,212,191,0.25)" : "1px solid rgba(45,212,191,0.1)", background: isExpanded ? "var(--accent-dim)" : "var(--bg-surface)" }}
                 >
                   {/* Course header — click to expand */}
                   <button
@@ -206,20 +213,31 @@ export default function DashboardPage() {
                         mats.map((m) => {
                           const Icon = typeIcon[m.type];
                           const col  = typeColor[m.type];
+                          const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
+                          function handleMaterialClick() {
+                            if (m.type === "PDF") {
+                              setPdfMaterial({ id: m.id, title: m.title });
+                            } else if (m.type === "YOUTUBE") {
+                              window.open(`/api/v1/materials/${m.id}/file`, "_blank");
+                            } else {
+                              window.open(`${apiBase}/api/v1/materials/${m.id}/file`, "_blank");
+                            }
+                          }
                           return (
-                            <div
+                            <button
                               key={m.id}
-                              className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all"
-                              style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(45,212,191,0.07)" }}
-                              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(45,212,191,0.05)"; }}
-                              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.02)"; }}
+                              onClick={handleMaterialClick}
+                              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all text-left"
+                              style={{ background: "var(--bg-surface)", border: "1px solid rgba(45,212,191,0.07)" }}
+                              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--accent-dim)"; }}
+                              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--bg-surface)"; }}
                             >
                               <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: col.bg }}>
                                 <Icon className="h-3 w-3" style={{ color: col.color }} />
                               </div>
                               <p className="text-sm text-primary flex-1 truncate">{m.title}</p>
                               <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ background: col.bg, color: col.color }}>{m.type}</span>
-                            </div>
+                            </button>
                           );
                         })
                       )}
@@ -233,5 +251,43 @@ export default function DashboardPage() {
       </motion.div>
 
     </div>
+
+    {/* ── PDF Viewer Modal ─────────────────────────────────── */}
+    <AnimatePresence>
+      {pdfMaterial && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex flex-col"
+          style={{ background: "rgba(0,0,0,0.85)" }}
+        >
+          {/* Modal header */}
+          <div
+            className="flex items-center justify-between px-5 py-3 flex-shrink-0"
+            style={{ background: "var(--bg-surface)", borderBottom: "1px solid var(--border-default)" }}
+          >
+            <p className="text-sm font-semibold text-primary truncate max-w-[calc(100%-3rem)]">
+              {pdfMaterial.title}
+            </p>
+            <button
+              onClick={() => setPdfMaterial(null)}
+              className="p-1.5 rounded-lg transition-colors hover:text-primary text-muted flex-shrink-0"
+              aria-label="Close PDF viewer"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          {/* Viewer */}
+          <div className="flex-1 min-h-0 p-4">
+            <PdfViewer
+              src={`${process.env.NEXT_PUBLIC_API_URL ?? ""}/api/v1/materials/${pdfMaterial.id}/file`}
+              height="100%"
+            />
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+    </>
   );
 }

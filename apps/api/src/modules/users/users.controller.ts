@@ -102,12 +102,18 @@ export class UsersController {
   @Patch(':id/status')
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
-  changeStatus(
+  async changeStatus(
     @Param('id') id: string,
     @Body('isActive') isActive: boolean,
     @CurrentUser() actor: AuthUser,
   ) {
-    return this.usersService.changeStatus(id, isActive, actor.id);
+    try {
+      return await this.usersService.changeStatus(id, isActive, actor.role);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Status update failed';
+      if (message === 'User not found') throw new NotFoundException(message);
+      throw new ForbiddenException(message);
+    }
   }
 
   // PATCH /api/v1/users/me/profile
