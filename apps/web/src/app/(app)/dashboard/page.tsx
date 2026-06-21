@@ -76,13 +76,13 @@ export default function DashboardPage() {
   }
 
   function openMaterial(m: Material) {
-    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
     if (m.type === "PDF") {
       setPdfMaterial({ id: m.id, title: m.title });
     } else if (m.type === "YOUTUBE" && m.youtubeUrl) {
       window.open(m.youtubeUrl, "_blank");
     } else {
-      window.open(`${apiBase}/api/v1/materials/${m.id}/file`, "_blank");
+      // IMAGE — use proxied relative path
+      window.open(`/api/v1/materials/${m.id}/file`, "_blank");
     }
   }
 
@@ -289,7 +289,8 @@ export default function DashboardPage() {
           </div>
           <div className="flex-1 min-h-0 p-4">
             <PdfViewer
-              src={`${process.env.NEXT_PUBLIC_API_URL ?? ""}/api/v1/materials/${pdfMaterial.id}/file`}
+              materialId={pdfMaterial.id}
+              title={pdfMaterial.title}
               height="100%"
             />
           </div>
