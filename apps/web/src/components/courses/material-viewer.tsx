@@ -126,7 +126,24 @@ export function MaterialViewer({
           )}
 
           {!loading && !error && type === "PDF" && blobUrl && (
-            <iframe src={blobUrl} className="w-full h-[80vh]" />
+            <div
+              className="w-full h-[80vh] relative select-none"
+              onContextMenu={(e) => e.preventDefault()}
+            >
+              {/* #toolbar=0 hides the browser's PDF toolbar (download button) in most browsers */}
+              <iframe
+                src={`${blobUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
+                className="w-full h-full border-0"
+                title={title}
+                sandbox="allow-same-origin allow-scripts"
+              />
+              {/* Transparent overlay to block right-click save on the PDF */}
+              <div
+                className="absolute inset-0 pointer-events-none"
+                aria-hidden
+                style={{ userSelect: "none" }}
+              />
+            </div>
           )}
 
           {!loading && !error && type === "IMAGE" && blobUrl && (
