@@ -104,7 +104,7 @@ export default function AdminCoursesPage() {
   async function loadCourses(semesterId: string) {
     setLoading(true);
     try {
-      const res = await api.get(`/courses?semesterId=${semesterId}`);
+      const res = await api.get(`/courses/admin-semester?semesterId=${semesterId}`);
       setCourses(res.data);
     } finally { setLoading(false); }
   }

@@ -19,6 +19,18 @@ export class CoursesService {
     });
   }
 
+  // ADMIN — all courses in a semester (published + drafts), used by admin panel
+  async findBySemesterAdmin(semesterId: string) {
+    return this.prisma.course.findMany({
+      where: { semesterId, isArchived: false },
+      orderBy: { sortOrder: 'asc' },
+      include: {
+        teacher: { select: { id: true, fullName: true } },
+        _count: { select: { materials: true } },
+      },
+    });
+  }
+
   // Courses visible to a specific student — scoped to their own
   // department + academic year. This is the actual enforcement of
   // "students cannot access other departments' content."

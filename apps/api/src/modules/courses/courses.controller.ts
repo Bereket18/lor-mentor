@@ -25,10 +25,18 @@ interface AuthUser {
 export class CoursesController {
   constructor(private readonly service: CoursesService) {}
 
-  // GET /api/v1/courses?semesterId=xxx — PUBLIC
+  // GET /api/v1/courses?semesterId=xxx — PUBLIC (published only)
   @Get()
   findBySemester(@Query('semesterId') semesterId: string) {
     return this.service.findBySemester(semesterId);
+  }
+
+  // GET /api/v1/courses/admin-semester?semesterId=xxx — ADMIN (all incl. drafts)
+  @Get('admin-semester')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  findBySemesterAdmin(@Query('semesterId') semesterId: string) {
+    return this.service.findBySemesterAdmin(semesterId);
   }
 
   // GET /api/v1/courses/mine — TEACHER's own courses
