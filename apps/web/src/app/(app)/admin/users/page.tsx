@@ -281,7 +281,7 @@ export default function AdminUsersPage() {
                         style={
                           newStaff.role === r
                             ? { background: "linear-gradient(135deg, #147878, #1A9494)", color: "#fff", boxShadow: "0 0 12px rgba(45,212,191,0.25)" }
-                            : { background: "var(--bg-subtle)", color: "var(--text-secondary)", border: "1px solid rgba(45,212,191,0.1)" }
+                            : { background: "var(--bg-subtle)", color: "var(--text-primary)", border: "1px solid var(--border-default)" }
                         }
                       >
                         {r}

@@ -44,6 +44,7 @@ export class CoursesService {
       orderBy: { sortOrder: 'asc' },
       include: {
         teacher: { select: { id: true, fullName: true } },
+        semester: { select: { id: true, name: true } },
         _count: { select: { materials: true } },
       },
     });
