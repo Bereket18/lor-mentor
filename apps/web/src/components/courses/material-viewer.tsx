@@ -49,10 +49,10 @@ export function MaterialViewer({
         // This URL only works in THIS browser tab, and only until revoked
         objectUrl = URL.createObjectURL(res.data);
         setBlobUrl(objectUrl);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const status = (err as { response?: { status?: number } })?.response?.status;
         setError(
-          err?.response?.status === 403
+          status === 403
             ? "You do not have access to this material"
             : "Failed to load this material",
         );

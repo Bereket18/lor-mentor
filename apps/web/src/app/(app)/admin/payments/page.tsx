@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Loader2, CheckCircle2, XCircle, ExternalLink } from "lucide-react";
 import api from "@/lib/api";
 
@@ -30,11 +30,7 @@ export default function AdminPaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadPayments();
-  }, []);
-
-  async function loadPayments() {
+  const loadPayments = useCallback(async () => {
     setLoading(true);
     try {
       const res = await api.get("/payments/admin");
@@ -42,7 +38,12 @@ export default function AdminPaymentsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadPayments();
+  }, [loadPayments]);
 
   async function handleApprove(id: string) {
     setActionId(id);

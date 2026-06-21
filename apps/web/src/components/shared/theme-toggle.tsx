@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sun, Moon } from "lucide-react";
 import { getTheme, toggleTheme } from "@/lib/utils";
@@ -12,21 +12,22 @@ interface ThemeToggleProps {
 }
 
 export function ThemeToggle({ className = "", variant = "pill" }: ThemeToggleProps) {
-  const [isDark, setIsDark] = useState(true); // default dark
-  const [mounted, setMounted] = useState(false);
+  // Lazy initialisers run on the client only (guarded by typeof window).
+  // No useEffect needed — state is read once at mount and then driven
+  // exclusively by the toggle handler, matching the actual DOM class.
+  const [isDark, setIsDark] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true; // SSR default
+    return getTheme() === "dark";
+  });
 
-  useEffect(() => {
-    setMounted(true);
-    setIsDark(getTheme() === "dark");
-  }, []);
+  // On SSR (window === undefined) we can't know the theme, so skip render.
+  // suppressHydrationWarning on the parent element handles any brief flash.
+  if (typeof window === "undefined") return null;
 
   function handleToggle() {
     toggleTheme();
     setIsDark((prev) => !prev);
   }
-
-  // Don't render on server to avoid hydration mismatch
-  if (!mounted) return null;
 
   if (variant === "icon") {
     return (

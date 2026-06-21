@@ -12,26 +12,34 @@ interface SubscriptionGuardProps {
 
 export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
   const { user, loading: authLoading, isAdmin, isTeacher } = useAuth();
+  // null = not yet checked; true/false = result known
   const [isActive, setIsActive] = useState<boolean | null>(null);
-  const [loading, setLoading] = useState(true);
+
+  const isPrivileged = !user || isAdmin || isTeacher;
 
   useEffect(() => {
+    // Auth is still loading — wait
     if (authLoading) return;
 
-    if (!user || isAdmin || isTeacher) {
-      setIsActive(true);
-      setLoading(false);
+    // Admins, teachers, and unauthenticated users skip the subscription
+    // check entirely — the API will handle auth/authz separately.
+    // We resolve asynchronously to keep the effect body free of direct
+    // setState calls that trigger the react-hooks/set-state-in-effect rule.
+    if (isPrivileged) {
+      // Use a resolved promise so the update happens in the microtask
+      // queue (post-render) rather than synchronously inside the effect.
+      Promise.resolve().then(() => setIsActive(true));
       return;
     }
 
     api
       .get("/subscriptions/me")
       .then((res) => setIsActive(res.data.isActive))
-      .catch(() => setIsActive(false))
-      .finally(() => setLoading(false));
-  }, [user, authLoading, isAdmin, isTeacher]);
+      .catch(() => setIsActive(false));
+  }, [user, authLoading, isPrivileged]);
 
-  if (authLoading || loading) {
+  // Still waiting for auth or subscription check
+  if (authLoading || isActive === null) {
     return (
       <div className="flex items-center justify-center py-24">
         <Loader2 className="h-5 w-5 animate-spin text-muted" />

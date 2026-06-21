@@ -16,6 +16,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import type { Response } from 'express';
+import type { Request } from 'express';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -23,10 +24,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { MaterialsService } from './materials.service';
-import {
-  CreateMaterialDto,
-  MaterialTypeInput,
-} from './dto/create-material.dto';
+import { CreateMaterialDto } from './dto/create-material.dto';
 import { UpdateMaterialDto } from './dto/update-material.dto';
 
 interface AuthUser {
@@ -48,8 +46,11 @@ const storage = diskStorage({
 });
 
 // Only allow specific file types — reject everything else immediately
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function fileFilter(req: any, file: Express.Multer.File, callback: any) {
+function fileFilter(
+  _req: Request,
+  file: Express.Multer.File,
+  callback: (error: Error | null, acceptFile: boolean) => void,
+) {
   const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
   if (!allowed.includes(file.mimetype)) {
     return callback(
@@ -69,6 +70,12 @@ export class MaterialsController {
   @UseGuards(JwtAuthGuard)
   findByCourse(@Query('courseId') courseId: string) {
     return this.service.findByCourse(courseId);
+  }
+
+  @Get(':id/ai-status')
+  @UseGuards(JwtAuthGuard)
+  getAiStatus(@Param('id') id: string) {
+    return this.service.getAiStatusForMaterial(id);
   }
 
   @Get(':id')

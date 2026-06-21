@@ -75,6 +75,7 @@ export default function AdminUsersPage() {
     }
   }, [search, roleFilter, sortByRole]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadUsers(); }, [loadUsers]);
 
   useEffect(() => {
