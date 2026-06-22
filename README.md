@@ -1,6 +1,6 @@
 # Lor Mentor
 
-> Lorcan Medical College's AI-powered medical learning platform.
+> Next.js 15 web + NestJS 11 API, Prisma 7/PostgreSQL, Redis/BullMQ queues, Google Gemini
 > Addis Ababa, Ethiopia.
 
 ## What is Lor Mentor?
