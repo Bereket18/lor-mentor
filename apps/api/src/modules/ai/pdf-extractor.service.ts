@@ -1,30 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
-
-// Define the structural interface that pdf-parse returns
-interface PdfParseResult {
-  text: string;
-  numpages: number;
-  numrender: number;
-  info: Record<string, unknown>;
-  metadata: unknown;
-  version: string;
-}
-
-// pdf-parse has no clean TypeScript types for its default export
-// behavior, so a dynamic require is the accepted pattern for this
-// specific package
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<any>;
+import { PDFParse } from 'pdf-parse';
 
 @Injectable()
 export class PdfExtractorService {
   private readonly logger = new Logger(PdfExtractorService.name);
 
-  // filename here matches Material.filePath exactly — just the random
-  // hex filename, not a full path. We rebuild the full path ourselves
-  // using the same uploadDir convention as MaterialsService.
   async extractText(filename: string): Promise<string> {
     const fullPath = path.join(process.cwd(), 'uploads', 'materials', filename);
 
@@ -34,14 +16,25 @@ export class PdfExtractorService {
 
     const buffer = fs.readFileSync(fullPath);
 
-    // ✨ Cast the unresolved promise response to your explicit interface
-    const data = (await pdfParse(buffer)) as PdfParseResult;
+    // pdf-parse v2 uses a class-based API — you create a parser
+    // instance with the raw PDF bytes, then call getText() on it
+    const parser = new PDFParse({ data: buffer });
 
-    // ✨ Safe member access: TypeScript knows data.text is a valid string
-    this.logger.log(
-      `Extracted ${data.text.length} characters from ${filename}`,
-    );
+    try {
+      // pageJoiner: '' strips the default "-- page X of Y --" footer
+      // pdf-parse appends after every page — we just want clean text
+      const result = await parser.getText({ pageJoiner: '' });
 
-    return data.text;
+      this.logger.log(
+        `Extracted ${result.text.length} characters from ${filename}`,
+      );
+
+      return result.text;
+    } finally {
+      // Releases the underlying PDF document resources — matters
+      // since this runs inside a long-lived background worker process
+      // processing many PDFs over time, not a short-lived script
+      await parser.destroy();
+    }
   }
 }
