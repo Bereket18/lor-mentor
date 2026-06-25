@@ -83,7 +83,14 @@ export function PdfViewer({ materialId, title = "PDF Viewer", height = "100%" }:
       } catch (err) {
         if (!cancelled) {
           console.error("PDF load error:", err);
-          setError("Could not load the PDF. Please try again.");
+          const msg = err instanceof Error ? err.message : String(err);
+          if (msg.includes("404")) {
+            setError("This PDF file no longer exists on the server. Please contact your administrator.");
+          } else if (msg.includes("401") || msg.includes("403")) {
+            setError("You do not have permission to view this file.");
+          } else {
+            setError("Could not load the PDF. Please try again.");
+          }
           setLoading(false);
         }
       }
