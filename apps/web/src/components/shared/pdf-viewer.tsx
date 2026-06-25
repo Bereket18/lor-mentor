@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Loader2, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
-import api from "@/lib/api";
 
 interface Props {
   materialId: string;
@@ -47,12 +46,19 @@ export function PdfViewer({ materialId, title = "PDF Viewer", height = "100%" }:
       setError(null);
 
       try {
-        // Step 1 — fetch the raw PDF bytes using axios so the JWT
-        // cookie is included automatically (PDF.js fetch doesn't send cookies)
-        const response = await api.get(
-          `/api/v1/materials/${materialId}/file`,
-          { responseType: "arraybuffer" },
+        // Step 1 — fetch bytes via our Next.js proxy route which forwards
+        // cookies to the API server. Direct axios to localhost:4000 fails
+        // with CORS/Network Error because browser blocks cross-origin requests.
+        const response = await fetch(
+          `/api/proxy/materials/${materialId}/file`,
+          { credentials: "include" }
         );
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
 
         if (cancelled) return;
 
@@ -64,7 +70,7 @@ export function PdfViewer({ materialId, title = "PDF Viewer", height = "100%" }:
         ).toString();
 
         // Step 3 — pass the bytes directly, no URL needed
-        const pdf = await pdfjsLib.getDocument({ data: response.data }).promise;
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
         if (cancelled) return;
 
