@@ -9,7 +9,7 @@ import {
 export class UpdateCourseDto {
   @IsOptional()
   @IsString()
-  teacherId?: string;
+  teacherId?: string | null;
 
   @IsOptional()
   @IsString()

@@ -17,20 +17,22 @@ import * as path from 'path';
 
 @Injectable()
 export class MaterialsService {
-  // Absolute path to our private uploads folder — never inside /public
+  // Absolute path to our private uploads folder; never inside /public.
   private readonly uploadDir = path.join(process.cwd(), 'uploads', 'materials');
-  async getAiStatusForMaterial(materialId: string) {
-    return this.aiService.getStatus(materialId);
-  }
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly subscriptionsService: SubscriptionsService,
     private readonly aiService: AiService,
   ) {}
 
-  // ── List materials for a course (used inside course detail) ────
+  async getAiStatusForMaterial(materialId: string) {
+    return this.aiService.getStatus(materialId);
+  }
+
+  // List materials for a course without exposing internal file paths.
   async findByCourse(courseId: string) {
-    return this.prisma.material.findMany({
+    const materials = await this.prisma.material.findMany({
       where: { courseId },
       orderBy: { sortOrder: 'asc' },
       select: {
@@ -41,27 +43,25 @@ export class MaterialsService {
         isSample: true,
         sortOrder: true,
         createdAt: true,
-        // Deliberately NOT selecting filePath — that is an internal
-        // server detail, never sent to the frontend
+        uploadedBy: true,
       },
     });
+
+    return this.withUploaderNames(materials);
   }
 
   async findOne(id: string) {
-    const material = await this.prisma.material.findUnique({ where: { id } });
-    if (!material) throw new NotFoundException('Material not found');
-    return material;
+    const material = await this.findRawMaterial(id);
+    return this.stripFilePath(material);
   }
 
-  // ── Create a PDF or IMAGE material — file already saved by Multer ──
-  // uploadedFile comes from the controller after Multer processes the
-  // multipart/form-data request
   async createWithFile(
     dto: CreateMaterialDto,
     uploadedFile: Express.Multer.File,
     uploadedBy: string,
+    uploaderRole: string,
   ) {
-    await this.ensureCourseExists(dto.courseId);
+    await this.assertCanManageCourse(dto.courseId, uploadedBy, uploaderRole);
 
     if (dto.type === MaterialTypeInput.YOUTUBE) {
       throw new BadRequestException(
@@ -80,14 +80,11 @@ export class MaterialsService {
         courseId: dto.courseId,
         title: dto.title,
         type: dto.type,
-        filePath: uploadedFile.filename, // store just the filename, not full path
+        filePath: uploadedFile.filename,
         uploadedBy,
       },
     });
 
-    // Only PDFs get AI processing — images have no extractable text.
-    // This is fire-and-forget from here: the upload response goes back
-    // to the teacher immediately while the job runs independently.
     if (dto.type === MaterialTypeInput.PDF) {
       await this.aiService.enqueueGeneration(
         material.id,
@@ -98,9 +95,12 @@ export class MaterialsService {
     return this.stripFilePath(material);
   }
 
-  // ── Create a YouTube material — no file involved ───────────────
-  async createYoutube(dto: CreateMaterialDto, uploadedBy: string) {
-    await this.ensureCourseExists(dto.courseId);
+  async createYoutube(
+    dto: CreateMaterialDto,
+    uploadedBy: string,
+    uploaderRole: string,
+  ) {
+    await this.assertCanManageCourse(dto.courseId, uploadedBy, uploaderRole);
 
     if (dto.type !== MaterialTypeInput.YOUTUBE) {
       throw new BadRequestException(
@@ -127,8 +127,13 @@ export class MaterialsService {
     return this.stripFilePath(material);
   }
 
-  async update(id: string, dto: UpdateMaterialDto) {
-    await this.findOne(id);
+  async update(
+    id: string,
+    dto: UpdateMaterialDto,
+    userId: string,
+    role: string,
+  ) {
+    await this.assertCanManageMaterial(id, userId, role);
     const material = await this.prisma.material.update({
       where: { id },
       data: dto,
@@ -136,13 +141,11 @@ export class MaterialsService {
     return this.stripFilePath(material);
   }
 
-  // ── Delete a material — also removes the file from disk ────────
-  async remove(id: string) {
-    const material = await this.findOne(id);
+  async remove(id: string, userId: string, role: string) {
+    const material = await this.assertCanManageMaterial(id, userId, role);
 
     if (material.filePath) {
       const fullPath = path.join(this.uploadDir, material.filePath);
-      // Delete the physical file, but don't crash if it's already gone
       fs.unlink(fullPath, () => {});
     }
 
@@ -150,10 +153,6 @@ export class MaterialsService {
     return { message: 'Material deleted' };
   }
 
-  // ── THE MOST IMPORTANT METHOD THIS SPRINT ───────────────────────
-  // Returns the absolute file path for streaming, AFTER verifying
-  // the requesting student is actually allowed to see this course's
-  // content (same department + academic year check as Sprint 3)
   async getFilePathForStudent(materialId: string, studentId: string) {
     const material = await this.prisma.material.findUnique({
       where: { id: materialId },
@@ -169,16 +168,14 @@ export class MaterialsService {
     });
 
     if (!material) throw new NotFoundException('Material not found');
-    if (!material.filePath)
+    if (!material.filePath) {
       throw new BadRequestException('This material has no file');
+    }
 
     if (material.course.isArchived || !material.course.isPublished) {
       throw new ForbiddenException('This material is not currently available');
     }
 
-    // Re-verify the student's own department/year matches the course's
-    // year — exactly the same Zero Trust check from Sprint 3, applied
-    // again here because file access is its own sensitive operation
     const student = await this.prisma.user.findUnique({
       where: { id: studentId },
       select: { academicYearId: true, role: true },
@@ -215,15 +212,73 @@ export class MaterialsService {
     };
   }
 
-  // ── Helpers ───────────────────────────────────────────────────
+  private isAdminRole(role: string) {
+    return role === 'ADMIN' || role === 'SUPER_ADMIN';
+  }
+
+  private async assertCanManageCourse(
+    courseId: string,
+    userId: string,
+    role: string,
+  ) {
+    const course = await this.ensureCourseExists(courseId);
+
+    if (this.isAdminRole(role)) return course;
+    if (role === 'TEACHER' && course.teacherId === userId) return course;
+
+    throw new ForbiddenException('This course is not assigned to you');
+  }
+
+  private async assertCanManageMaterial(
+    materialId: string,
+    userId: string,
+    role: string,
+  ) {
+    const material = await this.prisma.material.findUnique({
+      where: { id: materialId },
+      include: { course: { select: { teacherId: true } } },
+    });
+
+    if (!material) throw new NotFoundException('Material not found');
+    if (this.isAdminRole(role)) return material;
+
+    if (role === 'TEACHER' && material.course.teacherId === userId) {
+      return material;
+    }
+
+    throw new ForbiddenException('This course is not assigned to you');
+  }
+
+  private async findRawMaterial(id: string) {
+    const material = await this.prisma.material.findUnique({ where: { id } });
+    if (!material) throw new NotFoundException('Material not found');
+    return material;
+  }
+
   private async ensureCourseExists(courseId: string) {
     const course = await this.prisma.course.findUnique({
       where: { id: courseId },
     });
     if (!course) throw new NotFoundException('Course not found');
+    return course;
   }
 
-  // Never send filePath to the frontend — it's an internal server detail
+  private async withUploaderNames<T extends { uploadedBy: string }>(
+    materials: T[],
+  ) {
+    const uploaderIds = [...new Set(materials.map((m) => m.uploadedBy))];
+    const uploaders = await this.prisma.user.findMany({
+      where: { id: { in: uploaderIds } },
+      select: { id: true, fullName: true },
+    });
+    const uploadersById = new Map(uploaders.map((u) => [u.id, u]));
+
+    return materials.map((material) => ({
+      ...material,
+      uploader: uploadersById.get(material.uploadedBy) ?? null,
+    }));
+  }
+
   private stripFilePath(material: {
     filePath?: string | null;
     [key: string]: unknown;

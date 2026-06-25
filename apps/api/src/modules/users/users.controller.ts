@@ -30,13 +30,11 @@ interface AuthUser {
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  // GET /api/v1/users/me
   @Get('me')
   getMe(@CurrentUser() user: AuthUser) {
     return { user };
   }
 
-  // GET /api/v1/users?search=&role=&sortBy=role
   @Get()
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
@@ -56,10 +54,6 @@ export class UsersController {
     });
   }
 
-  // POST /api/v1/users/create-staff — ADMIN/SUPER_ADMIN only
-  // Creates a TEACHER or ADMIN account directly with a temp password,
-  // optionally assigning a department/program at creation time.
-  // This is the ONLY way to create accounts above STUDENT role.
   @Post('create-staff')
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
@@ -75,8 +69,6 @@ export class UsersController {
     return this.usersService.createStaff(body);
   }
 
-  // DELETE /api/v1/users/inactive — SUPER_ADMIN only
-  // Permanently removes student/guest accounts inactive for 12+ months
   @Delete('inactive')
   @UseGuards(RolesGuard)
   @Roles('SUPER_ADMIN')
@@ -84,7 +76,6 @@ export class UsersController {
     return this.usersService.deleteInactiveUsers();
   }
 
-  // PATCH /api/v1/users/:id/role
   @Patch(':id/role')
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
@@ -96,7 +87,6 @@ export class UsersController {
     return this.usersService.changeRole(id, role, actor.id);
   }
 
-  // PATCH /api/v1/users/:id/status
   @Patch(':id/status')
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
@@ -108,7 +98,6 @@ export class UsersController {
     return this.usersService.changeStatus(id, isActive, actor.id);
   }
 
-  // PATCH /api/v1/users/me/profile
   @Patch('me/profile')
   updateProfile(
     @CurrentUser() user: AuthUser,
