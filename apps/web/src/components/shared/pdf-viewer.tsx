@@ -64,8 +64,11 @@ export function PdfViewer({ materialId, title = "PDF Viewer", height = "100%" }:
         // Dynamically import pdfjs-dist so it doesn't bloat the initial bundle
         const pdfjsLib = await import("pdfjs-dist");
 
-        // Point the worker at the same version we installed
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+        // Use the local worker bundled with pdfjs-dist — no external CDN dependency
+        pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+          "pdfjs-dist/build/pdf.worker.min.mjs",
+          import.meta.url,
+        ).toString();
 
         const url = `/api/v1/materials/${materialId}/file`;
         const pdf = await pdfjsLib.getDocument({ url, withCredentials: true }).promise;
