@@ -21,6 +21,7 @@
     "lucide-react": "^1.18.0",
     "next": "16.2.9",
     "next-themes": "^0.4.6",
+    "pdfjs-dist": "4.4.168",
     "postcss": "^8.5.15",
     "radix-ui": "^1.5.0",
     "react": "19.2.4",

@@ -542,3 +542,22 @@
     background-size: 24px 24px;
   }
 }
+
+
+/* ── Print protection — hides everything when Ctrl+P is pressed ── */
+/* Users who open the PDF viewer and try to print get a blank page  */
+@media print {
+  body * {
+    display: none !important;
+    visibility: hidden !important;
+  }
+  body::after {
+    content: "Printing is not allowed on this platform.";
+    display: block !important;
+    visibility: visible !important;
+    font-size: 18px;
+    text-align: center;
+    padding: 40px;
+    color: #000;
+  }
+}
