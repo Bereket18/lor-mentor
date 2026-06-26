@@ -42,30 +42,31 @@ const GlassInput = React.forwardRef<HTMLInputElement, GlassInputProps>(
       <input
         ref={ref}
         {...props}
-        className="w-full rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/30 outline-none transition-all duration-200"
+        className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all duration-200"
         style={{
           backdropFilter: "blur(8px)",
           WebkitBackdropFilter: "blur(8px)",
-          background: "rgba(255,255,255,0.06)",
+          background: "var(--glass-input-bg)",
           border: hasError
-            ? "1px solid rgba(239,68,68,0.45)"
-            : "1px solid rgba(255,255,255,0.12)",
+            ? "1px solid rgba(239,68,68,0.5)"
+            : "1px solid var(--glass-input-border)",
+          color: "var(--text-primary)",
           ...style,
         }}
         onFocus={(e) => {
           if (!hasError) {
             e.currentTarget.style.border = "1px solid rgba(45,212,191,0.6)";
             e.currentTarget.style.boxShadow = "0 0 0 3px rgba(45,212,191,0.12), 0 0 20px rgba(45,212,191,0.08)";
-            e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+            e.currentTarget.style.background = "var(--glass-input-bg)";
           }
           props.onFocus?.(e);
         }}
         onBlur={(e) => {
           e.currentTarget.style.border = hasError
-            ? "1px solid rgba(239,68,68,0.45)"
-            : "1px solid rgba(255,255,255,0.12)";
+            ? "1px solid rgba(239,68,68,0.5)"
+            : "1px solid var(--glass-input-border)";
           e.currentTarget.style.boxShadow = "none";
-          e.currentTarget.style.background = "rgba(255,255,255,0.06)";
+          e.currentTarget.style.background = "var(--glass-input-bg)";
           props.onBlur?.(e);
         }}
       />
@@ -84,28 +85,27 @@ const GlassSelect = React.forwardRef<HTMLSelectElement, GlassSelectProps>(
       <select
         ref={ref}
         {...props}
-        className="w-full rounded-xl px-4 py-3 text-sm text-white outline-none transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
         style={{
           backdropFilter: "blur(8px)",
           WebkitBackdropFilter: "blur(8px)",
-          background: "rgba(255,255,255,0.06)",
+          background: "var(--glass-input-bg)",
           border: hasError
-            ? "1px solid rgba(239,68,68,0.45)"
-            : "1px solid rgba(255,255,255,0.12)",
+            ? "1px solid rgba(239,68,68,0.5)"
+            : "1px solid var(--glass-input-border)",
+          color: "var(--text-primary)",
         }}
         onFocus={(e) => {
           if (!hasError) {
             e.currentTarget.style.border = "1px solid rgba(45,212,191,0.6)";
             e.currentTarget.style.boxShadow = "0 0 0 3px rgba(45,212,191,0.12), 0 0 20px rgba(45,212,191,0.08)";
-            e.currentTarget.style.background = "rgba(255,255,255,0.08)";
           }
         }}
         onBlur={(e) => {
           e.currentTarget.style.border = hasError
-            ? "1px solid rgba(239,68,68,0.45)"
-            : "1px solid rgba(255,255,255,0.12)";
+            ? "1px solid rgba(239,68,68,0.5)"
+            : "1px solid var(--glass-input-border)";
           e.currentTarget.style.boxShadow = "none";
-          e.currentTarget.style.background = "rgba(255,255,255,0.06)";
         }}
       >
         {children}
@@ -114,13 +114,9 @@ const GlassSelect = React.forwardRef<HTMLSelectElement, GlassSelectProps>(
   },
 );
 
-/* ── Field label ──────────────────────────────────────────────── */
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <label
-      className="block text-[11px] font-semibold tracking-widest uppercase mb-1.5"
-      style={{ color: "rgba(255,255,255,0.5)" }}
-    >
+    <label className="block text-[11px] font-semibold tracking-widest uppercase mb-1.5 text-secondary">
       {children}
     </label>
   );
@@ -180,8 +176,7 @@ export default function RegisterPage() {
   return (
     <div
       suppressHydrationWarning
-      className="min-h-screen flex items-center justify-center relative overflow-hidden py-8"
-      style={{ background: "#060B14" }}
+      className="min-h-screen flex items-center justify-center relative overflow-hidden py-8 auth-bg"
     >
       {/* ── Animated orb background ─────────────────────────── */}
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -215,6 +210,21 @@ export default function RegisterPage() {
       </div>
 
       <style>{`
+        .auth-bg { background: var(--bg-base); }
+        :root {
+          --glass-card-bg:      rgba(255,255,255,0.07);
+          --glass-card-border:  rgba(255,255,255,0.16);
+          --glass-input-bg:     rgba(255,255,255,0.06);
+          --glass-input-border: rgba(255,255,255,0.14);
+          --glass-card-shadow:  inset 0 1px 0 rgba(255,255,255,0.18), 0 8px 32px rgba(0,0,0,0.45), 0 32px 64px rgba(0,0,0,0.3);
+        }
+        [data-theme="light"] {
+          --glass-card-bg:      rgba(255,255,255,0.72);
+          --glass-card-border:  rgba(0,0,0,0.08);
+          --glass-input-bg:     rgba(255,255,255,0.8);
+          --glass-input-border: rgba(0,0,0,0.1);
+          --glass-card-shadow:  inset 0 1px 0 rgba(255,255,255,0.9), 0 8px 32px rgba(0,0,0,0.12), 0 32px 64px rgba(0,0,0,0.08);
+        }
         @keyframes orbDrift1 {
           0%,100% { transform: translate(0px,0px) scale(1); }
           33%      { transform: translate(60px,80px) scale(1.08); }
@@ -234,8 +244,8 @@ export default function RegisterPage() {
           100% { left: 200%; }
         }
         .glass-select option {
-          background: #0F1E2E;
-          color: white;
+          background: var(--bg-elevated);
+          color: var(--text-primary);
         }
       `}</style>
 
@@ -255,9 +265,9 @@ export default function RegisterPage() {
           borderRadius: 28,
           backdropFilter: "blur(40px) saturate(180%)",
           WebkitBackdropFilter: "blur(40px) saturate(180%)",
-          background: "rgba(255,255,255,0.07)",
-          border: "1px solid rgba(255,255,255,0.16)",
-          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.18), 0 8px 32px rgba(0,0,0,0.45), 0 32px 64px rgba(0,0,0,0.3)",
+          background: "var(--glass-card-bg)",
+          border: "1px solid var(--glass-card-border)",
+          boxShadow: "var(--glass-card-shadow)",
         }}
       >
         {/* Top chromatic highlight */}
@@ -283,19 +293,19 @@ export default function RegisterPage() {
             >
               <span className="text-white font-bold text-xl tracking-tight">L</span>
             </div>
-            <p className="text-white font-bold text-base tracking-widest uppercase leading-none">
+            <p className="font-bold text-base tracking-widest uppercase leading-none text-primary">
               LOR MENTOR
             </p>
-            <p className="text-[11px] font-medium mt-1 tracking-wider" style={{ color: "#2DD4BF", opacity: 0.75 }}>
+            <p className="text-[11px] font-medium mt-1 tracking-wider" style={{ color: "#2DD4BF", opacity: 0.8 }}>
               LORCAN MEDICAL COLLEGE
             </p>
           </div>
 
           {/* ── Heading ──────────────────────────────────────── */}
-          <h1 className="text-white text-xl font-bold text-center mb-1" style={{ letterSpacing: "-0.02em" }}>
+          <h1 className="text-primary text-xl font-bold text-center mb-1" style={{ letterSpacing: "-0.02em" }}>
             Create your account
           </h1>
-          <p className="text-center text-sm mb-7" style={{ color: "rgba(255,255,255,0.45)" }}>
+          <p className="text-center text-sm mb-7 text-secondary">
             Join Ethiopia&apos;s most advanced medical learning platform
           </p>
 
@@ -308,7 +318,7 @@ export default function RegisterPage() {
               style={{
                 background: "rgba(239,68,68,0.1)",
                 border: "1px solid rgba(239,68,68,0.25)",
-                color: "#FCA5A5",
+                color: "#EF4444",
                 backdropFilter: "blur(8px)",
               }}
             >
@@ -328,7 +338,7 @@ export default function RegisterPage() {
                 placeholder="Bereket Adamsseged"
                 hasError={!!errors.fullName}
               />
-              {errors.fullName && <p className="text-xs mt-1" style={{ color: "#FCA5A5" }}>{errors.fullName.message}</p>}
+              {errors.fullName && <p className="text-xs mt-1" style={{ color: "#EF4444" }}>{errors.fullName.message}</p>}
             </div>
 
             {/* Email */}
@@ -340,7 +350,7 @@ export default function RegisterPage() {
                 placeholder="you@lorcan.edu.et"
                 hasError={!!errors.email}
               />
-              {errors.email && <p className="text-xs mt-1" style={{ color: "#FCA5A5" }}>{errors.email.message}</p>}
+              {errors.email && <p className="text-xs mt-1" style={{ color: "#EF4444" }}>{errors.email.message}</p>}
             </div>
 
             {/* Phone */}
@@ -352,8 +362,8 @@ export default function RegisterPage() {
                 placeholder="0911234567"
                 hasError={!!errors.phoneNumber}
               />
-              {errors.phoneNumber && <p className="text-xs mt-1" style={{ color: "#FCA5A5" }}>{errors.phoneNumber.message}</p>}
-              <p className="text-[11px] mt-1" style={{ color: "rgba(255,255,255,0.3)" }}>Used for payment confirmation</p>
+              {errors.phoneNumber && <p className="text-xs mt-1" style={{ color: "#EF4444" }}>{errors.phoneNumber.message}</p>}
+              <p className="text-[11px] mt-1 text-muted">Used for payment confirmation</p>
             </div>
 
             {/* Department + Year — side by side */}
@@ -369,7 +379,7 @@ export default function RegisterPage() {
                   <option value="">{loadingDepts ? "Loading…" : "Select"}</option>
                   {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
                 </GlassSelect>
-                {errors.departmentId && <p className="text-xs mt-1" style={{ color: "#FCA5A5" }}>{errors.departmentId.message}</p>}
+                {errors.departmentId && <p className="text-xs mt-1" style={{ color: "#EF4444" }}>{errors.departmentId.message}</p>}
               </div>
               <div>
                 <FieldLabel>Year</FieldLabel>
@@ -382,7 +392,7 @@ export default function RegisterPage() {
                   <option value="">{!selectedDeptId ? "Dept first" : loadingYears ? "Loading…" : "Select"}</option>
                   {years.map((y) => <option key={y.id} value={y.id}>{y.label}</option>)}
                 </GlassSelect>
-                {errors.academicYearId && <p className="text-xs mt-1" style={{ color: "#FCA5A5" }}>{errors.academicYearId.message}</p>}
+                {errors.academicYearId && <p className="text-xs mt-1" style={{ color: "#EF4444" }}>{errors.academicYearId.message}</p>}
               </div>
             </div>
 
@@ -400,15 +410,12 @@ export default function RegisterPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors"
-                  style={{ color: "rgba(255,255,255,0.35)" }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.75)"; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.35)"; }}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors text-muted hover:text-primary"
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
-              {errors.password && <p className="text-xs mt-1" style={{ color: "#FCA5A5" }}>{errors.password.message}</p>}
+              {errors.password && <p className="text-xs mt-1" style={{ color: "#EF4444" }}>{errors.password.message}</p>}
             </div>
 
             {/* Confirm password */}
@@ -425,15 +432,12 @@ export default function RegisterPage() {
                 <button
                   type="button"
                   onClick={() => setShowConfirm(!showConfirm)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors"
-                  style={{ color: "rgba(255,255,255,0.35)" }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.75)"; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.35)"; }}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors text-muted hover:text-primary"
                 >
                   {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
-              {errors.confirmPassword && <p className="text-xs mt-1" style={{ color: "#FCA5A5" }}>{errors.confirmPassword.message}</p>}
+              {errors.confirmPassword && <p className="text-xs mt-1" style={{ color: "#EF4444" }}>{errors.confirmPassword.message}</p>}
             </div>
 
             {/* Submit */}
@@ -473,8 +477,7 @@ export default function RegisterPage() {
             </motion.button>
           </form>
 
-          {/* ── Sign in link ──────────────────────────────────── */}
-          <p className="text-center text-sm mt-5" style={{ color: "rgba(255,255,255,0.4)" }}>
+          <p className="text-center text-sm mt-5 text-secondary">
             Already have an account?{" "}
             <Link href="/login" className="font-semibold transition-colors hover:opacity-80" style={{ color: "#2DD4BF" }}>
               Sign in
@@ -482,19 +485,19 @@ export default function RegisterPage() {
           </p>
 
           {/* ── Address footer ────────────────────────────────── */}
-          <div className="mt-7 pt-6" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
-            <p className="text-center text-[11px] font-medium mb-2" style={{ color: "rgba(255,255,255,0.3)" }}>
+          <div className="mt-7 pt-6" style={{ borderTop: "1px solid var(--border-subtle)" }}>
+            <p className="text-center text-[11px] font-medium mb-2 text-muted">
               Lorcan Medical College · CMC Square, Addis Ababa
             </p>
             <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
-              <span className="text-[11px]" style={{ color: "rgba(255,255,255,0.25)" }}>📞 +251 11 863 4387</span>
-              <span className="text-[11px]" style={{ color: "rgba(255,255,255,0.25)" }}>✉️ lorcancm@gmail.com</span>
+              <span className="text-[11px] text-muted">📞 +251 11 863 4387</span>
+              <span className="text-[11px] text-muted">✉️ lorcancm@gmail.com</span>
               <a
                 href="https://lorcancm.edu.et"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-[11px] transition-colors hover:opacity-70"
-                style={{ color: "rgba(45,212,191,0.5)" }}
+                style={{ color: "#2DD4BF" }}
               >
                 🌐 lorcancm.edu.et
               </a>

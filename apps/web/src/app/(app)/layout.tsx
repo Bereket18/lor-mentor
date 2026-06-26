@@ -36,14 +36,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return (
       <div
         className="min-h-screen flex items-center justify-center"
-        style={{ background: "#060B14" }}
+        style={{ background: "var(--bg-base)" }}
       >
         <div className="flex flex-col items-center gap-3">
           <div
             className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin"
-            style={{ borderColor: "rgba(45,212,191,0.6)", borderTopColor: "transparent" }}
+            style={{ borderColor: "var(--teal)", borderTopColor: "transparent" }}
           />
-          <p className="text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>Loading…</p>
+          <p className="text-sm text-muted">Loading…</p>
         </div>
       </div>
     );
@@ -52,7 +52,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div
       className="flex h-screen overflow-hidden"
-      style={{ background: "#060B14", position: "relative" }}
+      style={{ background: "var(--bg-base)", position: "relative" }}
     >
       {/* ── Animated background gradient ──────────────────────── */}
       <div
