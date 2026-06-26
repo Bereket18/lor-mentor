@@ -12,14 +12,14 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 
 const studentNav = [
-  { href: "/dashboard",      icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/courses",        icon: BookOpen,        label: "My Courses" },
-  { href: "/ai-tutor",       icon: Bot,             label: "AI Tutor" },
-  { href: "/flashcards",     icon: Layers,          label: "Flashcards" },
-  { href: "/quiz",           icon: GraduationCap,   label: "Quizzes" },
-  { href: "/forum",          icon: MessageSquare,   label: "Forum" },
-  { href: "/progress",       icon: BarChart3,       label: "Progress" },
-  { href: "/notifications",  icon: Bell,            label: "Notifications" },
+  { href: "/dashboard",     icon: LayoutDashboard, label: "Dashboard" },
+  { href: "/courses",       icon: BookOpen,        label: "My Courses" },
+  { href: "/ai-tutor",      icon: Bot,             label: "AI Tutor" },
+  { href: "/flashcards",    icon: Layers,          label: "Flashcards" },
+  { href: "/quiz",          icon: GraduationCap,   label: "Quizzes" },
+  { href: "/forum",         icon: MessageSquare,   label: "Forum" },
+  { href: "/progress",      icon: BarChart3,       label: "Progress" },
+  { href: "/notifications", icon: Bell,            label: "Notifications" },
 ];
 
 const adminNav = [
@@ -32,9 +32,9 @@ const adminNav = [
 ];
 
 const teacherNav = [
-  { href: "/teacher",          icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/teacher/courses",  icon: BookOpen,        label: "My Courses" },
-  { href: "/teacher/analytics",icon: BarChart3,       label: "Analytics" },
+  { href: "/teacher",           icon: LayoutDashboard, label: "Dashboard" },
+  { href: "/teacher/courses",   icon: BookOpen,        label: "My Courses" },
+  { href: "/teacher/analytics", icon: BarChart3,       label: "Analytics" },
 ];
 
 interface SidebarProps {
@@ -43,40 +43,47 @@ interface SidebarProps {
 }
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
-  const pathname = usePathname();
+  const pathname  = usePathname();
   const { user, logout, isAdmin, isTeacher } = useAuth();
-  const navItems = isAdmin ? adminNav : isTeacher ? teacherNav : studentNav;
+  const navItems  = isAdmin ? adminNav : isTeacher ? teacherNav : studentNav;
 
   return (
     <motion.aside
       animate={{ width: collapsed ? 64 : 224 }}
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
-      className="flex-shrink-0 flex flex-col h-screen sticky top-0 overflow-hidden"
+      className="flex-shrink-0 flex flex-col h-screen sticky top-0 overflow-hidden relative"
       style={{
-        /* Same glass design as login/register left panel */
-        background: "linear-gradient(180deg, rgba(10,26,26,0.98) 0%, rgba(13,50,50,0.96) 50%, rgba(15,60,60,0.94) 100%)",
-        borderRight: "1px solid rgba(45,212,191,0.12)",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
-        boxShadow: "4px 0 24px rgba(0,0,0,0.3)",
+        backdropFilter: "blur(24px) saturate(150%)",
+        WebkitBackdropFilter: "blur(24px) saturate(150%)",
+        background: "rgba(6,11,20,0.88)",
+        borderRight: "1px solid rgba(255,255,255,0.08)",
+        boxShadow: "inset -1px 0 0 rgba(45,212,191,0.07), 4px 0 32px rgba(0,0,0,0.4)",
       }}
     >
-      {/* Subtle inner glow at top */}
+      {/* ── Chromatic top glow ──────────────────────────────── */}
       <div
         aria-hidden
-        className="pointer-events-none absolute top-0 left-0 right-0 h-40"
+        className="pointer-events-none absolute top-0 left-0 right-0 h-48"
         style={{
-          background: "radial-gradient(ellipse 100% 60% at 50% 0%, rgba(45,212,191,0.08) 0%, transparent 100%)",
+          background: "radial-gradient(ellipse 120% 60% at 50% 0%, rgba(45,212,191,0.07) 0%, transparent 100%)",
+        }}
+      />
+      {/* Subtle right-edge highlight */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute top-0 right-0 bottom-0 w-px"
+        style={{
+          background: "linear-gradient(180deg, rgba(45,212,191,0.15) 0%, rgba(45,212,191,0.04) 50%, transparent 100%)",
         }}
       />
 
-      {/* ── Logo ────────────────────────────────────── */}
+      {/* ── Logo ────────────────────────────────────────────── */}
       <div
         className={cn(
           "relative z-10 flex items-center flex-shrink-0",
           collapsed ? "px-3 py-5 justify-center" : "px-4 py-5",
         )}
-        style={{ borderBottom: "1px solid rgba(45,212,191,0.1)" }}
+        style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
       >
         <AnimatePresence mode="wait" initial={false}>
           {collapsed ? (
@@ -89,7 +96,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{
                 background: "linear-gradient(135deg, #147878 0%, #1A9494 100%)",
-                boxShadow: "0 0 16px rgba(45,212,191,0.35)",
+                boxShadow: "0 0 16px rgba(45,212,191,0.35), inset 0 1px 0 rgba(255,255,255,0.15)",
               }}
             >
               <span className="text-white font-bold text-sm">L</span>
@@ -103,24 +110,22 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               transition={{ duration: 0.15 }}
               className="flex items-center gap-3"
             >
-              {/* Logo mark */}
               <div
                 className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
                 style={{
                   background: "linear-gradient(135deg, #147878 0%, #1A9494 100%)",
-                  boxShadow: "0 0 16px rgba(45,212,191,0.35)",
+                  boxShadow: "0 0 16px rgba(45,212,191,0.35), inset 0 1px 0 rgba(255,255,255,0.15)",
                 }}
               >
                 <span className="text-white font-bold text-sm">L</span>
               </div>
-              {/* Text */}
               <div className="min-w-0">
                 <p className="text-white font-bold text-sm tracking-wide leading-none whitespace-nowrap">
                   LOR MENTOR
                 </p>
                 <p
                   className="text-[10px] font-medium mt-0.5 whitespace-nowrap"
-                  style={{ color: "#2DD4BF", opacity: 0.7 }}
+                  style={{ color: "#2DD4BF", opacity: 0.65 }}
                 >
                   Lorcan Medical College
                 </p>
@@ -130,7 +135,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         </AnimatePresence>
       </div>
 
-      {/* ── Navigation ──────────────────────────────── */}
+      {/* ── Navigation ──────────────────────────────────────── */}
       <nav className="relative z-10 flex-1 px-2 py-3 space-y-0.5 overflow-y-auto overflow-x-hidden">
         {navItems.map((item) => {
           const isActive =
@@ -141,8 +146,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           return (
             <Link key={item.href} href={item.href}>
               <motion.div
-                whileHover={{ x: collapsed ? 0 : 3 }}
-                transition={{ duration: 0.15 }}
+                whileHover={{ x: collapsed ? 0 : 2 }}
+                transition={{ duration: 0.12 }}
                 title={collapsed ? item.label : undefined}
                 className={cn(
                   "relative flex items-center rounded-xl text-sm font-medium",
@@ -152,26 +157,26 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 style={
                   isActive
                     ? {
-                        background: "linear-gradient(135deg, rgba(20,120,120,0.35) 0%, rgba(45,212,191,0.12) 100%)",
+                        background: "rgba(45,212,191,0.13)",
                         color: "#2DD4BF",
-                        boxShadow: "inset 0 0 0 1px rgba(45,212,191,0.2)",
+                        boxShadow: "inset 0 0 0 1px rgba(45,212,191,0.18), 0 0 16px rgba(45,212,191,0.12)",
                       }
-                    : { color: "rgba(255,255,255,0.45)" }
+                    : { color: "rgba(255,255,255,0.42)" }
                 }
                 onMouseEnter={(e) => {
                   if (!isActive) {
-                    (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)";
-                    (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.85)";
+                    (e.currentTarget as HTMLElement).style.background = "rgba(45,212,191,0.06)";
+                    (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.82)";
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!isActive) {
                     (e.currentTarget as HTMLElement).style.background = "";
-                    (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.45)";
+                    (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.42)";
                   }
                 }}
               >
-                {/* Active left accent bar */}
+                {/* Active left accent line */}
                 {isActive && !collapsed && (
                   <motion.div
                     layoutId="activeBar"
@@ -202,14 +207,15 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         })}
       </nav>
 
-      {/* ── Divider ─────────────────────────────────── */}
+      {/* ── Divider ─────────────────────────────────────────── */}
       <div
         className="relative z-10 mx-3"
-        style={{ borderTop: "1px solid rgba(45,212,191,0.08)" }}
+        style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
       />
 
-      {/* ── Profile & Logout ────────────────────────── */}
+      {/* ── Profile & Logout ────────────────────────────────── */}
       <div className="relative z-10 px-2 py-2 space-y-0.5">
+        {/* Profile */}
         <Link href="/profile">
           <div
             title={collapsed ? "Profile" : undefined}
@@ -220,21 +226,22 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             style={
               pathname === "/profile"
                 ? {
-                    background: "linear-gradient(135deg, rgba(20,120,120,0.35) 0%, rgba(45,212,191,0.12) 100%)",
+                    background: "rgba(45,212,191,0.13)",
                     color: "#2DD4BF",
+                    boxShadow: "inset 0 0 0 1px rgba(45,212,191,0.18)",
                   }
-                : { color: "rgba(255,255,255,0.45)" }
+                : { color: "rgba(255,255,255,0.42)" }
             }
             onMouseEnter={(e) => {
               if (pathname !== "/profile") {
-                (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)";
-                (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.85)";
+                (e.currentTarget as HTMLElement).style.background = "rgba(45,212,191,0.06)";
+                (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.82)";
               }
             }}
             onMouseLeave={(e) => {
               if (pathname !== "/profile") {
                 (e.currentTarget as HTMLElement).style.background = "";
-                (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.45)";
+                (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.42)";
               }
             }}
           >
@@ -256,6 +263,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           </div>
         </Link>
 
+        {/* Logout */}
         <button
           onClick={logout}
           title={collapsed ? "Log out" : undefined}
@@ -263,14 +271,14 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             "w-full flex items-center rounded-xl text-sm font-medium cursor-pointer transition-all duration-150",
             collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2.5",
           )}
-          style={{ color: "rgba(255,255,255,0.45)" }}
+          style={{ color: "rgba(255,255,255,0.42)" }}
           onMouseEnter={(e) => {
             (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,0.1)";
             (e.currentTarget as HTMLElement).style.color = "#F87171";
           }}
           onMouseLeave={(e) => {
             (e.currentTarget as HTMLElement).style.background = "";
-            (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.45)";
+            (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.42)";
           }}
         >
           <LogOut className="h-4 w-4 flex-shrink-0" />
@@ -291,7 +299,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         </button>
       </div>
 
-      {/* ── User info card ───────────────────────────── */}
+      {/* ── User info glass card ─────────────────────────────── */}
       <AnimatePresence initial={false}>
         {!collapsed && (
           <motion.div
@@ -300,25 +308,33 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.15 }}
-            className="relative z-10 mx-2 mb-2 px-3 py-2.5 rounded-xl overflow-hidden"
+            className="relative z-10 mx-2 mb-2 px-3 py-3 rounded-2xl overflow-hidden"
             style={{
-              background: "rgba(45,212,191,0.05)",
-              border: "1px solid rgba(45,212,191,0.1)",
+              backdropFilter: "blur(8px)",
+              WebkitBackdropFilter: "blur(8px)",
+              background: "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(255,255,255,0.09)",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.07)",
             }}
           >
+            {/* Top chromatic arc on card */}
+            <div
+              aria-hidden
+              className="absolute top-0 left-0 right-0 h-px"
+              style={{
+                background: "linear-gradient(90deg, transparent, rgba(45,212,191,0.3), transparent)",
+              }}
+            />
             <p className="text-white text-xs font-semibold truncate leading-none mb-0.5">
               {user?.fullName}
             </p>
-            <p
-              className="text-[10px] truncate"
-              style={{ color: "rgba(45,212,191,0.55)" }}
-            >
+            <p className="text-[10px] truncate mb-1.5" style={{ color: "rgba(45,212,191,0.55)" }}>
               {user?.email}
             </p>
             <span
-              className="inline-block mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+              className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold"
               style={{
-                background: "rgba(20,120,120,0.3)",
+                background: "rgba(45,212,191,0.12)",
                 color: "#2DD4BF",
                 border: "1px solid rgba(45,212,191,0.2)",
               }}
@@ -329,23 +345,23 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         )}
       </AnimatePresence>
 
-      {/* ── Collapse toggle ──────────────────────────── */}
+      {/* ── Collapse toggle ──────────────────────────────────── */}
       <div
         className="relative z-10 p-2"
-        style={{ borderTop: "1px solid rgba(45,212,191,0.08)" }}
+        style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
       >
         <button
           onClick={onToggle}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           className="w-full flex items-center justify-center py-2 rounded-xl transition-all duration-150"
-          style={{ color: "rgba(255,255,255,0.3)" }}
+          style={{ color: "rgba(255,255,255,0.28)" }}
           onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)";
+            (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)";
             (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.7)";
           }}
           onMouseLeave={(e) => {
             (e.currentTarget as HTMLElement).style.background = "";
-            (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.3)";
+            (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.28)";
           }}
         >
           {collapsed ? (
