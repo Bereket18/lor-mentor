@@ -1,34 +1,69 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, Loader2, ArrowRight, Sparkles, GraduationCap, Brain, Layers } from "lucide-react";
+import { Eye, EyeOff, Loader2, ArrowRight } from "lucide-react";
 import api from "@/lib/api";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 
 const schema = z.object({
-  email: z.string().email("Please enter a valid email address"),
+  email:    z.string().email("Please enter a valid email address"),
   password: z.string().min(1, "Password is required"),
 });
 
 type FormData = z.infer<typeof schema>;
 
-// Feature highlights shown on the left panel
-const features = [
-  { icon: Brain,       label: "AI Tutor",        sub: "Course-aware, 24/7 available" },
-  { icon: GraduationCap, label: "Smart Quizzes", sub: "Exam-ready practice sets" },
-  { icon: Layers,      label: "Flashcards",       sub: "Auto-generated from your PDFs" },
-];
+/* ── Glass input — works in both dark and light mode ─────────── */
+interface GlassInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  hasError?: boolean;
+}
 
+const GlassInput = React.forwardRef<HTMLInputElement, GlassInputProps>(
+  function GlassInput({ hasError, style, ...props }, ref) {
+    return (
+      <input
+        ref={ref}
+        {...props}
+        className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all duration-200"
+        style={{
+          backdropFilter: "blur(8px)",
+          WebkitBackdropFilter: "blur(8px)",
+          background: "var(--glass-input-bg)",
+          border: hasError
+            ? "1px solid rgba(239,68,68,0.5)"
+            : "1px solid var(--glass-input-border)",
+          color: "var(--text-primary)",
+          ...style,
+        }}
+        onFocus={(e) => {
+          if (!hasError) {
+            e.currentTarget.style.border = "1px solid rgba(45,212,191,0.6)";
+            e.currentTarget.style.boxShadow = "0 0 0 3px rgba(45,212,191,0.12), 0 0 20px rgba(45,212,191,0.08)";
+          }
+          props.onFocus?.(e);
+        }}
+        onBlur={(e) => {
+          e.currentTarget.style.border = hasError
+            ? "1px solid rgba(239,68,68,0.5)"
+            : "1px solid var(--glass-input-border)";
+          e.currentTarget.style.boxShadow = "none";
+          props.onBlur?.(e);
+        }}
+      />
+    );
+  },
+);
+
+/* ── Page ─────────────────────────────────────────────────────── */
 export default function LoginPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
-  const [serverError, setServerError]   = useState("");
+  const [serverError,  setServerError]  = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { register, handleSubmit, formState: { errors } } =
@@ -52,369 +87,156 @@ export default function LoginPage() {
   }
 
   return (
-    <div suppressHydrationWarning className="min-h-screen flex bg-base relative overflow-hidden">
+    <div
+      suppressHydrationWarning
+      className="min-h-screen flex items-center justify-center relative overflow-hidden auth-bg"
+    >
+      {/* ── CSS for auth pages: orb animations + glass tokens ── */}
+      <style>{`
+        .auth-bg { background: var(--bg-base); }
 
-      {/* ── Background mesh gradient ──────────────────────────── */}
-      <div
-        suppressHydrationWarning
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background: `
-            radial-gradient(ellipse 80% 60% at 20% -10%, rgba(20,184,166,0.18) 0%, transparent 60%),
-            radial-gradient(ellipse 60% 50% at 80% 110%, rgba(14,165,233,0.14) 0%, transparent 60%)
-          `,
-        }}
-      />
+        /* Glass tokens that adapt to light/dark */
+        :root {
+          --glass-card-bg:      rgba(255,255,255,0.07);
+          --glass-card-border:  rgba(255,255,255,0.16);
+          --glass-input-bg:     rgba(255,255,255,0.06);
+          --glass-input-border: rgba(255,255,255,0.14);
+          --glass-card-shadow:  inset 0 1px 0 rgba(255,255,255,0.18), 0 8px 32px rgba(0,0,0,0.45), 0 32px 64px rgba(0,0,0,0.3);
+        }
+        [data-theme="light"] {
+          --glass-card-bg:      rgba(255,255,255,0.72);
+          --glass-card-border:  rgba(0,0,0,0.08);
+          --glass-input-bg:     rgba(255,255,255,0.8);
+          --glass-input-border: rgba(0,0,0,0.1);
+          --glass-card-shadow:  inset 0 1px 0 rgba(255,255,255,0.9), 0 8px 32px rgba(0,0,0,0.12), 0 32px 64px rgba(0,0,0,0.08);
+        }
 
-      {/* ── Left panel — glassy brand panel ──────────────────── */}
-      <div
-        className="hidden lg:flex lg:w-[440px] xl:w-[480px] flex-shrink-0 flex-col justify-between p-10 xl:p-12 relative overflow-hidden"
+        /* Orb animations */
+        @keyframes orbDrift1 {
+          0%,100% { transform: translate(0px,0px) scale(1); }
+          33%      { transform: translate(60px,80px) scale(1.08); }
+          66%      { transform: translate(-40px,50px) scale(0.95); }
+        }
+        @keyframes orbDrift2 {
+          0%,100% { transform: translate(0px,0px) scale(1); }
+          40%      { transform: translate(-80px,-60px) scale(1.1); }
+          70%      { transform: translate(50px,-30px) scale(0.93); }
+        }
+        @keyframes orbDrift3 {
+          0%,100% { transform: translate(0px,0px) scale(1); }
+          50%      { transform: translate(-60px,70px) scale(1.12); }
+        }
+        @keyframes glassSheen {
+          0%   { left: -100%; }
+          100% { left: 200%; }
+        }
+      `}</style>
+
+      {/* ── Animated orb background ─────────────────────────── */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute rounded-full" style={{ width: 600, height: 600, top: "-15%", left: "-10%", background: "radial-gradient(circle, rgba(20,184,166,0.2) 0%, rgba(20,184,166,0.05) 50%, transparent 70%)", animation: "orbDrift1 18s ease-in-out infinite", filter: "blur(40px)" }} />
+        <div className="absolute rounded-full" style={{ width: 500, height: 500, bottom: "-10%", right: "-5%", background: "radial-gradient(circle, rgba(14,165,233,0.16) 0%, rgba(14,165,233,0.04) 50%, transparent 70%)", animation: "orbDrift2 22s ease-in-out infinite", filter: "blur(50px)" }} />
+        <div className="absolute rounded-full" style={{ width: 400, height: 400, top: "40%", left: "55%", background: "radial-gradient(circle, rgba(16,185,129,0.12) 0%, rgba(16,185,129,0.03) 50%, transparent 70%)", animation: "orbDrift3 26s ease-in-out infinite", filter: "blur(45px)" }} />
+      </div>
+
+      {/* ── ThemeToggle ───────────────────────────────────────── */}
+      <div className="absolute top-4 right-4 z-50">
+        <ThemeToggle variant="pill" />
+      </div>
+
+      {/* ── Glass card ────────────────────────────────────────── */}
+      <motion.div
+        initial={{ opacity: 0, y: 32, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0,  scale: 1 }}
+        transition={{ duration: 0.55, ease: [0.25, 0.46, 0.45, 0.94] }}
+        className="relative w-full mx-4 sm:mx-auto"
         style={{
-          background: "linear-gradient(145deg, rgba(10,26,26,0.97) 0%, rgba(13,59,59,0.92) 50%, rgba(20,120,120,0.85) 100%)",
-          borderRight: "1px solid rgba(45,212,191,0.15)",
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
+          maxWidth: 420,
+          borderRadius: 28,
+          backdropFilter: "blur(40px) saturate(180%)",
+          WebkitBackdropFilter: "blur(40px) saturate(180%)",
+          background: "var(--glass-card-bg)",
+          border: "1px solid var(--glass-card-border)",
+          boxShadow: "var(--glass-card-shadow)",
         }}
       >
-        {/* Mesh glow inside panel */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background: `
-              radial-gradient(ellipse 100% 60% at 50% 0%, rgba(45,212,191,0.12) 0%, transparent 70%),
-              radial-gradient(ellipse 80% 80% at 100% 100%, rgba(20,184,166,0.10) 0%, transparent 60%)
-            `,
-          }}
-        />
+        {/* Chromatic top highlight */}
+        <div aria-hidden className="pointer-events-none absolute top-0 left-0 right-0" style={{ height: 1, borderRadius: "28px 28px 0 0", background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.35) 40%, rgba(45,212,191,0.4) 60%, transparent 100%)" }} />
 
-        {/* Dot grid texture */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-20"
-          style={{
-            backgroundImage: "radial-gradient(circle, rgba(45,212,191,0.4) 1px, transparent 1px)",
-            backgroundSize: "28px 28px",
-          }}
-        />
+        <div className="px-8 pt-9 pb-8">
+          {/* Logo */}
+          <div className="flex flex-col items-center mb-8">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-3" style={{ background: "linear-gradient(135deg, #147878 0%, #1A9494 60%, #2DD4BF 100%)", boxShadow: "0 0 28px rgba(45,212,191,0.45), inset 0 1px 0 rgba(255,255,255,0.2)" }}>
+              <span className="text-white font-bold text-xl tracking-tight">L</span>
+            </div>
+            <p className="font-bold text-base tracking-widest uppercase leading-none text-primary">LOR MENTOR</p>
+            <p className="text-[11px] font-medium mt-1 tracking-wider" style={{ color: "#2DD4BF", opacity: 0.8 }}>LORCAN MEDICAL COLLEGE</p>
+          </div>
 
-        <div className="relative z-10 flex flex-col h-full">
-          {/* ── Logo + School name ────────────────────────── */}
-          <div className="mb-12">
-            {/* Logo mark */}
-            <div className="flex items-center gap-3 mb-3">
-              <div
-                className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
-                style={{
-                  background: "linear-gradient(135deg, #147878 0%, #1A9494 100%)",
-                  boxShadow: "0 0 24px rgba(45,212,191,0.4), inset 0 1px 0 rgba(255,255,255,0.15)",
-                }}
-              >
-                <span className="text-white font-bold text-lg tracking-tight">L</span>
-              </div>
-              <div>
-                <p className="text-white font-bold text-base tracking-wide leading-none">
-                  LOR MENTOR
-                </p>
-                <p style={{ color: "#2DD4BF" }} className="text-[11px] font-medium mt-0.5 tracking-wider">
-                  LORCAN MEDICAL COLLEGE
-                </p>
-              </div>
+          {/* Heading */}
+          <h1 className="text-primary text-xl font-bold text-center mb-1" style={{ letterSpacing: "-0.02em" }}>Sign in to your account</h1>
+          <p className="text-center text-sm text-secondary mb-7">Welcome back — let&apos;s continue learning</p>
+
+          {/* Server error */}
+          {serverError && (
+            <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} className="rounded-2xl px-4 py-3 text-sm mb-5" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", color: "#EF4444" }}>
+              {serverError}
+            </motion.div>
+          )}
+
+          {/* Form */}
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-semibold tracking-widest uppercase text-secondary">Email Address</label>
+              <GlassInput {...register("email")} type="email" placeholder="you@lorcan.edu.et" hasError={!!errors.email} />
+              {errors.email && <p className="text-xs mt-1" style={{ color: "#EF4444" }}>{errors.email.message}</p>}
             </div>
 
-            {/* Separator */}
-            <div
-              className="h-px w-full mt-4"
-              style={{ background: "linear-gradient(90deg, rgba(45,212,191,0.4) 0%, transparent 100%)" }}
-            />
-          </div>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="block text-[11px] font-semibold tracking-widest uppercase text-secondary">Password</label>
+                <Link href="/forgot-password" className="text-xs font-medium transition-colors hover:opacity-80" style={{ color: "#2DD4BF" }}>Forgot password?</Link>
+              </div>
+              <div className="relative">
+                <GlassInput {...register("password")} type={showPassword ? "text" : "password"} placeholder="••••••••" hasError={!!errors.password} style={{ paddingRight: "2.75rem" }} />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted hover:text-primary transition-colors">
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              {errors.password && <p className="text-xs mt-1" style={{ color: "#EF4444" }}>{errors.password.message}</p>}
+            </div>
 
-          {/* ── Headline ─────────────────────────────────── */}
-          <div className="mb-10">
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, ease: "easeOut" }}
-              className="text-white font-display text-3xl xl:text-4xl font-bold leading-[1.15] mb-4"
+            {/* Submit */}
+            <motion.button
+              type="submit"
+              disabled={isSubmitting}
+              whileTap={{ scale: 0.98 }}
+              className="group relative w-full py-3 mt-2 rounded-2xl flex items-center justify-center gap-2 text-white font-semibold text-sm transition-all duration-200 overflow-hidden disabled:opacity-60 disabled:cursor-not-allowed"
+              style={{ background: "linear-gradient(135deg, #0F6B6B 0%, #147878 40%, #1A9494 70%, #2DD4BF 100%)", boxShadow: isSubmitting ? "none" : "0 0 24px rgba(20,184,166,0.4), 0 4px 16px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)" }}
+              onMouseEnter={(e) => { if (!isSubmitting) { e.currentTarget.style.boxShadow = "0 0 40px rgba(45,212,191,0.55), 0 4px 20px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.2)"; e.currentTarget.style.transform = "translateY(-1px)"; } }}
+              onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 0 24px rgba(20,184,166,0.4), 0 4px 16px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)"; e.currentTarget.style.transform = "translateY(0)"; }}
             >
-              Welcome back to your{" "}
-              <span
-                style={{
-                  background: "linear-gradient(135deg, #2DD4BF 0%, #14B8A6 60%, #0EA5E9 100%)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
-                }}
-              >
-                medical workspace
-              </span>
-            </motion.h1>
-            <motion.p
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.1, ease: "easeOut" }}
-              className="text-white/50 text-sm leading-relaxed"
-            >
-              Ethiopia&apos;s most advanced AI-powered medical learning platform,
-              built for Lorcan Medical College students.
-            </motion.p>
-          </div>
+              <span aria-hidden className="pointer-events-none absolute top-0 bottom-0 w-1/3" style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent)", animation: "glassSheen 3s ease-in-out infinite" }} />
+              {isSubmitting ? <><Loader2 className="h-4 w-4 animate-spin" />Signing in…</> : <>Sign in to Lor Mentor<ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" /></>}
+            </motion.button>
+          </form>
 
-          {/* ── Feature cards ────────────────────────────── */}
-          <div className="space-y-3 flex-1">
-            {features.map((f, i) => (
-              <motion.div
-                key={f.label}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5, delay: 0.2 + i * 0.1 }}
-                className="flex items-center gap-3 px-4 py-3 rounded-2xl"
-                style={{
-                  background: "rgba(45,212,191,0.06)",
-                  border: "1px solid rgba(45,212,191,0.12)",
-                }}
-              >
-                <div
-                  className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: "rgba(45,212,191,0.15)" }}
-                >
-                  <f.icon className="h-4 w-4" style={{ color: "#2DD4BF" }} />
-                </div>
-                <div>
-                  <p className="text-white text-sm font-medium leading-none mb-0.5">{f.label}</p>
-                  <p className="text-white/40 text-xs">{f.sub}</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+          <p className="text-center text-sm mt-5 text-secondary">
+            New to Lor Mentor?{" "}
+            <Link href="/register" className="font-semibold transition-colors hover:opacity-80" style={{ color: "#2DD4BF" }}>Create an account</Link>
+          </p>
 
-          {/* ── Footer ───────────────────────────────────── */}
-          <div className="mt-8 pt-6" style={{ borderTop: "1px solid rgba(45,212,191,0.1)" }}>
-            <p className="text-white/50 text-xs font-medium mb-2">Lorcan Medical College</p>
-            <div className="space-y-1">
-              <a href="https://lorcancm.edu.et" target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-white/30 hover:text-white/60 text-[11px] transition-colors">
-                🌐 lorcancm.edu.et
-              </a>
-              <p className="text-white/30 text-[11px]">📞 +251 11 863 4387 / +251 91 196 0059</p>
-              <p className="text-white/30 text-[11px]">✉️ lorcancm@gmail.com</p>
-              <p className="text-white/20 text-[10px] mt-1.5">CMC Square, behind Tsehay Real Estate,<br />beside ICMC Hospital · Addis Ababa</p>
+          {/* Address footer */}
+          <div className="mt-7 pt-6" style={{ borderTop: "1px solid var(--border-subtle)" }}>
+            <p className="text-center text-[11px] font-medium mb-2 text-muted">Lorcan Medical College · CMC Square, Addis Ababa</p>
+            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+              <span className="text-[11px] text-muted">📞 +251 11 863 4387</span>
+              <span className="text-[11px] text-muted">✉️ lorcancm@gmail.com</span>
+              <a href="https://lorcancm.edu.et" target="_blank" rel="noopener noreferrer" className="text-[11px] transition-colors hover:opacity-70" style={{ color: "#2DD4BF" }}>🌐 lorcancm.edu.et</a>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* ── Right panel — login form ──────────────────────────── */}
-      <div className="flex-1 flex flex-col relative z-10">
-        {/* Top bar with theme toggle */}
-        <div className="flex items-center justify-between px-6 py-4">
-          {/* Mobile logo */}
-          <div className="flex items-center gap-2 lg:hidden">
-            <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center"
-              style={{ background: "linear-gradient(135deg, #147878, #1A9494)" }}
-            >
-              <span className="text-white font-bold text-xs">L</span>
-            </div>
-            <span className="text-primary font-bold text-sm">LOR MENTOR</span>
-          </div>
-          <div className="hidden lg:block" />
-          <ThemeToggle variant="pill" />
-        </div>
-
-        {/* Form area */}
-        <div className="flex-1 flex items-center justify-center px-6 py-8">
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: "easeOut" }}
-            className="w-full max-w-[400px]"
-          >
-            {/* Heading */}
-            <div className="mb-8">
-              <h2 className="font-display text-2xl font-bold text-primary mb-1.5">
-                Sign in
-              </h2>
-              <p className="text-secondary text-sm">
-                New to Lor Mentor?{" "}
-                <Link
-                  href="/register"
-                  className="font-semibold transition-colors"
-                  style={{ color: "#14B8A6" }}
-                >
-                  Create an account
-                </Link>
-              </p>
-            </div>
-
-            {/* Server error */}
-            {serverError && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.97 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="rounded-xl px-4 py-3 text-sm mb-6"
-                style={{
-                  background: "rgba(239,68,68,0.08)",
-                  border: "1px solid rgba(239,68,68,0.2)",
-                  color: "#EF4444",
-                }}
-              >
-                {serverError}
-              </motion.div>
-            )}
-
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-              {/* Email field */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-secondary tracking-widest uppercase">
-                  Email Address
-                </label>
-                <div className="relative group">
-                  <input
-                    {...register("email")}
-                    type="email"
-                    placeholder="you@lorcan.edu.et"
-                    className="
-                      w-full rounded-xl px-4 py-3 text-sm text-primary
-                      placeholder:text-muted/60
-                      outline-none transition-all duration-200
-                      focus:ring-2
-                    "
-                    style={{
-                      background: "var(--bg-surface)",
-                      border: errors.email
-                        ? "1px solid rgba(239,68,68,0.5)"
-                        : "1px solid var(--border-default)",
-                    }}
-                    onFocus={(e) => {
-                      if (!errors.email) {
-                        e.currentTarget.style.border = "1px solid rgba(20,184,166,0.6)";
-                        e.currentTarget.style.boxShadow = "0 0 0 3px rgba(20,184,166,0.12), 0 0 20px rgba(20,184,166,0.08)";
-                      }
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.border = errors.email ? "1px solid rgba(239,68,68,0.5)" : "1px solid var(--border-default)";
-                      e.currentTarget.style.boxShadow = "none";
-                    }}
-                  />
-                </div>
-                {errors.email && (
-                  <p className="text-xs mt-1" style={{ color: "#EF4444" }}>
-                    {errors.email.message}
-                  </p>
-                )}
-              </div>
-
-              {/* Password field */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-semibold text-secondary tracking-widest uppercase">
-                    Password
-                  </label>
-                  <Link
-                    href="/forgot-password"
-                    className="text-xs font-medium transition-colors hover:opacity-80"
-                    style={{ color: "#14B8A6" }}
-                  >
-                    Forgot password?
-                  </Link>
-                </div>
-                <div className="relative">
-                  <input
-                    {...register("password")}
-                    type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
-                    className="
-                      w-full rounded-xl px-4 py-3 pr-11 text-sm text-primary
-                      placeholder:text-muted/60
-                      outline-none transition-all duration-200
-                    "
-                    style={{
-                      background: "var(--bg-surface)",
-                      border: errors.password
-                        ? "1px solid rgba(239,68,68,0.5)"
-                        : "1px solid var(--border-default)",
-                    }}
-                    onFocus={(e) => {
-                      if (!errors.password) {
-                        e.currentTarget.style.border = "1px solid rgba(20,184,166,0.6)";
-                        e.currentTarget.style.boxShadow = "0 0 0 3px rgba(20,184,166,0.12), 0 0 20px rgba(20,184,166,0.08)";
-                      }
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.border = errors.password ? "1px solid rgba(239,68,68,0.5)" : "1px solid var(--border-default)";
-                      e.currentTarget.style.boxShadow = "none";
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted hover:text-primary transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-                {errors.password && (
-                  <p className="text-xs mt-1" style={{ color: "#EF4444" }}>
-                    {errors.password.message}
-                  </p>
-                )}
-              </div>
-
-              {/* Submit button */}
-              <motion.button
-                type="submit"
-                disabled={isSubmitting}
-                whileTap={{ scale: 0.98 }}
-                className="
-                  group w-full py-3 mt-2 rounded-xl
-                  flex items-center justify-center gap-2
-                  text-white font-semibold text-sm
-                  transition-all duration-200
-                  disabled:opacity-60 disabled:cursor-not-allowed
-                "
-                style={{
-                  background: isSubmitting
-                    ? "linear-gradient(135deg, #147878, #1A9494)"
-                    : "linear-gradient(135deg, #0F6B6B 0%, #147878 40%, #1A9494 100%)",
-                  boxShadow: isSubmitting ? "none" : "0 0 20px rgba(20,184,166,0.35), 0 4px 12px rgba(0,0,0,0.2)",
-                }}
-                onMouseEnter={(e) => {
-                  if (!isSubmitting) {
-                    e.currentTarget.style.boxShadow = "0 0 32px rgba(45,212,191,0.5), 0 4px 16px rgba(0,0,0,0.25)";
-                    e.currentTarget.style.transform = "translateY(-1px)";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.boxShadow = "0 0 20px rgba(20,184,166,0.35), 0 4px 12px rgba(0,0,0,0.2)";
-                  e.currentTarget.style.transform = "translateY(0)";
-                }}
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Signing in...
-                  </>
-                ) : (
-                  <>
-                    Sign in to Lor Mentor
-                    <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
-                  </>
-                )}
-              </motion.button>
-            </form>
-
-            {/* Footer hint */}
-            <div className="mt-8 flex items-center gap-2 justify-center">
-              <Sparkles className="h-3 w-3" style={{ color: "#14B8A6" }} />
-              <span className="text-xs text-muted">
-                Powered by Cornerstone Technologies Built for Lorcan Medical College
-              </span>
-            </div>
-          </motion.div>
-        </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

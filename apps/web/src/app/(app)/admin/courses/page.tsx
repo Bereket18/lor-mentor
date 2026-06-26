@@ -65,6 +65,18 @@ export default function AdminCoursesPage() {
     loadDepartments();
   }, []);
 
+  const [teachers, setTeachers] = useState<{ id: string; fullName: string }[]>(
+    [],
+  );
+  const [selectedTeacherId, setSelectedTeacherId] = useState("");
+
+  useEffect(() => {
+    api
+      .get("/users?role=TEACHER&limit=100")
+      .then((res) => setTeachers(res.data.users ?? []))
+      .catch(() => setTeachers([]));
+  }, []);
+
   async function loadDepartments() {
     setLoading(true);
     try {
@@ -98,7 +110,7 @@ export default function AdminCoursesPage() {
   async function loadCourses(semesterId: string) {
     setLoading(true);
     try {
-      const res = await api.get(`/courses?semesterId=${semesterId}`);
+      const res = await api.get(`/courses/admin-semester?semesterId=${semesterId}`);
       setCourses(res.data);
     } finally {
       setLoading(false);
@@ -181,8 +193,10 @@ export default function AdminCoursesPage() {
         await api.post("/courses", {
           semesterId: selectedSemester.id,
           title: newName,
+          teacherId: selectedTeacherId || undefined,
           isPublished: true,
         });
+        setSelectedTeacherId("");
         await loadCourses(selectedSemester.id);
       }
       setNewName("");
@@ -197,6 +211,16 @@ export default function AdminCoursesPage() {
   async function handleArchiveCourse(id: string) {
     await api.patch(`/courses/${id}/archive`);
     if (selectedSemester) loadCourses(selectedSemester.id);
+  }
+
+  async function handleAssignTeacher(courseId: string, teacherId: string) {
+    try {
+      await api.patch(`/courses/${courseId}`, { teacherId: teacherId || null });
+      if (selectedSemester) await loadCourses(selectedSemester.id);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
+      alert(err?.response?.data?.message ?? "Failed to assign teacher");
+    }
   }
 
   // ── Material upload handlers ────────────────────────────────
@@ -347,6 +371,21 @@ export default function AdminCoursesPage() {
       {/* Add new row — hidden at materials level, replaced by upload form */}
       {level !== "materials" && (
         <div className="flex items-center gap-2">
+          {level === "courses" && (
+            <select
+              value={selectedTeacherId}
+              onChange={(e) => setSelectedTeacherId(e.target.value)}
+              className="w-52 bg-surface border border-default rounded-xl px-3 py-2.5
+                text-sm text-primary focus:outline-none focus:border-accent"
+            >
+              <option value="">No teacher</option>
+              {teachers.map((teacher) => (
+                <option key={teacher.id} value={teacher.id}>
+                  {teacher.fullName}
+                </option>
+              ))}
+            </select>
+          )}
           <input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
@@ -399,7 +438,6 @@ export default function AdminCoursesPage() {
               </button>
             ))}
           </div>
-
           <input
             value={materialTitle}
             onChange={(e) => setMaterialTitle(e.target.value)}
@@ -568,6 +606,22 @@ export default function AdminCoursesPage() {
                         </p>
                       </div>
                     </button>
+                    <select
+                      value={course.teacher?.id ?? ""}
+                      onChange={(e) =>
+                        handleAssignTeacher(course.id, e.target.value)
+                      }
+                      className="max-w-40 bg-elevated border border-default rounded-lg px-2 py-1
+                        text-xs text-secondary focus:outline-none focus:border-accent"
+                      title="Assign teacher"
+                    >
+                      <option value="">No teacher</option>
+                      {teachers.map((teacher) => (
+                        <option key={teacher.id} value={teacher.id}>
+                          {teacher.fullName}
+                        </option>
+                      ))}
+                    </select>
                     <ChevronRight className="h-4 w-4 text-muted flex-shrink-0" />
                     <button
                       onClick={() => handleArchiveCourse(course.id)}
@@ -628,3 +682,6 @@ export default function AdminCoursesPage() {
     </div>
   );
 }
+
+
+

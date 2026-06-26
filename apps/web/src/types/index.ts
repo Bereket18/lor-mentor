@@ -57,5 +57,5 @@ export interface Course {
   title:       string
   description?: string | null
   isPublished: boolean
-  teacher?:    { fullName: string } | null
+  teacher?:    { id: string; fullName: string } | null
 }

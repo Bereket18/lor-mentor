@@ -125,7 +125,7 @@ export class MaterialsController {
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.service.createWithFile(dto, file, user.id);
+    return this.service.createWithFile(dto, file, user.id, user.role);
   }
 
   // POST /api/v1/materials/youtube
@@ -133,20 +133,24 @@ export class MaterialsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN', 'TEACHER')
   createYoutube(@Body() dto: CreateMaterialDto, @CurrentUser() user: AuthUser) {
-    return this.service.createYoutube(dto, user.id);
+    return this.service.createYoutube(dto, user.id, user.role);
   }
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN', 'TEACHER')
-  update(@Param('id') id: string, @Body() dto: UpdateMaterialDto) {
-    return this.service.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateMaterialDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.service.update(id, dto, user.id, user.role);
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN', 'TEACHER')
-  remove(@Param('id') id: string) {
-    return this.service.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.service.remove(id, user.id, user.role);
   }
 }

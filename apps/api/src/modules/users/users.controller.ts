@@ -35,7 +35,6 @@ export class UsersController {
     return { user };
   }
 
-  // GET /api/v1/users?search=&role=&sortBy=role
   @Get()
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
@@ -55,7 +54,6 @@ export class UsersController {
     });
   }
 
-  // POST /api/v1/users/create-staff — ADMIN/SUPER_ADMIN only
   @Post('create-staff')
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
@@ -71,7 +69,6 @@ export class UsersController {
     return this.usersService.createStaff(body);
   }
 
-  // DELETE /api/v1/users/inactive — SUPER_ADMIN only
   @Delete('inactive')
   @UseGuards(RolesGuard)
   @Roles('SUPER_ADMIN')
