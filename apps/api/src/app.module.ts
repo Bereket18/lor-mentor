@@ -15,6 +15,7 @@ import { PlansModule } from './modules/plans/plans.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { AiModule } from './modules/ai/ai.module';
+import { ForumModule } from './modules/forum/forum.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { AiModule } from './modules/ai/ai.module';
     PaymentsModule,
     SubscriptionsModule,
     AiModule,
+    ForumModule,
   ],
   controllers: [AppController],
   providers: [AppService],
