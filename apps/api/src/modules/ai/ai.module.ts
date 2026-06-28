@@ -18,6 +18,6 @@ import { PdfExtractorService } from './pdf-extractor.service';
     }),
   ],
   providers: [AiProcessor, AiService, GeminiService, PdfExtractorService],
-  exports: [AiService],
+  exports: [AiService, GeminiService],
 })
 export class AiModule {}

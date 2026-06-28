@@ -98,4 +98,35 @@ ${truncated}
       throw error;
     }
   }
+
+  // Conversational tutor answer. `context` is optional grounding material
+  // (AI summaries + key topics from the student's course). When present we
+  // instruct the model to prefer it; otherwise it answers from general
+  // medical knowledge. Returns plain text suitable for a chat bubble.
+  async answerQuestion(question: string, context: string): Promise<string> {
+    const model = this.client.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+    const grounding = context
+      ? `Use the following course material as your primary reference. If the answer is not covered by it, say so briefly and then answer from general medical knowledge.\n\n--- COURSE MATERIAL ---\n${context.slice(0, 30_000)}\n--- END MATERIAL ---\n`
+      : 'Answer from general medical knowledge.';
+
+    const prompt = `
+You are a friendly, knowledgeable medical tutor for students at Lorcan Medical
+College in Addis Ababa. Answer the student's question clearly and concisely,
+at the level of a medical student studying for exams. Use short paragraphs or
+bullet points. Do not invent citations.
+
+${grounding}
+
+Student question: ${question}
+    `.trim();
+
+    try {
+      const result = await model.generateContent(prompt);
+      return result.response.text().trim();
+    } catch (error) {
+      this.logger.error('Gemini tutor answer failed', error);
+      throw error;
+    }
+  }
 }
