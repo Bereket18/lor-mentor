@@ -55,6 +55,7 @@ export function useAuth() {
 
   // Convenience booleans
   const isLoggedIn = !!user;
+  const isSuperAdmin = user?.role === "SUPER_ADMIN";
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
   const isTeacher = user?.role === "TEACHER";
   const isStudent = user?.role === "STUDENT";
@@ -63,6 +64,7 @@ export function useAuth() {
     user,
     loading,
     isLoggedIn,
+    isSuperAdmin,
     isAdmin,
     isTeacher,
     isStudent,

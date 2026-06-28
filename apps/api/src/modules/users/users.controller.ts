@@ -14,6 +14,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UsersService } from './users.service';
+import { CreateUserDto } from './dto/create-user.dto';
 
 interface AuthUser {
   id: string;
@@ -61,19 +62,13 @@ export class UsersController {
     });
   }
 
+  // Create a user. The route allows ADMIN/SUPER_ADMIN; the service enforces
+  // which target roles the actor may actually create.
   @Post('create-staff')
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
-  createStaff(
-    @Body()
-    body: {
-      fullName: string;
-      email: string;
-      role: 'TEACHER' | 'ADMIN';
-      departmentId?: string;
-    },
-  ) {
-    return this.usersService.createStaff(body);
+  createUser(@CurrentUser() actor: AuthUser, @Body() body: CreateUserDto) {
+    return this.usersService.createUser(actor.role, body);
   }
 
   @Delete('inactive')
@@ -91,7 +86,16 @@ export class UsersController {
     @Body('role') role: string,
     @CurrentUser() actor: AuthUser,
   ) {
-    return this.usersService.changeRole(id, role, actor.id);
+    return this.usersService.changeRole(id, role, actor.id, actor.role);
+  }
+
+  // Delete a single user (hard delete). Service enforces the hierarchy and
+  // self / last-super-admin protection.
+  @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  deleteUser(@Param('id') id: string, @CurrentUser() actor: AuthUser) {
+    return this.usersService.deleteUser(id, actor.id, actor.role);
   }
 
   @Patch(':id/status')

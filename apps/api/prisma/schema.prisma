@@ -86,6 +86,8 @@ model User {
   aiHistory        AiHistory[]
   forumPosts       ForumPost[]
   forumReplies     ForumReply[]
+  reactions        Reaction[]
+  reports          Report[]
   notifications    Notification[]
   auditLogs        AuditLog[]
 
@@ -374,9 +376,11 @@ model ForumPost {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  section ForumSection @relation(fields: [sectionId], references: [id])
-  author  User         @relation(fields: [authorId], references: [id])
-  replies ForumReply[]
+  section   ForumSection @relation(fields: [sectionId], references: [id])
+  author    User         @relation(fields: [authorId], references: [id])
+  replies   ForumReply[]
+  reactions Reaction[]
+  reports   Report[]
 }
 
 model ForumReply {
@@ -387,8 +391,10 @@ model ForumReply {
   isRemoved Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  post   ForumPost @relation(fields: [postId], references: [id])
-  author User      @relation(fields: [authorId], references: [id])
+  post      ForumPost  @relation(fields: [postId], references: [id])
+  author    User       @relation(fields: [authorId], references: [id])
+  reactions Reaction[]
+  reports   Report[]
 }
 
 // ─── NOTIFICATIONS ────────────────────────────
@@ -448,4 +454,67 @@ model AuditLog {
   @@index([actorId])
   @@index([action])
   @@index([createdAt])
+}
+
+// ─── FORUM REACTIONS & REPORTS ────────────────
+enum ReactionType {
+  LIKE
+  LOVE
+  TARGET
+  FIRE
+}
+
+enum ReportReason {
+  SPAM
+  OFFENSIVE
+  OFF_TOPIC
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  ACTIONED
+  DISMISSED
+}
+
+// A user's reaction on a forum post OR reply (exactly one of postId/replyId set)
+model Reaction {
+  id        String       @id @default(cuid())
+  userId    String
+  postId    String?
+  replyId   String?
+  type      ReactionType
+  createdAt DateTime     @default(now())
+
+  user  User        @relation(fields: [userId], references: [id])
+  post  ForumPost?  @relation(fields: [postId], references: [id])
+  reply ForumReply? @relation(fields: [replyId], references: [id])
+
+  // One reaction of a given type per user per post / per reply
+  @@unique([userId, postId, type])
+  @@unique([userId, replyId, type])
+  @@index([postId])
+  @@index([replyId])
+}
+
+// A report flagging a forum post OR reply for moderation
+model Report {
+  id         String       @id @default(cuid())
+  reporterId String
+  postId     String?
+  replyId    String?
+  reason     ReportReason
+  note       String?
+  status     ReportStatus @default(PENDING)
+  reviewedBy String?
+  reviewedAt DateTime?
+  createdAt  DateTime     @default(now())
+
+  reporter User        @relation(fields: [reporterId], references: [id])
+  post     ForumPost?  @relation(fields: [postId], references: [id])
+  reply    ForumReply? @relation(fields: [replyId], references: [id])
+
+  @@index([status])
+  @@index([postId])
+  @@index([replyId])
 }

@@ -41,13 +41,15 @@ export class CoursesService {
     });
   }
 
+  // A student may access every published course in their WHOLE department
+  // (all academic years), not just their assigned year.
   async findByStudent(studentId: string) {
     const student = await this.prisma.user.findUnique({
       where: { id: studentId },
-      select: { departmentId: true, academicYearId: true },
+      select: { departmentId: true },
     });
 
-    if (!student?.departmentId || !student?.academicYearId) {
+    if (!student?.departmentId) {
       return [];
     }
 
@@ -56,13 +58,21 @@ export class CoursesService {
         isArchived: false,
         isPublished: true,
         semester: {
-          academicYearId: student.academicYearId,
+          academicYear: {
+            departmentId: student.departmentId,
+          },
         },
       },
-      orderBy: { sortOrder: 'asc' },
+      orderBy: [{ createdAt: 'asc' }, { sortOrder: 'asc' }],
       include: {
         teacher: { select: { id: true, fullName: true } },
-        semester: { select: { id: true, name: true } },
+        semester: {
+          select: {
+            id: true,
+            name: true,
+            academicYear: { select: { id: true, label: true } },
+          },
+        },
         _count: { select: { materials: true } },
       },
     });

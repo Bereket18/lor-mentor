@@ -56,13 +56,23 @@ export default function AdminUsersPage() {
   const [showCreate,  setShowCreate]  = useState(false);
   const [creating,    setCreating]    = useState(false);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [academicYears, setAcademicYears] = useState<{ id: string; label: string }[]>([]);
   const [newStaff, setNewStaff] = useState({
-    fullName: "", email: "", role: "TEACHER" as "TEACHER" | "ADMIN", departmentId: "",
+    fullName: "", email: "",
+    role: "TEACHER" as "STUDENT" | "TEACHER" | "ADMIN" | "SUPER_ADMIN",
+    departmentId: "", academicYearId: "",
   });
   const [createdResult,  setCreatedResult]  = useState<{ name: string; email: string; password: string } | null>(null);
   const [cleanupConfirm, setCleanupConfirm] = useState(false);
   const [cleaning,       setCleaning]       = useState(false);
   const [cleanupResult,  setCleanupResult]  = useState<string | null>(null);
+  const [deletingId,     setDeletingId]     = useState<string | null>(null);
+
+  // Roles this actor may create (admins can't mint admins/super-admins)
+  const creatableRoles = isSuperAdmin
+    ? (["STUDENT", "TEACHER", "ADMIN", "SUPER_ADMIN"] as const)
+    : (["STUDENT", "TEACHER"] as const);
+  const isStudentRole = newStaff.role === "STUDENT";
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -82,8 +92,23 @@ export default function AdminUsersPage() {
     api.get("/departments").then((r) => setDepartments(r.data ?? []));
   }, []);
 
+  // Load academic years for the chosen department when creating a student.
+  // (Only fetches — the year selector renders for students only, so stale
+  // years while on another role are never shown.)
+  useEffect(() => {
+    if (isStudentRole && newStaff.departmentId) {
+      api.get(`/academic-years?departmentId=${newStaff.departmentId}`)
+        .then((r) => setAcademicYears(r.data ?? []))
+        .catch(() => setAcademicYears([]));
+    }
+  }, [isStudentRole, newStaff.departmentId]);
+
   async function handleCreateStaff() {
     if (!newStaff.fullName.trim() || !newStaff.email.trim()) return;
+    if (isStudentRole && (!newStaff.departmentId || !newStaff.academicYearId)) {
+      alert("Students require a department and academic year");
+      return;
+    }
     setCreating(true);
     setCreatedResult(null);
     try {
@@ -93,9 +118,10 @@ export default function AdminUsersPage() {
         role: newStaff.role,
       };
       if (newStaff.departmentId) payload.departmentId = newStaff.departmentId;
+      if (isStudentRole && newStaff.academicYearId) payload.academicYearId = newStaff.academicYearId;
       const res = await api.post("/users/create-staff", payload);
       setCreatedResult({ name: res.data.user.fullName, email: res.data.user.email, password: res.data.temporaryPassword });
-      setNewStaff({ fullName: "", email: "", role: "TEACHER", departmentId: "" });
+      setNewStaff({ fullName: "", email: "", role: "TEACHER", departmentId: "", academicYearId: "" });
       await loadUsers();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
@@ -104,6 +130,30 @@ export default function AdminUsersPage() {
       setCreating(false);
     }
   }
+
+  async function handleDelete(target: User) {
+    if (!confirm(`Permanently delete ${target.fullName}? This cannot be undone.`)) return;
+    setDeletingId(target.id);
+    try {
+      await api.delete(`/users/${target.id}`);
+      setUsers((prev) => prev.filter((u) => u.id !== target.id));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
+      alert(err?.response?.data?.message ?? "Failed to delete user");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  // Can the current actor act on this target?
+  const privileged = (r: string) => r === "ADMIN" || r === "SUPER_ADMIN";
+  const canModify = (target: User) =>
+    target.id !== currentUser?.id &&
+    (isSuperAdmin || !privileged(target.role));
+  // Role options the actor may assign
+  const assignableRoles = isSuperAdmin
+    ? ["SUPER_ADMIN", "ADMIN", "TEACHER", "STUDENT", "GUEST"]
+    : ["STUDENT", "TEACHER"];
 
   async function handleRoleChange(userId: string, role: string) {
     try {
@@ -169,7 +219,7 @@ export default function AdminUsersPage() {
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all"
             style={{ background: "linear-gradient(135deg, #0F6B6B, #147878)", boxShadow: "0 0 16px rgba(20,184,166,0.3)" }}
           >
-            <Plus className="h-4 w-4" /> Create Staff
+            <Plus className="h-4 w-4" /> Create User
           </button>
         </div>
       </div>
@@ -230,7 +280,7 @@ export default function AdminUsersPage() {
             >
               <div className="flex items-center gap-2">
                 <Shield className="h-4 w-4" style={{ color: "#2DD4BF" }} />
-                <h2 className="text-sm font-semibold text-primary">Create Teacher or Admin Account</h2>
+                <h2 className="text-sm font-semibold text-primary">Create User Account</h2>
               </div>
 
               {/* Success banner */}
@@ -256,45 +306,69 @@ export default function AdminUsersPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                {/* Role */}
-                <div>
-                  <label className="block text-xs font-semibold text-secondary mb-1.5 tracking-widest uppercase">Role</label>
-                  <div className="flex gap-2">
-                    {(["TEACHER", "ADMIN"] as const).map((r) => (
-                      <button
-                        key={r}
-                        onClick={() => setNewStaff({ ...newStaff, role: r })}
-                        className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all"
-                        style={
-                          newStaff.role === r
-                            ? { background: "linear-gradient(135deg, #147878, #1A9494)", color: "#fff", boxShadow: "0 0 12px var(--teal-glow)" }
-                            : { background: "var(--bg-elevated)", color: "var(--text-secondary)", border: "1px solid var(--border-default)" }
-                        }
-                      >
-                        {r}
-                      </button>
-                    ))}
-                  </div>
+              {/* Role */}
+              <div>
+                <label className="block text-xs font-semibold text-secondary mb-1.5 tracking-widest uppercase">Role</label>
+                <div className="flex gap-2 flex-wrap">
+                  {creatableRoles.map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => setNewStaff({ ...newStaff, role: r })}
+                      className="flex-1 min-w-[7rem] py-2.5 rounded-xl text-sm font-semibold transition-all"
+                      style={
+                        newStaff.role === r
+                          ? { background: "linear-gradient(135deg, #147878, #1A9494)", color: "#fff", boxShadow: "0 0 12px var(--teal-glow)" }
+                          : { background: "var(--bg-elevated)", color: "var(--text-secondary)", border: "1px solid var(--border-default)" }
+                      }
+                    >
+                      {ROLE_BADGE[r]?.label ?? r}
+                    </button>
+                  ))}
                 </div>
+              </div>
 
-                {/* Program assignment */}
+              {/* Department / academic year */}
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-secondary mb-1.5 tracking-widest uppercase">
-                    Assign Program <span className="text-muted font-normal">(optional)</span>
+                    {isStudentRole
+                      ? <>Department <span style={{ color: "var(--state-error)" }}>*</span></>
+                      : <>Assign Program <span className="text-muted font-normal">(optional)</span></>}
                   </label>
                   <select
                     value={newStaff.departmentId}
-                    onChange={(e) => setNewStaff({ ...newStaff, departmentId: e.target.value })}
+                    onChange={(e) => setNewStaff({ ...newStaff, departmentId: e.target.value, academicYearId: "" })}
+                    aria-label="Department"
                     className="w-full rounded-xl px-3.5 py-2.5 text-sm text-primary outline-none transition-all"
                     style={{ background: "var(--bg-elevated)", border: "1px solid rgba(45,212,191,0.12)" }}
                   >
-                    <option value="">— No program assigned —</option>
+                    <option value="">{isStudentRole ? "— Select department —" : "— No program assigned —"}</option>
                     {departments.map((d) => (
                       <option key={d.id} value={d.id}>{d.name}</option>
                     ))}
                   </select>
                 </div>
+
+                {isStudentRole && (
+                  <div>
+                    <label className="block text-xs font-semibold text-secondary mb-1.5 tracking-widest uppercase">
+                      Academic Year <span style={{ color: "var(--state-error)" }}>*</span>
+                    </label>
+                    <select
+                      value={newStaff.academicYearId}
+                      onChange={(e) => setNewStaff({ ...newStaff, academicYearId: e.target.value })}
+                      aria-label="Academic year"
+                      disabled={!newStaff.departmentId}
+                      className="w-full rounded-xl px-3.5 py-2.5 text-sm text-primary outline-none transition-all disabled:opacity-50"
+                      style={{ background: "var(--bg-elevated)", border: "1px solid rgba(45,212,191,0.12)" }}
+                    >
+                      <option value="">— Select year —</option>
+                      {academicYears.map((y) => (
+                        <option key={y.id} value={y.id}>{y.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
 
               <button
@@ -417,10 +491,11 @@ export default function AdminUsersPage() {
                       value={user.role}
                       onChange={(e) => handleRoleChange(user.id, e.target.value)}
                       aria-label={`Role for ${user.fullName}`}
-                      className="text-xs font-semibold px-2 py-1 rounded-lg outline-none cursor-pointer transition-all"
+                      disabled={!canModify(user)}
+                      className="text-xs font-semibold px-2 py-1 rounded-lg outline-none transition-all disabled:opacity-70 disabled:cursor-not-allowed enabled:cursor-pointer"
                       style={{ background: badge.bg, color: badge.color, border: "none" }}
                     >
-                      {roleGroups.map((r) => (
+                      {Array.from(new Set([user.role, ...assignableRoles])).map((r) => (
                         <option key={r} value={r}>{ROLE_BADGE[r]?.label ?? r}</option>
                       ))}
                     </select>
@@ -430,17 +505,34 @@ export default function AdminUsersPage() {
                   <div className="col-span-2 flex items-center gap-2">
                     <button
                       onClick={() => handleStatusToggle(user.id, user.isActive)}
-                      className="text-xs font-semibold px-2.5 py-1 rounded-lg transition-all"
+                      disabled={!canModify(user)}
+                      className="text-xs font-semibold px-2.5 py-1 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                       style={
                         user.isActive
                           ? { background: "rgba(16,185,129,0.1)", color: "#10B981" }
                           : { background: "rgba(239,68,68,0.1)", color: "#EF4444" }
                       }
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.75"; }}
+                      onMouseEnter={(e) => { if (canModify(user)) (e.currentTarget as HTMLElement).style.opacity = "0.75"; }}
                       onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
                     >
                       {user.isActive ? "Active" : "Inactive"}
                     </button>
+                    {canModify(user) && (
+                      <button
+                        onClick={() => handleDelete(user)}
+                        disabled={deletingId === user.id}
+                        aria-label={`Delete ${user.fullName}`}
+                        title="Delete user"
+                        className="p-1.5 rounded-lg transition-all disabled:opacity-50"
+                        style={{ background: "rgba(239,68,68,0.1)", color: "#EF4444" }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,0.2)"; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,0.1)"; }}
+                      >
+                        {deletingId === user.id
+                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          : <Trash2 className="h-3.5 w-3.5" />}
+                      </button>
+                    )}
                   </div>
                 </div>
               );

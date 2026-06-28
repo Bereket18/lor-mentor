@@ -2,11 +2,14 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma, Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import { canCreateRole, canChangeRole, canDeleteRole } from './role.util';
+import { CreateUserDto } from './dto/create-user.dto';
 
 @Injectable()
 export class UsersService {
@@ -237,11 +240,31 @@ export class UsersService {
     };
   }
 
-  // Change a user's role — admin action
-  async changeRole(userId: string, role: string, _actorId: string) {
+  // Change a user's role — admin action, subject to the role hierarchy.
+  async changeRole(
+    userId: string,
+    role: string,
+    actorId: string,
+    actorRole: string,
+  ) {
     const validRoles = ['STUDENT', 'TEACHER', 'ADMIN', 'SUPER_ADMIN'];
     if (!validRoles.includes(role)) {
-      throw new Error('Invalid role provided');
+      throw new BadRequestException('Invalid role provided');
+    }
+    if (userId === actorId) {
+      throw new ForbiddenException('You cannot change your own role');
+    }
+
+    const target = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (!target) throw new NotFoundException('User not found');
+
+    if (!canChangeRole(actorRole, target.role, role)) {
+      throw new ForbiddenException(
+        'You are not allowed to make this role change',
+      );
     }
 
     const user = await this.prisma.user.update({
@@ -275,13 +298,15 @@ export class UsersService {
     return { message: `Account ${status}`, user };
   }
 
-  // Create a teacher or admin account — admin action
-  async createStaff(data: {
-    fullName: string;
-    email: string;
-    role: 'TEACHER' | 'ADMIN';
-    departmentId?: string;
-  }) {
+  // Create a user of any role the actor is permitted to create.
+  // Students require department + academic year; staff are pre-verified.
+  async createUser(actorRole: string, data: CreateUserDto) {
+    if (!canCreateRole(actorRole, data.role)) {
+      throw new ForbiddenException(
+        'You are not allowed to create a user with that role',
+      );
+    }
+
     const existing = await this.findByEmail(data.email);
     if (existing) {
       throw new BadRequestException(
@@ -289,8 +314,15 @@ export class UsersService {
       );
     }
 
-    // Validate department if provided
-    if (data.departmentId) {
+    if (data.role === 'STUDENT') {
+      if (!data.departmentId || !data.academicYearId) {
+        throw new BadRequestException(
+          'Students require a department and academic year',
+        );
+      }
+      await this.validateDepartmentYear(data.departmentId, data.academicYearId);
+    } else if (data.departmentId) {
+      // Optional department for staff — validate if supplied
       const dept = await this.prisma.department.findUnique({
         where: { id: data.departmentId },
       });
@@ -309,7 +341,10 @@ export class UsersService {
         fullName: data.fullName,
         role: data.role,
         isEmailVerified: true,
+        isActive: true,
         ...(data.departmentId ? { departmentId: data.departmentId } : {}),
+        ...(data.academicYearId ? { academicYearId: data.academicYearId } : {}),
+        ...(data.phoneNumber ? { phoneNumber: data.phoneNumber } : {}),
       },
       select: {
         id: true,
@@ -321,6 +356,136 @@ export class UsersService {
     });
 
     return { user, temporaryPassword };
+  }
+
+  // Validate a department + academic-year pair (year must belong to dept).
+  private async validateDepartmentYear(
+    departmentId: string,
+    academicYearId: string,
+  ) {
+    const dept = await this.prisma.department.findUnique({
+      where: { id: departmentId },
+    });
+    if (!dept || dept.isArchived) {
+      throw new BadRequestException('Selected department is not valid');
+    }
+    const year = await this.prisma.academicYear.findUnique({
+      where: { id: academicYearId },
+      select: { departmentId: true, isArchived: true },
+    });
+    if (!year || year.isArchived || year.departmentId !== departmentId) {
+      throw new BadRequestException(
+        'Selected academic year is not valid for this department',
+      );
+    }
+  }
+
+  // Hard-delete a user the actor is permitted to remove, cleaning up all
+  // dependent rows in one transaction. Cannot delete self or the last super
+  // admin.
+  async deleteUser(userId: string, actorId: string, actorRole: string) {
+    if (userId === actorId) {
+      throw new ForbiddenException('You cannot delete your own account');
+    }
+
+    const target = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (!target) throw new NotFoundException('User not found');
+
+    if (!canDeleteRole(actorRole, target.role)) {
+      throw new ForbiddenException('You are not allowed to delete this user');
+    }
+
+    if (target.role === 'SUPER_ADMIN') {
+      const supers = await this.prisma.user.count({
+        where: { role: 'SUPER_ADMIN' },
+      });
+      if (supers <= 1) {
+        throw new ForbiddenException('Cannot delete the last super admin');
+      }
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // Simple owned rows
+      await tx.progressRecord.deleteMany({ where: { userId } });
+      await tx.notification.deleteMany({ where: { userId } });
+      await tx.aiHistory.deleteMany({ where: { userId } });
+      await tx.flashcardReview.deleteMany({ where: { userId } });
+
+      // Quiz answers depend on attempts
+      const attempts = await tx.quizAttempt.findMany({
+        where: { userId },
+        select: { id: true },
+      });
+      const attemptIds = attempts.map((a) => a.id);
+      if (attemptIds.length) {
+        await tx.quizAnswer.deleteMany({
+          where: { attemptId: { in: attemptIds } },
+        });
+      }
+      await tx.quizAttempt.deleteMany({ where: { userId } });
+
+      // Forum reactions/reports authored by the user
+      await tx.reaction.deleteMany({ where: { userId } });
+      await tx.report.deleteMany({ where: { reporterId: userId } });
+
+      // The user's replies — clear reactions/reports on them first
+      const replies = await tx.forumReply.findMany({
+        where: { authorId: userId },
+        select: { id: true },
+      });
+      const replyIds = replies.map((r) => r.id);
+      if (replyIds.length) {
+        await tx.reaction.deleteMany({ where: { replyId: { in: replyIds } } });
+        await tx.report.deleteMany({ where: { replyId: { in: replyIds } } });
+        await tx.forumReply.deleteMany({ where: { id: { in: replyIds } } });
+      }
+
+      // The user's posts — clear child replies + reactions/reports first
+      const posts = await tx.forumPost.findMany({
+        where: { authorId: userId },
+        select: { id: true },
+      });
+      const postIds = posts.map((p) => p.id);
+      if (postIds.length) {
+        const childReplies = await tx.forumReply.findMany({
+          where: { postId: { in: postIds } },
+          select: { id: true },
+        });
+        const childReplyIds = childReplies.map((r) => r.id);
+        if (childReplyIds.length) {
+          await tx.reaction.deleteMany({
+            where: { replyId: { in: childReplyIds } },
+          });
+          await tx.report.deleteMany({
+            where: { replyId: { in: childReplyIds } },
+          });
+          await tx.forumReply.deleteMany({
+            where: { id: { in: childReplyIds } },
+          });
+        }
+        await tx.reaction.deleteMany({ where: { postId: { in: postIds } } });
+        await tx.report.deleteMany({ where: { postId: { in: postIds } } });
+        await tx.forumPost.deleteMany({ where: { id: { in: postIds } } });
+      }
+
+      // Billing
+      await tx.payment.deleteMany({ where: { userId } });
+      await tx.subscription.deleteMany({ where: { userId } });
+
+      // Audit logs + detach owned courses
+      await tx.auditLog.deleteMany({ where: { actorId: userId } });
+      await tx.course.updateMany({
+        where: { teacherId: userId },
+        data: { teacherId: null },
+      });
+
+      await tx.user.delete({ where: { id: userId } });
+    });
+
+    return { message: 'User deleted' };
   }
 
   // Full profile for the logged-in user — includes role-relevant relations

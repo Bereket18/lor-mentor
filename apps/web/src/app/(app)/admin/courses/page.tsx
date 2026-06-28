@@ -374,6 +374,7 @@ export default function AdminCoursesPage() {
           {level === "courses" && (
             <select
               value={selectedTeacherId}
+              title="Select Course Assignment"
               onChange={(e) => setSelectedTeacherId(e.target.value)}
               className="w-52 bg-surface border border-default rounded-xl px-3 py-2.5
                 text-sm text-primary focus:outline-none focus:border-accent"
