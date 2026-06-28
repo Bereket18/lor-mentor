@@ -45,11 +45,11 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
     <header
       className="h-14 flex-shrink-0 flex items-center justify-between px-5 sticky top-0 z-40"
       style={{
-        background: "rgba(8, 20, 20, 0.85)",
-        backdropFilter: "blur(16px)",
-        WebkitBackdropFilter: "blur(16px)",
-        borderBottom: "1px solid rgba(45,212,191,0.1)",
-        boxShadow: "0 1px 0 rgba(45,212,191,0.05)",
+        background: "var(--glass-bg)",
+        backdropFilter: "blur(16px) saturate(160%)",
+        WebkitBackdropFilter: "blur(16px) saturate(160%)",
+        borderBottom: "1px solid var(--glass-border)",
+        boxShadow: "0 1px 0 var(--teal-glow)",
       }}
     >
       {/* ── Left ─────────────────────────────────────── */}
@@ -60,13 +60,13 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
           aria-label="Open navigation menu"
           onClick={onMenuToggle}
           className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg transition-colors"
-          style={{ color: "rgba(255,255,255,0.5)" }}
+          style={{ color: "var(--text-secondary)" }}
           onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.9)";
-            (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)";
+            (e.currentTarget as HTMLElement).style.color = "var(--text-primary)";
+            (e.currentTarget as HTMLElement).style.background = "var(--teal-dim)";
           }}
           onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.5)";
+            (e.currentTarget as HTMLElement).style.color = "var(--text-secondary)";
             (e.currentTarget as HTMLElement).style.background = "";
           }}
         >
@@ -75,7 +75,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
 
         <h1
           className="text-sm font-semibold tracking-wide"
-          style={{ color: "rgba(255,255,255,0.85)" }}
+          style={{ color: "var(--text-primary)" }}
         >
           {title}
         </h1>
@@ -90,14 +90,14 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
         <button
           aria-label="Notifications"
           className="relative w-9 h-9 flex items-center justify-center rounded-xl transition-all"
-          style={{ color: "rgba(255,255,255,0.5)" }}
+          style={{ color: "var(--text-secondary)" }}
           onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)";
-            (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.9)";
+            (e.currentTarget as HTMLElement).style.background = "var(--teal-dim)";
+            (e.currentTarget as HTMLElement).style.color = "var(--text-primary)";
           }}
           onMouseLeave={(e) => {
             (e.currentTarget as HTMLElement).style.background = "";
-            (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.5)";
+            (e.currentTarget as HTMLElement).style.color = "var(--text-secondary)";
           }}
         >
           <Bell className="h-4 w-4" />

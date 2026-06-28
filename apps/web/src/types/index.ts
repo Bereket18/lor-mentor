@@ -59,3 +59,46 @@ export interface Course {
   isPublished: boolean
   teacher?:    { id: string; fullName: string } | null
 }
+
+// ── Full profile (GET /users/me/full) ────────────────────────
+export type SubscriptionStatus = "PENDING" | "ACTIVE" | "EXPIRED" | "CANCELLED";
+export type PaymentStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+export interface ProfilePayment {
+  id: string;
+  status: PaymentStatus;
+  createdAt: string;
+  rejectionReason?: string | null;
+  plan?: { name: string; priceETB: string | number } | null;
+}
+
+export interface FullProfile {
+  id: string;
+  email: string;
+  fullName: string;
+  role: Role;
+  avatarPath: string | null;
+  phoneNumber: string | null;
+  isActive: boolean;
+  isEmailVerified: boolean;
+  createdAt: string;
+  department?: { id: string; name: string } | null;
+  academicYear?: {
+    id: string;
+    label: string;
+    semesters: { id: string; name: string }[];
+  } | null;
+  subscription?: {
+    status: SubscriptionStatus;
+    startDate: string | null;
+    endDate: string | null;
+    plan: { name: string; priceETB: string | number; durationMonths: number };
+  } | null;
+  payments: ProfilePayment[];
+  teacherCourses: {
+    id: string;
+    title: string;
+    isPublished: boolean;
+    _count: { materials: number };
+  }[];
+}

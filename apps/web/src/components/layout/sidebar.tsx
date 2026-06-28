@@ -55,9 +55,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       style={{
         backdropFilter: "blur(24px) saturate(150%)",
         WebkitBackdropFilter: "blur(24px) saturate(150%)",
-        background: "rgba(6,11,20,0.88)",
-        borderRight: "1px solid rgba(255,255,255,0.08)",
-        boxShadow: "inset -1px 0 0 rgba(45,212,191,0.07), 4px 0 32px rgba(0,0,0,0.4)",
+        background: "var(--glass-bg)",
+        borderRight: "1px solid var(--glass-border)",
+        boxShadow: "inset -1px 0 0 var(--teal-glow), 4px 0 32px rgba(0,0,0,0.25)",
       }}
     >
       {/* ── Chromatic top glow ──────────────────────────────── */}
@@ -65,7 +65,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         aria-hidden
         className="pointer-events-none absolute top-0 left-0 right-0 h-48"
         style={{
-          background: "radial-gradient(ellipse 120% 60% at 50% 0%, rgba(45,212,191,0.07) 0%, transparent 100%)",
+          background: "radial-gradient(ellipse 120% 60% at 50% 0%, var(--teal-glow) 0%, transparent 100%)",
+          opacity: 0.5,
         }}
       />
       {/* Subtle right-edge highlight */}
@@ -73,7 +74,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         aria-hidden
         className="pointer-events-none absolute top-0 right-0 bottom-0 w-px"
         style={{
-          background: "linear-gradient(180deg, rgba(45,212,191,0.15) 0%, rgba(45,212,191,0.04) 50%, transparent 100%)",
+          background: "linear-gradient(180deg, var(--teal-glow) 0%, transparent 100%)",
         }}
       />
 
@@ -83,7 +84,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           "relative z-10 flex items-center flex-shrink-0",
           collapsed ? "px-3 py-5 justify-center" : "px-4 py-5",
         )}
-        style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
+        style={{ borderBottom: "1px solid var(--glass-border)" }}
       >
         <AnimatePresence mode="wait" initial={false}>
           {collapsed ? (
@@ -96,7 +97,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{
                 background: "linear-gradient(135deg, #147878 0%, #1A9494 100%)",
-                boxShadow: "0 0 16px rgba(45,212,191,0.35), inset 0 1px 0 rgba(255,255,255,0.15)",
+                boxShadow: "0 0 16px var(--teal-glow), inset 0 1px 0 rgba(255,255,255,0.15)",
               }}
             >
               <span className="text-white font-bold text-sm">L</span>
@@ -114,18 +115,21 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
                 style={{
                   background: "linear-gradient(135deg, #147878 0%, #1A9494 100%)",
-                  boxShadow: "0 0 16px rgba(45,212,191,0.35), inset 0 1px 0 rgba(255,255,255,0.15)",
+                  boxShadow: "0 0 16px var(--teal-glow), inset 0 1px 0 rgba(255,255,255,0.15)",
                 }}
               >
                 <span className="text-white font-bold text-sm">L</span>
               </div>
               <div className="min-w-0">
-                <p className="text-white font-bold text-sm tracking-wide leading-none whitespace-nowrap">
+                <p
+                  className="font-bold text-sm tracking-wide leading-none whitespace-nowrap"
+                  style={{ color: "var(--text-primary)" }}
+                >
                   LOR MENTOR
                 </p>
                 <p
                   className="text-[10px] font-medium mt-0.5 whitespace-nowrap"
-                  style={{ color: "#2DD4BF", opacity: 0.65 }}
+                  style={{ color: "var(--teal)" }}
                 >
                   Lorcan Medical College
                 </p>
@@ -157,22 +161,22 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 style={
                   isActive
                     ? {
-                        background: "rgba(45,212,191,0.13)",
-                        color: "#2DD4BF",
-                        boxShadow: "inset 0 0 0 1px rgba(45,212,191,0.18), 0 0 16px rgba(45,212,191,0.12)",
+                        background: "var(--teal-dim)",
+                        color: "var(--teal)",
+                        boxShadow: "inset 0 0 0 1px var(--teal-glow), 0 0 16px var(--teal-glow)",
                       }
-                    : { color: "rgba(255,255,255,0.42)" }
+                    : { color: "var(--text-secondary)" }
                 }
                 onMouseEnter={(e) => {
                   if (!isActive) {
-                    (e.currentTarget as HTMLElement).style.background = "rgba(45,212,191,0.06)";
-                    (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.82)";
+                    (e.currentTarget as HTMLElement).style.background = "var(--teal-dim)";
+                    (e.currentTarget as HTMLElement).style.color = "var(--text-primary)";
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!isActive) {
                     (e.currentTarget as HTMLElement).style.background = "";
-                    (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.42)";
+                    (e.currentTarget as HTMLElement).style.color = "var(--text-secondary)";
                   }
                 }}
               >
@@ -181,7 +185,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                   <motion.div
                     layoutId="activeBar"
                     className="absolute left-0 w-0.5 h-5 rounded-r"
-                    style={{ background: "linear-gradient(180deg, #2DD4BF, #14B8A6)" }}
+                    style={{ background: "linear-gradient(180deg, var(--teal-hover), var(--teal))" }}
                     initial={false}
                     transition={{ type: "spring", stiffness: 500, damping: 30 }}
                   />
@@ -210,7 +214,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       {/* ── Divider ─────────────────────────────────────────── */}
       <div
         className="relative z-10 mx-3"
-        style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+        style={{ borderTop: "1px solid var(--glass-border)" }}
       />
 
       {/* ── Profile & Logout ────────────────────────────────── */}
@@ -226,22 +230,22 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             style={
               pathname === "/profile"
                 ? {
-                    background: "rgba(45,212,191,0.13)",
-                    color: "#2DD4BF",
-                    boxShadow: "inset 0 0 0 1px rgba(45,212,191,0.18)",
+                    background: "var(--teal-dim)",
+                    color: "var(--teal)",
+                    boxShadow: "inset 0 0 0 1px var(--teal-glow)",
                   }
-                : { color: "rgba(255,255,255,0.42)" }
+                : { color: "var(--text-secondary)" }
             }
             onMouseEnter={(e) => {
               if (pathname !== "/profile") {
-                (e.currentTarget as HTMLElement).style.background = "rgba(45,212,191,0.06)";
-                (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.82)";
+                (e.currentTarget as HTMLElement).style.background = "var(--teal-dim)";
+                (e.currentTarget as HTMLElement).style.color = "var(--text-primary)";
               }
             }}
             onMouseLeave={(e) => {
               if (pathname !== "/profile") {
                 (e.currentTarget as HTMLElement).style.background = "";
-                (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.42)";
+                (e.currentTarget as HTMLElement).style.color = "var(--text-secondary)";
               }
             }}
           >
@@ -271,14 +275,14 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             "w-full flex items-center rounded-xl text-sm font-medium cursor-pointer transition-all duration-150",
             collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2.5",
           )}
-          style={{ color: "rgba(255,255,255,0.42)" }}
+          style={{ color: "var(--text-secondary)" }}
           onMouseEnter={(e) => {
             (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,0.1)";
-            (e.currentTarget as HTMLElement).style.color = "#F87171";
+            (e.currentTarget as HTMLElement).style.color = "var(--state-error)";
           }}
           onMouseLeave={(e) => {
             (e.currentTarget as HTMLElement).style.background = "";
-            (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.42)";
+            (e.currentTarget as HTMLElement).style.color = "var(--text-secondary)";
           }}
         >
           <LogOut className="h-4 w-4 flex-shrink-0" />
@@ -312,8 +316,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             style={{
               backdropFilter: "blur(8px)",
               WebkitBackdropFilter: "blur(8px)",
-              background: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(255,255,255,0.09)",
+              background: "var(--bg-glass)",
+              border: "1px solid var(--glass-border)",
               boxShadow: "inset 0 1px 0 rgba(255,255,255,0.07)",
             }}
           >
@@ -322,21 +326,25 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               aria-hidden
               className="absolute top-0 left-0 right-0 h-px"
               style={{
-                background: "linear-gradient(90deg, transparent, rgba(45,212,191,0.3), transparent)",
+                background: "linear-gradient(90deg, transparent, var(--teal), transparent)",
+                opacity: 0.5,
               }}
             />
-            <p className="text-white text-xs font-semibold truncate leading-none mb-0.5">
+            <p
+              className="text-xs font-semibold truncate leading-none mb-0.5"
+              style={{ color: "var(--text-primary)" }}
+            >
               {user?.fullName}
             </p>
-            <p className="text-[10px] truncate mb-1.5" style={{ color: "rgba(45,212,191,0.55)" }}>
+            <p className="text-[10px] truncate mb-1.5" style={{ color: "var(--text-secondary)" }}>
               {user?.email}
             </p>
             <span
               className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold"
               style={{
-                background: "rgba(45,212,191,0.12)",
-                color: "#2DD4BF",
-                border: "1px solid rgba(45,212,191,0.2)",
+                background: "var(--teal-dim)",
+                color: "var(--teal)",
+                border: "1px solid var(--teal-glow)",
               }}
             >
               {user?.role}
@@ -348,20 +356,20 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       {/* ── Collapse toggle ──────────────────────────────────── */}
       <div
         className="relative z-10 p-2"
-        style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+        style={{ borderTop: "1px solid var(--glass-border)" }}
       >
         <button
           onClick={onToggle}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           className="w-full flex items-center justify-center py-2 rounded-xl transition-all duration-150"
-          style={{ color: "rgba(255,255,255,0.28)" }}
+          style={{ color: "var(--text-muted)" }}
           onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)";
-            (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.7)";
+            (e.currentTarget as HTMLElement).style.background = "var(--teal-dim)";
+            (e.currentTarget as HTMLElement).style.color = "var(--text-primary)";
           }}
           onMouseLeave={(e) => {
             (e.currentTarget as HTMLElement).style.background = "";
-            (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.28)";
+            (e.currentTarget as HTMLElement).style.color = "var(--text-muted)";
           }}
         >
           {collapsed ? (

@@ -9,7 +9,6 @@ import {
   GraduationCap,
   User,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 // Only 5 items fit on mobile bottom nav
 // We pick the most important ones
@@ -29,15 +28,15 @@ export function MobileNav() {
       className="
       lg:hidden
       fixed bottom-0 left-0 right-0 z-50
-      border-t border-white/10
       flex items-center
       h-16 px-2
       safe-area-inset-bottom
     "
       style={{
-        background: "rgba(10, 26, 26, 0.97)",
-        backdropFilter: "blur(12px)",
-        WebkitBackdropFilter: "blur(12px)",
+        background: "var(--glass-bg)",
+        borderTop: "1px solid var(--glass-border)",
+        backdropFilter: "blur(16px) saturate(160%)",
+        WebkitBackdropFilter: "blur(16px) saturate(160%)",
       }}
     >
       {mobileNav.map((item) => {
@@ -46,11 +45,8 @@ export function MobileNav() {
         return (
           <Link key={item.href} href={item.href} className="flex-1">
             <div
-              className={cn(
-                "flex flex-col items-center justify-center gap-1",
-                "py-2 rounded-xl transition-colors",
-                isActive ? "text-[#14B8A6]" : "text-white/40",
-              )}
+              className="flex flex-col items-center justify-center gap-1 py-2 rounded-xl transition-colors"
+              style={{ color: isActive ? "var(--teal)" : "var(--text-secondary)" }}
             >
               <item.icon className="h-5 w-5" />
               <span className="text-[10px] font-medium">{item.label}</span>

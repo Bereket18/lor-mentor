@@ -35,6 +35,13 @@ export class UsersController {
     return { user };
   }
 
+  // Full profile with role-relevant relations (department, year, subscription,
+  // payments, teacher courses). Drives the /profile page.
+  @Get('me/full')
+  getMeFull(@CurrentUser() user: AuthUser) {
+    return this.usersService.getFullProfile(user.id);
+  }
+
   @Get()
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')

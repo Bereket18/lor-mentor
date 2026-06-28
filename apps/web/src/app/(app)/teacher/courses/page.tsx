@@ -38,7 +38,7 @@ function GlowInput(props: React.InputHTMLAttributes<HTMLInputElement> & { hasErr
     <input
       {...rest}
       className="w-full rounded-xl px-3.5 py-2.5 text-sm text-primary placeholder:text-muted/60 outline-none transition-all duration-200"
-      style={{ background: "rgba(255,255,255,0.04)", border: hasError ? "1px solid rgba(239,68,68,0.5)" : "1px solid rgba(45,212,191,0.12)" }}
+      style={{ background: "var(--bg-elevated)", border: hasError ? "1px solid rgba(239,68,68,0.5)" : "1px solid rgba(45,212,191,0.12)" }}
       onFocus={(e) => { e.currentTarget.style.border = "1px solid rgba(45,212,191,0.5)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(20,184,166,0.1)"; }}
       onBlur={(e)  => { e.currentTarget.style.border = hasError ? "1px solid rgba(239,68,68,0.5)" : "1px solid rgba(45,212,191,0.12)"; e.currentTarget.style.boxShadow = ""; }}
     />
@@ -153,7 +153,7 @@ export default function TeacherCoursesPage() {
                 style={
                   selectedCourse?.id === course.id
                     ? { background: "linear-gradient(135deg, rgba(20,120,120,0.25) 0%, rgba(45,212,191,0.1) 100%)", border: "1px solid rgba(45,212,191,0.3)" }
-                    : { background: "rgba(255,255,255,0.02)", border: "1px solid rgba(45,212,191,0.08)" }
+                    : { background: "var(--bg-elevated)", border: "1px solid rgba(45,212,191,0.08)" }
                 }
               >
                 <div className="flex items-center gap-3">
@@ -210,8 +210,8 @@ export default function TeacherCoursesPage() {
                           className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
                           style={
                             matType === t
-                              ? { background: "linear-gradient(135deg, #147878, #1A9494)", color: "#fff", boxShadow: "0 0 12px rgba(45,212,191,0.3)" }
-                              : { background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(45,212,191,0.1)" }
+                              ? { background: "linear-gradient(135deg, #147878, #1A9494)", color: "#fff", boxShadow: "0 0 12px var(--teal-glow)" }
+                              : { background: "var(--bg-elevated)", color: "var(--text-secondary)", border: "1px solid var(--border-default)" }
                           }
                         >
                           {t}

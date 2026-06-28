@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma, Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
@@ -317,6 +321,72 @@ export class UsersService {
     });
 
     return { user, temporaryPassword };
+  }
+
+  // Full profile for the logged-in user — includes role-relevant relations
+  // (department, academic year + semesters, subscription, recent payments,
+  // and — for teachers — their assigned courses). Never selects passwordHash.
+  async getFullProfile(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+        avatarPath: true,
+        phoneNumber: true,
+        isActive: true,
+        isEmailVerified: true,
+        createdAt: true,
+        department: { select: { id: true, name: true } },
+        academicYear: {
+          select: {
+            id: true,
+            label: true,
+            semesters: {
+              where: { isArchived: false },
+              orderBy: { name: 'asc' },
+              select: { id: true, name: true },
+            },
+          },
+        },
+        subscription: {
+          select: {
+            status: true,
+            startDate: true,
+            endDate: true,
+            plan: {
+              select: { name: true, priceETB: true, durationMonths: true },
+            },
+          },
+        },
+        payments: {
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+          select: {
+            id: true,
+            status: true,
+            createdAt: true,
+            rejectionReason: true,
+            plan: { select: { name: true, priceETB: true } },
+          },
+        },
+        teacherCourses: {
+          where: { isArchived: false },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            title: true,
+            isPublished: true,
+            _count: { select: { materials: true } },
+          },
+        },
+      },
+    });
+
+    if (!user) throw new NotFoundException('User not found');
+    return { user };
   }
 
   // Student updates their own profile

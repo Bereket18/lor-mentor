@@ -368,6 +368,44 @@
     border-radius: 0.75rem;
   }
 
+  /* ── Liquid-glass panel ─────────────────────────────────────────
+     Theme-aware glassmorphism for feature pages. Adapts to light/dark
+     automatically via the token system — never hardcode glass colors. */
+  .glass-panel {
+    position: relative;
+    background: var(--glass-bg);
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    border: 1px solid var(--glass-border);
+    border-radius: 1rem;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 8px 32px rgba(0, 0, 0, 0.12);
+  }
+
+  /* Subtle teal top arc — the "liquid" highlight */
+  .glass-panel::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--teal-glow), transparent);
+    border-radius: 1rem 1rem 0 0;
+    pointer-events: none;
+  }
+
+  .glass-panel-hover {
+    transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+  }
+
+  .glass-panel-hover:hover {
+    border-color: var(--teal-glow);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 12px 40px var(--teal-glow);
+    transform: translateY(-2px);
+  }
+
   /* ── Standard card ──────────────────────────────────────────── */
   .card {
     background: var(--bg-surface);

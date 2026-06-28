@@ -268,8 +268,8 @@ export default function AdminUsersPage() {
                         className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all"
                         style={
                           newStaff.role === r
-                            ? { background: "linear-gradient(135deg, #147878, #1A9494)", color: "#fff", boxShadow: "0 0 12px rgba(45,212,191,0.25)" }
-                            : { background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(45,212,191,0.1)" }
+                            ? { background: "linear-gradient(135deg, #147878, #1A9494)", color: "#fff", boxShadow: "0 0 12px var(--teal-glow)" }
+                            : { background: "var(--bg-elevated)", color: "var(--text-secondary)", border: "1px solid var(--border-default)" }
                         }
                       >
                         {r}
