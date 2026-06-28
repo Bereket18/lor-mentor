@@ -1,0 +1,46 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Param,
+  Query,
+  Body,
+  UseGuards,
+} from '@nestjs/common';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { FlashcardsService } from './flashcards.service';
+import { ReviewDto } from './dto/review.dto';
+
+interface AuthUser {
+  id: string;
+  role: string;
+}
+
+@Controller('flashcards')
+@UseGuards(JwtAuthGuard)
+export class FlashcardsController {
+  constructor(private readonly service: FlashcardsService) {}
+
+  // GET /api/v1/flashcards?courseId=xxx — sets for a course
+  @Get()
+  getSets(@Query('courseId') courseId: string, @CurrentUser() user: AuthUser) {
+    return this.service.getSetsForCourse(courseId, user.id);
+  }
+
+  // GET /api/v1/flashcards/:setId — cards + per-card known state
+  @Get(':setId')
+  getSet(@Param('setId') setId: string, @CurrentUser() user: AuthUser) {
+    return this.service.getSet(setId, user.id);
+  }
+
+  // POST /api/v1/flashcards/:setId/review — mark a card known/unknown
+  @Post(':setId/review')
+  review(
+    @Param('setId') setId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: ReviewDto,
+  ) {
+    return this.service.review(setId, user.id, dto);
+  }
+}

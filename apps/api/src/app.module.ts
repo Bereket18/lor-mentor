@@ -16,6 +16,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { AiModule } from './modules/ai/ai.module';
 import { ForumModule } from './modules/forum/forum.module';
+import { FlashcardsModule } from './modules/flashcards/flashcards.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { ForumModule } from './modules/forum/forum.module';
     SubscriptionsModule,
     AiModule,
     ForumModule,
+    FlashcardsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
