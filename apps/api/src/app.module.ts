@@ -17,6 +17,7 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
 import { AiModule } from './modules/ai/ai.module';
 import { ForumModule } from './modules/forum/forum.module';
 import { FlashcardsModule } from './modules/flashcards/flashcards.module';
+import { QuizModule } from './modules/quiz/quiz.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { FlashcardsModule } from './modules/flashcards/flashcards.module';
     AiModule,
     ForumModule,
     FlashcardsModule,
+    QuizModule,
   ],
   controllers: [AppController],
   providers: [AppService],

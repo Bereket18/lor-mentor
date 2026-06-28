@@ -279,6 +279,8 @@ model QuizBank {
 
   aiContent AiContent  @relation(fields: [aiContentId], references: [id])
   questions Question[]
+  // The takeable Quiz anchored to this bank (created lazily on first attempt)
+  quiz      Quiz?
 }
 
 model Quiz {
@@ -288,8 +290,12 @@ model Quiz {
   isAiGenerated Boolean  @default(false)
   createdBy     String
   createdAt     DateTime @default(now())
+  // Optional link to the AI-generated bank this quiz draws its questions from.
+  // Unique so each bank maps to at most one Quiz (the attempt anchor).
+  quizBankId    String?  @unique
 
   course    Course        @relation(fields: [courseId], references: [id])
+  quizBank  QuizBank?     @relation(fields: [quizBankId], references: [id])
   questions Question[]
   attempts  QuizAttempt[]
 }
