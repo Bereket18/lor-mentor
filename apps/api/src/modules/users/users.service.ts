@@ -234,7 +234,6 @@ export class UsersService {
   }
 
   // Change a user's role — admin action
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async changeRole(userId: string, role: string, _actorId: string) {
     const validRoles = ['STUDENT', 'TEACHER', 'ADMIN', 'SUPER_ADMIN'];
     if (!validRoles.includes(role)) {
@@ -256,7 +255,6 @@ export class UsersService {
   }
 
   // Activate or deactivate a user — admin action
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async changeStatus(userId: string, isActive: boolean, _actorId: string) {
     const user = await this.prisma.user.update({
       where: { id: userId },

@@ -10,7 +10,6 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   handleRequest<TUser = unknown>(
     err: Error | null,
     user: TUser | false,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     _info: unknown,
   ): TUser {
     // If there is an error or no user was found

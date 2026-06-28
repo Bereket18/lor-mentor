@@ -34,4 +34,3 @@ Thumbs.db
 # Uploaded files — never commit actual user content
 uploads/*
 !uploads/.gitkeep
-echo. > uploads\.gitkeep

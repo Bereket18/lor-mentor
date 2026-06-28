@@ -283,7 +283,6 @@ export class MaterialsService {
     filePath?: string | null;
     [key: string]: unknown;
   }) {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { filePath: _filePath, ...safe } = material;
     return safe;
   }

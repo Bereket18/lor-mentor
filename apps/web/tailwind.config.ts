@@ -76,12 +76,6 @@ const config: Config = {
           glass: "var(--border-glass)",
         },
 
-        // ── Shorthand aliases so border-default / border-glass work ──
-        // Without these, Tailwind only generates border-border (the DEFAULT)
-        // but not border-default or border-glass as standalone classes
-        default: "var(--border-default)",
-        glass: "var(--border-glass)",
-
         // ── Semantic ──────────────────────────────────────────
         success: "var(--state-success)",
         warning: "var(--state-warning)",
