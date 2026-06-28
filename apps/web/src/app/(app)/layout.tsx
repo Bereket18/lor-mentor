@@ -18,7 +18,7 @@ const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 // Student-only feature routes (admins/teachers have their own areas)
 const STUDENT_ROUTES = [
   "/dashboard", "/courses", "/ai-tutor", "/flashcards",
-  "/quiz", "/forum", "/progress",
+  "/quiz", "/progress",
 ];
 
 // Where each role lands when they hit a route they may not access.
@@ -31,6 +31,8 @@ function homeFor(role?: string) {
 function isAllowed(pathname: string, role?: string) {
   if (pathname.startsWith("/admin")) return !!role && ADMIN_ROLES.includes(role);
   if (pathname.startsWith("/teacher")) return role === "TEACHER";
+  // Forum is shared by students and teachers
+  if (pathname.startsWith("/forum")) return role === "STUDENT" || role === "TEACHER";
   // Shared routes — any authenticated user
   if (pathname === "/profile" || pathname.startsWith("/notifications")) return true;
   // Student feature routes

@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, BookOpen, Bot, CreditCard, MessageSquare,
   BarChart3, User, Bell, LogOut, GraduationCap, Layers,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, ShieldAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -23,17 +23,19 @@ const studentNav = [
 ];
 
 const adminNav = [
-  { href: "/admin",          icon: LayoutDashboard, label: "Overview" },
-  { href: "/admin/users",    icon: User,            label: "Users" },
-  { href: "/admin/payments", icon: CreditCard,      label: "Payments" },
-  { href: "/admin/plans",    icon: CreditCard,      label: "Plans" },
-  { href: "/admin/courses",  icon: BookOpen,        label: "Courses" },
-  { href: "/admin/audit",    icon: BarChart3,       label: "Audit Logs" },
+  { href: "/admin",            icon: LayoutDashboard, label: "Overview" },
+  { href: "/admin/users",      icon: User,            label: "Users" },
+  { href: "/admin/payments",   icon: CreditCard,      label: "Payments" },
+  { href: "/admin/plans",      icon: CreditCard,      label: "Plans" },
+  { href: "/admin/courses",    icon: BookOpen,        label: "Courses" },
+  { href: "/admin/moderation", icon: ShieldAlert,     label: "Moderation" },
+  { href: "/admin/audit",      icon: BarChart3,       label: "Audit Logs" },
 ];
 
 const teacherNav = [
   { href: "/teacher",           icon: LayoutDashboard, label: "Dashboard" },
   { href: "/teacher/courses",   icon: BookOpen,        label: "My Courses" },
+  { href: "/forum",             icon: MessageSquare,   label: "Forum" },
   { href: "/teacher/analytics", icon: BarChart3,       label: "Analytics" },
 ];
 
