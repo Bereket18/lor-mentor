@@ -5,7 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   ArrowRight, Bot, Layers, GraduationCap, MessageSquare,
-  BookOpen, FileText, CreditCard, Sparkles,
+  BookOpen, CreditCard, Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import api from "@/lib/api";
@@ -17,6 +17,13 @@ interface StudentCourse {
   teacher?: { id: string; fullName: string } | null;
   semester?: { id: string; name: string } | null;
   _count?: { materials: number };
+}
+
+interface CourseProgress {
+  courseId: string;
+  pct: number;
+  viewedMaterials: number;
+  totalMaterials: number;
 }
 
 const fadeUp = {
@@ -35,6 +42,7 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const [courses, setCourses] = useState<StudentCourse[]>([]);
   const [profile, setProfile] = useState<FullProfile | null>(null);
+  const [progress, setProgress] = useState<Record<string, CourseProgress>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -42,10 +50,16 @@ export default function DashboardPage() {
     Promise.allSettled([
       api.get<StudentCourse[]>("/courses/my-year"),
       api.get<{ user: FullProfile }>("/users/me/full"),
-    ]).then(([c, p]) => {
+      api.get<{ courses: CourseProgress[] }>("/progress/me"),
+    ]).then(([c, p, pr]) => {
       if (!active) return;
       if (c.status === "fulfilled") setCourses(c.value.data ?? []);
       if (p.status === "fulfilled") setProfile(p.value.data.user);
+      if (pr.status === "fulfilled") {
+        const map: Record<string, CourseProgress> = {};
+        (pr.value.data.courses ?? []).forEach((cp) => { map[cp.courseId] = cp; });
+        setProgress(map);
+      }
     }).finally(() => active && setLoading(false));
     return () => { active = false; };
   }, []);
@@ -135,29 +149,37 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            {courses.map((course) => (
-              <Link key={course.id} href={`/courses/${course.id}`}>
-                <div className="glass-panel glass-panel-hover flex items-center gap-4 px-4 py-3.5">
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                    style={{ background: "var(--teal-dim)" }}>
-                    <BookOpen className="h-4 w-4" style={{ color: "var(--teal)" }} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-primary truncate">{course.title}</p>
-                    <div className="flex items-center gap-3 mt-0.5">
-                      {course.teacher?.fullName && (
-                        <span className="text-xs text-muted truncate">{course.teacher.fullName}</span>
-                      )}
-                      <span className="text-xs text-muted flex items-center gap-1">
-                        <FileText className="h-3 w-3" />
-                        {course._count?.materials ?? 0} materials
-                      </span>
+            {courses.map((course) => {
+              const cp = progress[course.id];
+              const pct = cp?.pct ?? 0;
+              return (
+                <Link key={course.id} href={`/courses/${course.id}`}>
+                  <div className="glass-panel glass-panel-hover flex items-center gap-4 px-4 py-3.5">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ background: "var(--teal-dim)" }}>
+                      <BookOpen className="h-4 w-4" style={{ color: "var(--teal)" }} />
                     </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-primary truncate">{course.title}</p>
+                      <div className="flex items-center gap-3 mt-1">
+                        {course.teacher?.fullName && (
+                          <span className="text-xs text-muted truncate flex-shrink-0">{course.teacher.fullName}</span>
+                        )}
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <div className="flex-1 progress-track h-1 max-w-[120px]">
+                            <div className="progress-fill h-1" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-[11px] text-muted flex-shrink-0">
+                            {cp ? `${cp.viewedMaterials}/${cp.totalMaterials}` : `${course._count?.materials ?? 0} materials`}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <ArrowRight className="h-4 w-4 flex-shrink-0" style={{ color: "var(--text-muted)" }} />
                   </div>
-                  <ArrowRight className="h-4 w-4 flex-shrink-0" style={{ color: "var(--text-muted)" }} />
-                </div>
-              </Link>
-            ))}
+                </Link>
+              );
+            })}
           </div>
         )}
       </motion.div>

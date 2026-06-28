@@ -19,6 +19,7 @@ import { ForumModule } from './modules/forum/forum.module';
 import { FlashcardsModule } from './modules/flashcards/flashcards.module';
 import { QuizModule } from './modules/quiz/quiz.module';
 import { TutorModule } from './modules/tutor/tutor.module';
+import { ProgressModule } from './modules/progress/progress.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { TutorModule } from './modules/tutor/tutor.module';
     FlashcardsModule,
     QuizModule,
     TutorModule,
+    ProgressModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -198,6 +198,12 @@ export class MaterialsService {
         studentId,
         student.role,
       );
+      // Record the view (best-effort) so progress reflects opened materials
+      await this.prisma.progressRecord.upsert({
+        where: { userId_materialId: { userId: studentId, materialId } },
+        create: { userId: studentId, materialId },
+        update: { viewedAt: new Date() },
+      });
     }
 
     const fullPath = path.join(this.uploadDir, material.filePath);

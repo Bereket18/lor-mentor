@@ -57,6 +57,12 @@ export default function CourseDetailPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
+  // Open a material and record the view (best-effort — ignore failures)
+  function openMaterial(material: Material) {
+    setActiveMaterial(material);
+    api.post(`/progress/${material.id}`).catch(() => {});
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -112,7 +118,7 @@ export default function CourseDetailPage() {
                 return (
                   <button
                     key={material.id}
-                    onClick={() => setActiveMaterial(material)}
+                    onClick={() => openMaterial(material)}
                     className={`w-full flex items-center gap-3 py-3.5 px-2 -mx-2
                       rounded-lg text-left hover:bg-elevated transition-colors
                       ${index < course.materials.length - 1 ? "border-b border-subtle" : ""}`}
