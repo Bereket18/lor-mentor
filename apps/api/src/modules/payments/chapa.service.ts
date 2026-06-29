@@ -79,6 +79,9 @@ export class ChapaService {
       throw new NotFoundException('Plan not found or inactive');
     }
 
+    // Don't let a user pay again while a subscription is still active.
+    await this.payments.assertNoActiveSubscription(user.id);
+
     // Reuse an abandoned, still-pending Chapa attempt for the same plan so we
     // don't accumulate dead rows when a student retries.
     const existing = await this.prisma.payment.findFirst({

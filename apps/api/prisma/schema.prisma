@@ -81,6 +81,10 @@ model User {
   emailVerifyExpiry   DateTime?
   passwordResetToken  String?
   passwordResetExpiry DateTime?
+  // Brute-force protection: failed logins accumulate here and reset on success;
+  // once the threshold is hit the account is locked until lockoutUntil.
+  failedLoginCount    Int       @default(0)
+  lockoutUntil        DateTime?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 

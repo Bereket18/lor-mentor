@@ -7,6 +7,7 @@ import {
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ReceiptService } from './receipt.service';
+import { assertValidImageFile } from '../../common/utils/image-magic-bytes';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -83,9 +84,14 @@ export class PaymentsService {
       );
     }
 
+    await this.assertNoActiveSubscription(userId);
+
     if (!file) {
       throw new BadRequestException('Receipt image is required');
     }
+
+    // Verify the upload is genuinely an image (not just a spoofed MIME type).
+    assertValidImageFile(file.path);
 
     return this.prisma.payment.create({
       data: {
@@ -99,6 +105,23 @@ export class PaymentsService {
         plan: { select: { name: true, priceETB: true } },
       },
     });
+  }
+
+  /**
+   * Guard against paying twice: if the user already has an ACTIVE subscription
+   * that hasn't expired, block a new payment. They can renew once it lapses.
+   * Shared by the manual and Chapa entry points.
+   */
+  async assertNoActiveSubscription(userId: string) {
+    const sub = await this.prisma.subscription.findUnique({
+      where: { userId },
+      select: { status: true, endDate: true },
+    });
+    if (sub?.status === 'ACTIVE' && sub.endDate && sub.endDate > new Date()) {
+      throw new BadRequestException(
+        'You already have an active subscription. You can renew once it expires.',
+      );
+    }
   }
 
   /** MANUAL flow: an admin approves a pending receipt. */

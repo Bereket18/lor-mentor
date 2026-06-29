@@ -33,7 +33,7 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true, // Strip fields not in the DTO
-      forbidNonWhitelisted: false,
+      forbidNonWhitelisted: true, // Reject unexpected fields outright (defense in depth)
       transform: true, // Auto-convert types (e.g. string "1" to number 1)
     }),
   );

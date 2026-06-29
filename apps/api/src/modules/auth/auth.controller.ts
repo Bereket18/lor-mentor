@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Req,
+  Ip,
   UnauthorizedException,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
@@ -36,9 +37,10 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async login(
     @Body() dto: LoginDto,
+    @Ip() ip: string,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const result = await this.authService.login(dto);
+    const result = await this.authService.login(dto, ip);
 
     // Store tokens in HTTP-only cookies
     // JavaScript cannot read these — they are secure
