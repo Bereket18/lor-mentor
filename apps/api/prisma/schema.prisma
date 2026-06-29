@@ -36,6 +36,16 @@ enum PaymentStatus {
   REJECTED
 }
 
+// How a payment was made:
+//  - MANUAL: student transferred to the college account and uploaded a receipt
+//    image; an admin reviews and approves it.
+//  - CHAPA: student paid online through the Chapa gateway (telebirr, CBE,
+//    bank, card); approved automatically once Chapa confirms the transaction.
+enum PaymentMethod {
+  MANUAL
+  CHAPA
+}
+
 enum AiStatus {
   PENDING
   PROCESSING
@@ -126,14 +136,35 @@ model Subscription {
 }
 
 model Payment {
-  id              String        @id @default(cuid())
-  userId          String
-  planId          String
-  subscriptionId  String?
-  receiptPath     String
+  id             String        @id @default(cuid())
+  userId         String
+  planId         String
+  subscriptionId String?
+  method         PaymentMethod @default(MANUAL)
+
+  // MANUAL payments carry an uploaded receipt image (filename under
+  // uploads/receipts). CHAPA payments have none, so this is now optional.
+  receiptPath String?
+
+  // Amount actually charged, snapshotted from the plan at payment time so a
+  // later price change never rewrites historical records. Currency is ETB.
+  amount   Decimal?
+  currency String   @default("ETB")
+
+  // ── Chapa gateway fields (null for MANUAL payments) ──
+  // txRef is OUR unique reference sent to Chapa (idempotency key for webhooks).
+  // chapaRef is Chapa's own transaction reference returned on verification.
+  txRef    String?   @unique
+  chapaRef String?
+  paidAt   DateTime?
+
+  // Human-facing receipt number, assigned once a payment is APPROVED. Drives
+  // the auto-generated PDF receipt. Null while PENDING/REJECTED.
+  receiptNumber String? @unique
+
   status          PaymentStatus @default(PENDING)
   rejectionReason String?
-  reviewedBy      String?
+  reviewedBy      String? // admin userId for MANUAL; null for CHAPA auto-approval
   reviewedAt      DateTime?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
@@ -141,6 +172,9 @@ model Payment {
   user         User             @relation(fields: [userId], references: [id])
   plan         SubscriptionPlan @relation(fields: [planId], references: [id])
   subscription Subscription?    @relation(fields: [subscriptionId], references: [id])
+
+  @@index([userId, status])
+  @@index([status])
 }
 
 // ─── ACADEMIC STRUCTURE ───────────────────────

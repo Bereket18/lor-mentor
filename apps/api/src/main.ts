@@ -5,7 +5,9 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // rawBody: true preserves the unparsed request body (req.rawBody) so the
+  // Chapa webhook can verify its HMAC-SHA256 signature against exact bytes.
+  const app = await NestFactory.create(AppModule, { rawBody: true });
 
   // ── Security headers ──────────────────────────
   // helmet adds HTTP headers that protect against

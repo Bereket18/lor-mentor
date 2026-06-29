@@ -1,8 +1,11 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { validateEnv } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
@@ -23,7 +26,10 @@ import { ProgressModule } from './modules/progress/progress.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
+    // Global rate limit: protects auth (brute force) and payment endpoints.
+    // 120 requests / minute / IP is generous for normal app usage.
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     // Root Redis connection — every BullMQ queue in the app shares this
     BullModule.forRoot({
       connection: {
@@ -50,6 +56,10 @@ import { ProgressModule } from './modules/progress/progress.module';
     ProgressModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    // Apply the rate limiter globally to every route.
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
 export class AppModule {}

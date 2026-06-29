@@ -1,12 +1,22 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Loader2, CheckCircle2, XCircle, ExternalLink } from "lucide-react";
+import {
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  ExternalLink,
+  FileText,
+  Zap,
+  Building2,
+} from "lucide-react";
 import api from "@/lib/api";
 
 interface Payment {
   id: string;
   status: "PENDING" | "APPROVED" | "REJECTED";
+  method: "MANUAL" | "CHAPA";
+  receiptNumber?: string | null;
   createdAt: string;
   user: {
     fullName: string;
@@ -67,7 +77,8 @@ export default function AdminPaymentsPage() {
     }
   }
 
-  async function openReceipt(id: string) {
+  // MANUAL payments have an uploaded bank-receipt image.
+  async function openReceiptImage(id: string) {
     try {
       const res = await api.get(`/payments/${id}/receipt`, {
         responseType: "blob",
@@ -76,6 +87,19 @@ export default function AdminPaymentsPage() {
       window.open(url, "_blank");
     } catch {
       alert("Could not load receipt image");
+    }
+  }
+
+  // Any APPROVED payment has an auto-generated PDF receipt.
+  async function openReceiptPdf(id: string) {
+    try {
+      const res = await api.get(`/payments/${id}/document`, {
+        responseType: "blob",
+      });
+      const url = URL.createObjectURL(res.data);
+      window.open(url, "_blank");
+    } catch {
+      alert("Could not load the PDF receipt");
     }
   }
 
@@ -137,6 +161,21 @@ export default function AdminPaymentsPage() {
                 <p className="text-xs text-muted">
                   {Number(payment.plan.priceETB).toLocaleString()} ETB
                 </p>
+                <span
+                  className={`inline-flex items-center gap-1 mt-1 text-[10px] font-medium
+                    px-1.5 py-0.5 rounded ${
+                      payment.method === "CHAPA"
+                        ? "text-accent bg-accent/10"
+                        : "text-secondary bg-white/5"
+                    }`}
+                >
+                  {payment.method === "CHAPA" ? (
+                    <Zap className="h-3 w-3" />
+                  ) : (
+                    <Building2 className="h-3 w-3" />
+                  )}
+                  {payment.method === "CHAPA" ? "Online" : "Manual"}
+                </span>
               </div>
 
               <div className="col-span-2">
@@ -148,14 +187,29 @@ export default function AdminPaymentsPage() {
               </div>
 
               <div className="col-span-3 flex items-center gap-2">
-                <button
-                  onClick={() => openReceipt(payment.id)}
-                  className="flex items-center gap-1 text-xs font-medium text-accent
-                    hover:text-accent-hover transition-colors"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  Receipt
-                </button>
+                {payment.method === "MANUAL" && (
+                  <button
+                    type="button"
+                    onClick={() => openReceiptImage(payment.id)}
+                    className="flex items-center gap-1 text-xs font-medium text-accent
+                      hover:text-accent-hover transition-colors"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Image
+                  </button>
+                )}
+
+                {payment.status === "APPROVED" && (
+                  <button
+                    type="button"
+                    onClick={() => openReceiptPdf(payment.id)}
+                    className="flex items-center gap-1 text-xs font-medium text-secondary
+                      hover:text-primary transition-colors"
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                    PDF
+                  </button>
+                )}
 
                 {payment.status === "PENDING" && (
                   <>
