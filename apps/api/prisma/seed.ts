@@ -10,10 +10,15 @@
 
 import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { Pool } from 'pg';
+import * as bcrypt from 'bcrypt';
 
-// Prisma 7 picks up DATABASE_URL from the environment automatically
-// dotenv/config above ensures the .env file is loaded first
-const prisma = new PrismaClient();
+// Prisma 7 requires a driver adapter (mirrors PrismaService). dotenv/config
+// above ensures DATABASE_URL is loaded from .env first.
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
 
 // ── Lorcan Programs ────────────────────────────────────────────
 // BSC programs run 5 years, TVET programs run 3 years
@@ -114,6 +119,38 @@ async function main() {
       }
     }
   }
+
+  // ── Bootstrap super admin (break-glass) ───────────────────────
+  // Created idempotently from env vars. Never hardcode real secrets — set
+  // SUPER_ADMIN_EMAIL / SUPER_ADMIN_PASSWORD / SUPER_ADMIN_NAME in .env.
+  // The fallback defaults exist only so a fresh DB has a usable login; change
+  // the password immediately. On re-runs we do NOT overwrite an existing
+  // password (so a rotated one survives reseeding).
+  const adminEmail = process.env.SUPER_ADMIN_EMAIL || 'superadmin@lorcan.edu.et';
+  const adminPassword = process.env.SUPER_ADMIN_PASSWORD || 'ChangeMe!2026';
+  const adminName = process.env.SUPER_ADMIN_NAME || 'Super Admin';
+
+  if (!process.env.SUPER_ADMIN_EMAIL || !process.env.SUPER_ADMIN_PASSWORD) {
+    console.warn(
+      '\n⚠️  SUPER_ADMIN_EMAIL/PASSWORD not set in .env — using documented ' +
+        'defaults. Set real values and change the password immediately.',
+    );
+  }
+
+  const passwordHash = await bcrypt.hash(adminPassword, 12);
+  const superAdmin = await prisma.user.upsert({
+    where: { email: adminEmail },
+    update: { role: 'SUPER_ADMIN', isActive: true, isEmailVerified: true },
+    create: {
+      email: adminEmail,
+      passwordHash,
+      fullName: adminName,
+      role: 'SUPER_ADMIN',
+      isActive: true,
+      isEmailVerified: true,
+    },
+  });
+  console.log(`\n👑 Super admin ready: ${superAdmin.email}`);
 
   console.log('\n🎉 Seed complete!');
   console.log(`   ${PROGRAMS.length} programs seeded`);
