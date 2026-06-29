@@ -80,7 +80,7 @@ export default function QuizPage() {
     }
   }
 
-  // ── Results screen ───────────────────────────────────────
+  // -- Results screen ---------------------------------------
   if (result && quiz) {
     const pct = result.totalQ ? Math.round((result.score / result.totalQ) * 100) : 0;
     const byId = new Map(quiz.questions.map((q) => [q.id, q]));
@@ -147,7 +147,7 @@ export default function QuizPage() {
     );
   }
 
-  // ── Take quiz ────────────────────────────────────────────
+  // -- Take quiz --------------------------------------------
   if (quiz || loadingQuiz) {
     const answeredCount = Object.keys(answers).length;
     const allAnswered = quiz ? answeredCount === quiz.questions.length : false;
@@ -200,7 +200,7 @@ export default function QuizPage() {
     );
   }
 
-  // ── Quiz list ────────────────────────────────────────────
+  // -- Quiz list --------------------------------------------
   return (
     <div className="max-w-2xl mx-auto space-y-5">
       <div>

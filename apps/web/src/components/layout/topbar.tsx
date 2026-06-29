@@ -52,7 +52,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
         boxShadow: "0 1px 0 var(--teal-glow)",
       }}
     >
-      {/* ── Left ─────────────────────────────────────── */}
+      {/* -- Left --------------------------------------- */}
       <div className="flex items-center gap-3">
         {/* Mobile hamburger */}
         <button
@@ -81,7 +81,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
         </h1>
       </div>
 
-      {/* ── Right ────────────────────────────────────── */}
+      {/* -- Right -------------------------------------- */}
       <div className="flex items-center gap-1.5">
         {/* Theme toggle — pill variant from shared component */}
         <ThemeToggle variant="pill" />

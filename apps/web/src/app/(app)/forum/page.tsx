@@ -208,7 +208,7 @@ export default function ForumPage() {
 
   const canDelete = (author: Author) => author.id === user?.id || canModerate;
 
-  // ── Report reason picker overlay ─────────────────────────
+  // -- Report reason picker overlay -------------------------
   const reportOverlay = reportTarget && (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: "rgba(0,0,0,0.4)" }} onClick={() => setReportTarget(null)}>
@@ -232,7 +232,7 @@ export default function ForumPage() {
     </div>
   );
 
-  // ── Thread detail view ───────────────────────────────────
+  // -- Thread detail view -----------------------------------
   if (activePost || loadingPost) {
     return (
       <div className="max-w-2xl mx-auto space-y-5">
@@ -339,7 +339,7 @@ export default function ForumPage() {
     );
   }
 
-  // ── Thread list view ─────────────────────────────────────
+  // -- Thread list view -------------------------------------
   return (
     <div className="max-w-2xl mx-auto space-y-5">
       {reportOverlay}

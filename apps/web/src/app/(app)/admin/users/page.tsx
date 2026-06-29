@@ -196,7 +196,7 @@ export default function AdminUsersPage() {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
 
-      {/* ── Header ───────────────────────────────────────────── */}
+      {/* -- Header --------------------------------------------- */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="font-display text-2xl font-bold text-primary">User Management</h1>
@@ -224,7 +224,7 @@ export default function AdminUsersPage() {
         </div>
       </div>
 
-      {/* ── Cleanup confirm ──────────────────────────────────── */}
+      {/* -- Cleanup confirm ------------------------------------ */}
       <AnimatePresence>
         {cleanupConfirm && (
           <motion.div
@@ -267,7 +267,7 @@ export default function AdminUsersPage() {
         </div>
       )}
 
-      {/* ── Create staff panel ───────────────────────────────── */}
+      {/* -- Create staff panel --------------------------------- */}
       <AnimatePresence>
         {showCreate && (
           <motion.div
@@ -385,7 +385,7 @@ export default function AdminUsersPage() {
         )}
       </AnimatePresence>
 
-      {/* ── Filters + sort ───────────────────────────────────── */}
+      {/* -- Filters + sort ------------------------------------- */}
       <div className="flex items-center gap-3 flex-wrap">
         {/* Search */}
         <div className="relative flex-1 min-w-[200px]">
@@ -427,7 +427,7 @@ export default function AdminUsersPage() {
         </button>
       </div>
 
-      {/* ── Users table ──────────────────────────────────────── */}
+      {/* -- Users table ---------------------------------------- */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <Loader2 className="h-5 w-5 animate-spin" style={{ color: "#2DD4BF" }} />

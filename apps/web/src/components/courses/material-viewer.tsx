@@ -94,7 +94,7 @@ export function MaterialViewer({
 
         {/* Content */}
         <div className="flex-1 overflow-hidden bg-base flex items-center justify-center">
-          {/* ── PDF — canvas renderer, no browser toolbar ── */}
+          {/* -- PDF — canvas renderer, no browser toolbar -- */}
           {type === "PDF" && (
             <div className="w-full h-full flex flex-col" style={{ height: "80vh" }}>
               {/* Custom header with close button */}
@@ -116,7 +116,7 @@ export function MaterialViewer({
             </div>
           )}
 
-          {/* ── YouTube embed ── */}
+          {/* -- YouTube embed -- */}
           {type === "YOUTUBE" && youtubeEmbed && (
             <iframe
               src={youtubeEmbed}
@@ -130,7 +130,7 @@ export function MaterialViewer({
             <p className="text-sm text-error p-8">Invalid YouTube link</p>
           )}
 
-          {/* ── Image ── */}
+          {/* -- Image -- */}
           {loading && type === "IMAGE" && (
             <div className="flex flex-col items-center gap-2 py-16">
               <Loader2 className="h-5 w-5 animate-spin text-muted" />

@@ -51,7 +51,7 @@ export function StoryFrames() {
 
   return (
     <div className="relative">
-      {/* ── Visual mockup area ─────────────────────────────── */}
+      {/* -- Visual mockup area ------------------------------- */}
       <div
         className="relative h-56 mb-8 rounded-2xl overflow-hidden
         bg-surface border border-default"
@@ -72,7 +72,7 @@ export function StoryFrames() {
         </AnimatePresence>
       </div>
 
-      {/* ── Text content ───────────────────────────────────── */}
+      {/* -- Text content ------------------------------------- */}
       <AnimatePresence mode="wait">
         <motion.div
           key={active}
@@ -93,7 +93,7 @@ export function StoryFrames() {
         </motion.div>
       </AnimatePresence>
 
-      {/* ── Manual controls — clickable dots ──────────────────── */}
+      {/* -- Manual controls — clickable dots -------------------- */}
       <div className="flex items-center gap-2 mt-6">
         {frames.map((_, i) => (
           <button
@@ -119,7 +119,7 @@ export function StoryFrames() {
   );
 }
 
-// ── Mockup visuals — abstract, not real screenshots ────────────
+// -- Mockup visuals — abstract, not real screenshots ------------
 
 function AiChatMockup() {
   return (

@@ -21,9 +21,11 @@ export default function CourseDetailPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let active = true;
     api
       .get(`/courses/${id}`)
       .then((res) => {
+        if (!active) return;
         const data = res.data;
         // Normalise — API may return the course nested or materials may be absent
         setCourse({
@@ -31,7 +33,13 @@ export default function CourseDetailPage() {
           materials: data.materials ?? [],
         });
       })
-      .finally(() => setLoading(false));
+      // Swallow failures (incl. a request aborted by a 401 redirect) so they
+      // don't surface as an unhandled rejection / dev error overlay.
+      .catch(() => active && setCourse(null))
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
   }, [id]);
 
   if (loading) {

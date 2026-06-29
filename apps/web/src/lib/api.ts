@@ -15,7 +15,7 @@ const api = axios.create({
   },
 });
 
-// ── Response interceptor ───────────────────────────────────
+// -- Response interceptor -----------------------------------
 // This runs on every response before it reaches our code
 // If the server returns 401 (not logged in) we redirect to login
 api.interceptors.response.use(

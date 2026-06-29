@@ -137,7 +137,7 @@ export default function ProfilePage() {
         <p className="text-secondary text-sm">Your account and academic details.</p>
       </div>
 
-      {/* ── Identity header ─────────────────────────────────── */}
+      {/* -- Identity header ----------------------------------- */}
       <div className="glass-panel p-6 flex items-center gap-4">
         <div
           className="w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0"
@@ -173,7 +173,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* ── Account (all roles) ─────────────────────────────── */}
+      {/* -- Account (all roles) ------------------------------- */}
       <SectionCard title="Account">
         <Row icon={User} label="Full name" value={
           <div className="flex items-center gap-2 pt-1">
@@ -204,7 +204,7 @@ export default function ProfilePage() {
         <Row icon={CalendarDays} label="Member since" value={formatDate(profile?.createdAt)} />
       </SectionCard>
 
-      {/* ── Academic (student) ──────────────────────────────── */}
+      {/* -- Academic (student) -------------------------------- */}
       {isStudent && (
         <SectionCard title="Academic">
           <Row icon={Building2} label="Department" value={profile?.department?.name || "Not assigned"} />
@@ -217,7 +217,7 @@ export default function ProfilePage() {
         </SectionCard>
       )}
 
-      {/* ── Subscription & payments (student) ───────────────── */}
+      {/* -- Subscription & payments (student) ----------------- */}
       {isStudent && (
         <div className="glass-panel p-5">
           <div className="flex items-center justify-between mb-3">
@@ -286,7 +286,7 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* ── Teaching (teacher) ──────────────────────────────── */}
+      {/* -- Teaching (teacher) -------------------------------- */}
       {isTeacher && (
         <div className="glass-panel p-5">
           <h2 className="text-sm font-semibold text-primary mb-3">Assigned Courses</h2>

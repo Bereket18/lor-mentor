@@ -28,7 +28,7 @@ export function PdfViewer({ materialId, title = "PDF Viewer", height = "100%" }:
   const pdfRef       = useRef<any>(null);
   const renderingRef = useRef(false);
 
-  // ── Render a single page onto the canvas ──────────────────────
+  // -- Render a single page onto the canvas ----------------------
   const renderPage = useCallback(async (pageNum: number, sc: number) => {
     if (!pdfRef.current || renderingRef.current) return;
     renderingRef.current = true;
@@ -60,7 +60,7 @@ export function PdfViewer({ materialId, title = "PDF Viewer", height = "100%" }:
     }
   }, []);
 
-  // ── Load the PDF via Next.js proxy (forwards JWT cookie) ──────
+  // -- Load the PDF via Next.js proxy (forwards JWT cookie) ------
   useEffect(() => {
     let cancelled = false;
 
@@ -121,12 +121,12 @@ export function PdfViewer({ materialId, title = "PDF Viewer", height = "100%" }:
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [materialId]);
 
-  // ── Re-render when page or scale changes ──────────────────────
+  // -- Re-render when page or scale changes ----------------------
   useEffect(() => {
     if (!loading && pdfRef.current) renderPage(currentPage, scale);
   }, [currentPage, scale, loading, renderPage]);
 
-  // ── Track fullscreen state changes (e.g. user presses Esc) ────
+  // -- Track fullscreen state changes (e.g. user presses Esc) ----
   useEffect(() => {
     function onFullscreenChange() {
       setIsFullscreen(!!document.fullscreenElement);
@@ -156,7 +156,7 @@ export function PdfViewer({ materialId, title = "PDF Viewer", height = "100%" }:
       style={{ height: isFullscreen ? "100vh" : height }}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {/* ── Toolbar ─────────────────────────────────── */}
+      {/* -- Toolbar ----------------------------------- */}
       <div
         className="flex items-center justify-between px-4 py-2 flex-shrink-0"
         style={{
@@ -233,7 +233,7 @@ export function PdfViewer({ materialId, title = "PDF Viewer", height = "100%" }:
         </div>
       </div>
 
-      {/* ── Canvas area ─────────────────────────────── */}
+      {/* -- Canvas area ------------------------------- */}
       <div
         ref={containerRef}
         className="flex-1 overflow-auto flex items-start justify-center"

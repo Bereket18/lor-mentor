@@ -24,6 +24,7 @@ export default function PricingPage() {
     api
       .get("/plans")
       .then((res) => setPlans(res.data))
+      .catch(() => setPlans([]))
       .finally(() => setLoading(false));
   }, []);
 

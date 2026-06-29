@@ -18,7 +18,7 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
-/* ── Glass input — works in both dark and light mode ─────────── */
+/* -- Glass input — works in both dark and light mode ----------- */
 interface GlassInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   hasError?: boolean;
 }
@@ -59,7 +59,7 @@ const GlassInput = React.forwardRef<HTMLInputElement, GlassInputProps>(
   },
 );
 
-/* ── Page ─────────────────────────────────────────────────────── */
+/* -- Page ------------------------------------------------------- */
 export default function LoginPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
@@ -91,7 +91,7 @@ export default function LoginPage() {
       suppressHydrationWarning
       className="min-h-screen flex items-center justify-center relative overflow-hidden auth-bg"
     >
-      {/* ── CSS for auth pages: orb animations + glass tokens ── */}
+      {/* -- CSS for auth pages: orb animations + glass tokens -- */}
       <style>{`
         .auth-bg { background: var(--bg-base); }
 
@@ -132,19 +132,19 @@ export default function LoginPage() {
         }
       `}</style>
 
-      {/* ── Animated orb background ─────────────────────────── */}
+      {/* -- Animated orb background --------------------------- */}
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute rounded-full" style={{ width: 600, height: 600, top: "-15%", left: "-10%", background: "radial-gradient(circle, rgba(20,184,166,0.2) 0%, rgba(20,184,166,0.05) 50%, transparent 70%)", animation: "orbDrift1 18s ease-in-out infinite", filter: "blur(40px)" }} />
         <div className="absolute rounded-full" style={{ width: 500, height: 500, bottom: "-10%", right: "-5%", background: "radial-gradient(circle, rgba(14,165,233,0.16) 0%, rgba(14,165,233,0.04) 50%, transparent 70%)", animation: "orbDrift2 22s ease-in-out infinite", filter: "blur(50px)" }} />
         <div className="absolute rounded-full" style={{ width: 400, height: 400, top: "40%", left: "55%", background: "radial-gradient(circle, rgba(16,185,129,0.12) 0%, rgba(16,185,129,0.03) 50%, transparent 70%)", animation: "orbDrift3 26s ease-in-out infinite", filter: "blur(45px)" }} />
       </div>
 
-      {/* ── ThemeToggle ───────────────────────────────────────── */}
+      {/* -- ThemeToggle ----------------------------------------- */}
       <div className="absolute top-4 right-4 z-50">
         <ThemeToggle variant="pill" />
       </div>
 
-      {/* ── Glass card ────────────────────────────────────────── */}
+      {/* -- Glass card ------------------------------------------ */}
       <motion.div
         initial={{ opacity: 0, y: 32, scale: 0.97 }}
         animate={{ opacity: 1, y: 0,  scale: 1 }}

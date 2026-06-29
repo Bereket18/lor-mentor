@@ -45,16 +45,24 @@ export default function CourseDetailPage() {
   const [activeMaterial, setActiveMaterial] = useState<Material | null>(null);
 
   useEffect(() => {
+    let active = true;
     api
       .get(`/courses/${id}`)
       .then((res) => {
+        if (!active) return;
         const data = res.data;
         setCourse({
           ...data,
           materials: data.materials ?? [],
         });
       })
-      .finally(() => setLoading(false));
+      // Swallow failures (incl. a request aborted by a 401 redirect) so they
+      // don't surface as an unhandled rejection / dev error overlay.
+      .catch(() => active && setCourse(null))
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
   }, [id]);
 
   // Open a material and record the view (best-effort — ignore failures)

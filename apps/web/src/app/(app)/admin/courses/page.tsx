@@ -49,7 +49,7 @@ export default function AdminCoursesPage() {
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
 
-  // ── Material upload form state ────────────────────────────────
+  // -- Material upload form state --------------------------------
   const [materialType, setMaterialType] = useState<"PDF" | "IMAGE" | "YOUTUBE">(
     "PDF",
   );
@@ -223,7 +223,7 @@ export default function AdminCoursesPage() {
     }
   }
 
-  // ── Material upload handlers ────────────────────────────────
+  // -- Material upload handlers --------------------------------
   async function handleUploadMaterial() {
     if (!selectedCourse || !materialTitle.trim()) return;
 

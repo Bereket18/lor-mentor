@@ -24,6 +24,7 @@ export default function CoursesPage() {
     api
       .get("/courses/my-year")
       .then((res) => setCourses(res.data))
+      .catch(() => setCourses([]))
       .finally(() => setLoading(false));
   }, []);
 

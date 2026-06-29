@@ -77,7 +77,7 @@ export default function FlashcardsPage() {
     }
   }
 
-  // ── Study mode ───────────────────────────────────────────
+  // -- Study mode -------------------------------------------
   if (study || loadingStudy) {
     const total = study?.cards.length ?? 0;
     const done = index >= total && total > 0;
@@ -158,7 +158,7 @@ export default function FlashcardsPage() {
     );
   }
 
-  // ── Set list ─────────────────────────────────────────────
+  // -- Set list ---------------------------------------------
   return (
     <div className="max-w-2xl mx-auto space-y-5">
       <div>
