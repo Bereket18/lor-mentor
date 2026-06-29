@@ -8,10 +8,9 @@ import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ReceiptService } from './receipt.service';
 import { assertValidImageFile } from '../../common/utils/image-magic-bytes';
+import { isPrivileged } from '../../common/constants/roles';
 import * as fs from 'fs';
 import * as path from 'path';
-
-const PRIVILEGED_ROLES = ['ADMIN', 'SUPER_ADMIN'];
 
 @Injectable()
 export class PaymentsService {
@@ -337,8 +336,7 @@ export class PaymentsService {
     if (!payment) throw new NotFoundException('Payment not found');
 
     const isOwner = payment.userId === requester.id;
-    const isPrivileged = PRIVILEGED_ROLES.includes(requester.role);
-    if (!isOwner && !isPrivileged) {
+    if (!isOwner && !isPrivileged(requester.role)) {
       throw new ForbiddenException('You cannot access this receipt');
     }
 

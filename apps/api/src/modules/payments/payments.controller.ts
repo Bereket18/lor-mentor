@@ -31,13 +31,7 @@ import { PaymentsService } from './payments.service';
 import { ChapaService } from './chapa.service';
 import { InitializeChapaDto } from './dto/initialize-chapa.dto';
 
-interface AuthUser {
-  id: string;
-  role: string;
-  email: string;
-  fullName: string;
-  phoneNumber?: string | null;
-}
+import type { RequestUser } from '../../common/types/request-user';
 
 const uploadDir = path.join(process.cwd(), 'uploads', 'receipts');
 if (!fs.existsSync(uploadDir)) {
@@ -86,7 +80,7 @@ export class PaymentsController {
   // ── Student: my payment history ───────────────
   @Get('me')
   @UseGuards(JwtAuthGuard)
-  findMine(@CurrentUser() user: AuthUser) {
+  findMine(@CurrentUser() user: RequestUser) {
     return this.service.findMine(user.id);
   }
 
@@ -104,7 +98,7 @@ export class PaymentsController {
   submit(
     @Body('planId') planId: string,
     @UploadedFile() file: Express.Multer.File,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: RequestUser,
   ) {
     if (!planId) {
       throw new BadRequestException('planId is required');
@@ -121,7 +115,7 @@ export class PaymentsController {
   @Roles('STUDENT')
   initializeChapa(
     @Body() dto: InitializeChapaDto,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: RequestUser,
   ) {
     return this.chapa.initialize(user, dto.planId);
   }
@@ -140,14 +134,14 @@ export class PaymentsController {
   // ── CHAPA: confirm status from the browser callback ──
   @Get('chapa/verify/:txRef')
   @UseGuards(JwtAuthGuard)
-  verifyChapa(@Param('txRef') txRef: string, @CurrentUser() user: AuthUser) {
+  verifyChapa(@Param('txRef') txRef: string, @CurrentUser() user: RequestUser) {
     return this.chapa.verifyByTxRef(txRef, user.id);
   }
 
   @Patch(':id/approve')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
-  approve(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+  approve(@Param('id') id: string, @CurrentUser() user: RequestUser) {
     return this.service.approve(id, user.id);
   }
 
@@ -157,7 +151,7 @@ export class PaymentsController {
   reject(
     @Param('id') id: string,
     @Body('reason') reason: string,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: RequestUser,
   ) {
     return this.service.reject(id, user.id, reason);
   }
@@ -178,7 +172,7 @@ export class PaymentsController {
   @UseGuards(JwtAuthGuard)
   async getDocument(
     @Param('id') id: string,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: RequestUser,
     @Res() res: Response,
   ) {
     const fullPath = await this.service.getReceiptDocumentPath(id, user);

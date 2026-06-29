@@ -10,7 +10,9 @@ import * as fs from 'fs';
  */
 function hasJpegSignature(buf: Buffer): boolean {
   // FF D8 FF
-  return buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
+  return (
+    buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff
+  );
 }
 
 function hasPngSignature(buf: Buffer): boolean {
@@ -29,9 +31,7 @@ function hasWebpSignature(buf: Buffer): boolean {
 }
 
 export function isAllowedImageBuffer(buf: Buffer): boolean {
-  return (
-    hasJpegSignature(buf) || hasPngSignature(buf) || hasWebpSignature(buf)
-  );
+  return hasJpegSignature(buf) || hasPngSignature(buf) || hasWebpSignature(buf);
 }
 
 /**

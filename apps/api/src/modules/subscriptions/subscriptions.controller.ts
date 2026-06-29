@@ -3,9 +3,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SubscriptionsService } from './subscriptions.service';
 
-interface AuthUser {
-  id: string;
-}
+import type { RequestUser } from '../../common/types/request-user';
 
 @Controller('subscriptions')
 @UseGuards(JwtAuthGuard)
@@ -13,7 +11,7 @@ export class SubscriptionsController {
   constructor(private readonly service: SubscriptionsService) {}
 
   @Get('me')
-  getMine(@CurrentUser() user: AuthUser) {
+  getMine(@CurrentUser() user: RequestUser) {
     return this.service.getForUser(user.id);
   }
 }

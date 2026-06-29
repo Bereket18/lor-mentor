@@ -3,10 +3,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { ProgressService } from './progress.service';
 
-interface AuthUser {
-  id: string;
-  role: string;
-}
+import type { RequestUser } from '../../common/types/request-user';
 
 @Controller('progress')
 @UseGuards(JwtAuthGuard)
@@ -15,7 +12,7 @@ export class ProgressController {
 
   // GET /api/v1/progress/me — per-course + overall progress
   @Get('me')
-  getMine(@CurrentUser() user: AuthUser) {
+  getMine(@CurrentUser() user: RequestUser) {
     return this.service.getMyProgress(user.id);
   }
 
@@ -23,7 +20,7 @@ export class ProgressController {
   @Post(':materialId')
   record(
     @Param('materialId') materialId: string,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: RequestUser,
   ) {
     return this.service.recordView(user.id, materialId);
   }

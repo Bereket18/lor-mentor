@@ -27,10 +27,7 @@ import { MaterialsService } from './materials.service';
 import { CreateMaterialDto } from './dto/create-material.dto';
 import { UpdateMaterialDto } from './dto/update-material.dto';
 
-interface AuthUser {
-  id: string;
-  role: string;
-}
+import type { RequestUser } from '../../common/types/request-user';
 
 // Multer storage configuration — where and how uploaded files are saved
 const storage = diskStorage({
@@ -91,7 +88,7 @@ export class MaterialsController {
   @UseGuards(JwtAuthGuard)
   async getFile(
     @Param('id') id: string,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: RequestUser,
     @Res() res: Response,
   ) {
     const { fullPath, mimeType } = await this.service.getFilePathForStudent(
@@ -123,7 +120,7 @@ export class MaterialsController {
   uploadFile(
     @Body() dto: CreateMaterialDto,
     @UploadedFile() file: Express.Multer.File,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: RequestUser,
   ) {
     return this.service.createWithFile(dto, file, user.id, user.role);
   }
@@ -132,7 +129,10 @@ export class MaterialsController {
   @Post('youtube')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN', 'TEACHER')
-  createYoutube(@Body() dto: CreateMaterialDto, @CurrentUser() user: AuthUser) {
+  createYoutube(
+    @Body() dto: CreateMaterialDto,
+    @CurrentUser() user: RequestUser,
+  ) {
     return this.service.createYoutube(dto, user.id, user.role);
   }
 
@@ -142,7 +142,7 @@ export class MaterialsController {
   update(
     @Param('id') id: string,
     @Body() dto: UpdateMaterialDto,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: RequestUser,
   ) {
     return this.service.update(id, dto, user.id, user.role);
   }
@@ -150,7 +150,7 @@ export class MaterialsController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN', 'TEACHER')
-  remove(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+  remove(@Param('id') id: string, @CurrentUser() user: RequestUser) {
     return this.service.remove(id, user.id, user.role);
   }
 }

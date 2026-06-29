@@ -16,10 +16,7 @@ import { CoursesService } from './courses.service';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
 
-interface AuthUser {
-  id: string;
-  role: string;
-}
+import type { RequestUser } from '../../common/types/request-user';
 
 @Controller('courses')
 export class CoursesController {
@@ -43,7 +40,7 @@ export class CoursesController {
   @Get('mine')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('TEACHER')
-  findMine(@CurrentUser() user: AuthUser) {
+  findMine(@CurrentUser() user: RequestUser) {
     return this.service.findByTeacher(user.id);
   }
 
@@ -59,7 +56,7 @@ export class CoursesController {
   // This enforces "cannot access other department" at the data level
   @Get('my-year')
   @UseGuards(JwtAuthGuard)
-  async findMyYear(@CurrentUser() user: AuthUser) {
+  async findMyYear(@CurrentUser() user: RequestUser) {
     return this.service.findByStudent(user.id);
   }
 
@@ -81,7 +78,7 @@ export class CoursesController {
   update(
     @Param('id') id: string,
     @Body() dto: UpdateCourseDto,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: RequestUser,
   ) {
     return this.service.update(id, dto, user);
   }
