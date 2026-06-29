@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import {
   Loader2,
   FileText,
@@ -11,8 +12,15 @@ import {
   Sparkles,
 } from "lucide-react";
 import api from "@/lib/api";
-import { MaterialViewer } from "@/components/courses/material-viewer";
 import { SubscriptionGuard } from "@/components/subscription/subscription-guard";
+
+// Lazy-loaded: the viewer pulls in the heavy pdfjs-dist renderer, but it only
+// renders when a student opens a material. Code-split it out of the page bundle.
+const MaterialViewer = dynamic(
+  () =>
+    import("@/components/courses/material-viewer").then((m) => m.MaterialViewer),
+  { ssr: false },
+);
 
 interface Material {
   id: string;

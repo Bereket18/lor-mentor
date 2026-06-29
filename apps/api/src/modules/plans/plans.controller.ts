@@ -5,6 +5,7 @@ import {
   Patch,
   Param,
   Body,
+  Header,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -18,7 +19,10 @@ import { UpdatePlanDto } from './dto/update-plan.dto';
 export class PlansController {
   constructor(private readonly service: PlansService) {}
 
+  // Public plan list rarely changes — let browsers/CDNs cache it briefly and
+  // serve stale while revalidating, cutting repeat load on the pricing page.
   @Get()
+  @Header('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
   findAllPublic() {
     return this.service.findAllPublic();
   }
@@ -31,6 +35,7 @@ export class PlansController {
   }
 
   @Get(':id')
+  @Header('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
   findOne(@Param('id') id: string) {
     return this.service.findOne(id);
   }

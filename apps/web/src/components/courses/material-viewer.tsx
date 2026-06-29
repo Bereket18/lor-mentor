@@ -1,9 +1,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { Loader2, AlertCircle, X } from "lucide-react";
 import api from "@/lib/api";
-import { PdfViewer } from "@/components/shared/pdf-viewer";
+
+// pdfjs-dist is large; only load it when a PDF is actually opened.
+const PdfViewer = dynamic(
+  () => import("@/components/shared/pdf-viewer").then((m) => m.PdfViewer),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-5 w-5 animate-spin text-muted" />
+      </div>
+    ),
+  },
+);
 
 interface MaterialViewerProps {
   materialId: string;

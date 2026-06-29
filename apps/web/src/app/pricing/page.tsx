@@ -1,10 +1,5 @@
-"use client";
-
-import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Check, Loader2, ArrowRight } from "lucide-react";
-import api from "@/lib/api";
+import { Check, ArrowRight } from "lucide-react";
 import { PLAN_FEATURES } from "@/lib/plan-features";
 
 interface Plan {
@@ -15,22 +10,24 @@ interface Plan {
   durationMonths: number;
 }
 
-export default function PricingPage() {
-  const router = useRouter();
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    api
-      .get("/plans")
-      .then((res) => setPlans(res.data))
-      .catch(() => setPlans([]))
-      .finally(() => setLoading(false));
-  }, []);
-
-  function handleGetStarted(planId: string) {
-    router.push(`/pricing/subscribe?planId=${planId}`);
+// Server-side fetch of the public plan list. Cached + revalidated every 5 min
+// (the API also sends Cache-Control), so the pricing page renders instantly
+// from the server with no client-side fetch waterfall or loading spinner.
+async function getPlans(): Promise<Plan[]> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+  try {
+    const res = await fetch(`${apiUrl}/api/v1/plans`, {
+      next: { revalidate: 300 },
+    });
+    if (!res.ok) return [];
+    return (await res.json()) as Plan[];
+  } catch {
+    return [];
   }
+}
+
+export default async function PricingPage() {
+  const plans = await getPlans();
 
   return (
     <div className="min-h-screen bg-base">
@@ -48,11 +45,7 @@ export default function PricingPage() {
           </p>
         </div>
 
-        {loading ? (
-          <div className="flex justify-center py-16">
-            <Loader2 className="h-6 w-6 animate-spin text-muted" />
-          </div>
-        ) : plans.length === 0 ? (
+        {plans.length === 0 ? (
           <p className="text-center text-secondary text-sm">
             No plans available yet. Please check back soon.
           </p>
@@ -68,7 +61,9 @@ export default function PricingPage() {
                 </h2>
                 <p className="text-3xl font-bold text-accent mb-1">
                   {Number(plan.priceETB).toLocaleString()}{" "}
-                  <span className="text-base font-normal text-secondary">ETB</span>
+                  <span className="text-base font-normal text-secondary">
+                    ETB
+                  </span>
                 </p>
                 <p className="text-xs text-muted mb-6">
                   {plan.durationMonths} month
@@ -87,15 +82,15 @@ export default function PricingPage() {
                   ))}
                 </ul>
 
-                <button
-                  onClick={() => handleGetStarted(plan.id)}
+                <Link
+                  href={`/pricing/subscribe?planId=${plan.id}`}
                   className="group w-full bg-accent hover:bg-accent-hover text-white
                     font-medium rounded-xl py-3 flex items-center justify-center gap-2
                     transition-all"
                 >
                   Get started
                   <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
-                </button>
+                </Link>
               </div>
             ))}
           </div>
