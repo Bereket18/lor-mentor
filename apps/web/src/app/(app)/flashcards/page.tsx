@@ -6,6 +6,8 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 
+import { toast } from "sonner";
+
 interface Course { id: string; title: string }
 interface SetSummary {
   id: string; title: string; materialTitle: string;
@@ -71,7 +73,7 @@ export default function FlashcardsPage() {
       setFlipped(false);
       setIndex((i) => Math.min(i + 1, study.cards.length));
     } catch {
-      alert("Failed to save");
+      toast.error("Failed to save");
     } finally {
       setSaving(false);
     }

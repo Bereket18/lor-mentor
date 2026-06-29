@@ -9,6 +9,8 @@ import {
 import api from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
 
+import { toast } from "sonner";
+
 interface Department { id: string; name: string }
 
 interface User {
@@ -106,7 +108,7 @@ export default function AdminUsersPage() {
   async function handleCreateStaff() {
     if (!newStaff.fullName.trim() || !newStaff.email.trim()) return;
     if (isStudentRole && (!newStaff.departmentId || !newStaff.academicYearId)) {
-      alert("Students require a department and academic year");
+      toast.error("Students require a department and academic year");
       return;
     }
     setCreating(true);
@@ -125,7 +127,7 @@ export default function AdminUsersPage() {
       await loadUsers();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
-      alert(err?.response?.data?.message ?? "Failed to create account");
+      toast.error(err?.response?.data?.message ?? "Failed to create account");
     } finally {
       setCreating(false);
     }
@@ -139,7 +141,7 @@ export default function AdminUsersPage() {
       setUsers((prev) => prev.filter((u) => u.id !== target.id));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
-      alert(err?.response?.data?.message ?? "Failed to delete user");
+      toast.error(err?.response?.data?.message ?? "Failed to delete user");
     } finally {
       setDeletingId(null);
     }
@@ -161,7 +163,7 @@ export default function AdminUsersPage() {
       setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, role } : u));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
-      alert(err?.response?.data?.message ?? "Failed to change role");
+      toast.error(err?.response?.data?.message ?? "Failed to change role");
     }
   }
 
@@ -171,7 +173,7 @@ export default function AdminUsersPage() {
       setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, isActive: !isActive } : u));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
-      alert(err?.response?.data?.message ?? "Failed to update status");
+      toast.error(err?.response?.data?.message ?? "Failed to update status");
     }
   }
 

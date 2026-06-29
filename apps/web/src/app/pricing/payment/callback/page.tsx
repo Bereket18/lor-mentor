@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 
+import { toast } from "sonner";
+
 type Phase = "verifying" | "approved" | "pending" | "error";
 
 interface VerifyResult {
@@ -78,7 +80,7 @@ function CallbackContent() {
       const url = URL.createObjectURL(res.data);
       window.open(url, "_blank");
     } catch {
-      alert("Could not load the receipt. You can also find it on your profile.");
+      toast.error("Could not load the receipt. You can also find it on your profile.");
     } finally {
       setDownloading(false);
     }

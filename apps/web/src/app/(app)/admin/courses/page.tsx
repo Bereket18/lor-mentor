@@ -19,6 +19,8 @@ import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { Department, AcademicYear, Semester, Course } from "@/types";
 
+import { toast } from "sonner";
+
 type Level = "departments" | "years" | "semesters" | "courses" | "materials";
 
 interface Material {
@@ -202,7 +204,7 @@ export default function AdminCoursesPage() {
       setNewName("");
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
-      alert(err?.response?.data?.message ?? "Failed to create");
+      toast.error(err?.response?.data?.message ?? "Failed to create");
     } finally {
       setCreating(false);
     }
@@ -219,7 +221,7 @@ export default function AdminCoursesPage() {
       if (selectedSemester) await loadCourses(selectedSemester.id);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
-      alert(err?.response?.data?.message ?? "Failed to assign teacher");
+      toast.error(err?.response?.data?.message ?? "Failed to assign teacher");
     }
   }
 
@@ -231,7 +233,7 @@ export default function AdminCoursesPage() {
     try {
       if (materialType === "YOUTUBE") {
         if (!youtubeUrl.trim()) {
-          alert("Please enter a YouTube URL");
+          toast.error("Please enter a YouTube URL");
           setUploading(false);
           return;
         }
@@ -244,7 +246,7 @@ export default function AdminCoursesPage() {
       } else {
         const file = fileInputRef.current?.files?.[0];
         if (!file) {
-          alert(
+          toast.error(
             `Please choose a ${materialType === "PDF" ? "PDF" : "image"} file`,
           );
           setUploading(false);
@@ -268,7 +270,7 @@ export default function AdminCoursesPage() {
       await loadMaterials(selectedCourse.id);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
-      alert(err?.response?.data?.message ?? "Upload failed");
+      toast.error(err?.response?.data?.message ?? "Upload failed");
     } finally {
       setUploading(false);
     }

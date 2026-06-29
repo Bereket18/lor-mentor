@@ -11,6 +11,8 @@ import { useAuth } from "@/hooks/use-auth";
 import api from "@/lib/api";
 import type { FullProfile } from "@/types";
 
+import { toast } from "sonner";
+
 function formatDate(value?: string | null) {
   if (!value) return "—";
   try {
@@ -99,7 +101,7 @@ export default function ProfilePage() {
       const message =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
         "Failed to update profile";
-      alert(message);
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -113,7 +115,7 @@ export default function ProfilePage() {
       const url = URL.createObjectURL(res.data);
       window.open(url, "_blank");
     } catch {
-      alert("Receipt is not available yet.");
+      toast.error("Receipt is not available yet.");
     }
   }
 
