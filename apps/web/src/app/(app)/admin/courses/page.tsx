@@ -14,6 +14,7 @@ import {
   PlayCircle,
   Upload,
   Trash2,
+  Sparkles,
 } from "lucide-react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -281,6 +282,21 @@ export default function AdminCoursesPage() {
     if (!confirm("Delete this material? This cannot be undone.")) return;
     await api.delete(`/materials/${id}`);
     await loadMaterials(selectedCourse.id);
+  }
+
+  // Re-run AI study-content generation for a PDF whose job failed.
+  async function handleRegenerateAi(id: string) {
+    try {
+      await api.post(`/materials/${id}/ai-regenerate`);
+      toast.success(
+        "AI generation restarted — summary, flashcards and quiz will appear shortly.",
+      );
+    } catch (err: unknown) {
+      toast.error(
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message ?? "Could not restart AI generation",
+      );
+    }
   }
 
   const placeholders: Record<Level, string> = {
@@ -655,7 +671,18 @@ export default function AdminCoursesPage() {
                       <span className="text-[10px] font-medium text-muted uppercase tracking-wide">
                         {m.type}
                       </span>
+                      {m.type === "PDF" && (
+                        <button
+                          type="button"
+                          onClick={() => handleRegenerateAi(m.id)}
+                          className="text-muted hover:text-ai transition-colors p-1.5"
+                          title="Regenerate AI study content"
+                        >
+                          <Sparkles className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                       <button
+                        type="button"
                         onClick={() => handleDeleteMaterial(m.id)}
                         className="text-muted hover:text-error transition-colors p-1.5"
                         title="Delete material"

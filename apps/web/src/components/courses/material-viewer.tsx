@@ -112,11 +112,13 @@ export function MaterialViewer({
         <div className="flex-1 overflow-hidden bg-base flex items-center justify-center">
           {/* -- PDF — canvas renderer, no browser toolbar -- */}
           {type === "PDF" && (
+            /* eslint-disable-next-line react/no-unknown-property */
             <div
               className="w-full h-full flex flex-col"
               style={{ height: "80vh" }}
             >
               {/* Custom header with close button */}
+              {/* eslint-disable-next-line react/no-unknown-property */}
               <div
                 className="flex items-center justify-between px-5 py-3 flex-shrink-0"
                 style={{
@@ -177,6 +179,7 @@ export function MaterialViewer({
           )}
 
           {!loading && !error && type === "IMAGE" && blobUrl && (
+            /* eslint-disable-next-line @next/next/no-img-element */
             <img
               src={blobUrl}
               alt={title}

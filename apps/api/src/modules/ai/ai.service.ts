@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -34,5 +38,41 @@ export class AiService {
     }
 
     return aiContent;
+  }
+
+  /**
+   * Re-run AI generation for a PDF material that hasn't completed (e.g. a job
+   * that FAILED). Refuses COMPLETED materials so we never clobber existing
+   * flashcards/quiz (which would also orphan student attempts/reviews).
+   */
+  async regenerate(materialId: string) {
+    const material = await this.prisma.material.findUnique({
+      where: { id: materialId },
+      select: { id: true, type: true, filePath: true },
+    });
+    if (!material) throw new NotFoundException('Material not found');
+    if (material.type !== 'PDF' || !material.filePath) {
+      throw new BadRequestException(
+        'AI generation only applies to PDF materials',
+      );
+    }
+
+    const existing = await this.prisma.aiContent.findUnique({
+      where: { materialId },
+    });
+    if (existing?.status === 'COMPLETED') {
+      throw new BadRequestException(
+        'AI content has already been generated for this material',
+      );
+    }
+    if (existing) {
+      await this.prisma.aiContent.update({
+        where: { id: existing.id },
+        data: { status: 'PENDING', error: null },
+      });
+    }
+
+    await this.enqueueGeneration(materialId, material.filePath);
+    return { status: 'PENDING' };
   }
 }

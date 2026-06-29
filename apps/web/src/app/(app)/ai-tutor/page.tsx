@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Bot, Send, Loader2, Sparkles, User } from "lucide-react";
 import api from "@/lib/api";
+import { Markdown } from "@/components/shared/markdown";
 
 interface Course { id: string; title: string }
 interface Message { role: "user" | "assistant"; content: string }
@@ -110,7 +111,13 @@ export default function AiTutorPage() {
                   : <Bot className="h-4 w-4" style={{ color: "var(--ai-primary)" }} />}
               </div>
               <div className={`glass-panel px-4 py-3 max-w-[80%] ${m.role === "user" ? "rounded-tr-sm" : "rounded-tl-sm"}`}>
-                <p className="text-sm text-primary whitespace-pre-wrap leading-relaxed">{m.content}</p>
+                {m.role === "assistant" ? (
+                  <Markdown content={m.content} />
+                ) : (
+                  <p className="text-sm text-primary whitespace-pre-wrap leading-relaxed">
+                    {m.content}
+                  </p>
+                )}
               </div>
             </div>
           ))

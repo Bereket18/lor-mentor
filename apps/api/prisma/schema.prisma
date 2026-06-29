@@ -267,6 +267,7 @@ model AiContent {
   summary          String?
   keyTopics        Json?
   illustrationPath String?
+  error            String? // failure reason when status = FAILED (cleared on success)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

@@ -75,6 +75,14 @@ export class MaterialsController {
     return this.service.getAiStatusForMaterial(id);
   }
 
+  // Re-run AI generation for a PDF whose job failed (teacher/admin only).
+  @Post(':id/ai-regenerate')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPER_ADMIN', 'TEACHER')
+  regenerateAi(@Param('id') id: string) {
+    return this.service.regenerateAiForMaterial(id);
+  }
+
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   findOne(@Param('id') id: string) {
