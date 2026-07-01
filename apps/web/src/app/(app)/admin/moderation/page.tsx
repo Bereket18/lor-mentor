@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { ShieldAlert, Trash2, Check, Loader2, Flag } from "lucide-react";
 import api from "@/lib/api";
 
+import { toast } from "sonner";
+
 interface Author { id: string; fullName: string; role: string }
 interface Report {
   id: string;
@@ -38,7 +40,7 @@ export default function ModerationPage() {
       await api.patch(`/forum/reports/${id}`, { action });
       setReports((prev) => prev.filter((r) => r.id !== id));
     } catch (err: unknown) {
-      alert((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Failed");
+      toast.error((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Failed");
     } finally {
       setBusyId(null);
     }

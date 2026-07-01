@@ -6,6 +6,8 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 
+import { toast } from "sonner";
+
 interface Course { id: string; title: string }
 interface QuizSummary {
   id: string; title: string; questionCount: number;
@@ -74,7 +76,7 @@ export default function QuizPage() {
       const r = await api.post<AttemptResult>(`/quizzes/${quiz.id}/attempt`, payload);
       setResult(r.data);
     } catch (err: unknown) {
-      alert((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Failed to submit");
+      toast.error((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Failed to submit");
     } finally {
       setSubmitting(false);
     }
