@@ -113,9 +113,13 @@ export function MaterialViewer({
           {/* -- PDF — canvas renderer, no browser toolbar -- */}
           {type === "PDF" && (
 <<<<<<< HEAD
+<<<<<<< HEAD
             /* eslint-disable-next-line react/no-unknown-property */
 =======
 >>>>>>> feat/phase-5-ux-polish
+=======
+            /* eslint-disable-next-line react/no-unknown-property */
+>>>>>>> fix/ai-generation
             <div
               className="w-full h-full flex flex-col"
               style={{ height: "80vh" }}
