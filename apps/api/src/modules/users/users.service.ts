@@ -111,6 +111,8 @@ export class UsersService {
       where: { id: userId },
       data: {
         passwordHash,
+        failedLoginCount: 0,
+        lockoutUntil: null,
         passwordResetToken: null,
         passwordResetExpiry: null,
       },
@@ -569,6 +571,27 @@ export class UsersService {
     });
 
     return { message: 'Profile updated', user };
+  }
+
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, passwordHash: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    const matches = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!matches) {
+      throw new BadRequestException('Current password is incorrect');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await this.updatePassword(userId, passwordHash);
+    return { message: 'Password changed successfully' };
   }
   // Create a teacher or admin account directly — admin action only
   // The new account gets a random temporary password
