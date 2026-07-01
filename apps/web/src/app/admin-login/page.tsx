@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Eye, EyeOff, Loader2, ArrowRight, Shield } from "lucide-react";
-import api from "@/lib/api";
+import { useAuth } from "@/hooks/use-auth";
 
 const schema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -18,6 +18,7 @@ type FormData = z.infer<typeof schema>;
 
 export default function AdminLoginPage() {
   const router = useRouter();
+  const { login, logout } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -29,15 +30,16 @@ export default function AdminLoginPage() {
   } = useForm<FormData>({ resolver: zodResolver(schema) });
 
   async function onSubmit(data: FormData) {
+    if (isSubmitting) return;
     setIsSubmitting(true);
     setServerError("");
 
     try {
-      const res = await api.post("/auth/login", data);
-      const user = res.data.user;
+      const res = await login(data.email, data.password);
+      const user = res.user;
 
       if (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN") {
-        await api.post("/auth/logout");
+        await logout(null);
         setServerError("This portal is for administrators only.");
         return;
       }
@@ -88,6 +90,7 @@ export default function AdminLoginPage() {
               {...register("email")}
               type="email"
               placeholder="admin@lorcan.edu.et"
+              disabled={isSubmitting}
               className="w-full bg-surface border border-default rounded-xl
                 px-4 py-3 text-sm text-primary placeholder:text-muted
                 focus:outline-none focus:border-accent focus:ring-2
@@ -107,6 +110,7 @@ export default function AdminLoginPage() {
                 {...register("password")}
                 type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
+                disabled={isSubmitting}
                 className="w-full bg-surface border border-default rounded-xl
                   px-4 py-3 pr-11 text-sm text-primary placeholder:text-muted
                   focus:outline-none focus:border-accent focus:ring-2
@@ -115,6 +119,7 @@ export default function AdminLoginPage() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
+                disabled={isSubmitting}
                 className="absolute right-3.5 top-1/2 -translate-y-1/2
                   text-muted hover:text-primary transition-colors"
               >
