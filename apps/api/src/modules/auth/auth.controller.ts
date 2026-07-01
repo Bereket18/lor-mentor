@@ -13,6 +13,17 @@ import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+
+function cookieOptions() {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax' as const,
+    path: '/',
+  };
+}
 
 // All routes in this controller start with /api/v1/auth
 @Controller('auth')
@@ -45,16 +56,12 @@ export class AuthController {
     // Store tokens in HTTP-only cookies
     // JavaScript cannot read these — they are secure
     res.cookie('access_token', result.accessToken, {
-      httpOnly: true, // JS cannot read
-      secure: process.env.NODE_ENV === 'production', // HTTPS only in production
-      sameSite: 'lax', // Protects against CSRF
+      ...cookieOptions(),
       maxAge: 15 * 60 * 1000, // 15 minutes in milliseconds
     });
 
     res.cookie('refresh_token', result.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      ...cookieOptions(),
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
     });
 
@@ -86,16 +93,12 @@ export class AuthController {
       const tokens = await this.authService.refreshTokens(payload.sub);
 
       res.cookie('access_token', tokens.accessToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        ...cookieOptions(),
         maxAge: 15 * 60 * 1000,
       });
 
       res.cookie('refresh_token', tokens.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        ...cookieOptions(),
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 
@@ -110,25 +113,22 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   logout(@Res({ passthrough: true }) res: Response) {
     // Clear both cookies
-    res.clearCookie('access_token');
-    res.clearCookie('refresh_token');
+    res.clearCookie('access_token', cookieOptions());
+    res.clearCookie('refresh_token', cookieOptions());
     return { message: 'Logged out successfully' };
   }
 
   // POST /api/v1/auth/forgot-password
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
-  async forgotPassword(@Body('email') email: string) {
-    return this.authService.forgotPassword(email);
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto.email);
   }
 
   // POST /api/v1/auth/reset-password
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
-  async resetPassword(
-    @Body('token') token: string,
-    @Body('password') password: string,
-  ) {
-    return this.authService.resetPassword(token, password);
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto.token, dto.password);
   }
 }

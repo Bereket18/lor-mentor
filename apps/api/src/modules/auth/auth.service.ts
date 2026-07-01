@@ -2,6 +2,7 @@ import {
   Injectable,
   BadRequestException,
   UnauthorizedException,
+  Logger,
   // NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -9,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { UsersService } from '../users/users.service';
+import { MailService } from '../mail/mail.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -20,11 +22,14 @@ const LOCKOUT_MINUTES = 15;
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly mail: MailService,
   ) {}
 
   // ── REGISTER ──────────────────────────────────────────
@@ -83,15 +88,14 @@ export class AuthService {
     // 5. Save the token to the database
     await this.usersService.saveVerifyToken(user.id, token, expiry);
 
-    // 6. TODO: Send verification email (Sprint 1 Step 2)
-    // For now we return the token so we can test manually
-    console.log(`Verification token for ${user.email}: ${token}`);
+    const webBase = this.publicWebBase();
+    const verifyUrl = `${webBase}/verify-email?token=${encodeURIComponent(token)}&email=${encodeURIComponent(user.email)}`;
+
+    await this.mail.sendEmailVerification(user.email, verifyUrl);
 
     return {
       message:
         'Registration successful. Please check your email to verify your account.',
-      // Remove this in production — only for testing
-      verifyToken: token,
     };
   }
 
@@ -248,14 +252,17 @@ export class AuthService {
 
     await this.usersService.saveResetToken(user.id, token, expiry);
 
-    // TODO: Send reset email (Sprint 1 Step 2)
-    console.log(`Reset token for ${user.email}: ${token}`);
+    const resetUrl = `${this.publicWebBase()}/reset-password?token=${encodeURIComponent(token)}`;
+    try {
+      await this.mail.sendPasswordReset(user.email, resetUrl);
+    } catch (error) {
+      this.logger.error(
+        `Password reset email failed for user ${user.id}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
 
-    return {
-      message: 'If that email exists, a reset link has been sent.',
-      // Remove this in production
-      resetToken: token,
-    };
+    return { message: 'If that email exists, a reset link has been sent.' };
   }
 
   // ── RESET PASSWORD ────────────────────────────────────
@@ -276,6 +283,15 @@ export class AuthService {
     await this.usersService.updatePassword(user.id, passwordHash);
 
     return { message: 'Password reset successful. You can now log in.' };
+  }
+
+
+  private publicWebBase(): string {
+    const webBase =
+      this.config.get<string>('WEB_PUBLIC_URL') ??
+      this.config.get<string>('APP_URL') ??
+      'http://localhost:3000';
+    return webBase.replace(/\/$/, '');
   }
 
   // ── PRIVATE: Generate JWT Tokens ──────────────────────
