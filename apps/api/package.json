@@ -48,6 +48,7 @@
     "pdfkit": "^0.19.1",
     "pg": "^8.21.0",
     "reflect-metadata": "^0.2.2",
+    "resend": "^6.16.0",
     "rxjs": "^7.8.1",
     "tailwind-merge": "^3.6.0"
   },
