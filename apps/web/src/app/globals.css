@@ -2,15 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ════════════════════════════════════════════════════════════════
+/* ----------------------------------------------------------------
    LOR MENTOR — DESIGN SYSTEM
    Lorcan Medical College · Addis Ababa, Ethiopia
    
    Design DNA: Apple Education + Linear + Notion + Medical Intelligence
    Mood: Elegant · Focused · Professional · Premium · Calm
-   ════════════════════════════════════════════════════════════════ */
+   ---------------------------------------------------------------- */
 
-/* ── ShadCN compatibility layer ─────────────────────────────── */
+/* -- ShadCN compatibility layer ------------------------------- */
 @layer base {
   /* Dark mode (default) */
   :root {
@@ -60,9 +60,9 @@
   }
 }
 
-/* ── Lor Mentor Design Tokens — Dark First ─────────────────── */
+/* -- Lor Mentor Design Tokens — Dark First ------------------- */
 :root {
-  /* ── Core backgrounds ──────────────────────────────────────── */
+  /* -- Core backgrounds ---------------------------------------- */
   --bg-base: #060B14;
   /* Deep medical midnight */
   --bg-surface: #0F172A;
@@ -74,52 +74,52 @@
   --bg-glass: rgba(15, 23, 42, 0.7);
   /* Glassmorphism */
 
-  /* ── Borders ────────────────────────────────────────────────── */
+  /* -- Borders -------------------------------------------------- */
   --border-default: rgba(255, 255, 255, 0.06);
   --border-subtle: rgba(255, 255, 255, 0.04);
   --border-glass: rgba(255, 255, 255, 0.08);
   --border-accent: rgba(14, 165, 233, 0.3);
 
-  /* ── Text ───────────────────────────────────────────────────── */
+  /* -- Text ----------------------------------------------------- */
   --text-primary: #F8FAFC;
   --text-secondary: #94A3B8;
   --text-muted: #475569;
   --text-faint: #1E293B;
 
-  /* ── Primary accent — Medical Blue ─────────────────────────── */
+  /* -- Primary accent — Medical Blue --------------------------- */
   --accent-primary: #0EA5E9;
   --accent-hover: #38BDF8;
   --accent-dim: rgba(14, 165, 233, 0.12);
   --accent-glow: rgba(14, 165, 233, 0.25);
 
-  /* ── Secondary accent — Medical Teal ───────────────────────── */
+  /* -- Secondary accent — Medical Teal ------------------------- */
   --teal: #14B8A6;
   --teal-hover: #2DD4BF;
   --teal-dim: rgba(20, 184, 166, 0.12);
   --teal-glow: rgba(20, 184, 166, 0.25);
 
-  /* ── AI feature color ───────────────────────────────────────── */
+  /* -- AI feature color ----------------------------------------- */
   --ai-primary: #A78BFA;
   --ai-secondary: #7C3AED;
   --ai-dim: rgba(167, 139, 250, 0.12);
   --ai-glow: rgba(167, 139, 250, 0.2);
 
-  /* ── Lorcan brand (logo only) ───────────────────────────────── */
+  /* -- Lorcan brand (logo only) --------------------------------- */
   --lorcan-teal: #147878;
   --lorcan-dark: #0D3B3B;
 
-  /* ── Semantic states ────────────────────────────────────────── */
+  /* -- Semantic states ------------------------------------------ */
   --state-success: #10B981;
   --state-warning: #F59E0B;
   --state-error: #EF4444;
 
-  /* ── Glassmorphism ──────────────────────────────────────────── */
+  /* -- Glassmorphism -------------------------------------------- */
   --glass-bg: rgba(15, 23, 42, 0.6);
   --glass-border: rgba(255, 255, 255, 0.07);
   --glass-blur: 12px;
 }
 
-/* ── Light mode token overrides ─────────────────────────────── */
+/* -- Light mode token overrides ------------------------------- */
 [data-theme="light"] {
   --bg-base:       #EEF4F4;
   --bg-surface:    #FFFFFF;
@@ -155,9 +155,9 @@
   --glass-border:   rgba(0, 0, 0, 0.06);
 }
 
-/* ════════════════════════════════════════════════════════════════
+/* ----------------------------------------------------------------
    BASE STYLES
-   ════════════════════════════════════════════════════════════════ */
+   ---------------------------------------------------------------- */
 @layer base {
   * {
     border-color: var(--border-default);
@@ -220,9 +220,9 @@
   }
 }
 
-/* ════════════════════════════════════════════════════════════════
+/* ----------------------------------------------------------------
    ANIMATION SYSTEM
-   ════════════════════════════════════════════════════════════════ */
+   ---------------------------------------------------------------- */
 
 /* 1. Floating effect — for hero elements and 3D previews */
 @keyframes float {
@@ -354,12 +354,12 @@
   }
 }
 
-/* ════════════════════════════════════════════════════════════════
+/* ----------------------------------------------------------------
    COMPONENT UTILITIES
-   ════════════════════════════════════════════════════════════════ */
+   ---------------------------------------------------------------- */
 @layer components {
 
-  /* ── Glass card ─────────────────────────────────────────────── */
+  /* -- Glass card ----------------------------------------------- */
   .glass {
     background: var(--glass-bg);
     backdrop-filter: blur(var(--glass-blur));
@@ -368,7 +368,7 @@
     border-radius: 0.75rem;
   }
 
-  /* ── Liquid-glass panel ─────────────────────────────────────────
+  /* -- Liquid-glass panel -----------------------------------------
      Theme-aware glassmorphism for feature pages. Adapts to light/dark
      automatically via the token system — never hardcode glass colors. */
   .glass-panel {
@@ -406,7 +406,7 @@
     transform: translateY(-2px);
   }
 
-  /* ── Standard card ──────────────────────────────────────────── */
+  /* -- Standard card -------------------------------------------- */
   .card {
     background: var(--bg-surface);
     border: 1px solid var(--border-default);
@@ -424,7 +424,7 @@
     box-shadow: 0 8px 24px var(--accent-glow);
   }
 
-  /* ── Glow effects ───────────────────────────────────────────── */
+  /* -- Glow effects --------------------------------------------- */
   .glow-accent {
     box-shadow: 0 0 24px var(--accent-glow), 0 0 48px rgba(14, 165, 233, 0.1);
   }
@@ -437,7 +437,7 @@
     box-shadow: 0 0 24px var(--ai-glow), 0 0 48px rgba(167, 139, 250, 0.1);
   }
 
-  /* ── Progress bar ───────────────────────────────────────────── */
+  /* -- Progress bar --------------------------------------------- */
   .progress-track {
     background: var(--bg-subtle);
     border-radius: 9999px;
@@ -452,7 +452,7 @@
     transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  /* ── Gradient text ──────────────────────────────────────────── */
+  /* -- Gradient text -------------------------------------------- */
   .text-gradient-blue {
     background: linear-gradient(135deg, var(--accent-primary) 0%, var(--teal) 100%);
     -webkit-background-clip: text;
@@ -467,7 +467,7 @@
     background-clip: text;
   }
 
-  /* ── Animated gradient background ──────────────────────────── */
+  /* -- Animated gradient background ---------------------------- */
   .bg-gradient-animated {
     background: linear-gradient(-45deg,
         #060B14,
@@ -489,7 +489,7 @@
     animation: gradient-shift 15s ease infinite;
   }
 
-  /* ── Skeleton loader ────────────────────────────────────────── */
+  /* -- Skeleton loader ------------------------------------------ */
   .skeleton {
     background: linear-gradient(90deg,
         var(--bg-surface) 25%,
@@ -500,7 +500,7 @@
     border-radius: 0.5rem;
   }
 
-  /* ── AI badge ───────────────────────────────────────────────── */
+  /* -- AI badge ------------------------------------------------- */
   .badge-ai {
     background: var(--ai-dim);
     color: var(--ai-primary);
@@ -514,7 +514,7 @@
     gap: 4px;
   }
 
-  /* ── High Yield badge ───────────────────────────────────────── */
+  /* -- High Yield badge ----------------------------------------- */
   .badge-hy {
     background: rgba(245, 158, 11, 0.12);
     color: #F59E0B;
@@ -528,7 +528,7 @@
     gap: 3px;
   }
 
-  /* ── Parallax container ─────────────────────────────────────── */
+  /* -- Parallax container --------------------------------------- */
   .parallax-container {
     position: relative;
     overflow: hidden;
@@ -540,7 +540,7 @@
     transition: transform 0.1s linear;
   }
 
-  /* ── Fade up on scroll — base state ────────────────────────── */
+  /* -- Fade up on scroll — base state -------------------------- */
   .reveal {
     opacity: 0;
     transform: translateY(24px);
@@ -553,7 +553,7 @@
     transform: translateY(0);
   }
 
-  /* ── Word by word reveal ────────────────────────────────────── */
+  /* -- Word by word reveal -------------------------------------- */
   .word-reveal span {
     display: inline-block;
     overflow: hidden;
@@ -565,7 +565,7 @@
     animation: word-reveal 0.6s cubic-bezier(0.4, 0, 0.2, 1) both;
   }
 
-  /* ── Page container ─────────────────────────────────────────── */
+  /* -- Page container ------------------------------------------- */
   .page-container {
     max-width: 1280px;
     margin: 0 auto;
@@ -573,7 +573,7 @@
     width: 100%;
   }
 
-  /* ── Dot grid background ────────────────────────────────────── */
+  /* -- Dot grid background -------------------------------------- */
   .bg-dot-grid {
     background-image: radial-gradient(circle,
         rgba(255, 255, 255, 0.04) 1px,
@@ -583,7 +583,7 @@
 }
 
 
-/* ── Print protection — hides everything when Ctrl+P is pressed ── */
+/* -- Print protection — hides everything when Ctrl+P is pressed -- */
 /* Users who open the PDF viewer and try to print get a blank page  */
 @media print {
   body * {

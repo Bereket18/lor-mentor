@@ -36,6 +36,7 @@ export class UsersService {
         email: true,
         fullName: true,
         role: true,
+        phoneNumber: true,
         avatarPath: true,
         isActive: true,
         isEmailVerified: true,

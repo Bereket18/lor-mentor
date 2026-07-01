@@ -13,6 +13,11 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 
+// Brute-force lockout policy: after MAX_FAILED consecutive failures the account
+// is locked for LOCKOUT_MINUTES. The counter resets on any successful login.
+const MAX_FAILED_LOGINS = 5;
+const LOCKOUT_MINUTES = 15;
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -115,7 +120,7 @@ export class AuthService {
   }
 
   // ── LOGIN ─────────────────────────────────────────────
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, ip?: string) {
     // 1. Find the user by email
     const user = await this.usersService.findByEmail(dto.email);
     if (!user) {
@@ -124,27 +129,44 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    // 2. Check the account is active
+    // 2. Brute-force lockout — reject early while the account is locked.
+    if (user.lockoutUntil && user.lockoutUntil > new Date()) {
+      throw new UnauthorizedException(
+        'Too many failed attempts. This account is temporarily locked. ' +
+          'Please try again later or reset your password.',
+      );
+    }
+
+    // 3. Check the account is active
     if (!user.isActive) {
       throw new UnauthorizedException(
         'Your account has been deactivated. Contact support.',
       );
     }
 
-    // 3. Check email is verified
+    // 4. Check email is verified
     if (!user.isEmailVerified) {
       throw new UnauthorizedException(
         'Please verify your email address before logging in.',
       );
     }
 
-    // 4. Compare the password with the stored hash
+    // 5. Compare the password with the stored hash
     const passwordMatch = await bcrypt.compare(dto.password, user.passwordHash);
     if (!passwordMatch) {
+      await this.recordFailedLogin(user.id, user.failedLoginCount, ip);
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    // 5. Create the JWT tokens
+    // 6. Success — clear any accumulated failure state.
+    if (user.failedLoginCount > 0 || user.lockoutUntil) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { failedLoginCount: 0, lockoutUntil: null },
+      });
+    }
+
+    // 7. Create the JWT tokens
     const tokens = await this.generateTokens(user.id, user.email, user.role);
 
     return {
@@ -157,6 +179,42 @@ export class AuthService {
       },
       ...tokens,
     };
+  }
+
+  /**
+   * Increment the failed-login counter and, once the threshold is reached, lock
+   * the account for LOCKOUT_MINUTES (resetting the counter so a fresh window of
+   * attempts is available after the lock expires). Every failure — and every
+   * resulting lock — is written to the audit log with the originating IP.
+   */
+  private async recordFailedLogin(
+    userId: string,
+    currentCount: number,
+    ip?: string,
+  ) {
+    const nextCount = currentCount + 1;
+    const willLock = nextCount >= MAX_FAILED_LOGINS;
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: willLock
+        ? {
+            failedLoginCount: 0,
+            lockoutUntil: new Date(Date.now() + LOCKOUT_MINUTES * 60_000),
+          }
+        : { failedLoginCount: nextCount },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        actorId: userId,
+        action: willLock ? 'AUTH_ACCOUNT_LOCKED' : 'AUTH_LOGIN_FAILED',
+        entityType: 'User',
+        entityId: userId,
+        ipAddress: ip ?? null,
+        meta: { attempt: nextCount, lockMinutes: willLock ? LOCKOUT_MINUTES : 0 },
+      },
+    });
   }
 
   // ── REFRESH TOKEN ─────────────────────────────────────

@@ -62,7 +62,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         boxShadow: "inset -1px 0 0 var(--teal-glow), 4px 0 32px rgba(0,0,0,0.25)",
       }}
     >
-      {/* ── Chromatic top glow ──────────────────────────────── */}
+      {/* -- Chromatic top glow -------------------------------- */}
       <div
         aria-hidden
         className="pointer-events-none absolute top-0 left-0 right-0 h-48"
@@ -80,7 +80,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         }}
       />
 
-      {/* ── Logo ────────────────────────────────────────────── */}
+      {/* -- Logo ---------------------------------------------- */}
       <div
         className={cn(
           "relative z-10 flex items-center flex-shrink-0",
@@ -141,7 +141,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         </AnimatePresence>
       </div>
 
-      {/* ── Navigation ──────────────────────────────────────── */}
+      {/* -- Navigation ---------------------------------------- */}
       <nav className="relative z-10 flex-1 px-2 py-3 space-y-0.5 overflow-y-auto overflow-x-hidden">
         {navItems.map((item) => {
           const isActive =
@@ -213,13 +213,13 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         })}
       </nav>
 
-      {/* ── Divider ─────────────────────────────────────────── */}
+      {/* -- Divider ------------------------------------------- */}
       <div
         className="relative z-10 mx-3"
         style={{ borderTop: "1px solid var(--glass-border)" }}
       />
 
-      {/* ── Profile & Logout ────────────────────────────────── */}
+      {/* -- Profile & Logout ---------------------------------- */}
       <div className="relative z-10 px-2 py-2 space-y-0.5">
         {/* Profile */}
         <Link href="/profile">
@@ -305,7 +305,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         </button>
       </div>
 
-      {/* ── User info glass card ─────────────────────────────── */}
+      {/* -- User info glass card ------------------------------- */}
       <AnimatePresence initial={false}>
         {!collapsed && (
           <motion.div
@@ -355,7 +355,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         )}
       </AnimatePresence>
 
-      {/* ── Collapse toggle ──────────────────────────────────── */}
+      {/* -- Collapse toggle ------------------------------------ */}
       <div
         className="relative z-10 p-2"
         style={{ borderTop: "1px solid var(--glass-border)" }}

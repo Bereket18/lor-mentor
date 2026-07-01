@@ -16,15 +16,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 
-interface AuthUser {
-  id: string;
-  email: string;
-  fullName: string;
-  role: string;
-  isActive: boolean;
-  isEmailVerified: boolean;
-  createdAt: Date;
-}
+import type { RequestUser } from '../../common/types/request-user';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard)
@@ -32,14 +24,14 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get('me')
-  getMe(@CurrentUser() user: AuthUser) {
+  getMe(@CurrentUser() user: RequestUser) {
     return { user };
   }
 
   // Full profile with role-relevant relations (department, year, subscription,
   // payments, teacher courses). Drives the /profile page.
   @Get('me/full')
-  getMeFull(@CurrentUser() user: AuthUser) {
+  getMeFull(@CurrentUser() user: RequestUser) {
     return this.usersService.getFullProfile(user.id);
   }
 
@@ -67,7 +59,7 @@ export class UsersController {
   @Post('create-staff')
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
-  createUser(@CurrentUser() actor: AuthUser, @Body() body: CreateUserDto) {
+  createUser(@CurrentUser() actor: RequestUser, @Body() body: CreateUserDto) {
     return this.usersService.createUser(actor.role, body);
   }
 
@@ -84,7 +76,7 @@ export class UsersController {
   changeRole(
     @Param('id') id: string,
     @Body('role') role: string,
-    @CurrentUser() actor: AuthUser,
+    @CurrentUser() actor: RequestUser,
   ) {
     return this.usersService.changeRole(id, role, actor.id, actor.role);
   }
@@ -94,7 +86,7 @@ export class UsersController {
   @Delete(':id')
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
-  deleteUser(@Param('id') id: string, @CurrentUser() actor: AuthUser) {
+  deleteUser(@Param('id') id: string, @CurrentUser() actor: RequestUser) {
     return this.usersService.deleteUser(id, actor.id, actor.role);
   }
 
@@ -104,14 +96,14 @@ export class UsersController {
   changeStatus(
     @Param('id') id: string,
     @Body('isActive') isActive: boolean,
-    @CurrentUser() actor: AuthUser,
+    @CurrentUser() actor: RequestUser,
   ) {
     return this.usersService.changeStatus(id, isActive, actor.id);
   }
 
   @Patch('me/profile')
   updateProfile(
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: RequestUser,
     @Body() body: { fullName?: string },
   ) {
     return this.usersService.updateProfile(user.id, body);

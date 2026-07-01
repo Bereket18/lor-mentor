@@ -18,10 +18,7 @@ import { CreateReplyDto } from './dto/create-reply.dto';
 import { ReactionDto } from './dto/reaction.dto';
 import { ReportDto, ResolveReportDto } from './dto/report.dto';
 
-interface AuthUser {
-  id: string;
-  role: string;
-}
+import type { RequestUser } from '../../common/types/request-user';
 
 @Controller('forum')
 @UseGuards(JwtAuthGuard)
@@ -41,7 +38,7 @@ export class ForumController {
   @Roles('ADMIN', 'SUPER_ADMIN')
   resolveReport(
     @Param('id') id: string,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: RequestUser,
     @Body() dto: ResolveReportDto,
   ) {
     return this.service.resolveReport(id, dto.action, user.id);
@@ -51,48 +48,48 @@ export class ForumController {
   @Get('course/:courseId')
   getCourseForum(
     @Param('courseId') courseId: string,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: RequestUser,
   ) {
     return this.service.getCourseForum(courseId, user.id);
   }
 
   @Get('posts/:id')
-  getPost(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+  getPost(@Param('id') id: string, @CurrentUser() user: RequestUser) {
     return this.service.getPost(id, user.id);
   }
 
   @Post('posts')
-  createPost(@CurrentUser() user: AuthUser, @Body() dto: CreatePostDto) {
+  createPost(@CurrentUser() user: RequestUser, @Body() dto: CreatePostDto) {
     return this.service.createPost(user.id, dto);
   }
 
   @Post('posts/:id/replies')
   createReply(
     @Param('id') id: string,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: RequestUser,
     @Body() dto: CreateReplyDto,
   ) {
     return this.service.createReply(id, user.id, dto);
   }
 
   @Delete('posts/:id')
-  removePost(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+  removePost(@Param('id') id: string, @CurrentUser() user: RequestUser) {
     return this.service.removePost(id, user.id, user.role);
   }
 
   @Delete('replies/:id')
-  removeReply(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+  removeReply(@Param('id') id: string, @CurrentUser() user: RequestUser) {
     return this.service.removeReply(id, user.id, user.role);
   }
 
   // ── Reactions & reports (any authenticated user) ──────────────
   @Post('reactions')
-  react(@CurrentUser() user: AuthUser, @Body() dto: ReactionDto) {
+  react(@CurrentUser() user: RequestUser, @Body() dto: ReactionDto) {
     return this.service.toggleReaction(user.id, dto);
   }
 
   @Post('reports')
-  report(@CurrentUser() user: AuthUser, @Body() dto: ReportDto) {
+  report(@CurrentUser() user: RequestUser, @Body() dto: ReportDto) {
     return this.service.createReport(user.id, dto);
   }
 }

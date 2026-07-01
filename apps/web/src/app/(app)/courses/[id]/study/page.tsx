@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { Markdown } from "@/components/shared/markdown";
 import { SubscriptionGuard } from "@/components/subscription/subscription-guard";
 
 type Tab = "summary" | "flashcards" | "quiz";
@@ -47,6 +48,7 @@ interface Question {
 interface AiContent {
   status: "NOT_STARTED" | "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
   summary?: string | null;
+  error?: string | null;
   flashcardSet?: { cards: Flashcard[] } | null;
   quizBank?: { questions: Question[] } | null;
 }
@@ -223,7 +225,7 @@ export default function CourseStudyPage() {
               summaries.map((item) => (
                 <section key={item.title} className="space-y-2 border-b border-subtle pb-5 last:border-0">
                   <h2 className="text-sm font-semibold text-primary">{item.title}</h2>
-                  <p className="text-sm text-secondary leading-7 whitespace-pre-line">{item.summary}</p>
+                  <Markdown content={item.summary} />
                 </section>
               ))
             )}
@@ -320,12 +322,31 @@ function EmptyStudyState({ pendingMaterials }: { pendingMaterials: StudyMaterial
     <div className="space-y-3 py-6">
       <p className="text-sm text-secondary">AI content is still being prepared for:</p>
       <div className="space-y-2">
-        {pendingMaterials.map((material) => (
-          <div key={material.id} className="flex items-center justify-between gap-3 text-sm">
-            <span className="text-primary truncate">{material.title}</span>
-            <span className="text-xs text-muted">{material.ai?.status ?? "NOT_STARTED"}</span>
-          </div>
-        ))}
+        {pendingMaterials.map((material) => {
+          const failed = material.ai?.status === "FAILED";
+          return (
+            <div key={material.id} className="text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-primary truncate">{material.title}</span>
+                <span
+                  className={cn(
+                    "text-xs",
+                    failed ? "text-warning" : "text-muted",
+                  )}
+                >
+                  {material.ai?.status ?? "NOT_STARTED"}
+                </span>
+              </div>
+              {failed && (
+                <p className="text-xs text-muted mt-1">
+                  {material.ai?.error
+                    ? `Reason: ${material.ai.error}`
+                    : "Generation failed. Ask your teacher to regenerate it."}
+                </p>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

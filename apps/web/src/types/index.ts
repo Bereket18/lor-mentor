@@ -1,4 +1,4 @@
-// ── User ──────────────────────────────────────────────────
+// -- User --------------------------------------------------
 export type Role = "GUEST" | "STUDENT" | "TEACHER" | "ADMIN" | "SUPER_ADMIN";
 
 export interface User {
@@ -12,7 +12,7 @@ export interface User {
   createdAt: string;
 }
 
-// ── Auth ──────────────────────────────────────────────────
+// -- Auth --------------------------------------------------
 export interface LoginResponse {
   message: string;
   user: User;
@@ -23,12 +23,12 @@ export interface RegisterResponse {
   verifyToken: string; // Remove in production
 }
 
-// ── API ───────────────────────────────────────────────────
+// -- API ---------------------------------------------------
 export interface ApiError {
   message: string;
   statusCode: number;
 }
-// ── Academic structure ───────────────────────────────────────
+// -- Academic structure ---------------------------------------
 export interface Department {
   id:          string
   name:        string
@@ -60,7 +60,7 @@ export interface Course {
   teacher?:    { id: string; fullName: string } | null
 }
 
-// ── Full profile (GET /users/me/full) ────────────────────────
+// -- Full profile (GET /users/me/full) ------------------------
 export type SubscriptionStatus = "PENDING" | "ACTIVE" | "EXPIRED" | "CANCELLED";
 export type PaymentStatus = "PENDING" | "APPROVED" | "REJECTED";
 

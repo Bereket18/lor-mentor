@@ -5,10 +5,13 @@ import Link from "next/link";
 import {
   Loader2, User, Mail, Phone, ShieldCheck, ShieldAlert, CalendarDays,
   Building2, GraduationCap, CreditCard, BookOpen, ArrowRight, Layers,
+  Download,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import api from "@/lib/api";
 import type { FullProfile } from "@/types";
+
+import { toast } from "sonner";
 
 function formatDate(value?: string | null) {
   if (!value) return "—";
@@ -98,9 +101,21 @@ export default function ProfilePage() {
       const message =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
         "Failed to update profile";
-      alert(message);
+      toast.error(message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function downloadReceipt(paymentId: string) {
+    try {
+      const res = await api.get(`/payments/${paymentId}/document`, {
+        responseType: "blob",
+      });
+      const url = URL.createObjectURL(res.data);
+      window.open(url, "_blank");
+    } catch {
+      toast.error("Receipt is not available yet.");
     }
   }
 
@@ -124,7 +139,7 @@ export default function ProfilePage() {
         <p className="text-secondary text-sm">Your account and academic details.</p>
       </div>
 
-      {/* ── Identity header ─────────────────────────────────── */}
+      {/* -- Identity header ----------------------------------- */}
       <div className="glass-panel p-6 flex items-center gap-4">
         <div
           className="w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0"
@@ -160,7 +175,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* ── Account (all roles) ─────────────────────────────── */}
+      {/* -- Account (all roles) ------------------------------- */}
       <SectionCard title="Account">
         <Row icon={User} label="Full name" value={
           <div className="flex items-center gap-2 pt-1">
@@ -191,7 +206,7 @@ export default function ProfilePage() {
         <Row icon={CalendarDays} label="Member since" value={formatDate(profile?.createdAt)} />
       </SectionCard>
 
-      {/* ── Academic (student) ──────────────────────────────── */}
+      {/* -- Academic (student) -------------------------------- */}
       {isStudent && (
         <SectionCard title="Academic">
           <Row icon={Building2} label="Department" value={profile?.department?.name || "Not assigned"} />
@@ -204,7 +219,7 @@ export default function ProfilePage() {
         </SectionCard>
       )}
 
-      {/* ── Subscription & payments (student) ───────────────── */}
+      {/* -- Subscription & payments (student) ----------------- */}
       {isStudent && (
         <div className="glass-panel p-5">
           <div className="flex items-center justify-between mb-3">
@@ -245,14 +260,26 @@ export default function ProfilePage() {
               <p className="text-[11px] uppercase tracking-wider text-muted mb-2">Recent payments</p>
               <div className="space-y-2">
                 {profile.payments.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between text-sm">
+                  <div key={p.id} className="flex items-center justify-between gap-2 text-sm">
                     <span className="text-secondary truncate">
                       {p.plan?.name ?? "Payment"} · {formatDate(p.createdAt)}
                     </span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-                      style={statusStyle(p.status)}>
-                      {p.status}
-                    </span>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {p.status === "APPROVED" && (
+                        <button
+                          type="button"
+                          onClick={() => downloadReceipt(p.id)}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold transition-colors"
+                          style={{ color: "var(--teal)" }}
+                        >
+                          <Download className="h-3 w-3" /> Receipt
+                        </button>
+                      )}
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                        style={statusStyle(p.status)}>
+                        {p.status}
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -261,7 +288,7 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* ── Teaching (teacher) ──────────────────────────────── */}
+      {/* -- Teaching (teacher) -------------------------------- */}
       {isTeacher && (
         <div className="glass-panel p-5">
           <h2 className="text-sm font-semibold text-primary mb-3">Assigned Courses</h2>

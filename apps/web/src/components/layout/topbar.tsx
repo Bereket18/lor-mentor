@@ -1,10 +1,11 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Bell, Menu } from "lucide-react";
+import { Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
+import { NotificationBell } from "@/components/layout/notification-bell";
 
 const pageTitles: Record<string, string> = {
   "/dashboard":        "Dashboard",
@@ -52,7 +53,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
         boxShadow: "0 1px 0 var(--teal-glow)",
       }}
     >
-      {/* ── Left ─────────────────────────────────────── */}
+      {/* -- Left --------------------------------------- */}
       <div className="flex items-center gap-3">
         {/* Mobile hamburger */}
         <button
@@ -81,31 +82,13 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
         </h1>
       </div>
 
-      {/* ── Right ────────────────────────────────────── */}
+      {/* -- Right -------------------------------------- */}
       <div className="flex items-center gap-1.5">
         {/* Theme toggle — pill variant from shared component */}
         <ThemeToggle variant="pill" />
 
-        {/* Notifications */}
-        <button
-          aria-label="Notifications"
-          className="relative w-9 h-9 flex items-center justify-center rounded-xl transition-all"
-          style={{ color: "var(--text-secondary)" }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.background = "var(--teal-dim)";
-            (e.currentTarget as HTMLElement).style.color = "var(--text-primary)";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.background = "";
-            (e.currentTarget as HTMLElement).style.color = "var(--text-secondary)";
-          }}
-        >
-          <Bell className="h-4 w-4" />
-          <span
-            className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full"
-            style={{ background: "#EF4444" }}
-          />
-        </button>
+        {/* Notifications — live unread count, links to /notifications */}
+        <NotificationBell />
 
         {/* Avatar */}
         <div

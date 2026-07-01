@@ -71,7 +71,7 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-8">
-      {/* ── Header ──────────────────────────────────────────── */}
+      {/* -- Header -------------------------------------------- */}
       <motion.div initial="hidden" animate="show" variants={fadeUp}>
         <h1 className="font-display text-2xl font-semibold text-primary">
           {greeting}, {firstName}
@@ -83,7 +83,7 @@ export default function DashboardPage() {
         </p>
       </motion.div>
 
-      {/* ── Subscription banner (only when not active) ──────── */}
+      {/* -- Subscription banner (only when not active) -------- */}
       {!loading && !subActive && (
         <motion.div initial="hidden" animate="show" variants={fadeUp} transition={{ delay: 0.05 }}>
           <Link href="/pricing">
@@ -106,7 +106,7 @@ export default function DashboardPage() {
         </motion.div>
       )}
 
-      {/* ── Study tools quick grid ──────────────────────────── */}
+      {/* -- Study tools quick grid ---------------------------- */}
       <motion.div initial="hidden" animate="show" variants={fadeUp} transition={{ delay: 0.1 }}>
         <p className="text-xs font-medium text-muted tracking-wide mb-3">STUDY TOOLS</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -125,7 +125,7 @@ export default function DashboardPage() {
         </div>
       </motion.div>
 
-      {/* ── My Courses ──────────────────────────────────────── */}
+      {/* -- My Courses ---------------------------------------- */}
       <motion.div initial="hidden" animate="show" variants={fadeUp} transition={{ delay: 0.15 }}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-primary">My Courses</h2>
@@ -184,7 +184,7 @@ export default function DashboardPage() {
         )}
       </motion.div>
 
-      {/* ── AI assistant nudge ──────────────────────────────── */}
+      {/* -- AI assistant nudge -------------------------------- */}
       <motion.div initial="hidden" animate="show" variants={fadeUp} transition={{ delay: 0.2 }}>
         <Link href="/ai-tutor">
           <div className="glass-panel glass-panel-hover px-6 py-5 flex items-center justify-between gap-4"

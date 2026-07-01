@@ -5,7 +5,9 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // rawBody: true preserves the unparsed request body (req.rawBody) so the
+  // Chapa webhook can verify its HMAC-SHA256 signature against exact bytes.
+  const app = await NestFactory.create(AppModule, { rawBody: true });
 
   // ── Security headers ──────────────────────────
   // helmet adds HTTP headers that protect against
@@ -31,7 +33,7 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true, // Strip fields not in the DTO
-      forbidNonWhitelisted: false,
+      forbidNonWhitelisted: true, // Reject unexpected fields outright (defense in depth)
       transform: true, // Auto-convert types (e.g. string "1" to number 1)
     }),
   );

@@ -1,16 +1,6 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 import { Request } from 'express';
-
-// The shape of the user object attached to the request by JwtStrategy.validate()
-interface RequestUser {
-  id: string;
-  email: string;
-  fullName: string;
-  role: string;
-  isActive: boolean;
-  isEmailVerified: boolean;
-  createdAt: Date;
-}
+import type { RequestUser } from '../types/request-user';
 
 // Usage in controllers:
 // async myRoute(@CurrentUser() user: RequestUser) { ... }

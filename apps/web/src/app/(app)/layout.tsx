@@ -10,7 +10,7 @@ import { useAuth } from "@/hooks/use-auth";
 
 const COLLAPSED_KEY = "lm-sidebar-collapsed";
 
-// ── Role-based route access ──────────────────────────────────────
+// -- Role-based route access --------------------------------------
 // Single source of truth for which roles may load which area. The
 // sidebar already hides links by role, but this enforces it even when
 // a user types a URL directly.
@@ -101,7 +101,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       className="flex h-screen overflow-hidden"
       style={{ background: "var(--bg-base)", position: "relative" }}
     >
-      {/* ── Animated background gradient ──────────────────────── */}
+      {/* -- Animated background gradient ------------------------ */}
       <div
         aria-hidden
         className="pointer-events-none fixed inset-0 z-0"
@@ -122,12 +122,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         }
       `}</style>
 
-      {/* ── Sidebar ─────────────────────────────────────────────── */}
+      {/* -- Sidebar ----------------------------------------------- */}
       <div className="relative z-10 hidden lg:block">
         <Sidebar collapsed={collapsed} onToggle={handleToggle} />
       </div>
 
-      {/* ── Main content ─────────────────────────────────────────── */}
+      {/* -- Main content ------------------------------------------- */}
       <motion.div
         animate={{ marginLeft: 0 }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
@@ -153,7 +153,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </main>
       </motion.div>
 
-      {/* ── Mobile nav ───────────────────────────────────────────── */}
+      {/* -- Mobile nav --------------------------------------------- */}
       <MobileNav />
     </div>
   );

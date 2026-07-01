@@ -12,10 +12,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { FlashcardsService } from './flashcards.service';
 import { ReviewDto } from './dto/review.dto';
 
-interface AuthUser {
-  id: string;
-  role: string;
-}
+import type { RequestUser } from '../../common/types/request-user';
 
 @Controller('flashcards')
 @UseGuards(JwtAuthGuard)
@@ -24,13 +21,16 @@ export class FlashcardsController {
 
   // GET /api/v1/flashcards?courseId=xxx — sets for a course
   @Get()
-  getSets(@Query('courseId') courseId: string, @CurrentUser() user: AuthUser) {
+  getSets(
+    @Query('courseId') courseId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
     return this.service.getSetsForCourse(courseId, user.id);
   }
 
   // GET /api/v1/flashcards/:setId — cards + per-card known state
   @Get(':setId')
-  getSet(@Param('setId') setId: string, @CurrentUser() user: AuthUser) {
+  getSet(@Param('setId') setId: string, @CurrentUser() user: RequestUser) {
     return this.service.getSet(setId, user.id);
   }
 
@@ -38,7 +38,7 @@ export class FlashcardsController {
   @Post(':setId/review')
   review(
     @Param('setId') setId: string,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: RequestUser,
     @Body() dto: ReviewDto,
   ) {
     return this.service.review(setId, user.id, dto);

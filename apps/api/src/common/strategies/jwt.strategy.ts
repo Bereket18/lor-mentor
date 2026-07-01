@@ -4,6 +4,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 import { UsersService } from '../../modules/users/users.service';
+import type { RequestUser } from '../types/request-user';
 
 // What is inside our JWT token payload
 // We put these in when we created the token in AuthService
@@ -11,18 +12,6 @@ interface JwtPayload {
   sub: string; // user ID
   email: string;
   role: string;
-}
-
-// The shape returned by UsersService.findById — excludes passwordHash
-interface SafeUser {
-  id: string;
-  email: string;
-  fullName: string;
-  role: string;
-  avatarPath: string | null;
-  isActive: boolean;
-  isEmailVerified: boolean;
-  createdAt: Date;
 }
 
 @Injectable()
@@ -60,7 +49,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   // This runs automatically after the token signature is verified
   // Whatever we return here is attached to request.user
   // So in any controller we can use @CurrentUser() to get this
-  async validate(payload: JwtPayload): Promise<SafeUser> {
+  async validate(payload: JwtPayload): Promise<RequestUser> {
     const user = await this.usersService.findById(payload.sub);
 
     if (!user) {

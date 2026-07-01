@@ -8,6 +8,8 @@ import {
 import api from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
 
+import { toast } from "sonner";
+
 interface Course { id: string; title: string }
 interface Author { id: string; fullName: string; role: string }
 interface ReactionSummary { counts: Record<string, number>; mine: string[] }
@@ -135,7 +137,7 @@ export default function ForumPage() {
       setTitle(""); setBody(""); setComposing(false);
       loadPosts(courseId);
     } catch (err: unknown) {
-      alert((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Failed to post");
+      toast.error((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Failed to post");
     } finally {
       setSubmitting(false);
     }
@@ -149,7 +151,7 @@ export default function ForumPage() {
       setActivePost({ ...activePost, replies: [...activePost.replies, { ...r.data, reactions: emptyReactions }] });
       setReply("");
     } catch (err: unknown) {
-      alert((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Failed to reply");
+      toast.error((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Failed to reply");
     } finally {
       setSubmitting(false);
     }
@@ -177,9 +179,9 @@ export default function ForumPage() {
     if (!reportTarget) return;
     try {
       const res = await api.post<{ message: string }>("/forum/reports", { ...reportTarget, reason });
-      alert(res.data.message ?? "Report submitted");
+      toast.success(res.data.message ?? "Report submitted");
     } catch (err: unknown) {
-      alert((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Failed to report");
+      toast.error((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Failed to report");
     } finally {
       setReportTarget(null);
     }
@@ -192,7 +194,7 @@ export default function ForumPage() {
       setActivePost(null);
       setPosts((prev) => prev.filter((p) => p.id !== postId));
     } catch (err: unknown) {
-      alert((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Failed to remove");
+      toast.error((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Failed to remove");
     }
   }
 
@@ -202,13 +204,13 @@ export default function ForumPage() {
       await api.delete(`/forum/replies/${replyId}`);
       setActivePost((p) => p ? { ...p, replies: p.replies.filter((r) => r.id !== replyId) } : p);
     } catch (err: unknown) {
-      alert((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Failed to remove");
+      toast.error((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Failed to remove");
     }
   }
 
   const canDelete = (author: Author) => author.id === user?.id || canModerate;
 
-  // ── Report reason picker overlay ─────────────────────────
+  // -- Report reason picker overlay -------------------------
   const reportOverlay = reportTarget && (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: "rgba(0,0,0,0.4)" }} onClick={() => setReportTarget(null)}>
@@ -232,7 +234,7 @@ export default function ForumPage() {
     </div>
   );
 
-  // ── Thread detail view ───────────────────────────────────
+  // -- Thread detail view -----------------------------------
   if (activePost || loadingPost) {
     return (
       <div className="max-w-2xl mx-auto space-y-5">
@@ -339,7 +341,7 @@ export default function ForumPage() {
     );
   }
 
-  // ── Thread list view ─────────────────────────────────────
+  // -- Thread list view -------------------------------------
   return (
     <div className="max-w-2xl mx-auto space-y-5">
       {reportOverlay}

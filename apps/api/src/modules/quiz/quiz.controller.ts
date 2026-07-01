@@ -12,10 +12,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { QuizService } from './quiz.service';
 import { SubmitAttemptDto } from './dto/submit-attempt.dto';
 
-interface AuthUser {
-  id: string;
-  role: string;
-}
+import type { RequestUser } from '../../common/types/request-user';
 
 @Controller('quizzes')
 @UseGuards(JwtAuthGuard)
@@ -24,7 +21,10 @@ export class QuizController {
 
   // GET /api/v1/quizzes?courseId=xxx — quizzes for a course + last attempt
   @Get()
-  getQuizzes(@Query('courseId') courseId: string, @CurrentUser() user: AuthUser) {
+  getQuizzes(
+    @Query('courseId') courseId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
     return this.service.getQuizzesForCourse(courseId, user.id);
   }
 
@@ -36,7 +36,7 @@ export class QuizController {
 
   // GET /api/v1/quizzes/:id/attempts/me — this user's past attempts
   @Get(':id/attempts/me')
-  getMyAttempts(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+  getMyAttempts(@Param('id') id: string, @CurrentUser() user: RequestUser) {
     return this.service.getMyAttempts(id, user.id);
   }
 
@@ -44,7 +44,7 @@ export class QuizController {
   @Post(':id/attempt')
   submit(
     @Param('id') id: string,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() user: RequestUser,
     @Body() dto: SubmitAttemptDto,
   ) {
     return this.service.submitAttempt(id, user.id, dto);
