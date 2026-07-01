@@ -28,6 +28,10 @@ interface Material {
   id: string;
   title: string;
   type: "PDF" | "IMAGE" | "YOUTUBE";
+  ai?: {
+    status: "NOT_STARTED" | "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
+    error?: string | null;
+  };
 }
 
 const typeIcon = { PDF: FileText, IMAGE: ImageIcon, YOUTUBE: PlayCircle };
@@ -124,7 +128,25 @@ export default function AdminCoursesPage() {
     setLoading(true);
     try {
       const res = await api.get(`/materials?courseId=${courseId}`);
-      setMaterials(res.data);
+      const rows = res.data as Material[];
+      setMaterials(rows);
+      const pdfs = rows.filter((m) => m.type === "PDF");
+      if (pdfs.length > 0) {
+        const statuses = await Promise.all(
+          pdfs.map(async (m) => {
+            try {
+              const status = await api.get(`/materials/${m.id}/ai-status`);
+              return [m.id, status.data] as const;
+            } catch {
+              return [m.id, { status: "FAILED", error: "Could not load AI status" }] as const;
+            }
+          }),
+        );
+        const byId = new Map(statuses);
+        setMaterials((current) =>
+          current.map((m) => (byId.has(m.id) ? { ...m, ai: byId.get(m.id) } : m)),
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -291,12 +313,23 @@ export default function AdminCoursesPage() {
       toast.success(
         "AI generation restarted — summary, flashcards and quiz will appear shortly.",
       );
+      if (selectedCourse) await loadMaterials(selectedCourse.id);
     } catch (err: unknown) {
       toast.error(
         (err as { response?: { data?: { message?: string } } })?.response?.data
           ?.message ?? "Could not restart AI generation",
       );
     }
+  }
+
+  function aiStatusStyle(status?: string): React.CSSProperties {
+    if (status === "COMPLETED") {
+      return { background: "rgba(16,185,129,0.14)", color: "var(--state-success)" };
+    }
+    if (status === "FAILED") {
+      return { background: "rgba(239,68,68,0.14)", color: "var(--state-error)" };
+    }
+    return { background: "rgba(245,158,11,0.14)", color: "var(--state-warning)" };
   }
 
   const placeholders: Record<Level, string> = {
@@ -671,6 +704,15 @@ export default function AdminCoursesPage() {
                       <span className="text-[10px] font-medium text-muted uppercase tracking-wide">
                         {m.type}
                       </span>
+                      {m.type === "PDF" && (
+                        <span
+                          className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                          title={m.ai?.error ?? undefined}
+                          style={aiStatusStyle(m.ai?.status)}
+                        >
+                          AI {m.ai?.status ?? "CHECKING"}
+                        </span>
+                      )}
                       {m.type === "PDF" && (
                         <button
                           type="button"

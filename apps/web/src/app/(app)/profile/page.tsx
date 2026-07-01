@@ -6,6 +6,7 @@ import {
   Loader2, User, Mail, Phone, ShieldCheck, ShieldAlert, CalendarDays,
   Building2, GraduationCap, CreditCard, BookOpen, ArrowRight, Layers,
   Download,
+  KeyRound,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import api from "@/lib/api";
@@ -73,6 +74,10 @@ export default function ProfilePage() {
   const [fullName, setFullName] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -116,6 +121,40 @@ export default function ProfilePage() {
       window.open(url, "_blank");
     } catch {
       toast.error("Receipt is not available yet.");
+    }
+  }
+
+  async function handleChangePassword() {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      toast.error("Fill in all password fields");
+      return;
+    }
+    if (newPassword.length < 8) {
+      toast.error("New password must be at least 8 characters");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      await api.patch("/users/me/password", {
+        currentPassword,
+        newPassword,
+      });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      toast.success("Password changed successfully");
+    } catch (err: unknown) {
+      toast.error(
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message ?? "Failed to change password",
+      );
+    } finally {
+      setChangingPassword(false);
     }
   }
 
@@ -205,6 +244,58 @@ export default function ProfilePage() {
         <Row icon={Phone} label="Phone" value={profile?.phoneNumber || "Not set"} />
         <Row icon={CalendarDays} label="Member since" value={formatDate(profile?.createdAt)} />
       </SectionCard>
+
+      <div className="glass-panel p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center"
+            style={{ background: "var(--teal-dim)" }}
+          >
+            <KeyRound className="h-4 w-4" style={{ color: "var(--teal)" }} />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-primary">Change password</h2>
+            <p className="text-xs text-muted">Use your current password to protect this account.</p>
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <input
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            type="password"
+            placeholder="Current password"
+            className="rounded-lg px-3 py-2 text-sm text-primary outline-none transition-all"
+            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-default)" }}
+          />
+          <input
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            type="password"
+            placeholder="New password"
+            className="rounded-lg px-3 py-2 text-sm text-primary outline-none transition-all"
+            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-default)" }}
+          />
+          <input
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            type="password"
+            placeholder="Confirm password"
+            className="rounded-lg px-3 py-2 text-sm text-primary outline-none transition-all"
+            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-default)" }}
+          />
+        </div>
+        <button
+          type="button"
+          onClick={handleChangePassword}
+          disabled={changingPassword}
+          className="mt-3 inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{ background: "linear-gradient(135deg, #0F6B6B, #147878)" }}
+        >
+          {changingPassword ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+          {changingPassword ? "Changing..." : "Change password"}
+        </button>
+      </div>
 
       {/* -- Academic (student) -------------------------------- */}
       {isStudent && (
