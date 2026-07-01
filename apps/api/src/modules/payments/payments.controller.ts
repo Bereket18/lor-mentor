@@ -30,6 +30,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaymentsService } from './payments.service';
 import { ChapaService } from './chapa.service';
 import { InitializeChapaDto } from './dto/initialize-chapa.dto';
+import { VerifyReceiptDto } from './dto/verify-receipt.dto';
 
 import type { RequestUser } from '../../common/types/request-user';
 
@@ -104,6 +105,17 @@ export class PaymentsController {
       throw new BadRequestException('planId is required');
     }
     return this.service.submit(user.id, planId, file);
+  }
+
+  // ── BANK-TRANSFER flow: verify a transaction reference ──
+  // Hits an external scraper and creates a payment row, so cap retries like
+  // the Chapa entry point.
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('verify')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('STUDENT')
+  verify(@Body() dto: VerifyReceiptDto, @CurrentUser() user: RequestUser) {
+    return this.service.verifyAndSubmit(user.id, dto);
   }
 
   // ── CHAPA flow: start an online payment ───────

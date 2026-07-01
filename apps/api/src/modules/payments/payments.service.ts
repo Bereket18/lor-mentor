@@ -5,9 +5,16 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ReceiptService } from './receipt.service';
+import {
+  ReceiptVerifierService,
+  type NormalizedReceipt,
+} from './receipt-verifier.service';
+import type { VerifyReceiptDto } from './dto/verify-receipt.dto';
 import { assertValidImageFile } from '../../common/utils/image-magic-bytes';
+import { isCompanyAccount } from '../../common/utils/bank-account-match';
 import { isPrivileged } from '../../common/constants/roles';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -19,6 +26,8 @@ export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly receipts: ReceiptService,
+    private readonly config: ConfigService,
+    private readonly verifier: ReceiptVerifierService,
   ) {}
 
   findAllAdmin() {
@@ -104,6 +113,239 @@ export class PaymentsService {
         plan: { select: { name: true, priceETB: true } },
       },
     });
+  }
+
+  /**
+   * BANK-TRANSFER flow: student submits a transaction reference (or receipt
+   * URL). We fetch the receipt from the bank via the receipt-verifier service
+   * and decide:
+   *   - all checks pass  → create the Payment and auto-approve it (instant
+   *                         subscription) via the shared finalizeApproval path.
+   *   - anything unclear → create a PENDING payment for manual admin review,
+   *                         with the reason recorded.
+   *
+   * The checks that gate auto-approval (see assertReceiptSatisfiesPlan):
+   *   1. receiver account is one of OURS (COMPANY_BANK_ACCOUNTS)
+   *   2. amount paid ≥ the plan price
+   *   3. status is success, OR the bank exposes no status at all
+   * BOA (no receiver account in its receipts) therefore always falls to review.
+   */
+  async verifyAndSubmit(userId: string, dto: VerifyReceiptDto) {
+    if (!this.verifier.enabled) {
+      throw new BadRequestException(
+        'Automated bank verification is not available. Please upload your receipt image instead.',
+      );
+    }
+    if (!dto.reference && !dto.url) {
+      throw new BadRequestException(
+        'Provide the transaction reference or the receipt URL',
+      );
+    }
+
+    const plan = await this.prisma.subscriptionPlan.findUnique({
+      where: { id: dto.planId },
+    });
+    if (!plan || !plan.isActive) {
+      throw new NotFoundException('Plan not found or inactive');
+    }
+
+    const pending = await this.prisma.payment.findFirst({
+      where: { userId, status: 'PENDING' },
+    });
+    if (pending) {
+      throw new BadRequestException('You already have a payment awaiting review');
+    }
+
+    await this.assertNoActiveSubscription(userId);
+
+    // Cheap pre-check: reject an already-used reference before we scrape the
+    // bank. (The DB @unique constraint is the real guard against races below.)
+    const submittedRef = dto.reference?.trim();
+    if (submittedRef) {
+      await this.assertReferenceUnused(submittedRef);
+    }
+
+    const result = await this.verifier.extract({
+      bank: dto.bank,
+      reference: submittedRef,
+      url: dto.url?.trim(),
+      account: dto.account?.trim(),
+    });
+
+    // Verifier could not give us a trustworthy answer → manual review.
+    if (!result.ok) {
+      if (result.code === 'NOT_FOUND') {
+        throw new BadRequestException(
+          'No receipt was found for that reference. Please double-check it.',
+        );
+      }
+      if (['BAD_INPUT', 'MISSING_ACCOUNT', 'URL_REQUIRED'].includes(result.code)) {
+        throw new BadRequestException(result.message);
+      }
+      // BLOCKED / EXTRACT_FAILED / UNREACHABLE → fall back to admin queue.
+      return this.createPendingForReview(userId, dto, plan, null, {
+        reason: `Automated verification unavailable (${result.code}). Sent for manual review.`,
+        bankReference: submittedRef,
+      });
+    }
+
+    const receipt = result.receipt;
+    const bankRef = receipt.reference ?? submittedRef ?? null;
+
+    // Re-check uniqueness against the reference the BANK reports (it may differ
+    // from what the student typed, e.g. normalized casing).
+    if (bankRef) {
+      await this.assertReferenceUnused(bankRef);
+    }
+
+    const failure = this.assertReceiptSatisfiesPlan(receipt, Number(plan.priceETB));
+    if (failure) {
+      // Extracted fine, but a check failed (wrong account, too little, etc.).
+      // Route to admin with the extracted data attached so they can decide.
+      return this.createPendingForReview(userId, dto, plan, receipt, {
+        reason: failure,
+        bankReference: bankRef,
+      });
+    }
+
+    // All checks passed → create + auto-approve in the same idempotent path
+    // used by admin approval and Chapa. Guard the unique reference against a
+    // concurrent duplicate submission.
+    let payment: { id: string };
+    try {
+      payment = await this.prisma.payment.create({
+        data: {
+          userId,
+          planId: dto.planId,
+          method: 'MANUAL',
+          amount: plan.priceETB,
+          bankName: dto.bank,
+          bankReference: bankRef,
+          verification: receipt as unknown as Prisma.InputJsonValue,
+        },
+      });
+    } catch (err) {
+      if (this.isUniqueViolation(err)) {
+        throw new BadRequestException(
+          'This receipt has already been submitted.',
+        );
+      }
+      throw err;
+    }
+
+    const paidAt = this.parseReceiptDate(receipt.date);
+    await this.finalizeApproval(payment.id, paidAt ? { paidAt } : {});
+
+    return {
+      status: 'APPROVED' as const,
+      autoApproved: true,
+      paymentId: payment.id,
+      message: 'Payment verified and your subscription is now active.',
+    };
+  }
+
+  /** Throws if a payment already carries this bank reference. */
+  private async assertReferenceUnused(reference: string) {
+    const existing = await this.prisma.payment.findUnique({
+      where: { bankReference: reference },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new BadRequestException('This receipt has already been submitted.');
+    }
+  }
+
+  /**
+   * Returns null when the receipt satisfies the plan (safe to auto-approve),
+   * or a human-readable reason string when it does not.
+   */
+  private assertReceiptSatisfiesPlan(
+    receipt: NormalizedReceipt,
+    planPrice: number,
+  ): string | null {
+    if (!receipt.receiverAccount) {
+      // e.g. BOA, whose receipts never expose the beneficiary account.
+      return 'Receiver account not present on this receipt; needs manual review.';
+    }
+    if (!this.isCompanyAccount(receipt.receiverAccount)) {
+      return 'Payment was not made to our account.';
+    }
+    if (receipt.amount == null) {
+      return 'Could not read the paid amount from the receipt.';
+    }
+    if (receipt.amount + 0.01 < planPrice) {
+      return `Amount paid (${receipt.amount} ETB) is less than the plan price (${planPrice} ETB).`;
+    }
+    // statusKnown === false (CBE/Dashen/Awash) is acceptable: a matching
+    // account + amount is our success signal. Only fail on an explicit non-OK.
+    if (receipt.statusKnown && receipt.statusOk === false) {
+      return `Bank reports transaction status "${receipt.status}".`;
+    }
+    return null;
+  }
+
+  /** Does the receipt's receiver account match one of ours (masking-tolerant)? */
+  private isCompanyAccount(receiverAccount: string): boolean {
+    const accounts = (this.config.get<string>('COMPANY_BANK_ACCOUNTS') ?? '')
+      .split(',')
+      .map((a) => a.trim())
+      .filter(Boolean);
+    return isCompanyAccount(accounts, receiverAccount);
+  }
+
+  /** Best-effort parse of a receipt date (ISO from the normalizer) → Date. */
+  private parseReceiptDate(value: string | null): Date | undefined {
+    if (!value) return undefined;
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? undefined : d;
+  }
+
+  private isUniqueViolation(err: unknown): boolean {
+    return (
+      typeof err === 'object' &&
+      err !== null &&
+      (err as { code?: string }).code === 'P2002'
+    );
+  }
+
+  /** Create a PENDING bank-transfer payment for an admin to review. */
+  private async createPendingForReview(
+    userId: string,
+    dto: VerifyReceiptDto,
+    plan: { id: string; priceETB: Prisma.Decimal; name: string },
+    receipt: NormalizedReceipt | null,
+    opts: { reason: string; bankReference: string | null | undefined },
+  ) {
+    try {
+      const payment = await this.prisma.payment.create({
+        data: {
+          userId,
+          planId: plan.id,
+          method: 'MANUAL',
+          amount: plan.priceETB,
+          bankName: dto.bank,
+          bankReference: opts.bankReference ?? null,
+          rejectionReason: null,
+          verification: (receipt
+            ? { ...receipt, reviewNote: opts.reason }
+            : { reviewNote: opts.reason }) as unknown as Prisma.InputJsonValue,
+        },
+      });
+      return {
+        status: 'PENDING' as const,
+        autoApproved: false,
+        needsReview: true,
+        paymentId: payment.id,
+        message: `${opts.reason} Our team will review it shortly.`,
+      };
+    } catch (err) {
+      if (this.isUniqueViolation(err)) {
+        throw new BadRequestException(
+          'This receipt has already been submitted.',
+        );
+      }
+      throw err;
+    }
   }
 
   /**
