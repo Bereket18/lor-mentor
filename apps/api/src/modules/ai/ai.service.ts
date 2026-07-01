@@ -20,6 +20,11 @@ export class AiService {
   // This returns almost instantly — adding a job to the queue is
   // fast; the actual AI work happens later, in AiProcessor.
   async enqueueGeneration(materialId: string, filename: string) {
+    await this.prisma.aiContent.upsert({
+      where: { materialId },
+      create: { materialId, status: 'PENDING', error: null },
+      update: { status: 'PENDING', error: null },
+    });
     await this.queue.add('generate', { materialId, filename });
   }
 
