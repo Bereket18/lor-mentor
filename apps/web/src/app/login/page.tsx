@@ -8,8 +8,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, Loader2, ArrowRight } from "lucide-react";
-import api from "@/lib/api";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
+import { useAuth } from "@/hooks/use-auth";
 
 const schema = z.object({
   email:    z.string().email("Please enter a valid email address"),
@@ -62,6 +62,7 @@ const GlassInput = React.forwardRef<HTMLInputElement, GlassInputProps>(
 /* -- Page ------------------------------------------------------- */
 export default function LoginPage() {
   const router = useRouter();
+  const { login } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [serverError,  setServerError]  = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -70,11 +71,12 @@ export default function LoginPage() {
     useForm<FormData>({ resolver: zodResolver(schema) });
 
   async function onSubmit(data: FormData) {
+    if (isSubmitting) return;
     setIsSubmitting(true);
     setServerError("");
     try {
-      const res  = await api.post("/auth/login", data);
-      const user = res.data.user;
+      const res = await login(data.email, data.password);
+      const user = res.user;
       if (user.role === "ADMIN" || user.role === "SUPER_ADMIN") router.push("/admin");
       else if (user.role === "TEACHER") router.push("/teacher");
       else router.push("/dashboard");
@@ -188,7 +190,7 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-1.5">
               <label className="block text-[11px] font-semibold tracking-widest uppercase text-secondary">Email Address</label>
-              <GlassInput {...register("email")} type="email" placeholder="you@lorcan.edu.et" hasError={!!errors.email} />
+              <GlassInput {...register("email")} type="email" placeholder="you@lorcan.edu.et" hasError={!!errors.email} disabled={isSubmitting} />
               {errors.email && <p className="text-xs mt-1" style={{ color: "#EF4444" }}>{errors.email.message}</p>}
             </div>
 
@@ -198,8 +200,8 @@ export default function LoginPage() {
                 <Link href="/forgot-password" className="text-xs font-medium transition-colors hover:opacity-80" style={{ color: "#2DD4BF" }}>Forgot password?</Link>
               </div>
               <div className="relative">
-                <GlassInput {...register("password")} type={showPassword ? "text" : "password"} placeholder="••••••••" hasError={!!errors.password} style={{ paddingRight: "2.75rem" }} />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted hover:text-primary transition-colors">
+                <GlassInput {...register("password")} type={showPassword ? "text" : "password"} placeholder="••••••••" hasError={!!errors.password} disabled={isSubmitting} style={{ paddingRight: "2.75rem" }} />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} disabled={isSubmitting} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted hover:text-primary transition-colors disabled:opacity-50">
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
