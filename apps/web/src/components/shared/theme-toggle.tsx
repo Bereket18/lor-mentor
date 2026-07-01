@@ -34,9 +34,7 @@ export function ThemeToggle({
       <div
         aria-hidden
         className={`${
-          variant === "icon"
-            ? "w-9 h-9 rounded-xl"
-            : "h-[34px] w-[84px] rounded-full"
+          variant === "icon" ? "w-9 h-9 rounded-xl" : "h-[34px] w-[84px] rounded-full"
         } ${className}`}
       />
     );

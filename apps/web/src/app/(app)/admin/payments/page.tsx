@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 
+import { toast } from "sonner";
+
 interface Payment {
   id: string;
   status: "PENDING" | "APPROVED" | "REJECTED";
@@ -86,7 +88,7 @@ export default function AdminPaymentsPage() {
       const url = URL.createObjectURL(res.data);
       window.open(url, "_blank");
     } catch {
-      alert("Could not load receipt image");
+      toast.error("Could not load receipt image");
     }
   }
 
@@ -99,7 +101,7 @@ export default function AdminPaymentsPage() {
       const url = URL.createObjectURL(res.data);
       window.open(url, "_blank");
     } catch {
-      alert("Could not load the PDF receipt");
+      toast.error("Could not load the PDF receipt");
     }
   }
 

@@ -59,7 +59,8 @@ export function MaterialViewer({
         objectUrl = URL.createObjectURL(res.data);
         setBlobUrl(objectUrl);
       } catch (err: unknown) {
-        const status = (err as { response?: { status?: number } })?.response?.status;
+        const status = (err as { response?: { status?: number } })?.response
+          ?.status;
         setError(
           status === 403
             ? "You do not have access to this material"
@@ -97,7 +98,9 @@ export function MaterialViewer({
           >
             <p className="text-sm font-medium text-primary truncate">{title}</p>
             <button
+              type="button"
               onClick={onClose}
+              aria-label="Delete user profile"
               className="text-muted hover:text-primary transition-colors p-1"
             >
               <X className="h-4 w-4" />
@@ -109,22 +112,38 @@ export function MaterialViewer({
         <div className="flex-1 overflow-hidden bg-base flex items-center justify-center">
           {/* -- PDF — canvas renderer, no browser toolbar -- */}
           {type === "PDF" && (
-            <div className="w-full h-full flex flex-col" style={{ height: "80vh" }}>
+            /* eslint-disable-next-line react/no-unknown-property */
+            <div
+              className="w-full h-full flex flex-col"
+              style={{ height: "80vh" }}
+            >
               {/* Custom header with close button */}
+              {/* eslint-disable-next-line react/no-unknown-property */}
               <div
                 className="flex items-center justify-between px-5 py-3 flex-shrink-0"
-                style={{ background: "var(--bg-surface)", borderBottom: "1px solid var(--border-default)" }}
+                style={{
+                  background: "var(--bg-surface)",
+                  borderBottom: "1px solid var(--border-default)",
+                }}
               >
-                <p className="text-sm font-medium text-primary truncate max-w-[70%]">{title}</p>
+                <p className="text-sm font-medium text-primary truncate max-w-[70%]">
+                  {title}
+                </p>
                 <button
+                  type="button"
                   onClick={onClose}
+                  aria-label="Delete user profile"
                   className="text-muted hover:text-primary transition-colors p-1"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
               <div className="flex-1 min-h-0">
-                <PdfViewer materialId={materialId} title={title} height="100%" />
+                <PdfViewer
+                  materialId={materialId}
+                  title={title}
+                  height="100%"
+                />
               </div>
             </div>
           )}
@@ -133,6 +152,7 @@ export function MaterialViewer({
           {type === "YOUTUBE" && youtubeEmbed && (
             <iframe
               src={youtubeEmbed}
+              title="Medical Course Material PDF Viewer"
               className="w-full aspect-video"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
@@ -159,6 +179,7 @@ export function MaterialViewer({
           )}
 
           {!loading && !error && type === "IMAGE" && blobUrl && (
+            /* eslint-disable-next-line @next/next/no-img-element */
             <img
               src={blobUrl}
               alt={title}

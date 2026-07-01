@@ -1,6 +1,7 @@
 "use client";
 
 import { ThemeProvider as NextThemeProvider } from "next-themes";
+import { AppToaster } from "./app-toaster";
 
 /**
  * App theme provider (next-themes).
@@ -24,6 +25,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       disableTransitionOnChange
     >
       {children}
+      <AppToaster />
     </NextThemeProvider>
   );
 }
