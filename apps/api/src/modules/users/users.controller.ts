@@ -15,7 +15,6 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
-import { ChangePasswordDto } from './dto/change-password.dto';
 
 import type { RequestUser } from '../../common/types/request-user';
 
@@ -108,17 +107,5 @@ export class UsersController {
     @Body() body: { fullName?: string },
   ) {
     return this.usersService.updateProfile(user.id, body);
-  }
-
-  @Patch('me/password')
-  changePassword(
-    @CurrentUser() user: RequestUser,
-    @Body() dto: ChangePasswordDto,
-  ) {
-    return this.usersService.changePassword(
-      user.id,
-      dto.currentPassword,
-      dto.newPassword,
-    );
   }
 }

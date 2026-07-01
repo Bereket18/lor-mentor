@@ -5,12 +5,13 @@ import Link from "next/link";
 import {
   Loader2, User, Mail, Phone, ShieldCheck, ShieldAlert, CalendarDays,
   Building2, GraduationCap, CreditCard, BookOpen, ArrowRight, Layers,
-  Download, KeyRound,
+  Download,
 } from "lucide-react";
-import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import api from "@/lib/api";
 import type { FullProfile } from "@/types";
+
+import { toast } from "sonner";
 
 function formatDate(value?: string | null) {
   if (!value) return "—";
@@ -72,8 +73,6 @@ export default function ProfilePage() {
   const [fullName, setFullName] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
-  const [changingPw, setChangingPw] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -117,34 +116,6 @@ export default function ProfilePage() {
       window.open(url, "_blank");
     } catch {
       toast.error("Receipt is not available yet.");
-    }
-  }
-
-  async function handleChangePassword(e: React.FormEvent) {
-    e.preventDefault();
-    if (pw.next !== pw.confirm) {
-      toast.error("New passwords do not match");
-      return;
-    }
-    if (pw.next.length < 8) {
-      toast.error("New password must be at least 8 characters");
-      return;
-    }
-    setChangingPw(true);
-    try {
-      await api.patch("/users/me/password", {
-        currentPassword: pw.current,
-        newPassword: pw.next,
-      });
-      toast.success("Password updated");
-      setPw({ current: "", next: "", confirm: "" });
-    } catch (err: unknown) {
-      toast.error(
-        (err as { response?: { data?: { message?: string } } })?.response?.data
-          ?.message ?? "Failed to change password",
-      );
-    } finally {
-      setChangingPw(false);
     }
   }
 
@@ -234,57 +205,6 @@ export default function ProfilePage() {
         <Row icon={Phone} label="Phone" value={profile?.phoneNumber || "Not set"} />
         <Row icon={CalendarDays} label="Member since" value={formatDate(profile?.createdAt)} />
       </SectionCard>
-
-      {/* -- Security (change password) ------------------------ */}
-      <div className="glass-panel p-5">
-        <div className="flex items-center gap-2 mb-3">
-          <KeyRound className="h-4 w-4" style={{ color: "var(--teal)" }} />
-          <h2 className="text-sm font-semibold text-primary">Change password</h2>
-        </div>
-        <form onSubmit={handleChangePassword} className="space-y-3 max-w-sm">
-          {(
-            [
-              ["current", "Current password", "current-password"],
-              ["next", "New password", "new-password"],
-              ["confirm", "Confirm new password", "new-password"],
-            ] as const
-          ).map(([key, label, autoComplete]) => (
-            <div key={key}>
-              <label className="block text-[11px] uppercase tracking-wider text-muted mb-1">
-                {label}
-              </label>
-              <input
-                type="password"
-                autoComplete={autoComplete}
-                value={pw[key]}
-                onChange={(e) => setPw((p) => ({ ...p, [key]: e.target.value }))}
-                className="w-full rounded-lg px-3 py-2 text-sm text-primary outline-none transition-all"
-                style={{
-                  background: "var(--bg-elevated)",
-                  border: "1px solid var(--border-default)",
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.border = "1px solid var(--teal)";
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.border = "1px solid var(--border-default)";
-                }}
-              />
-            </div>
-          ))}
-          <button
-            type="submit"
-            disabled={
-              changingPw || !pw.current || !pw.next || !pw.confirm
-            }
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ background: "linear-gradient(135deg, #0F6B6B, #147878)" }}
-          >
-            {changingPw ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-            {changingPw ? "Updating" : "Update password"}
-          </button>
-        </form>
-      </div>
 
       {/* -- Academic (student) -------------------------------- */}
       {isStudent && (
