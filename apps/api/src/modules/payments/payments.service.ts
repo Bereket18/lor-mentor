@@ -301,6 +301,10 @@ export class PaymentsService {
       throw new NotFoundException('This payment has no uploaded receipt');
     }
 
+    if (!payment.receiptPath) {
+      throw new NotFoundException('No receipt file for this payment');
+    }
+
     const fullPath = path.join(this.uploadDir, payment.receiptPath);
     if (!fs.existsSync(fullPath)) {
       throw new NotFoundException('Receipt file no longer exists');

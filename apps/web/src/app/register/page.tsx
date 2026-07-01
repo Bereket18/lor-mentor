@@ -31,7 +31,7 @@ type FormData = z.infer<typeof schema>;
 interface Department   { id: string; name: string }
 interface AcademicYear { id: string; label: string }
 
-/* -- Glass input ------------------------------------------------ */
+/* ── Glass input ──────────────────────────────────────────────── */
 interface GlassInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   hasError?: boolean;
 }
@@ -74,7 +74,7 @@ const GlassInput = React.forwardRef<HTMLInputElement, GlassInputProps>(
   },
 );
 
-/* -- Glass select ----------------------------------------------- */
+/* ── Glass select ─────────────────────────────────────────────── */
 interface GlassSelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   hasError?: boolean;
 }
@@ -122,7 +122,7 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-/* -- Page ------------------------------------------------------- */
+/* ── Page ─────────────────────────────────────────────────────── */
 export default function RegisterPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
@@ -140,7 +140,7 @@ export default function RegisterPage() {
   const selectedDeptId = watch("departmentId");
 
   useEffect(() => {
-    api.get("/departments").then((r) => setDepartments(r.data)).catch(() => setDepartments([])).finally(() => setLoadingDepts(false));
+    api.get("/departments").then((r) => setDepartments(r.data)).finally(() => setLoadingDepts(false));
   }, []);
 
   useEffect(() => {
@@ -149,7 +149,6 @@ export default function RegisterPage() {
     setValue("academicYearId", "");
     api.get(`/academic-years?departmentId=${selectedDeptId}`)
       .then((r) => setYears(r.data))
-      .catch(() => setYears([]))
       .finally(() => setLoadingYears(false));
   }, [selectedDeptId, setValue]);
 
@@ -179,7 +178,7 @@ export default function RegisterPage() {
       suppressHydrationWarning
       className="min-h-screen flex items-center justify-center relative overflow-hidden py-8 auth-bg"
     >
-      {/* -- Animated orb background --------------------------- */}
+      {/* ── Animated orb background ─────────────────────────── */}
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         <div
           className="absolute rounded-full"
@@ -210,52 +209,12 @@ export default function RegisterPage() {
         />
       </div>
 
-      <style>{`
-        .auth-bg { background: var(--bg-base); }
-        :root {
-          --glass-card-bg:      rgba(255,255,255,0.07);
-          --glass-card-border:  rgba(255,255,255,0.16);
-          --glass-input-bg:     rgba(255,255,255,0.06);
-          --glass-input-border: rgba(255,255,255,0.14);
-          --glass-card-shadow:  inset 0 1px 0 rgba(255,255,255,0.18), 0 8px 32px rgba(0,0,0,0.45), 0 32px 64px rgba(0,0,0,0.3);
-        }
-        [data-theme="light"] {
-          --glass-card-bg:      rgba(255,255,255,0.72);
-          --glass-card-border:  rgba(0,0,0,0.08);
-          --glass-input-bg:     rgba(255,255,255,0.8);
-          --glass-input-border: rgba(0,0,0,0.1);
-          --glass-card-shadow:  inset 0 1px 0 rgba(255,255,255,0.9), 0 8px 32px rgba(0,0,0,0.12), 0 32px 64px rgba(0,0,0,0.08);
-        }
-        @keyframes orbDrift1 {
-          0%,100% { transform: translate(0px,0px) scale(1); }
-          33%      { transform: translate(60px,80px) scale(1.08); }
-          66%      { transform: translate(-40px,50px) scale(0.95); }
-        }
-        @keyframes orbDrift2 {
-          0%,100% { transform: translate(0px,0px) scale(1); }
-          40%      { transform: translate(-80px,-60px) scale(1.1); }
-          70%      { transform: translate(50px,-30px) scale(0.93); }
-        }
-        @keyframes orbDrift3 {
-          0%,100% { transform: translate(0px,0px) scale(1); }
-          50%      { transform: translate(-60px,70px) scale(1.12); }
-        }
-        @keyframes glassSheen {
-          0%   { left: -100%; }
-          100% { left: 200%; }
-        }
-        .glass-select option {
-          background: var(--bg-elevated);
-          color: var(--text-primary);
-        }
-      `}</style>
-
-      {/* -- ThemeToggle ----------------------------------------- */}
+      {/* ── ThemeToggle ───────────────────────────────────────── */}
       <div className="absolute top-4 right-4 z-50">
         <ThemeToggle variant="pill" />
       </div>
 
-      {/* -- Glass card ------------------------------------------ */}
+      {/* ── Glass card ────────────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: 32, scale: 0.97 }}
         animate={{ opacity: 1, y: 0,  scale: 1 }}
@@ -283,7 +242,7 @@ export default function RegisterPage() {
         />
 
         <div className="px-8 pt-9 pb-8">
-          {/* -- Logo ------------------------------------------- */}
+          {/* ── Logo ─────────────────────────────────────────── */}
           <div className="flex flex-col items-center mb-7">
             <div
               className="w-14 h-14 rounded-2xl flex items-center justify-center mb-3"
@@ -302,7 +261,7 @@ export default function RegisterPage() {
             </p>
           </div>
 
-          {/* -- Heading ---------------------------------------- */}
+          {/* ── Heading ──────────────────────────────────────── */}
           <h1 className="text-primary text-xl font-bold text-center mb-1" style={{ letterSpacing: "-0.02em" }}>
             Create your account
           </h1>
@@ -310,7 +269,7 @@ export default function RegisterPage() {
             Join Ethiopia&apos;s most advanced medical learning platform
           </p>
 
-          {/* -- Server error ----------------------------------- */}
+          {/* ── Server error ─────────────────────────────────── */}
           {serverError && (
             <motion.div
               initial={{ opacity: 0, scale: 0.97 }}
@@ -327,7 +286,7 @@ export default function RegisterPage() {
             </motion.div>
           )}
 
-          {/* -- Form ------------------------------------------- */}
+          {/* ── Form ─────────────────────────────────────────── */}
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
 
             {/* Full name */}
@@ -485,7 +444,7 @@ export default function RegisterPage() {
             </Link>
           </p>
 
-          {/* -- Address footer ---------------------------------- */}
+          {/* ── Address footer ────────────────────────────────── */}
           <div className="mt-7 pt-6" style={{ borderTop: "1px solid var(--border-subtle)" }}>
             <p className="text-center text-[11px] font-medium mb-2 text-muted">
               Lorcan Medical College · CMC Square, Addis Ababa
