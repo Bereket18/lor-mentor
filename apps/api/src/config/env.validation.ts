@@ -45,6 +45,16 @@ export function validateEnv(
     }
   }
 
+  // Bank-receipt auto-verification is optional, but enabling the verifier
+  // without declaring which accounts are ours would let a valid transfer to
+  // ANY account auto-approve — so require the account list when the URL is set.
+  if (config.RECEIPT_VERIFIER_URL && !config.COMPANY_BANK_ACCOUNTS) {
+    errors.push(
+      'COMPANY_BANK_ACCOUNTS is required when RECEIPT_VERIFIER_URL is set ' +
+        '(auto-approval matches the receipt receiver against these accounts)',
+    );
+  }
+
   if (errors.length > 0) {
     throw new Error(
       `Invalid environment configuration:\n  - ${errors.join('\n  - ')}`,
