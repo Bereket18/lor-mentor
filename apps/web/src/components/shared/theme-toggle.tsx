@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sun, Moon } from "lucide-react";
-import { getTheme, toggleTheme } from "@/lib/utils";
+import { useTheme } from "next-themes";
 
 interface ThemeToggleProps {
   className?: string;
@@ -11,29 +11,41 @@ interface ThemeToggleProps {
   variant?: "pill" | "icon";
 }
 
-export function ThemeToggle({ className = "", variant = "pill" }: ThemeToggleProps) {
-  // Always start with the same default on both server and client to avoid
-  // hydration mismatches. After mount, sync with the actual stored theme.
-  const [isDark, setIsDark] = useState<boolean>(true);
+export function ThemeToggle({
+  className = "",
+  variant = "pill",
+}: ThemeToggleProps) {
+  const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    setIsDark(getTheme() === "dark");
-    setMounted(true);
-  }, []);
+  // The server (and the first client render) can't know the stored theme, so
+  // we render a same-sized placeholder until mounted. Swapping in the real
+  // toggle inside an effect — after hydration — avoids any mismatch.
+  useEffect(() => setMounted(true), []);
 
-  // Render a placeholder with the same dimensions until hydration is complete
-  // so the server and client output match on first render.
-  if (!mounted) return <span className={variant === "icon" ? "w-9 h-9 inline-block" : "w-[72px] h-[30px] inline-block"} />;
+  const isDark = resolvedTheme === "dark";
 
   function handleToggle() {
-    toggleTheme();
-    setIsDark((prev) => !prev);
+    setTheme(isDark ? "light" : "dark");
+  }
+
+  if (!mounted) {
+    return (
+      <div
+        aria-hidden
+        className={`${
+          variant === "icon"
+            ? "w-9 h-9 rounded-xl"
+            : "h-[34px] w-[84px] rounded-full"
+        } ${className}`}
+      />
+    );
   }
 
   if (variant === "icon") {
     return (
       <button
+        type="button"
         onClick={handleToggle}
         aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
         className={`
@@ -74,14 +86,16 @@ export function ThemeToggle({ className = "", variant = "pill" }: ThemeTogglePro
   // Pill variant
   return (
     <button
+      type="button"
       onClick={handleToggle}
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
       className={`
         relative flex items-center gap-2 px-3 py-1.5 rounded-full
         border transition-all duration-300 select-none
-        ${isDark
-          ? "bg-white/5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
-          : "bg-[#147878]/10 border-[#147878]/20 text-[#0D5F5F] hover:bg-[#147878]/20"
+        ${
+          isDark
+            ? "bg-white/5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
+            : "bg-[#147878]/10 border-[#147878]/20 text-[#0D5F5F] hover:bg-[#147878]/20"
         }
         ${className}
       `}
@@ -111,9 +125,7 @@ export function ThemeToggle({ className = "", variant = "pill" }: ThemeTogglePro
           </motion.span>
         )}
       </AnimatePresence>
-      <span className="text-[11px] font-medium">
-        {isDark ? "Light" : "Dark"}
-      </span>
+      <span className="text-[11px] font-medium">{isDark ? "Light" : "Dark"}</span>
     </button>
   );
 }

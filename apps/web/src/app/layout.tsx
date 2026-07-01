@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import { Inter } from "next/font/google";
-import Script from "next/script";
+import { QueryProvider } from "@/lib/query-provider";
+import { ThemeProvider } from "@/lib/theme-provider";
 import "./globals.css";
 
 // Inter for body text
@@ -24,13 +25,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html
-      lang="en"
-      suppressHydrationWarning
-      data-scroll-behavior="smooth"
-      // No data-theme here — script below sets it from localStorage
-      // This prevents flash of wrong theme
-    >
+    <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth">
       <body
         className={`
         ${GeistSans.variable}
@@ -43,22 +38,11 @@ export default function RootLayout({
         min-h-screen
       `}
       >
-        {/* Set theme BEFORE React renders — prevents flash */}
-        <Script
-          id="theme-init"
-          strategy="beforeInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                try {
-                  var theme = localStorage.getItem('lm-theme') || 'dark';
-                  document.documentElement.setAttribute('data-theme', theme);
-                } catch(e) {}
-              })();
-            `,
-          }}
-        />
-        {children}
+        {/* ThemeProvider (next-themes) injects a no-flash script and sets
+            data-theme before paint — no manual inline <script> needed. */}
+        <QueryProvider>
+          <ThemeProvider>{children}</ThemeProvider>
+        </QueryProvider>
       </body>
     </html>
   );
