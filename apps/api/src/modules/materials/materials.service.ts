@@ -30,6 +30,10 @@ export class MaterialsService {
     return this.aiService.getStatus(materialId);
   }
 
+  async regenerateAiForMaterial(materialId: string) {
+    return this.aiService.regenerate(materialId);
+  }
+
   // List materials for a course without exposing internal file paths.
   async findByCourse(courseId: string) {
     const materials = await this.prisma.material.findMany({

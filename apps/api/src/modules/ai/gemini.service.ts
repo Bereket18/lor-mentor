@@ -41,6 +41,16 @@ export class GeminiService {
       // Check Google AI Studio for the current recommended Flash model
       // name when you actually run this — the lineup changes often
       model: 'gemini-2.5-flash',
+      // Force strict JSON output. Without this the model frequently wraps the
+      // payload in prose or code fences, or truncates the large flashcard/quiz
+      // array — any of which makes JSON.parse throw and the job FAIL. JSON mode
+      // guarantees a parseable object, and the bigger token budget prevents the
+      // 15-20 flashcards + 8-10 questions from being cut off mid-array.
+      generationConfig: {
+        responseMimeType: 'application/json',
+        maxOutputTokens: 8192,
+        temperature: 0.4,
+      },
     });
 
     const prompt = `

@@ -24,6 +24,7 @@ import { FlashcardsModule } from './modules/flashcards/flashcards.module';
 import { QuizModule } from './modules/quiz/quiz.module';
 import { TutorModule } from './modules/tutor/tutor.module';
 import { ProgressModule } from './modules/progress/progress.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { ProgressModule } from './modules/progress/progress.module';
     QuizModule,
     TutorModule,
     ProgressModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -64,6 +64,7 @@ export class AiProcessor extends WorkerHost {
           where: { id: aiContent.id },
           data: {
             status: 'COMPLETED',
+            error: null,
             summary: generated.summary,
             keyTopics: generated.keyTopics,
           },
@@ -127,7 +128,13 @@ export class AiProcessor extends WorkerHost {
 
       await this.prisma.aiContent.update({
         where: { id: aiContent.id },
-        data: { status: 'FAILED' },
+        data: {
+          status: 'FAILED',
+          error:
+            error instanceof Error
+              ? error.message.slice(0, 500)
+              : String(error).slice(0, 500),
+        },
       });
 
       // Re-throw so BullMQ knows this job failed and applies its
