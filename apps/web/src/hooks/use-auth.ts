@@ -48,7 +48,7 @@ export function useAuth() {
     return res.data;
   }
 
-  async function logout() {
+  async function logout(redirectTo: string | null = "/login") {
     try {
       await api.post("/auth/logout");
     } catch {

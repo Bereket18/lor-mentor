@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -18,9 +18,10 @@ function VerifyEmailContent() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const linkToken = searchParams.get("token") ?? "";
 
-  async function handleVerify() {
-    if (!token.trim()) {
+  const verifyToken = useCallback(async (value: string) => {
+    if (!value.trim()) {
       setError("Please paste your verification token");
       return;
     }
@@ -29,7 +30,7 @@ function VerifyEmailContent() {
     setError("");
 
     try {
-      await api.post("/auth/verify-email", { token: token.trim() });
+      await api.post("/auth/verify-email", { token: value.trim() });
       setSuccess(true);
 
       // Redirect to login after 2 seconds
@@ -40,6 +41,17 @@ function VerifyEmailContent() {
     } finally {
       setLoading(false);
     }
+  }, [router]);
+
+  useEffect(() => {
+    if (linkToken) {
+      setToken(linkToken);
+      void verifyToken(linkToken);
+    }
+  }, [linkToken, verifyToken]);
+
+  function handleVerify() {
+    void verifyToken(token);
   }
 
   if (success) {
@@ -90,9 +102,8 @@ function VerifyEmailContent() {
           Check your email
         </h2>
         <p className="text-secondary text-sm mb-8 leading-relaxed">
-          We sent a verification token to{" "}
-          <span className="font-medium text-primary">{email}</span>. Paste it
-          below to verify your account.
+          We sent a verification link to{" "}
+          <span className="font-medium text-primary">{email}</span>. Open the link from your inbox to verify your account, or paste the token below if needed.
         </p>
 
         {/* Steps */}
@@ -100,8 +111,8 @@ function VerifyEmailContent() {
           {[
             "Open your email inbox",
             "Find the email from Lor Mentor",
-            "Copy the verification token",
-            "Paste it below and click verify",
+            "Click the verification link",
+            "Sign in after verification succeeds",
           ].map((step, i) => (
             <div key={step} className="flex items-center gap-3">
               <div
@@ -146,7 +157,7 @@ function VerifyEmailContent() {
           className="w-full bg-accent hover:bg-accent-hover
             text-white font-semibold rounded-xl py-3
             flex items-center justify-center gap-2
-            transition-all disabled:opacity-60 mb-4"
+            transition-all disabled:opacity-60 disabled:cursor-not-allowed mb-4"
         >
           {loading ? (
             <>

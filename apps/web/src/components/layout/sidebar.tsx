@@ -271,7 +271,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
         {/* Logout */}
         <button
-          onClick={logout}
+          onClick={() => { void logout(); }}
           title={collapsed ? "Log out" : undefined}
           className={cn(
             "w-full flex items-center rounded-xl text-sm font-medium cursor-pointer transition-all duration-150",

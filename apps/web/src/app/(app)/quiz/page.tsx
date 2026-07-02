@@ -26,15 +26,18 @@ export default function QuizPage() {
   const [courseId, setCourseId] = useState("");
   const [quizzes, setQuizzes] = useState<QuizSummary[]>([]);
   const [loadingList, setLoadingList] = useState(true);
+  const [listError, setListError] = useState("");
 
   const [quiz, setQuiz] = useState<QuizDetail | null>(null);
   const [loadingQuiz, setLoadingQuiz] = useState(false);
+  const [quizError, setQuizError] = useState("");
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [startedAt, setStartedAt] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<AttemptResult | null>(null);
 
   useEffect(() => {
+    setListError("");
     api.get<Course[]>("/courses/my-year")
       .then((r) => {
         const list = r.data ?? [];
@@ -42,14 +45,22 @@ export default function QuizPage() {
         if (list.length) setCourseId(list[0].id);
         else setLoadingList(false);
       })
-      .catch(() => { setCourses([]); setLoadingList(false); });
+      .catch((err) => {
+        setCourses([]);
+        setListError(err?.response?.data?.message ?? "Could not load your courses.");
+        setLoadingList(false);
+      });
   }, []);
 
   const loadList = useCallback((id: string) => {
     if (!id) return;
+    setListError("");
     api.get<QuizSummary[]>(`/quizzes?courseId=${id}`)
       .then((r) => setQuizzes(r.data ?? []))
-      .catch(() => setQuizzes([]))
+      .catch((err) => {
+        setQuizzes([]);
+        setListError(err?.response?.data?.message ?? "Could not load quizzes for this course.");
+      })
       .finally(() => setLoadingList(false));
   }, []);
 
@@ -57,10 +68,14 @@ export default function QuizPage() {
 
   function startQuiz(id: string) {
     setLoadingQuiz(true);
+    setQuizError("");
     setQuiz(null); setResult(null); setAnswers({});
     api.get<QuizDetail>(`/quizzes/${id}`)
       .then((r) => { setQuiz(r.data); setStartedAt(Date.now()); })
-      .catch(() => setQuiz(null))
+      .catch((err) => {
+        setQuiz(null);
+        setQuizError(err?.response?.data?.message ?? "Could not load this quiz.");
+      })
       .finally(() => setLoadingQuiz(false));
   }
 
@@ -160,7 +175,12 @@ export default function QuizPage() {
           <ArrowLeft className="h-4 w-4" /> Cancel
         </button>
 
-        {loadingQuiz || !quiz ? (
+        {quizError ? (
+          <div className="glass-panel p-8 text-center">
+            <p className="text-sm font-medium text-primary">Quiz failed to load</p>
+            <p className="text-xs text-muted mt-1">{quizError}</p>
+          </div>
+        ) : loadingQuiz || !quiz ? (
           <div className="h-64 rounded-2xl skeleton" />
         ) : (
           <>
@@ -225,7 +245,14 @@ export default function QuizPage() {
         </div>
       )}
 
-      {courses.length === 0 ? (
+      {listError ? (
+        <div className="glass-panel p-12 text-center">
+          <GraduationCap className="h-10 w-10 mx-auto mb-4" style={{ color: "var(--state-error)", opacity: 0.6 }} />
+          <p className="text-secondary text-sm font-medium">Quizzes failed to load</p>
+          <p className="text-muted text-xs mt-1">{listError}</p>
+          <button type="button" onClick={() => { setLoadingList(true); courseId ? loadList(courseId) : window.location.reload(); }} className="mt-4 px-4 py-2 rounded-xl text-xs font-semibold text-white" style={{ background: "linear-gradient(135deg, #0F6B6B, #147878)" }}>Retry</button>
+        </div>
+      ) : courses.length === 0 ? (
         <div className="glass-panel p-12 text-center">
           <GraduationCap className="h-10 w-10 mx-auto mb-4" style={{ color: "var(--teal)", opacity: 0.4 }} />
           <p className="text-secondary text-sm font-medium">No courses yet</p>

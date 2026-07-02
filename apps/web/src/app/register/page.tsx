@@ -80,12 +80,12 @@ interface GlassSelectProps extends React.SelectHTMLAttributes<HTMLSelectElement>
 }
 
 const GlassSelect = React.forwardRef<HTMLSelectElement, GlassSelectProps>(
-  function GlassSelect({ hasError, children, ...props }, ref) {
+  function GlassSelect({ hasError, children, className = "", ...props }, ref) {
     return (
       <select
         ref={ref}
         {...props}
-        className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+        className={`glass-select w-full rounded-xl px-4 py-3 text-sm outline-none transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
         style={{
           backdropFilter: "blur(8px)",
           WebkitBackdropFilter: "blur(8px)",
@@ -154,6 +154,7 @@ export default function RegisterPage() {
   }, [selectedDeptId, setValue]);
 
   async function onSubmit(data: FormData) {
+    if (isSubmitting) return;
     setIsSubmitting(true);
     setServerError("");
     try {
@@ -245,8 +246,12 @@ export default function RegisterPage() {
           100% { left: 200%; }
         }
         .glass-select option {
-          background: var(--bg-elevated);
-          color: var(--text-primary);
+          background: #0f172a;
+          color: #f8fafc;
+        }
+        [data-theme="light"] .glass-select option {
+          background: #ffffff;
+          color: #0f172a;
         }
       `}</style>
 
@@ -337,6 +342,7 @@ export default function RegisterPage() {
                 {...register("fullName")}
                 type="text"
                 placeholder="Bereket Adamsseged"
+                disabled={isSubmitting}
                 hasError={!!errors.fullName}
               />
               {errors.fullName && <p className="text-xs mt-1" style={{ color: "#EF4444" }}>{errors.fullName.message}</p>}
@@ -349,6 +355,7 @@ export default function RegisterPage() {
                 {...register("email")}
                 type="email"
                 placeholder="you@lorcan.edu.et"
+                disabled={isSubmitting}
                 hasError={!!errors.email}
               />
               {errors.email && <p className="text-xs mt-1" style={{ color: "#EF4444" }}>{errors.email.message}</p>}
@@ -361,6 +368,7 @@ export default function RegisterPage() {
                 {...register("phoneNumber")}
                 type="tel"
                 placeholder="0911234567"
+                disabled={isSubmitting}
                 hasError={!!errors.phoneNumber}
               />
               {errors.phoneNumber && <p className="text-xs mt-1" style={{ color: "#EF4444" }}>{errors.phoneNumber.message}</p>}
@@ -373,7 +381,7 @@ export default function RegisterPage() {
                 <FieldLabel>Department</FieldLabel>
                 <GlassSelect
                   {...register("departmentId")}
-                  disabled={loadingDepts}
+                  disabled={isSubmitting || loadingDepts}
                   hasError={!!errors.departmentId}
                   className="glass-select"
                 >
@@ -386,7 +394,7 @@ export default function RegisterPage() {
                 <FieldLabel>Year</FieldLabel>
                 <GlassSelect
                   {...register("academicYearId")}
-                  disabled={!selectedDeptId || loadingYears}
+                  disabled={isSubmitting || !selectedDeptId || loadingYears}
                   hasError={!!errors.academicYearId}
                   className="glass-select"
                 >
@@ -405,13 +413,15 @@ export default function RegisterPage() {
                   {...register("password")}
                   type={showPassword ? "text" : "password"}
                   placeholder="Minimum 8 characters"
+                  disabled={isSubmitting}
                   hasError={!!errors.password}
                   style={{ paddingRight: "2.75rem" }}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors text-muted hover:text-primary"
+                  disabled={isSubmitting}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors text-muted hover:text-primary disabled:opacity-50"
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -427,13 +437,15 @@ export default function RegisterPage() {
                   {...register("confirmPassword")}
                   type={showConfirm ? "text" : "password"}
                   placeholder="Repeat your password"
+                  disabled={isSubmitting}
                   hasError={!!errors.confirmPassword}
                   style={{ paddingRight: "2.75rem" }}
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirm(!showConfirm)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors text-muted hover:text-primary"
+                  disabled={isSubmitting}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors text-muted hover:text-primary disabled:opacity-50"
                 >
                   {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>

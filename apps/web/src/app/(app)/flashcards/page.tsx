@@ -21,14 +21,17 @@ export default function FlashcardsPage() {
   const [courseId, setCourseId] = useState("");
   const [sets, setSets] = useState<SetSummary[]>([]);
   const [loadingSets, setLoadingSets] = useState(true);
+  const [listError, setListError] = useState("");
 
   const [study, setStudy] = useState<StudySet | null>(null);
   const [loadingStudy, setLoadingStudy] = useState(false);
+  const [studyError, setStudyError] = useState("");
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    setListError("");
     api.get<Course[]>("/courses/my-year")
       .then((r) => {
         const list = r.data ?? [];
@@ -36,14 +39,22 @@ export default function FlashcardsPage() {
         if (list.length) setCourseId(list[0].id);
         else setLoadingSets(false);
       })
-      .catch(() => { setCourses([]); setLoadingSets(false); });
+      .catch((err) => {
+        setCourses([]);
+        setListError(err?.response?.data?.message ?? "Could not load your courses.");
+        setLoadingSets(false);
+      });
   }, []);
 
   const loadSets = useCallback((id: string) => {
     if (!id) return;
+    setListError("");
     api.get<SetSummary[]>(`/flashcards?courseId=${id}`)
       .then((r) => setSets(r.data ?? []))
-      .catch(() => setSets([]))
+      .catch((err) => {
+        setSets([]);
+        setListError(err?.response?.data?.message ?? "Could not load flashcards for this course.");
+      })
       .finally(() => setLoadingSets(false));
   }, []);
 
@@ -51,12 +62,16 @@ export default function FlashcardsPage() {
 
   function openSet(id: string) {
     setLoadingStudy(true);
+    setStudyError("");
     setStudy(null);
     setIndex(0);
     setFlipped(false);
     api.get<StudySet>(`/flashcards/${id}`)
       .then((r) => setStudy(r.data))
-      .catch(() => setStudy(null))
+      .catch((err) => {
+        setStudy(null);
+        setStudyError(err?.response?.data?.message ?? "Could not load this flashcard set.");
+      })
       .finally(() => setLoadingStudy(false));
   }
 
@@ -93,7 +108,12 @@ export default function FlashcardsPage() {
           <ArrowLeft className="h-4 w-4" /> Back to sets
         </button>
 
-        {loadingStudy || !study ? (
+        {studyError ? (
+          <div className="glass-panel p-8 text-center">
+            <p className="text-sm font-medium text-primary">Flashcard set failed to load</p>
+            <p className="text-xs text-muted mt-1">{studyError}</p>
+          </div>
+        ) : loadingStudy || !study ? (
           <div className="h-64 rounded-2xl skeleton" />
         ) : done ? (
           <div className="glass-panel p-10 text-center">
@@ -183,7 +203,14 @@ export default function FlashcardsPage() {
         </div>
       )}
 
-      {courses.length === 0 ? (
+      {listError ? (
+        <div className="glass-panel p-12 text-center">
+          <Layers className="h-10 w-10 mx-auto mb-4" style={{ color: "var(--state-error)", opacity: 0.6 }} />
+          <p className="text-secondary text-sm font-medium">Flashcards failed to load</p>
+          <p className="text-muted text-xs mt-1">{listError}</p>
+          <button type="button" onClick={() => { setLoadingSets(true); courseId ? loadSets(courseId) : window.location.reload(); }} className="mt-4 px-4 py-2 rounded-xl text-xs font-semibold text-white" style={{ background: "linear-gradient(135deg, #0F6B6B, #147878)" }}>Retry</button>
+        </div>
+      ) : courses.length === 0 ? (
         <div className="glass-panel p-12 text-center">
           <Layers className="h-10 w-10 mx-auto mb-4" style={{ color: "var(--teal)", opacity: 0.4 }} />
           <p className="text-secondary text-sm font-medium">No courses yet</p>

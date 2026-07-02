@@ -17,6 +17,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import type { Response } from 'express';
 import type { Request } from 'express';
+import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -29,9 +30,14 @@ import { UpdateMaterialDto } from './dto/update-material.dto';
 
 import type { RequestUser } from '../../common/types/request-user';
 
+const uploadDir = path.join(process.cwd(), 'uploads', 'materials');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
 // Multer storage configuration — where and how uploaded files are saved
 const storage = diskStorage({
-  destination: path.join(process.cwd(), 'uploads', 'materials'),
+  destination: uploadDir,
   filename: (req, file, callback) => {
     // Generate a random filename — NEVER trust the original filename
     // (it could contain malicious characters or be used to guess

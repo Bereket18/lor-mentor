@@ -12,6 +12,10 @@ import {
   MaterialTypeInput,
 } from './dto/create-material.dto';
 import { UpdateMaterialDto } from './dto/update-material.dto';
+import {
+  assertValidImageFile,
+  assertValidPdfFile,
+} from '../../common/utils/image-magic-bytes';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -77,6 +81,12 @@ export class MaterialsService {
       throw new BadRequestException(
         'A file is required for PDF or IMAGE materials',
       );
+    }
+
+    if (dto.type === MaterialTypeInput.PDF) {
+      assertValidPdfFile(uploadedFile.path);
+    } else {
+      assertValidImageFile(uploadedFile.path);
     }
 
     const material = await this.prisma.material.create({
