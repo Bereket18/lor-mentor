@@ -9,10 +9,27 @@ import {
   FileText,
   Zap,
   Building2,
+  ShieldCheck,
+  AlertTriangle,
 } from "lucide-react";
 import api from "@/lib/api";
 
 import { toast } from "sonner";
+
+// Normalized receipt data attached to auto-verified bank transfers (mirrors the
+// receipt-verifier contract). `reviewNote` is set when it needs manual review.
+interface Verification {
+  bank?: string;
+  reference?: string | null;
+  amount?: number | null;
+  receiverAccount?: string | null;
+  receiverName?: string | null;
+  payerName?: string | null;
+  status?: string | null;
+  statusKnown?: boolean;
+  statusOk?: boolean | null;
+  reviewNote?: string;
+}
 
 interface Payment {
   id: string;
@@ -20,6 +37,9 @@ interface Payment {
   method: "MANUAL" | "CHAPA";
   receiptNumber?: string | null;
   createdAt: string;
+  bankName?: string | null;
+  bankReference?: string | null;
+  verification?: Verification | null;
   user: {
     fullName: string;
     email: string;
@@ -36,6 +56,61 @@ const statusColors = {
   APPROVED: "text-green-400 bg-green-500/10",
   REJECTED: "text-red-400 bg-red-500/10",
 };
+
+// Renders the data extracted from a bank receipt so an admin can eyeball it.
+// A green header means every auto-approval check passed; amber means it was
+// routed here for review (reviewNote explains why).
+function VerificationStrip({ v }: { v: Verification }) {
+  const flagged = Boolean(v.reviewNote);
+  const fields: [string, string][] = [
+    ["Reference", v.reference ?? "—"],
+    ["Amount", v.amount != null ? `${v.amount.toLocaleString()} ETB` : "—"],
+    ["Payer", v.payerName ?? "—"],
+    ["Receiver", v.receiverName ?? "—"],
+    ["Receiver acct", v.receiverAccount ?? "—"],
+    [
+      "Bank status",
+      v.statusKnown ? (v.status ?? "—") : "not reported by bank",
+    ],
+  ];
+
+  return (
+    <div className="px-5 pb-4">
+      <div className="glass-panel rounded-xl px-4 py-3">
+        <div
+          className={`flex items-center gap-1.5 text-xs font-medium mb-2 ${
+            flagged ? "text-yellow-400" : "text-green-400"
+          }`}
+        >
+          {flagged ? (
+            <AlertTriangle className="h-3.5 w-3.5" />
+          ) : (
+            <ShieldCheck className="h-3.5 w-3.5" />
+          )}
+          {flagged ? "Needs review" : "Auto-verified from bank receipt"}
+          {v.bank && (
+            <span className="text-muted uppercase">· {v.bank}</span>
+          )}
+        </div>
+
+        {flagged && (
+          <p className="text-xs text-yellow-400/90 mb-2">{v.reviewNote}</p>
+        )}
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5">
+          {fields.map(([label, value]) => (
+            <div key={label} className="min-w-0">
+              <p className="text-[10px] uppercase text-muted">{label}</p>
+              <p className="text-xs text-secondary truncate" title={value}>
+                {value}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function AdminPaymentsPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -142,9 +217,11 @@ export default function AdminPaymentsPage() {
           {payments.map((payment, i) => (
             <div
               key={payment.id}
-              className={`grid grid-cols-12 gap-4 px-5 py-4 items-center
-                ${i < payments.length - 1 ? "border-b border-subtle" : ""}`}
+              className={
+                i < payments.length - 1 ? "border-b border-subtle" : ""
+              }
             >
+            <div className="grid grid-cols-12 gap-4 px-5 py-4 items-center">
               <div className="col-span-3 min-w-0">
                 <p className="text-sm font-medium text-primary truncate">
                   {payment.user.fullName}
@@ -240,6 +317,11 @@ export default function AdminPaymentsPage() {
                   </>
                 )}
               </div>
+            </div>
+
+            {payment.verification && (
+              <VerificationStrip v={payment.verification} />
+            )}
             </div>
           ))}
         </div>

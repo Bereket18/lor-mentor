@@ -34,6 +34,10 @@ export function isAllowedImageBuffer(buf: Buffer): boolean {
   return hasJpegSignature(buf) || hasPngSignature(buf) || hasWebpSignature(buf);
 }
 
+export function isPdfBuffer(buf: Buffer): boolean {
+  return buf.length >= 5 && buf.toString('ascii', 0, 5) === '%PDF-';
+}
+
 /**
  * Validate an already-uploaded file on disk. If it isn't a real JPEG/PNG/WEBP,
  * the file is deleted and a BadRequestException is thrown — so a rejected upload
@@ -58,5 +62,25 @@ export function assertValidImageFile(filePath: string): void {
     throw new BadRequestException(
       'Uploaded file is not a valid JPEG, PNG, or WEBP image',
     );
+  }
+}
+
+export function assertValidPdfFile(filePath: string): void {
+  let fd: number | undefined;
+  let valid = false;
+  try {
+    fd = fs.openSync(filePath, 'r');
+    const header = Buffer.alloc(5);
+    fs.readSync(fd, header, 0, 5, 0);
+    valid = isPdfBuffer(header);
+  } catch {
+    valid = false;
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+
+  if (!valid) {
+    fs.rm(filePath, { force: true }, () => undefined);
+    throw new BadRequestException('Uploaded file is not a valid PDF');
   }
 }

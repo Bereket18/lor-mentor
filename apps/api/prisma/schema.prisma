@@ -162,6 +162,16 @@ model Payment {
   chapaRef String?
   paidAt   DateTime?
 
+  // ── Bank-transfer auto-verification fields (MANUAL method) ──
+  // Populated when a student submits a transaction reference we verify against
+  // the bank via the receipt-verifier service. bankReference is the FT/
+  // transaction number; its @unique constraint is the anti-replay guard — the
+  // same real receipt can never be submitted twice. `verification` stores the
+  // normalized extractor payload for the admin panel and audit trail.
+  bankName      String?
+  bankReference String? @unique
+  verification  Json?
+
   // Human-facing receipt number, assigned once a payment is APPROVED. Drives
   // the auto-generated PDF receipt. Null while PENDING/REJECTED.
   receiptNumber String? @unique
