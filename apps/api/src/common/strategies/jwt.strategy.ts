@@ -20,6 +20,14 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     private readonly config: ConfigService,
     private readonly usersService: UsersService,
   ) {
+    const accessSecret = config.get<string>('JWT_ACCESS_SECRET');
+    // Never fall back to '' — an empty signing key makes every token forgeable.
+    // env.validation.ts guarantees this is set, but fail loudly if it ever isn't
+    // rather than silently accepting unsigned-equivalent tokens.
+    if (!accessSecret) {
+      throw new Error('JWT_ACCESS_SECRET is not configured');
+    }
+
     super({
       // Tell Passport where to find the token
       // We read it from the HTTP-only cookie called 'access_token'
@@ -39,7 +47,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 
       // The secret used to verify the token signature
       // Must match the secret used when creating the token
-      secretOrKey: config.get<string>('JWT_ACCESS_SECRET') ?? '',
+      secretOrKey: accessSecret,
 
       // Pass the full request to validate() so we can access cookies
       passReqToCallback: false,

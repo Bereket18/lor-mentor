@@ -1,0 +1,29 @@
+# Keep the build context small and NEVER ship secrets or local build output.
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+**/coverage
+**/*.log
+
+# Secrets — must never enter an image layer
+.env
+.env.*
+!.env.example
+!.env.production.example
+apps/api/.env
+apps/web/.env
+services/receipt-verifier/.env
+
+# Local/user content and VCS
+uploads/
+secure-uploads/
+.git
+.github
+.vscode
+.idea
+
+# Docs / test artifacts not needed at build
+**/*.md
+playwright-report
+test-results

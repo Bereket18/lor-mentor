@@ -1,9 +1,15 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 import withBundleAnalyzer from "@next/bundle-analyzer";
 
 // 1. Define the base configuration options first
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Emit a self-contained server bundle (.next/standalone) for a small,
+  // dependency-traced production Docker image. outputFileTracingRoot points at
+  // the monorepo root so workspace-hoisted node_modules are traced correctly.
+  output: "standalone",
+  outputFileTracingRoot: path.join(__dirname, "../../"),
   // Proxy /api/v1/* to the NestJS API so PDF.js canvas requests are same-origin
   // and browsers don't block cross-origin localhost requests
   async rewrites() {

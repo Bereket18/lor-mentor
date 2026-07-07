@@ -20,10 +20,15 @@ async function bootstrap() {
   app.use(cookieParser());
 
   // ── CORS ──────────────────────────────────────
-  // Allows our frontend (localhost:3000) to talk
-  // to our backend (localhost:4000)
+  // Allows our frontend to talk to our backend. Supports a comma-separated
+  // list so staging/prod/preview origins can coexist. In production
+  // env.validation.ts guarantees CORS_ORIGIN is set to a real origin.
+  const corsOrigins = (process.env.CORS_ORIGIN ?? 'http://localhost:3000')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
   app.enableCors({
-    origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
+    origin: corsOrigins,
     credentials: true, // Required for cookies to work cross-origin
   });
 
@@ -42,6 +47,12 @@ async function bootstrap() {
   // All routes start with /api/v1
   // Example: /api/v1/auth/login
   app.setGlobalPrefix('api/v1');
+
+  // ── Graceful shutdown ─────────────────────────
+  // On SIGTERM/SIGINT (deploys, scale-down) run onModuleDestroy hooks so
+  // Prisma disconnects and BullMQ workers drain in-flight AI jobs instead
+  // of losing them mid-processing.
+  app.enableShutdownHooks();
 
   const port = process.env.PORT ?? 4000;
   await app.listen(port);

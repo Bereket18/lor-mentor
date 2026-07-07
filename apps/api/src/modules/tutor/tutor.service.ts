@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GeminiService } from '../ai/gemini.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { ChatDto } from './dto/chat.dto';
+
+import type { RequestUser } from '../../common/types/request-user';
 
 interface MaterialContext {
   title: string;
@@ -14,17 +17,22 @@ export class TutorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly gemini: GeminiService,
+    private readonly subscriptions: SubscriptionsService,
   ) {}
 
   // Answer a question, grounding on the course/material AI content when a
   // scope is given, then persist the exchange to AiHistory.
-  async chat(userId: string, dto: ChatDto) {
+  async chat(user: RequestUser, dto: ChatDto) {
+    // The AI tutor is a paid feature — a free (unsubscribed) student must not
+    // be able to run up the Gemini bill. Staff bypass this check.
+    await this.subscriptions.ensureActiveForStudent(user.id, user.role);
+
     const context = await this.buildContext(dto.courseId, dto.materialId);
     const answer = await this.gemini.answerQuestion(dto.message, context);
 
     await this.prisma.aiHistory.create({
       data: {
-        userId,
+        userId: user.id,
         courseId: dto.courseId ?? null,
         materialId: dto.materialId ?? null,
         prompt: dto.message,

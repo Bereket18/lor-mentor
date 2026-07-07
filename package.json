@@ -8,6 +8,7 @@
     "packages/*"
   ],
   "scripts": {
+    "dev": "concurrently -k -n api,web -c blue,magenta \"npm:dev:api\" \"npm:dev:web\"",
     "dev:web": "npm run dev --workspace=apps/web",
     "dev:api": "npm run start:dev --workspace=apps/api",
     "build:web": "npm run build --workspace=apps/web",
@@ -18,6 +19,7 @@
     "npm": ">=10.0.0"
   },
   "devDependencies": {
-    "@next/bundle-analyzer": "^16.2.9"
+    "@next/bundle-analyzer": "^16.2.9",
+    "concurrently": "^10.0.3"
   }
 }

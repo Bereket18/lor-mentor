@@ -13,13 +13,37 @@ import { type NextRequest, NextResponse } from "next/server";
  */
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const API_ORIGIN = new URL(API_BASE).origin;
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params;
-  const targetUrl = `${API_BASE}/api/v1/${path.join("/")}`;
+
+  // SSRF hardening: reject any segment that could break out of the fixed API
+  // path (traversal, backslashes, protocol-relative // authority, embedded
+  // credentials). Then resolve against a URL object and assert the origin is
+  // still our backend — defence in depth even though API_BASE is a constant.
+  const unsafe = path.some(
+    (seg) =>
+      seg.includes("..") ||
+      seg.includes("\\") ||
+      seg.includes("@") ||
+      /^https?:/i.test(seg),
+  );
+  if (unsafe) {
+    return NextResponse.json({ message: "Invalid path" }, { status: 400 });
+  }
+
+  const target = new URL(
+    `${API_ORIGIN}/api/v1/${path.map(encodeURIComponent).join("/")}`,
+  );
+  target.search = req.nextUrl.search;
+  if (target.origin !== API_ORIGIN) {
+    return NextResponse.json({ message: "Invalid path" }, { status: 400 });
+  }
+  const targetUrl = target.toString();
 
   // Forward the original cookies so the JWT access_token is included
   const cookie = req.headers.get("cookie") ?? "";

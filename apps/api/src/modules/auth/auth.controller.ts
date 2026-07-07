@@ -9,6 +9,7 @@ import {
   Ip,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -31,12 +32,16 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   // POST /api/v1/auth/register
+  // Tight throttle: registration triggers an email send and creates a row —
+  // limit automated account/email-bomb abuse.
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('register')
   async register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
 
   // POST /api/v1/auth/verify-email
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('verify-email')
   @HttpCode(HttpStatus.OK)
   async verifyEmail(@Body('token') token: string) {
@@ -44,6 +49,9 @@ export class AuthController {
   }
 
   // POST /api/v1/auth/login
+  // Strict per-IP throttle on top of the per-account lockout in AuthService —
+  // blunts credential-stuffing and brute-force attempts.
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(
@@ -119,6 +127,9 @@ export class AuthController {
   }
 
   // POST /api/v1/auth/forgot-password
+  // Tight throttle: each call sends an email — prevents inbox flooding of a
+  // victim and email-provider rate-limit exhaustion.
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
@@ -126,6 +137,8 @@ export class AuthController {
   }
 
   // POST /api/v1/auth/reset-password
+  // Tight throttle: blunts brute-forcing of the reset token.
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
   async resetPassword(@Body() dto: ResetPasswordDto) {

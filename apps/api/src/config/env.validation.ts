@@ -32,15 +32,56 @@ export function validateEnv(
       if (typeof value === 'string' && PLACEHOLDERS.has(value)) {
         errors.push(`${key} must be changed from its placeholder in production`);
       }
+      // A forgeable admin token is catastrophic — demand real entropy.
       if (typeof value === 'string' && value.length < 32) {
-        errors.push(`${key} should be at least 32 characters in production`);
+        errors.push(`${key} must be at least 32 characters in production`);
+      }
+      // Reject low-entropy strings (all one character, obvious patterns).
+      if (typeof value === 'string' && /^(.)\1+$/.test(value)) {
+        errors.push(`${key} is too low-entropy (repeated character)`);
+      }
+    }
+    if (config.JWT_ACCESS_SECRET === config.JWT_REFRESH_SECRET) {
+      errors.push('JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must differ');
+    }
+
+    // Chapa online payments are OPTIONAL at launch (the bank-transfer + manual
+    // review flow is the primary payment path). But a HALF-configured gateway
+    // is dangerous — a missing webhook secret would skip signature verification
+    // wiring — so enforce all-or-nothing: if any Chapa var is set, all must be.
+    const chapaKeys = ['CHAPA_SECRET_KEY', 'CHAPA_WEBHOOK_SECRET'];
+    const anyChapa = chapaKeys.some((key) => Boolean(config[key]));
+    if (anyChapa) {
+      for (const key of chapaKeys) {
+        if (!config[key]) {
+          errors.push(
+            `${key} is required once Chapa is enabled (all Chapa keys must be set together)`,
+          );
+        }
       }
     }
 
-    // Online payments need real Chapa credentials in production.
-    for (const key of ['CHAPA_SECRET_KEY', 'CHAPA_WEBHOOK_SECRET']) {
+    // Email delivery underpins password reset AND payment notifications.
+    // Without it these silently throw at request time (users locked out,
+    // payments stranded), so fail fast at boot instead.
+    for (const key of ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM']) {
       if (!config[key]) {
-        errors.push(`${key} is required in production for online payments`);
+        errors.push(`${key} is required in production for email delivery`);
+      }
+    }
+
+    // Public URLs must be real: Chapa's browser callback and webhook are
+    // built from these, and CORS must name the real frontend origin or the
+    // whole web app is blocked.
+    for (const key of ['API_PUBLIC_URL', 'WEB_PUBLIC_URL', 'CORS_ORIGIN']) {
+      const value = config[key];
+      if (!value) {
+        errors.push(`${key} is required in production`);
+      } else if (
+        typeof value === 'string' &&
+        /localhost|127\.0\.0\.1/.test(value)
+      ) {
+        errors.push(`${key} must not point at localhost in production`);
       }
     }
   }

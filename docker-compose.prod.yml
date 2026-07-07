@@ -1,0 +1,119 @@
+# Production stack for Lor Mentor.
+#
+# Run from the repo root on the VPS:
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+#
+# --env-file makes ${VAR} substitution below read from .env.production, and each
+# service also loads it via env_file for its container environment. web/api are
+# published ONLY on 127.0.0.1 — the host Nginx terminates TLS and proxies to
+# them. Postgres and Redis are never published to the host.
+
+name: lor-mentor
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+
+  verifier:
+    build:
+      context: ./services/receipt-verifier
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      # Shared secret the API sends as x-verifier-token.
+      VERIFIER_SHARED_TOKEN: ${RECEIPT_VERIFIER_TOKEN}
+    healthcheck:
+      test:
+        ["CMD", "python", "-c", "import urllib.request,sys; urllib.request.urlopen('http://127.0.0.1:8000/health'); "]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks: [internal]
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+      # Talk to sibling containers over the internal network.
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      RECEIPT_VERIFIER_URL: http://verifier:8000
+    volumes:
+      # Persist uploaded bank receipts + generated PDF receipts across deploys.
+      - uploads:/app/apps/api/uploads
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      verifier: { condition: service_healthy }
+    ports:
+      - "127.0.0.1:4000:4000"
+    healthcheck:
+      test:
+        ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/v1/health').then(()=>process.exit(0)).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks: [internal]
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # Inlined into the client bundle at build time — must be the PUBLIC api URL.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      # Server-side (rewrites/proxy) reads this at runtime too.
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    depends_on:
+      api: { condition: service_started }
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks: [internal]
+
+volumes:
+  pgdata:
+  redisdata:
+  uploads:
+
+networks:
+  internal:

@@ -401,7 +401,29 @@ export class PaymentsService {
     endDate.setMonth(endDate.getMonth() + payment.plan.durationMonths);
     const receiptNumber = this.receipts.buildReceiptNumber(payment.id, now);
 
-    const { startDate } = await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Atomically CLAIM the PENDING → APPROVED transition. Under READ
+      // COMMITTED a second concurrent caller (Chapa retries its webhook while
+      // the browser callback also fires) blocks here, then matches 0 rows and
+      // bails — so activation, the notification, the audit log and the PDF are
+      // produced exactly once. This is the real idempotency guard; the early
+      // status check above is just a fast path.
+      const claim = await tx.payment.updateMany({
+        where: { id: paymentId, status: 'PENDING' },
+        data: {
+          status: 'APPROVED',
+          receiptNumber,
+          chapaRef: opts.chapaRef ?? payment.chapaRef,
+          paidAt: now,
+          reviewedBy: opts.reviewedBy ?? null,
+          reviewedAt: now,
+        },
+      });
+      if (claim.count === 0) {
+        // Lost the race — another transaction already approved this payment.
+        return null;
+      }
+
       const subscriptionId = await this.activateSubscription(
         tx,
         payment.userId,
@@ -412,15 +434,7 @@ export class PaymentsService {
 
       await tx.payment.update({
         where: { id: paymentId },
-        data: {
-          status: 'APPROVED',
-          subscriptionId,
-          receiptNumber,
-          chapaRef: opts.chapaRef ?? payment.chapaRef,
-          paidAt: now,
-          reviewedBy: opts.reviewedBy ?? null,
-          reviewedAt: now,
-        },
+        data: { subscriptionId },
       });
 
       await tx.notification.create({
@@ -449,6 +463,12 @@ export class PaymentsService {
 
       return { startDate: now };
     });
+
+    // Another concurrent caller won the race and already finalized everything.
+    if (!result) {
+      return { message: 'Payment already approved', alreadyApproved: true };
+    }
+    const { startDate } = result;
 
     // Generate the PDF outside the DB transaction — a slow/failed file write
     // must never roll back an activated subscription.
@@ -541,6 +561,13 @@ export class PaymentsService {
     if (!payment) throw new NotFoundException('Payment not found');
     if (!payment.receiptPath) {
       throw new NotFoundException('This payment has no uploaded receipt');
+    }
+
+    // Defence in depth: receiptPath is a server-generated random filename, but
+    // never build a path from a stored value without confirming it's a bare
+    // basename — a poisoned row must not be able to traverse out of uploadDir.
+    if (path.basename(payment.receiptPath) !== payment.receiptPath) {
+      throw new NotFoundException('Receipt file no longer exists');
     }
 
     const fullPath = path.join(this.uploadDir, payment.receiptPath);

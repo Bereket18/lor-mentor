@@ -216,7 +216,7 @@ export class ChapaService {
   private async confirmAndApprove(txRef: string) {
     const payment = await this.prisma.payment.findUnique({
       where: { txRef },
-      select: { id: true, status: true },
+      select: { id: true, status: true, amount: true },
     });
     if (!payment) throw new NotFoundException('Payment not found');
     if (payment.status === 'APPROVED') return; // idempotent
@@ -230,6 +230,19 @@ export class ChapaService {
     const ok = json.status === 'success' && json.data?.status === 'success';
     if (!ok) {
       this.logger.warn(`Chapa verify not successful for ${txRef}`);
+      return;
+    }
+
+    // Defence in depth: confirm the amount Chapa actually settled matches the
+    // server-side price we snapshotted at initialize(). Never activate a
+    // subscription on an underpayment — refuse and leave the payment PENDING
+    // for manual investigation rather than trusting the success flag alone.
+    const expected = Number(payment.amount ?? 0);
+    const settled = Number(json.data?.amount ?? NaN);
+    if (Number.isFinite(settled) && expected > 0 && settled + 0.01 < expected) {
+      this.logger.error(
+        `Chapa amount mismatch for ${txRef}: settled ${settled} < expected ${expected}. Not approving.`,
+      );
       return;
     }
 
