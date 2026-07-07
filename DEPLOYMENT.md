@@ -220,6 +220,12 @@ from a dump with `gunzip -c <file>.sql.gz | docker compose exec -T postgres psql
 
 ---
 
+## Related guides
+
+- **Email (SMTP + SPF/DKIM/DMARC):** `docs/deploy/email-setup.md`
+- **Chapa production payments:** `docs/deploy/chapa-production.md`
+- **Automated smoke test:** `deploy/smoke-test.sh https://api.<domain> https://<domain>`
+
 ## Known operational limits
 
 - **Telebirr auto-verification won't work from Hostinger.** Telebirr blocks
