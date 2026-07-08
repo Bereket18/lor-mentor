@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel superseded runs on the same ref to save minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── API + Web (Node monorepo) ─────────────────────────────────────
+  node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install (workspaces)
+        run: npm ci
+
+      # API: Prisma client is needed for the TS build to type-check.
+      - name: Prisma generate
+        working-directory: apps/api
+        run: npx prisma generate
+
+      - name: API build
+        run: npm run build:api
+
+      - name: API tests
+        working-directory: apps/api
+        run: npx jest --ci
+
+      # Report-only for now: there is pre-existing lint debt (react-hooks
+      # rules) unrelated to CI. Build + tests below are the hard gates; tighten
+      # this to a blocking step once the existing warnings/errors are paid down.
+      - name: Web lint (report-only)
+        working-directory: apps/web
+        run: npx eslint .
+        continue-on-error: true
+
+      - name: Web build
+        run: npm run build:web
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.com
+          NEXT_TELEMETRY_DISABLED: "1"
+
+  # ── Receipt-verifier (Python) ─────────────────────────────────────
+  verifier:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/receipt-verifier
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # normalize.py + its tests are stdlib-only, so no pip install needed for
+      # the unit tests. (main.py's heavy deps are validated by the Docker build.)
+      - name: Byte-compile normalizer
+        run: python -m py_compile normalize.py
+
+      - name: Normalizer tests
+        run: python test_normalize.py
