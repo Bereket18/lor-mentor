@@ -1,0 +1,31 @@
+# Staging OVERLAY for the private soak. Layer it on top of the prod compose:
+#
+#   docker compose -f docker-compose.prod.yml -f docker-compose.staging.yml \
+#     --env-file .env.production up -d --build
+#
+# The private-access gate is at Nginx (deploy/nginx/lor-mentor-staging.conf).
+# This overlay only adds guardrails suited to a modest Hostinger VPS: memory
+# caps so one runaway service can't OOM the box, and an env label so you can tell
+# staging containers apart. NODE_ENV stays "production" — never weaken security
+# settings during the soak; the whole point is to test the real thing.
+
+services:
+  postgres:
+    mem_limit: 512m
+    labels: { com.lormentor.env: staging }
+
+  redis:
+    mem_limit: 256m
+    labels: { com.lormentor.env: staging }
+
+  verifier:
+    mem_limit: 512m
+    labels: { com.lormentor.env: staging }
+
+  api:
+    mem_limit: 640m
+    labels: { com.lormentor.env: staging }
+
+  web:
+    mem_limit: 512m
+    labels: { com.lormentor.env: staging }
