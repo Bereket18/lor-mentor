@@ -98,6 +98,11 @@ export class AuthController {
 
     try {
       const payload = await this.authService.verifyRefreshToken(refreshToken);
+      // Reject a token that was revoked on logout or already rotated away.
+      await this.authService.assertRefreshTokenActive(payload.jti);
+      // Rotation reuse-detection: burn the presented token so a stolen copy
+      // can't be replayed after the legitimate client rotates.
+      await this.authService.revokeRefreshPayload(payload);
       const tokens = await this.authService.refreshTokens(payload.sub);
 
       res.cookie('access_token', tokens.accessToken, {
@@ -119,8 +124,18 @@ export class AuthController {
   // POST /api/v1/auth/logout
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  logout(@Res({ passthrough: true }) res: Response) {
-    // Clear both cookies
+  async logout(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    // Revoke the refresh token server-side so a copied token can't be reused
+    // after logout — not just cleared from this browser.
+    const cookies = req.cookies as Record<string, string | undefined>;
+    const refreshToken = cookies?.refresh_token;
+    if (refreshToken) {
+      await this.authService.revokeRefreshToken(refreshToken);
+    }
+
     res.clearCookie('access_token', cookieOptions());
     res.clearCookie('refresh_token', cookieOptions());
     return { message: 'Logged out successfully' };

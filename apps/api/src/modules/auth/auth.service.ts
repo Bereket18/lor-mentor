@@ -14,6 +14,14 @@ import { MailService } from '../mail/mail.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { TokenDenylistService } from '../../common/redis/token-denylist.service';
+
+/** Decoded refresh-token payload. `jti`/`exp` are absent on pre-denylist tokens. */
+interface RefreshPayload {
+  sub: string;
+  jti?: string;
+  exp?: number;
+}
 
 // Brute-force lockout policy: after MAX_FAILED consecutive failures the account
 // is locked for LOCKOUT_MINUTES. The counter resets on any successful login.
@@ -30,6 +38,7 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
+    private readonly denylist: TokenDenylistService,
   ) {}
 
   // ── REGISTER ──────────────────────────────────────────
@@ -231,10 +240,34 @@ export class AuthService {
     return this.generateTokens(userId, user.email, user.role);
   }
 
-  async verifyRefreshToken(token: string) {
-    return this.jwtService.verifyAsync<{ sub: string }>(token, {
+  async verifyRefreshToken(token: string): Promise<RefreshPayload> {
+    return this.jwtService.verifyAsync<RefreshPayload>(token, {
       secret: this.config.get('JWT_REFRESH_SECRET'),
     });
+  }
+
+  /** Reject a refresh token that was revoked (logout) or already rotated. */
+  async assertRefreshTokenActive(jti: string | undefined): Promise<void> {
+    if (await this.denylist.isDenied(jti)) {
+      throw new UnauthorizedException('Refresh token has been revoked');
+    }
+  }
+
+  /** Add a decoded refresh token to the denylist until its own expiry. */
+  async revokeRefreshPayload(payload: RefreshPayload): Promise<void> {
+    if (!payload.jti || !payload.exp) return;
+    const ttl = payload.exp - Math.floor(Date.now() / 1000);
+    await this.denylist.deny(payload.jti, ttl);
+  }
+
+  /** Verify + revoke a raw refresh token (used on logout). Ignores bad tokens. */
+  async revokeRefreshToken(token: string): Promise<void> {
+    try {
+      const payload = await this.verifyRefreshToken(token);
+      await this.revokeRefreshPayload(payload);
+    } catch {
+      // Already invalid/expired — nothing to revoke.
+    }
   }
 
   // ── FORGOT PASSWORD ───────────────────────────────────
@@ -306,9 +339,10 @@ export class AuthService {
       expiresIn: this.config.get('JWT_ACCESS_EXPIRES_IN') ?? '15m',
     });
 
-    // Refresh token — longer lived (7 days)
+    // Refresh token — longer lived (7 days). The `jti` (unique token id) lets
+    // us revoke this exact token server-side on logout / rotation.
     const refreshToken = await this.jwtService.signAsync(
-      { sub: userId },
+      { sub: userId, jti: crypto.randomUUID() },
       {
         secret: this.config.get('JWT_REFRESH_SECRET'),
         expiresIn: this.config.get('JWT_REFRESH_EXPIRES_IN') ?? '7d',

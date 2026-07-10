@@ -6,12 +6,13 @@ import { AuthService } from './auth.service';
 import { UsersModule } from '../users/users.module';
 import { MailModule } from '../mail/mail.module';
 import { JwtStrategy } from '../../common/strategies/jwt.strategy';
+import { TokenDenylistService } from '../../common/redis/token-denylist.service';
 
 @Module({
   imports: [UsersModule, MailModule, PassportModule, JwtModule.register({})],
   controllers: [AuthController],
   // JwtStrategy must be in providers so Passport knows about it
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, TokenDenylistService],
   exports: [AuthService],
 })
 export class AuthModule {}

@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import * as Sentry from '@sentry/node';
 
 /**
  * Catches everything and returns ONE consistent error envelope:
@@ -17,6 +18,9 @@ import type { Request, Response } from 'express';
  * and an unhandled throw could leak a stack/internal details to the client.
  * Now: HttpExceptions are passed through faithfully; anything else becomes a
  * generic 500 (logged in full server-side, but not exposed to the caller).
+ *
+ * If Sentry is configured, unexpected 500s and high-severity exceptions are
+ * reported for triage.
  */
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -45,12 +49,23 @@ export class AllExceptionsFilter implements ExceptionFilter {
         message = body.message ?? exception.message;
         error = body.error ?? exception.name;
       }
+      // Report 5xx exceptions to Sentry (server errors, not client mistakes).
+      if (status >= 500) {
+        Sentry.captureException(exception, {
+          tags: { statusCode: status, path: req.url },
+        });
+      }
     } else if (exception instanceof Error) {
       // Unexpected server-side failure: log everything, expose nothing.
       this.logger.error(
         `Unhandled ${exception.name}: ${exception.message}`,
         exception.stack,
       );
+      // Always report unhandled exceptions to Sentry.
+      Sentry.captureException(exception, {
+        tags: { path: req.url },
+        extra: { method: req.method, body: req.body },
+      });
     }
 
     res.status(status).json({

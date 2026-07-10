@@ -2,9 +2,21 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import * as Sentry from '@sentry/node';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
+  // ── Sentry error tracking ─────────────────────
+  // Optional: only initializes if SENTRY_DSN is set. Once enabled, unhandled
+  // exceptions and logged errors are reported to Sentry for triage.
+  if (process.env.SENTRY_DSN) {
+    Sentry.init({
+      dsn: process.env.SENTRY_DSN,
+      environment: process.env.NODE_ENV ?? 'development',
+      tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+    });
+  }
+
   // rawBody: true preserves the unparsed request body (req.rawBody) so the
   // Chapa webhook can verify its HMAC-SHA256 signature against exact bytes.
   const app = await NestFactory.create(AppModule, { rawBody: true });
