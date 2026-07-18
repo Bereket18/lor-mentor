@@ -8,6 +8,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { SubscriptionGuard } from '../../common/guards/subscription.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { QuizService } from './quiz.service';
 import { SubmitAttemptDto } from './dto/submit-attempt.dto';
@@ -29,7 +30,9 @@ export class QuizController {
   }
 
   // GET /api/v1/quizzes/:id — questions WITHOUT the correct answers
+  // Paid content — requires an active subscription.
   @Get(':id')
+  @UseGuards(SubscriptionGuard)
   getQuiz(@Param('id') id: string) {
     return this.service.getQuiz(id);
   }
@@ -41,7 +44,9 @@ export class QuizController {
   }
 
   // POST /api/v1/quizzes/:id/attempt — grade server-side + store the attempt
+  // Paid content — requires an active subscription.
   @Post(':id/attempt')
+  @UseGuards(SubscriptionGuard)
   submit(
     @Param('id') id: string,
     @CurrentUser() user: RequestUser,

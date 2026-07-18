@@ -8,6 +8,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { SubscriptionGuard } from '../../common/guards/subscription.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { FlashcardsService } from './flashcards.service';
 import { ReviewDto } from './dto/review.dto';
@@ -29,13 +30,17 @@ export class FlashcardsController {
   }
 
   // GET /api/v1/flashcards/:setId — cards + per-card known state
+  // Paid content — requires an active subscription.
   @Get(':setId')
+  @UseGuards(SubscriptionGuard)
   getSet(@Param('setId') setId: string, @CurrentUser() user: RequestUser) {
     return this.service.getSet(setId, user.id);
   }
 
   // POST /api/v1/flashcards/:setId/review — mark a card known/unknown
+  // Paid content — requires an active subscription.
   @Post(':setId/review')
+  @UseGuards(SubscriptionGuard)
   review(
     @Param('setId') setId: string,
     @CurrentUser() user: RequestUser,
