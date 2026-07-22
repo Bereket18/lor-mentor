@@ -55,7 +55,9 @@ export function useAuth() {
       // Ignore errors — still clear state and redirect
     }
     queryClient.setQueryData(ME_QUERY_KEY, null);
-    router.push("/login");
+    if (redirectTo) {
+      router.push(redirectTo);
+    }
   }
 
   async function register(fullName: string, email: string, password: string) {

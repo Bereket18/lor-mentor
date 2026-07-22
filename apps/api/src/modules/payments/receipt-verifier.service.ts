@@ -70,7 +70,11 @@ export class ReceiptVerifierService {
 
   async extract(input: ExtractInput): Promise<VerifierResult> {
     if (!this.baseUrl) {
-      return { ok: false, code: 'DISABLED', message: 'Verifier not configured' };
+      return {
+        ok: false,
+        code: 'DISABLED',
+        message: 'Verifier not configured',
+      };
     }
 
     const controller = new AbortController();
@@ -93,7 +97,8 @@ export class ReceiptVerifierService {
 
       if (!res.ok) {
         const code = json.detail?.code ?? 'EXTRACT_FAILED';
-        const message = json.detail?.message ?? `Verifier returned ${res.status}`;
+        const message =
+          json.detail?.message ?? `Verifier returned ${res.status}`;
         // BLOCKED / EXTRACT_FAILED are expected operational states, not bugs.
         this.logger.warn(`Verifier ${input.bank} → ${code}: ${message}`);
         return { ok: false, code, message };

@@ -4,7 +4,7 @@ import axios from "axios";
 // Instead of writing the full URL every time we just write:
 // api.post('/auth/login', data)
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL + "/api/v1",
+  baseURL: `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/api/v1`,
 
   // This is critical — tells axios to send cookies
   // with every request (our JWT tokens live in cookies)

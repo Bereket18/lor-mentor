@@ -16,7 +16,8 @@ export class UserThrottlerGuard extends ThrottlerGuard {
     const user = req.user as { id?: string } | undefined;
     const ip =
       (req.ip as string | undefined) ??
-      ((req.ips as string[] | undefined)?.[0] ?? 'unknown');
+      (req.ips as string[] | undefined)?.[0] ??
+      'unknown';
     return Promise.resolve(user?.id ? `user:${user.id}` : `ip:${ip}`);
   }
 }

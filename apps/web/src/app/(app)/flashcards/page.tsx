@@ -30,22 +30,6 @@ export default function FlashcardsPage() {
   const [flipped, setFlipped] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    setListError("");
-    api.get<Course[]>("/courses/my-year")
-      .then((r) => {
-        const list = r.data ?? [];
-        setCourses(list);
-        if (list.length) setCourseId(list[0].id);
-        else setLoadingSets(false);
-      })
-      .catch((err) => {
-        setCourses([]);
-        setListError(err?.response?.data?.message ?? "Could not load your courses.");
-        setLoadingSets(false);
-      });
-  }, []);
-
   const loadSets = useCallback((id: string) => {
     if (!id) return;
     setListError("");
@@ -58,7 +42,33 @@ export default function FlashcardsPage() {
       .finally(() => setLoadingSets(false));
   }, []);
 
-  useEffect(() => { loadSets(courseId); }, [courseId, loadSets]);
+  useEffect(() => {
+    async function loadInitialData() {
+      try {
+        const response = await api.get<Course[]>("/courses/my-year");
+        const list = response.data ?? [];
+        setCourses(list);
+
+        if (!list.length) {
+          setLoadingSets(false);
+          return;
+        }
+
+        const initialCourseId = list[0].id;
+        setCourseId(initialCourseId);
+        loadSets(initialCourseId);
+      } catch (err: unknown) {
+        setCourses([]);
+        setListError(
+          (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+            "Could not load your courses.",
+        );
+        setLoadingSets(false);
+      }
+    }
+
+    void loadInitialData();
+  }, [loadSets]);
 
   function openSet(id: string) {
     setLoadingStudy(true);
@@ -192,7 +202,12 @@ export default function FlashcardsPage() {
         <div className="flex gap-2 flex-wrap">
           {courses.map((c) => (
             <button key={c.id} type="button"
-              onClick={() => { if (c.id !== courseId) setLoadingSets(true); setCourseId(c.id); }}
+              onClick={() => {
+                if (c.id === courseId) return;
+                setLoadingSets(true);
+                setCourseId(c.id);
+                loadSets(c.id);
+              }}
               className="px-3 py-1.5 rounded-full text-xs font-semibold transition-all"
               style={courseId === c.id
                 ? { background: "var(--teal-dim)", color: "var(--teal)", border: "1px solid var(--teal-glow)" }
@@ -208,7 +223,14 @@ export default function FlashcardsPage() {
           <Layers className="h-10 w-10 mx-auto mb-4" style={{ color: "var(--state-error)", opacity: 0.6 }} />
           <p className="text-secondary text-sm font-medium">Flashcards failed to load</p>
           <p className="text-muted text-xs mt-1">{listError}</p>
-          <button type="button" onClick={() => { setLoadingSets(true); courseId ? loadSets(courseId) : window.location.reload(); }} className="mt-4 px-4 py-2 rounded-xl text-xs font-semibold text-white" style={{ background: "linear-gradient(135deg, #0F6B6B, #147878)" }}>Retry</button>
+          <button type="button" onClick={() => {
+            setLoadingSets(true);
+            if (courseId) {
+              loadSets(courseId);
+            } else {
+              window.location.reload();
+            }
+          }} className="mt-4 px-4 py-2 rounded-xl text-xs font-semibold text-white" style={{ background: "linear-gradient(135deg, #0F6B6B, #147878)" }}>Retry</button>
         </div>
       ) : courses.length === 0 ? (
         <div className="glass-panel p-12 text-center">

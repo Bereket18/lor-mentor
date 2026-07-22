@@ -101,10 +101,11 @@ function ResetPasswordContent() {
           ) : (
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-secondary mb-2 tracking-wide">
+                <label htmlFor="reset-password" className="block text-xs font-medium text-secondary mb-2 tracking-wide">
                   NEW PASSWORD
                 </label>
                 <input
+                  id="reset-password"
                   {...register("password")}
                   type="password"
                   placeholder="Minimum 8 characters"
@@ -117,10 +118,11 @@ function ResetPasswordContent() {
                 )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-secondary mb-2 tracking-wide">
+                <label htmlFor="reset-confirm-password" className="block text-xs font-medium text-secondary mb-2 tracking-wide">
                   CONFIRM PASSWORD
                 </label>
                 <input
+                  id="reset-confirm-password"
                   {...register("confirmPassword")}
                   type="password"
                   placeholder="Repeat your password"

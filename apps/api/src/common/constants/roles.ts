@@ -10,6 +10,6 @@ export { Role };
 export const PRIVILEGED_ROLES: readonly Role[] = [Role.ADMIN, Role.SUPER_ADMIN];
 
 /** True when the given role is an admin/super-admin. */
-export function isPrivileged(role: Role | string): boolean {
+export function isPrivileged(role: string): boolean {
   return (PRIVILEGED_ROLES as readonly string[]).includes(role);
 }

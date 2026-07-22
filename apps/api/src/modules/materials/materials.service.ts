@@ -15,6 +15,7 @@ import { UpdateMaterialDto } from './dto/update-material.dto';
 import {
   assertValidImageFile,
   assertValidPdfFile,
+  detectAllowedImageMimeFile,
 } from '../../common/utils/image-magic-bytes';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -69,44 +70,53 @@ export class MaterialsService {
     uploadedBy: string,
     uploaderRole: string,
   ) {
-    await this.assertCanManageCourse(dto.courseId, uploadedBy, uploaderRole);
-
-    if (dto.type === MaterialTypeInput.YOUTUBE) {
-      throw new BadRequestException(
-        'YouTube materials do not take a file upload',
-      );
-    }
-
     if (!uploadedFile) {
       throw new BadRequestException(
         'A file is required for PDF or IMAGE materials',
       );
     }
 
-    if (dto.type === MaterialTypeInput.PDF) {
-      assertValidPdfFile(uploadedFile.path);
-    } else {
-      assertValidImageFile(uploadedFile.path);
+    let materialCreated = false;
+    try {
+      await this.assertCanManageCourse(dto.courseId, uploadedBy, uploaderRole);
+
+      if (dto.type === MaterialTypeInput.YOUTUBE) {
+        throw new BadRequestException(
+          'YouTube materials do not take a file upload',
+        );
+      }
+
+      if (dto.type === MaterialTypeInput.PDF) {
+        assertValidPdfFile(uploadedFile.path);
+      } else {
+        assertValidImageFile(uploadedFile.path);
+      }
+
+      const material = await this.prisma.material.create({
+        data: {
+          courseId: dto.courseId,
+          title: dto.title,
+          type: dto.type,
+          filePath: uploadedFile.filename,
+          uploadedBy,
+        },
+      });
+      materialCreated = true;
+
+      if (dto.type === MaterialTypeInput.PDF) {
+        await this.aiService.enqueueGeneration(
+          material.id,
+          uploadedFile.filename,
+        );
+      }
+
+      return this.stripFilePath(material);
+    } catch (error) {
+      if (!materialCreated) {
+        fs.rm(uploadedFile.path, { force: true }, () => undefined);
+      }
+      throw error;
     }
-
-    const material = await this.prisma.material.create({
-      data: {
-        courseId: dto.courseId,
-        title: dto.title,
-        type: dto.type,
-        filePath: uploadedFile.filename,
-        uploadedBy,
-      },
-    });
-
-    if (dto.type === MaterialTypeInput.PDF) {
-      await this.aiService.enqueueGeneration(
-        material.id,
-        uploadedFile.filename,
-      );
-    }
-
-    return this.stripFilePath(material);
   }
 
   async createYoutube(
@@ -226,10 +236,15 @@ export class MaterialsService {
       throw new NotFoundException('File no longer exists on the server');
     }
 
-    return {
-      fullPath,
-      mimeType: material.type === 'PDF' ? 'application/pdf' : 'image/jpeg',
-    };
+    const mimeType =
+      material.type === 'PDF'
+        ? 'application/pdf'
+        : detectAllowedImageMimeFile(fullPath);
+    if (!mimeType) {
+      throw new NotFoundException('Stored image is invalid or corrupted');
+    }
+
+    return { fullPath, mimeType };
   }
 
   private isAdminRole(role: string) {

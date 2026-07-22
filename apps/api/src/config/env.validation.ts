@@ -30,7 +30,9 @@ export function validateEnv(
     for (const key of ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET']) {
       const value = config[key];
       if (typeof value === 'string' && PLACEHOLDERS.has(value)) {
-        errors.push(`${key} must be changed from its placeholder in production`);
+        errors.push(
+          `${key} must be changed from its placeholder in production`,
+        );
       }
       // A forgeable admin token is catastrophic — demand real entropy.
       if (typeof value === 'string' && value.length < 32) {

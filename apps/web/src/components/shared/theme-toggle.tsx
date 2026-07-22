@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useSyncExternalStore } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -16,12 +16,14 @@ export function ThemeToggle({
   variant = "pill",
 }: ThemeToggleProps) {
   const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false,
+  );
 
   // The server (and the first client render) can't know the stored theme, so
-  // we render a same-sized placeholder until mounted. Swapping in the real
-  // toggle inside an effect — after hydration — avoids any mismatch.
-  useEffect(() => setMounted(true), []);
+  // render a same-sized placeholder until the client has hydrated.
 
   const isDark = resolvedTheme === "dark";
 

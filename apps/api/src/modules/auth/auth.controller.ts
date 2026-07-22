@@ -124,10 +124,7 @@ export class AuthController {
   // POST /api/v1/auth/logout
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  async logout(
-    @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
-  ) {
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     // Revoke the refresh token server-side so a copied token can't be reused
     // after logout — not just cleared from this browser.
     const cookies = req.cookies as Record<string, string | undefined>;

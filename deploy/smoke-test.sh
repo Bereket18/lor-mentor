@@ -59,7 +59,7 @@ c=$(code "$BASE/auth/register" POST '{"email":"not-an-email"}')
 [ "$c" = 400 ] && ok "invalid register body → 400" || bad "invalid register not 400 ($c)"
 
 echo "6) No user enumeration on forgot-password"
-c=$(code "$BASE/auth/forgot-password" POST '{"email":"definitely-not-a-user@example.com}"}')
+c=$(code "$BASE/auth/forgot-password" POST '{"email":"definitely-not-a-user@example.com"}')
 { [ "$c" = 200 ] || [ "$c" = 400 ]; } && ok "forgot-password generic ($c)" || bad "forgot-password leaked ($c)"
 
 echo "7) CORS allowlist"

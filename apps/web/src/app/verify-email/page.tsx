@@ -14,7 +14,7 @@ function VerifyEmailContent() {
   // Get the email from the URL: /verify-email?email=bereket@lorcan.edu.et
   const email = searchParams.get("email") ?? "";
 
-  const [token, setToken] = useState("");
+  const [token, setToken] = useState(() => searchParams.get("token") ?? "");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -44,10 +44,18 @@ function VerifyEmailContent() {
   }, [router]);
 
   useEffect(() => {
-    if (linkToken) {
-      setToken(linkToken);
-      void verifyToken(linkToken);
-    }
+    if (!linkToken) return;
+
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) {
+        void verifyToken(linkToken);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [linkToken, verifyToken]);
 
   function handleVerify() {
@@ -130,12 +138,14 @@ function VerifyEmailContent() {
         {/* Token input */}
         <div className="mb-4">
           <label
+            htmlFor="verification-token"
             className="block text-sm font-medium
             text-primary mb-1.5"
           >
             Verification token
           </label>
           <input
+            id="verification-token"
             type="text"
             value={token}
             onChange={(e) => setToken(e.target.value)}

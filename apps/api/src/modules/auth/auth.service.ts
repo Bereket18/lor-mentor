@@ -225,7 +225,10 @@ export class AuthService {
         entityType: 'User',
         entityId: userId,
         ipAddress: ip ?? null,
-        meta: { attempt: nextCount, lockMinutes: willLock ? LOCKOUT_MINUTES : 0 },
+        meta: {
+          attempt: nextCount,
+          lockMinutes: willLock ? LOCKOUT_MINUTES : 0,
+        },
       },
     });
   }
@@ -317,7 +320,6 @@ export class AuthService {
 
     return { message: 'Password reset successful. You can now log in.' };
   }
-
 
   private publicWebBase(): string {
     const webBase =

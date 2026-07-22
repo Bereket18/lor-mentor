@@ -18,9 +18,7 @@ export class SubscriptionGuard implements CanActivate {
   constructor(private readonly subscriptions: SubscriptionsService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context
-      .switchToHttp()
-      .getRequest<{ user?: RequestUser }>();
+    const request = context.switchToHttp().getRequest<{ user?: RequestUser }>();
     const user = request.user;
     if (!user) {
       // JwtAuthGuard must run first; if it didn't, fail closed.

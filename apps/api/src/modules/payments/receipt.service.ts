@@ -164,12 +164,10 @@ export class ReceiptService {
         .fillColor(muted)
         .text(period, 300, y + 10)
         .fillColor(ink)
-        .text(
-          `${data.amount.toLocaleString()} ${data.currency}`,
-          60,
-          y + 10,
-          { width: 480, align: 'right' },
-        );
+        .text(`${data.amount.toLocaleString()} ${data.currency}`, 60, y + 10, {
+          width: 480,
+          align: 'right',
+        });
 
       y += 44;
       doc.moveTo(50, y).lineTo(550, y).strokeColor('#E2E8F0').stroke();
@@ -180,12 +178,10 @@ export class ReceiptService {
         .fillColor(ink)
         .text('Total paid', 60, y)
         .fillColor(teal)
-        .text(
-          `${data.amount.toLocaleString()} ${data.currency}`,
-          60,
-          y,
-          { width: 480, align: 'right' },
-        );
+        .text(`${data.amount.toLocaleString()} ${data.currency}`, 60, y, {
+          width: 480,
+          align: 'right',
+        });
 
       // ── Footer ──
       doc

@@ -77,7 +77,11 @@ export class TutorService {
       });
       if (ai) {
         return this.format([
-          { title: ai.material.title, summary: ai.summary, keyTopics: ai.keyTopics },
+          {
+            title: ai.material.title,
+            summary: ai.summary,
+            keyTopics: ai.keyTopics,
+          },
         ]);
       }
     }

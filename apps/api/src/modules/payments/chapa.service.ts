@@ -27,6 +27,11 @@ interface ChapaVerifyResponse {
   } | null;
 }
 
+interface ChapaWebhookSignatures {
+  chapaSignature?: string;
+  payloadSignature?: string;
+}
+
 /**
  * Chapa online-payment gateway integration.
  *
@@ -120,7 +125,7 @@ export class ChapaService {
       last_name: rest.join(' ') || 'Lorcan',
       phone_number: user.phoneNumber ?? undefined,
       tx_ref: txRef,
-      callback_url: `${apiBase}/api/v1/payments/chapa/webhook`,
+      callback_url: `${apiBase}/api/v1/payments/chapa/callback`,
       return_url: `${webBase}/pricing/payment/callback?tx=${txRef}`,
       customization: {
         title: 'Lor Mentor',
@@ -157,18 +162,30 @@ export class ChapaService {
    */
   async handleWebhook(
     rawBody: Buffer,
-    signature: string | undefined,
+    signatures: ChapaWebhookSignatures,
   ): Promise<{ received: true }> {
-    this.verifySignature(rawBody, signature);
+    this.verifySignature(rawBody, signatures);
 
-    let event: { tx_ref?: string; status?: string };
+    let parsedEvent: unknown;
     try {
-      event = JSON.parse(rawBody.toString('utf8'));
+      parsedEvent = JSON.parse(rawBody.toString('utf8'));
     } catch {
       throw new BadRequestException('Invalid webhook payload');
     }
 
-    const txRef = event.tx_ref;
+    if (
+      !parsedEvent ||
+      typeof parsedEvent !== 'object' ||
+      Array.isArray(parsedEvent)
+    ) {
+      throw new BadRequestException('Invalid webhook payload');
+    }
+
+    const txRef = (parsedEvent as { tx_ref?: unknown }).tx_ref;
+    if (txRef !== undefined && typeof txRef !== 'string') {
+      throw new BadRequestException('Invalid webhook payload');
+    }
+
     if (!txRef) {
       // Nothing actionable, but acknowledge so Chapa stops retrying.
       return { received: true };
@@ -178,6 +195,14 @@ export class ChapaService {
       this.logger.error(`Webhook approval failed for ${txRef}: ${String(err)}`);
     });
 
+    return { received: true };
+  }
+
+  async handleCallback(txRef: string): Promise<{ received: true }> {
+    if (!txRef.startsWith('lm-')) {
+      throw new BadRequestException('Invalid transaction reference');
+    }
+    await this.confirmAndApprove(txRef);
     return { received: true };
   }
 
@@ -252,26 +277,46 @@ export class ChapaService {
     });
   }
 
-  private verifySignature(rawBody: Buffer, signature: string | undefined) {
+  private verifySignature(rawBody: Buffer, signatures: ChapaWebhookSignatures) {
     const secret = this.config.get<string>('CHAPA_WEBHOOK_SECRET');
     if (!secret) {
       this.logger.error('CHAPA_WEBHOOK_SECRET is not configured');
       throw new ServiceUnavailableException('Webhook not configured');
     }
-    if (!signature) {
+    if (!signatures.chapaSignature && !signatures.payloadSignature) {
       throw new BadRequestException('Missing webhook signature');
     }
 
-    const expected = crypto
+    const expectedChapaSignature = crypto
+      .createHmac('sha256', secret)
+      .update(secret)
+      .digest('hex');
+    const expectedPayloadSignature = crypto
       .createHmac('sha256', secret)
       .update(rawBody)
       .digest('hex');
 
-    const a = Buffer.from(expected);
-    const b = Buffer.from(signature);
-    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    const chapaValid = this.signatureMatches(
+      expectedChapaSignature,
+      signatures.chapaSignature,
+    );
+    const payloadValid = this.signatureMatches(
+      expectedPayloadSignature,
+      signatures.payloadSignature,
+    );
+    if (!chapaValid && !payloadValid) {
       throw new BadRequestException('Invalid webhook signature');
     }
+  }
+
+  private signatureMatches(expected: string, actual?: string): boolean {
+    if (!actual) return false;
+    const expectedBuffer = Buffer.from(expected);
+    const actualBuffer = Buffer.from(actual);
+    return (
+      expectedBuffer.length === actualBuffer.length &&
+      crypto.timingSafeEqual(expectedBuffer, actualBuffer)
+    );
   }
 
   private publicApiBase(): string {

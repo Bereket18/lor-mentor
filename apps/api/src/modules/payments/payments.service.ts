@@ -76,43 +76,53 @@ export class PaymentsService {
 
   /** MANUAL flow: student uploads a bank-transfer receipt for admin review. */
   async submit(userId: string, planId: string, file: Express.Multer.File) {
-    const plan = await this.prisma.subscriptionPlan.findUnique({
-      where: { id: planId },
-    });
-    if (!plan || !plan.isActive) {
-      throw new NotFoundException('Plan not found or inactive');
-    }
-
-    const pending = await this.prisma.payment.findFirst({
-      where: { userId, status: 'PENDING' },
-    });
-    if (pending) {
-      throw new BadRequestException(
-        'You already have a payment awaiting review',
-      );
-    }
-
-    await this.assertNoActiveSubscription(userId);
-
     if (!file) {
       throw new BadRequestException('Receipt image is required');
     }
 
-    // Verify the upload is genuinely an image (not just a spoofed MIME type).
-    assertValidImageFile(file.path);
+    let paymentCreated = false;
+    try {
+      const plan = await this.prisma.subscriptionPlan.findUnique({
+        where: { id: planId },
+      });
+      if (!plan || !plan.isActive) {
+        throw new NotFoundException('Plan not found or inactive');
+      }
 
-    return this.prisma.payment.create({
-      data: {
-        userId,
-        planId,
-        method: 'MANUAL',
-        amount: plan.priceETB,
-        receiptPath: file.filename,
-      },
-      include: {
-        plan: { select: { name: true, priceETB: true } },
-      },
-    });
+      const pending = await this.prisma.payment.findFirst({
+        where: { userId, status: 'PENDING' },
+      });
+      if (pending) {
+        throw new BadRequestException(
+          'You already have a payment awaiting review',
+        );
+      }
+
+      await this.assertNoActiveSubscription(userId);
+
+      // Verify the upload is genuinely an image (not a spoofed MIME type).
+      assertValidImageFile(file.path);
+
+      const payment = await this.prisma.payment.create({
+        data: {
+          userId,
+          planId,
+          method: 'MANUAL',
+          amount: plan.priceETB,
+          receiptPath: file.filename,
+        },
+        include: {
+          plan: { select: { name: true, priceETB: true } },
+        },
+      });
+      paymentCreated = true;
+      return payment;
+    } catch (error) {
+      if (!paymentCreated) {
+        fs.rm(file.path, { force: true }, () => undefined);
+      }
+      throw error;
+    }
   }
 
   /**
@@ -153,7 +163,9 @@ export class PaymentsService {
       where: { userId, status: 'PENDING' },
     });
     if (pending) {
-      throw new BadRequestException('You already have a payment awaiting review');
+      throw new BadRequestException(
+        'You already have a payment awaiting review',
+      );
     }
 
     await this.assertNoActiveSubscription(userId);
@@ -179,7 +191,9 @@ export class PaymentsService {
           'No receipt was found for that reference. Please double-check it.',
         );
       }
-      if (['BAD_INPUT', 'MISSING_ACCOUNT', 'URL_REQUIRED'].includes(result.code)) {
+      if (
+        ['BAD_INPUT', 'MISSING_ACCOUNT', 'URL_REQUIRED'].includes(result.code)
+      ) {
         throw new BadRequestException(result.message);
       }
       // BLOCKED / EXTRACT_FAILED / UNREACHABLE → fall back to admin queue.
@@ -198,7 +212,10 @@ export class PaymentsService {
       await this.assertReferenceUnused(bankRef);
     }
 
-    const failure = this.assertReceiptSatisfiesPlan(receipt, Number(plan.priceETB));
+    const failure = this.assertReceiptSatisfiesPlan(
+      receipt,
+      Number(plan.priceETB),
+    );
     if (failure) {
       // Extracted fine, but a check failed (wrong account, too little, etc.).
       // Route to admin with the extracted data attached so they can decide.

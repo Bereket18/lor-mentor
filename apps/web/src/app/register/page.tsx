@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { motion } from "framer-motion";
@@ -114,9 +114,15 @@ const GlassSelect = React.forwardRef<HTMLSelectElement, GlassSelectProps>(
   },
 );
 
-function FieldLabel({ children }: { children: React.ReactNode }) {
+function FieldLabel({
+  children,
+  htmlFor,
+}: {
+  children: React.ReactNode;
+  htmlFor: string;
+}) {
   return (
-    <label className="block text-[11px] font-semibold tracking-widest uppercase mb-1.5 text-secondary">
+    <label htmlFor={htmlFor} className="block text-[11px] font-semibold tracking-widest uppercase mb-1.5 text-secondary">
       {children}
     </label>
   );
@@ -134,19 +140,17 @@ export default function RegisterPage() {
   const [loadingDepts, setLoadingDepts] = useState(true);
   const [loadingYears, setLoadingYears] = useState(false);
 
-  const { register, handleSubmit, watch, setValue, formState: { errors } } =
+  const { register, handleSubmit, control, setValue, formState: { errors } } =
     useForm<FormData>({ resolver: zodResolver(schema) });
 
-  const selectedDeptId = watch("departmentId");
+  const selectedDeptId = useWatch({ control, name: "departmentId" });
 
   useEffect(() => {
     api.get("/departments").then((r) => setDepartments(r.data)).catch(() => setDepartments([])).finally(() => setLoadingDepts(false));
   }, []);
 
   useEffect(() => {
-    if (!selectedDeptId) { setYears([]); return; }
-    setLoadingYears(true);
-    setValue("academicYearId", "");
+    if (!selectedDeptId) return;
     api.get(`/academic-years?departmentId=${selectedDeptId}`)
       .then((r) => setYears(r.data))
       .catch(() => setYears([]))
@@ -337,8 +341,9 @@ export default function RegisterPage() {
 
             {/* Full name */}
             <div>
-              <FieldLabel>Full Name</FieldLabel>
+              <FieldLabel htmlFor="register-full-name">Full Name</FieldLabel>
               <GlassInput
+                id="register-full-name"
                 {...register("fullName")}
                 type="text"
                 placeholder="Bereket Adamsseged"
@@ -350,8 +355,9 @@ export default function RegisterPage() {
 
             {/* Email */}
             <div>
-              <FieldLabel>Email Address</FieldLabel>
+              <FieldLabel htmlFor="register-email">Email Address</FieldLabel>
               <GlassInput
+                id="register-email"
                 {...register("email")}
                 type="email"
                 placeholder="you@lorcan.edu.et"
@@ -363,8 +369,9 @@ export default function RegisterPage() {
 
             {/* Phone */}
             <div>
-              <FieldLabel>Phone Number</FieldLabel>
+              <FieldLabel htmlFor="register-phone">Phone Number</FieldLabel>
               <GlassInput
+                id="register-phone"
                 {...register("phoneNumber")}
                 type="tel"
                 placeholder="0911234567"
@@ -378,9 +385,17 @@ export default function RegisterPage() {
             {/* Department + Year — side by side */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <FieldLabel>Department</FieldLabel>
+                <FieldLabel htmlFor="register-department">Department</FieldLabel>
                 <GlassSelect
-                  {...register("departmentId")}
+                  id="register-department"
+                  {...register("departmentId", {
+                    onChange: (event) => {
+                      const hasDepartment = Boolean(event.target.value);
+                      setYears([]);
+                      setLoadingYears(hasDepartment);
+                      setValue("academicYearId", "");
+                    },
+                  })}
                   disabled={isSubmitting || loadingDepts}
                   hasError={!!errors.departmentId}
                   className="glass-select"
@@ -391,8 +406,9 @@ export default function RegisterPage() {
                 {errors.departmentId && <p className="text-xs mt-1" style={{ color: "#EF4444" }}>{errors.departmentId.message}</p>}
               </div>
               <div>
-                <FieldLabel>Year</FieldLabel>
+                <FieldLabel htmlFor="register-year">Year</FieldLabel>
                 <GlassSelect
+                  id="register-year"
                   {...register("academicYearId")}
                   disabled={isSubmitting || !selectedDeptId || loadingYears}
                   hasError={!!errors.academicYearId}
@@ -407,9 +423,10 @@ export default function RegisterPage() {
 
             {/* Password */}
             <div>
-              <FieldLabel>Password</FieldLabel>
+              <FieldLabel htmlFor="register-password">Password</FieldLabel>
               <div className="relative">
                 <GlassInput
+                  id="register-password"
                   {...register("password")}
                   type={showPassword ? "text" : "password"}
                   placeholder="Minimum 8 characters"
@@ -419,6 +436,7 @@ export default function RegisterPage() {
                 />
                 <button
                   type="button"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                   onClick={() => setShowPassword(!showPassword)}
                   disabled={isSubmitting}
                   className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors text-muted hover:text-primary disabled:opacity-50"
@@ -431,9 +449,10 @@ export default function RegisterPage() {
 
             {/* Confirm password */}
             <div>
-              <FieldLabel>Confirm Password</FieldLabel>
+              <FieldLabel htmlFor="register-confirm-password">Confirm Password</FieldLabel>
               <div className="relative">
                 <GlassInput
+                  id="register-confirm-password"
                   {...register("confirmPassword")}
                   type={showConfirm ? "text" : "password"}
                   placeholder="Repeat your password"
@@ -443,6 +462,7 @@ export default function RegisterPage() {
                 />
                 <button
                   type="button"
+                  aria-label={showConfirm ? "Hide password confirmation" : "Show password confirmation"}
                   onClick={() => setShowConfirm(!showConfirm)}
                   disabled={isSubmitting}
                   className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors text-muted hover:text-primary disabled:opacity-50"

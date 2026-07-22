@@ -83,10 +83,11 @@ export default function AdminLoginPage() {
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-secondary mb-2 tracking-wide">
+            <label htmlFor="admin-email" className="block text-xs font-medium text-secondary mb-2 tracking-wide">
               EMAIL ADDRESS
             </label>
             <input
+              id="admin-email"
               {...register("email")}
               type="email"
               placeholder="admin@lorcan.edu.et"
@@ -102,11 +103,12 @@ export default function AdminLoginPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-secondary mb-2 tracking-wide">
+            <label htmlFor="admin-password" className="block text-xs font-medium text-secondary mb-2 tracking-wide">
               PASSWORD
             </label>
             <div className="relative">
               <input
+                id="admin-password"
                 {...register("password")}
                 type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
@@ -118,6 +120,7 @@ export default function AdminLoginPage() {
               />
               <button
                 type="button"
+                aria-label={showPassword ? "Hide password" : "Show password"}
                 onClick={() => setShowPassword(!showPassword)}
                 disabled={isSubmitting}
                 className="absolute right-3.5 top-1/2 -translate-y-1/2

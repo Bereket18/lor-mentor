@@ -189,19 +189,19 @@ export default function LoginPage() {
           {/* Form */}
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-semibold tracking-widest uppercase text-secondary">Email Address</label>
-              <GlassInput {...register("email")} type="email" placeholder="you@lorcan.edu.et" hasError={!!errors.email} disabled={isSubmitting} />
+              <label htmlFor="login-email" className="block text-[11px] font-semibold tracking-widest uppercase text-secondary">Email Address</label>
+              <GlassInput id="login-email" {...register("email")} type="email" placeholder="you@lorcan.edu.et" hasError={!!errors.email} disabled={isSubmitting} />
               {errors.email && <p className="text-xs mt-1" style={{ color: "#EF4444" }}>{errors.email.message}</p>}
             </div>
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <label className="block text-[11px] font-semibold tracking-widest uppercase text-secondary">Password</label>
+                <label htmlFor="login-password" className="block text-[11px] font-semibold tracking-widest uppercase text-secondary">Password</label>
                 <Link href="/forgot-password" className="text-xs font-medium transition-colors hover:opacity-80" style={{ color: "#2DD4BF" }}>Forgot password?</Link>
               </div>
               <div className="relative">
-                <GlassInput {...register("password")} type={showPassword ? "text" : "password"} placeholder="••••••••" hasError={!!errors.password} disabled={isSubmitting} style={{ paddingRight: "2.75rem" }} />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} disabled={isSubmitting} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted hover:text-primary transition-colors disabled:opacity-50">
+                <GlassInput id="login-password" {...register("password")} type={showPassword ? "text" : "password"} placeholder="••••••••" hasError={!!errors.password} disabled={isSubmitting} style={{ paddingRight: "2.75rem" }} />
+                <button type="button" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword(!showPassword)} disabled={isSubmitting} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted hover:text-primary transition-colors disabled:opacity-50">
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>

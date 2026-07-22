@@ -22,7 +22,9 @@ describe('AppController', () => {
 
   describe('getReadiness', () => {
     it('reports ready when the database responds', async () => {
-      const controller = makeController(() => Promise.resolve([{ '?column?': 1 }]));
+      const controller = makeController(() =>
+        Promise.resolve([{ '?column?': 1 }]),
+      );
       await expect(controller.getReadiness()).resolves.toEqual({
         status: 'ready',
         database: 'up',

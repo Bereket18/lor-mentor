@@ -4,6 +4,7 @@ import {
   Post,
   Patch,
   Param,
+  Query,
   Body,
   Req,
   UseGuards,
@@ -132,15 +133,29 @@ export class PaymentsController {
     return this.chapa.initialize(user, dto.planId);
   }
 
+  // Chapa calls callback_url with a GET after checkout. This endpoint does not
+  // trust callback fields; it re-verifies the transaction with Chapa.
+  @Get('chapa/callback')
+  handleChapaCallback(
+    @Query('trx_ref') trxRef?: string,
+    @Query('tx_ref') txRef?: string,
+  ) {
+    const reference = txRef ?? trxRef;
+    if (!reference) {
+      throw new BadRequestException('Transaction reference is required');
+    }
+    return this.chapa.handleCallback(reference);
+  }
+
   // ── CHAPA webhook (public; verified by HMAC signature) ──
   @Post('chapa/webhook')
   @HttpCode(HttpStatus.OK)
   handleWebhook(@Req() req: RawBodyRequest<Request>) {
-    const signature =
-      (req.headers['chapa-signature'] as string | undefined) ??
-      (req.headers['x-chapa-signature'] as string | undefined);
     const raw = req.rawBody ?? Buffer.from(JSON.stringify(req.body ?? {}));
-    return this.chapa.handleWebhook(raw, signature);
+    return this.chapa.handleWebhook(raw, {
+      chapaSignature: req.headers['chapa-signature'] as string | undefined,
+      payloadSignature: req.headers['x-chapa-signature'] as string | undefined,
+    });
   }
 
   // ── CHAPA: confirm status from the browser callback ──

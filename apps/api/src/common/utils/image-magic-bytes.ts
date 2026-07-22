@@ -30,8 +30,17 @@ function hasWebpSignature(buf: Buffer): boolean {
   );
 }
 
+export type AllowedImageMime = 'image/jpeg' | 'image/png' | 'image/webp';
+
+export function detectAllowedImageMime(buf: Buffer): AllowedImageMime | null {
+  if (hasJpegSignature(buf)) return 'image/jpeg';
+  if (hasPngSignature(buf)) return 'image/png';
+  if (hasWebpSignature(buf)) return 'image/webp';
+  return null;
+}
+
 export function isAllowedImageBuffer(buf: Buffer): boolean {
-  return hasJpegSignature(buf) || hasPngSignature(buf) || hasWebpSignature(buf);
+  return detectAllowedImageMime(buf) !== null;
 }
 
 export function isPdfBuffer(buf: Buffer): boolean {
@@ -82,5 +91,21 @@ export function assertValidPdfFile(filePath: string): void {
   if (!valid) {
     fs.rm(filePath, { force: true }, () => undefined);
     throw new BadRequestException('Uploaded file is not a valid PDF');
+  }
+}
+
+export function detectAllowedImageMimeFile(
+  filePath: string,
+): AllowedImageMime | null {
+  let fd: number | undefined;
+  try {
+    fd = fs.openSync(filePath, 'r');
+    const header = Buffer.alloc(12);
+    fs.readSync(fd, header, 0, 12, 0);
+    return detectAllowedImageMime(header);
+  } catch {
+    return null;
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
   }
 }
