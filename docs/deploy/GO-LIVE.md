@@ -352,14 +352,21 @@ Test each on the real (password-protected) domain:
 
 # SECTION 8 — Go public
 
-When the checklist is green and the soak is clean, remove the password gate:
+When the checklist is green and the soak is clean, remove only the password
+gate from the Certbot-managed config. Do not copy the original HTTP-only
+template over it, because that would remove the HTTPS blocks Certbot added:
 ```bash
-sudo cp deploy/nginx/lor-mentor.conf /etc/nginx/sites-available/lor-mentor
-sudo nano /etc/nginx/sites-available/lor-mentor   # re-apply your domain edits
+sudo cp /etc/nginx/sites-available/lor-mentor \
+  /etc/nginx/sites-available/lor-mentor.pre-public
+sudo sed -i \
+  -e '/auth_basic "/d' \
+  -e '/auth_basic_user_file/d' \
+  -e '/add_header X-Robots-Tag/d' \
+  /etc/nginx/sites-available/lor-mentor
 sudo nginx -t && sudo systemctl reload nginx
 ```
-The certificates and proxy settings stay; you've just dropped the `auth_basic`
-lock. **You're live.** 🎉
+The certificates and proxy settings stay; you've just dropped the preview lock.
+**You're live.** 🎉
 
 ---
 
