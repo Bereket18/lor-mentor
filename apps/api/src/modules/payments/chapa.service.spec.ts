@@ -5,9 +5,20 @@ import type { PrismaService } from '../../prisma/prisma.service';
 import type { PaymentsService } from './payments.service';
 import { ChapaService } from './chapa.service';
 
+interface PaymentUpdateArgs {
+  where: { id: string };
+  data: {
+    status: string;
+    rejectionReason: string;
+    chapaRef?: string;
+    reviewedAt: Date;
+  };
+}
+
 describe('ChapaService', () => {
   const webhookSecret = 'webhook-test-secret';
   const findUnique = jest.fn();
+  const update = jest.fn<(args: PaymentUpdateArgs) => unknown>();
   const finalizeApproval = jest.fn();
   const config = {
     get: jest.fn((key: string) => {
@@ -20,7 +31,7 @@ describe('ChapaService', () => {
     }),
   } as unknown as ConfigService;
   const prisma = {
-    payment: { findUnique },
+    payment: { findUnique, update },
   } as unknown as PrismaService;
   const payments = {
     finalizeApproval,
@@ -42,7 +53,9 @@ describe('ChapaService', () => {
   }
 
   beforeEach(() => {
+    jest.useRealTimers();
     findUnique.mockReset();
+    update.mockReset();
     finalizeApproval.mockReset();
     jest.restoreAllMocks();
   });
@@ -134,6 +147,54 @@ describe('ChapaService', () => {
     await expect(
       service.verifyByTxRef('lm-payment-1', 'student-1'),
     ).resolves.toMatchObject({ status: 'PENDING' });
+    expect(finalizeApproval).not.toHaveBeenCalled();
+  });
+
+  it('rejects a terminally failed Chapa transaction so it can be retried', async () => {
+    const reviewedAt = new Date('2026-07-22T09:00:00.000Z');
+    jest.useFakeTimers().setSystemTime(reviewedAt);
+    findUnique
+      .mockResolvedValueOnce({
+        id: 'payment-1',
+        userId: 'student-1',
+        status: 'PENDING',
+        receiptNumber: null,
+      })
+      .mockResolvedValueOnce({
+        id: 'payment-1',
+        status: 'PENDING',
+        amount: '1000',
+      })
+      .mockResolvedValueOnce({
+        id: 'payment-1',
+        status: 'REJECTED',
+        receiptNumber: null,
+      });
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      json: () =>
+        Promise.resolve({
+          status: 'success',
+          message: 'Payment details fetched successfully',
+          data: {
+            status: 'failed/cancelled',
+            amount: '1000',
+            reference: 'chapa-reference',
+          },
+        }),
+    } as Response);
+
+    await expect(
+      service.verifyByTxRef('lm-payment-1', 'student-1'),
+    ).resolves.toMatchObject({ status: 'REJECTED' });
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 'payment-1' },
+      data: {
+        status: 'REJECTED',
+        rejectionReason: 'Chapa reported failed/cancelled',
+        chapaRef: 'chapa-reference',
+        reviewedAt,
+      },
+    });
     expect(finalizeApproval).not.toHaveBeenCalled();
   });
 

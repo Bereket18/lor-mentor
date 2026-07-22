@@ -254,7 +254,31 @@ export class ChapaService {
 
     const ok = json.status === 'success' && json.data?.status === 'success';
     if (!ok) {
-      this.logger.warn(`Chapa verify not successful for ${txRef}`);
+      const chapaStatus = json.data?.status?.toLowerCase();
+      const terminalFailure =
+        json.status === 'success' &&
+        Boolean(
+          chapaStatus &&
+          (chapaStatus.includes('failed') ||
+            chapaStatus.includes('cancelled') ||
+            chapaStatus.includes('canceled')),
+        );
+
+      if (terminalFailure) {
+        await this.prisma.payment.update({
+          where: { id: payment.id },
+          data: {
+            status: 'REJECTED',
+            rejectionReason: `Chapa reported ${json.data?.status}`,
+            chapaRef: json.data?.reference ?? undefined,
+            reviewedAt: new Date(),
+          },
+        });
+      }
+
+      this.logger.warn(
+        `Chapa verify not successful for ${txRef}: ${json.data?.status ?? json.message ?? 'unknown status'}`,
+      );
       return;
     }
 
