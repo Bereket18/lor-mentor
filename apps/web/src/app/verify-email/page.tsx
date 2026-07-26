@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Mail, CheckCircle, Loader2 } from "lucide-react";
+import { Mail, CheckCircle, Loader2, RefreshCw } from "lucide-react";
 import api from "@/lib/api";
 
 function VerifyEmailContent() {
@@ -18,6 +18,10 @@ function VerifyEmailContent() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [resendEmail, setResendEmail] = useState(email);
+  const [resending, setResending] = useState(false);
+  const [resendMessage, setResendMessage] = useState("");
+  const [resendError, setResendError] = useState("");
   const linkToken = searchParams.get("token") ?? "";
 
   const verifyToken = useCallback(async (value: string) => {
@@ -60,6 +64,33 @@ function VerifyEmailContent() {
 
   function handleVerify() {
     void verifyToken(token);
+  }
+
+  async function handleResend() {
+    const value = resendEmail.trim();
+    if (!value || !value.includes("@")) {
+      setResendError("Enter the email address used for registration");
+      setResendMessage("");
+      return;
+    }
+
+    setResending(true);
+    setResendError("");
+    setResendMessage("");
+    try {
+      const response = await api.post("/auth/resend-verification", {
+        email: value,
+      });
+      setResendMessage(response.data.message);
+    } catch (err: unknown) {
+      const message = (err as { response?: { data?: { message?: string } } })
+        ?.response?.data?.message;
+      setResendError(
+        message ?? "Could not request another email. Please try again.",
+      );
+    } finally {
+      setResending(false);
+    }
   }
 
   if (success) {
@@ -162,6 +193,7 @@ function VerifyEmailContent() {
 
         {/* Verify button */}
         <button
+          type="button"
           onClick={handleVerify}
           disabled={loading}
           className="w-full bg-accent hover:bg-accent-hover
@@ -178,6 +210,56 @@ function VerifyEmailContent() {
             "Verify email"
           )}
         </button>
+
+        <div className="border-t border-border pt-4 mb-5">
+          <p className="text-sm font-medium text-primary mb-2">
+            Need a new verification link?
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <label htmlFor="resend-email" className="sr-only">
+              Registration email
+            </label>
+            <input
+              id="resend-email"
+              type="email"
+              value={resendEmail}
+              onChange={(event) => setResendEmail(event.target.value)}
+              placeholder="Registration email"
+              autoComplete="email"
+              className="min-w-0 flex-1 bg-surface border border-border
+                rounded-lg px-3 py-2.5 text-sm text-primary
+                placeholder:text-muted focus:outline-none focus:ring-2
+                focus:ring-accent focus:border-transparent"
+            />
+            <button
+              type="button"
+              onClick={() => void handleResend()}
+              disabled={resending}
+              className="shrink-0 border border-border bg-surface
+                hover:bg-surface-hover text-primary font-medium rounded-lg
+                px-4 py-2.5 text-sm flex items-center justify-center gap-2
+                transition-colors disabled:opacity-60
+                disabled:cursor-not-allowed"
+            >
+              {resending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              {resending ? "Sending..." : "Resend email"}
+            </button>
+          </div>
+          {resendMessage && (
+            <p role="status" className="text-green-600 text-xs mt-2">
+              {resendMessage}
+            </p>
+          )}
+          {resendError && (
+            <p role="alert" className="text-red-500 text-xs mt-2">
+              {resendError}
+            </p>
+          )}
+        </div>
 
         <p className="text-center text-sm text-secondary">
           Already verified?{" "}

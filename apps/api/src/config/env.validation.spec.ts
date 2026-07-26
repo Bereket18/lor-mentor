@@ -62,4 +62,60 @@ describe('validateEnv', () => {
       /COMPANY_BANK_ACCOUNTS is required when RECEIPT_VERIFIER_URL is set/,
     );
   });
+
+  it('requires a shared token when receipt verification is enabled', () => {
+    expect(() =>
+      validateEnv({
+        NODE_ENV: 'test',
+        JWT_ACCESS_SECRET: 'test-access',
+        JWT_REFRESH_SECRET: 'test-refresh',
+        DATABASE_URL: 'postgresql://localhost/test',
+        RECEIPT_VERIFIER_URL: 'http://localhost:8000',
+        COMPANY_BANK_ACCOUNTS: '1000123456789',
+      }),
+    ).toThrow(
+      /RECEIPT_VERIFIER_TOKEN is required when RECEIPT_VERIFIER_URL is set/,
+    );
+  });
+
+  it('rejects malformed company account entries', () => {
+    expect(() =>
+      validateEnv({
+        NODE_ENV: 'test',
+        JWT_ACCESS_SECRET: 'test-access',
+        JWT_REFRESH_SECRET: 'test-refresh',
+        DATABASE_URL: 'postgresql://localhost/test',
+        RECEIPT_VERIFIER_URL: 'http://localhost:8000',
+        RECEIPT_VERIFIER_TOKEN: 'local-test-token',
+        COMPANY_BANK_ACCOUNTS: 'CHANGE_ME,1234',
+      }),
+    ).toThrow(/Each COMPANY_BANK_ACCOUNTS entry must contain at least 8 digits/);
+  });
+
+  it('rejects a weak verifier token in production', () => {
+    expect(() =>
+      validateEnv({
+        ...secureProductionConfig,
+        RECEIPT_VERIFIER_URL: 'http://verifier:8000',
+        RECEIPT_VERIFIER_TOKEN: 'CHANGE_ME_shared_verifier_token',
+        COMPANY_BANK_ACCOUNTS: '1000123456789',
+      }),
+    ).toThrow(
+      /RECEIPT_VERIFIER_TOKEN must be a non-placeholder secret of at least 32 characters/,
+    );
+  });
+
+  it('accepts complete local receipt-verifier configuration', () => {
+    const config = {
+      NODE_ENV: 'test',
+      JWT_ACCESS_SECRET: 'test-access',
+      JWT_REFRESH_SECRET: 'test-refresh',
+      DATABASE_URL: 'postgresql://localhost/test',
+      RECEIPT_VERIFIER_URL: 'http://127.0.0.1:8000',
+      RECEIPT_VERIFIER_TOKEN: 'local-test-token',
+      COMPANY_BANK_ACCOUNTS: '1000-1234-56789,0900 112 233',
+    };
+
+    expect(validateEnv({ ...config })).toEqual(config);
+  });
 });

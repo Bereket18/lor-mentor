@@ -156,4 +156,14 @@ export class AuthController {
   async resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.token, dto.password);
   }
+
+  // POST /api/v1/auth/resend-verification
+  // Tight throttle: each call can send an email. Same generic response
+  // whether or not the account exists (anti-enumeration).
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.OK)
+  async resendVerification(@Body() dto: ForgotPasswordDto) {
+    return this.authService.resendVerification(dto.email);
+  }
 }

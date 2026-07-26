@@ -78,9 +78,44 @@ caller switches on:
 
 ## Run locally
 
-```bash
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
-# or
-docker build -t receipt-verifier . && docker run -p 8000:8000 receipt-verifier
+### Windows PowerShell
+
+```powershell
+cd services/receipt-verifier
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+
+# Generate once and keep the same value in apps/api/.env.
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+$env:VERIFIER_SHARED_TOKEN="<generated-token>"
+.\.venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8000
 ```
+
+Configure `apps/api/.env`, then restart the NestJS API:
+
+```env
+RECEIPT_VERIFIER_URL=http://127.0.0.1:8000
+RECEIPT_VERIFIER_TOKEN=<same-generated-token>
+COMPANY_BANK_ACCOUNTS=<real-college-account-1>,<real-college-account-2>
+```
+
+Do not use Chapa settlement accounts unless students also transfer directly
+into those accounts. `COMPANY_BANK_ACCOUNTS` is specifically the allowlist for
+direct bank/Telebirr transfers submitted through `/payments/verify`.
+
+### Production
+
+The production Compose file builds and starts this service automatically. Set
+the same `RECEIPT_VERIFIER_TOKEN` and the real `COMPANY_BANK_ACCOUNTS` values in
+the VPS `.env.production`; Compose injects the token as
+`VERIFIER_SHARED_TOKEN` and connects the API to `http://verifier:8000`.
+
+```bash
+openssl rand -hex 32
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+docker compose -f docker-compose.prod.yml exec verifier \
+  python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/health').read().decode())"
+```
+
+For a complete setup and test matrix, see
+`docs/deploy/receipt-verifier.md`.

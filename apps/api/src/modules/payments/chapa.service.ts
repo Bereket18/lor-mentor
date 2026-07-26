@@ -87,31 +87,20 @@ export class ChapaService {
     // Don't let a user pay again while a subscription is still active.
     await this.payments.assertNoActiveSubscription(user.id);
 
-    // Reuse an abandoned, still-pending Chapa attempt for the same plan so we
-    // don't accumulate dead rows when a student retries.
-    const existing = await this.prisma.payment.findFirst({
-      where: { userId: user.id, planId, method: 'CHAPA', status: 'PENDING' },
+    // Chapa permanently reserves tx_ref values, including references from a
+    // failed or abandoned checkout. Every initialization must therefore create
+    // a fresh attempt instead of reusing a local PENDING payment.
+    const txRef = `lm-${crypto.randomUUID()}`;
+    const payment = await this.prisma.payment.create({
+      data: {
+        userId: user.id,
+        planId,
+        method: 'CHAPA',
+        amount: plan.priceETB,
+        currency: 'ETB',
+        txRef,
+      },
     });
-
-    const payment =
-      existing ??
-      (await this.prisma.payment.create({
-        data: {
-          userId: user.id,
-          planId,
-          method: 'CHAPA',
-          amount: plan.priceETB,
-          currency: 'ETB',
-        },
-      }));
-
-    const txRef = `lm-${payment.id}`;
-    if (payment.txRef !== txRef) {
-      await this.prisma.payment.update({
-        where: { id: payment.id },
-        data: { txRef },
-      });
-    }
 
     const apiBase = this.publicApiBase();
     const webBase = this.publicWebBase();
@@ -133,26 +122,56 @@ export class ChapaService {
       },
     };
 
-    const res = await fetch(`${this.baseUrl}/transaction/initialize`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.secretKey()}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    });
-
-    const json = (await res.json()) as ChapaInitResponse;
-    if (!res.ok || json.status !== 'success' || !json.data?.checkout_url) {
-      this.logger.error(
-        `Chapa initialize failed: ${json.message ?? res.statusText}`,
+    let res: Response;
+    let json: ChapaInitResponse;
+    try {
+      res = await fetch(`${this.baseUrl}/transaction/initialize`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.secretKey()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+      json = (await res.json()) as ChapaInitResponse;
+    } catch (error) {
+      await this.rejectInitialization(
+        payment.id,
+        'Chapa initialization could not be reached',
       );
+      this.logger.error(
+        `Chapa initialize request failed for ${txRef}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw new ServiceUnavailableException(
+        'Online payment could not be started. Please try again.',
+      );
+    }
+
+    if (!res.ok || json.status !== 'success' || !json.data?.checkout_url) {
+      const reason = json.message ?? res.statusText ?? 'Unknown Chapa error';
+      await this.rejectInitialization(
+        payment.id,
+        `Chapa initialization failed: ${reason}`,
+      );
+      this.logger.error(`Chapa initialize failed for ${txRef}: ${reason}`);
       throw new BadRequestException(
         json.message ?? 'Could not start the online payment',
       );
     }
 
     return { checkoutUrl: json.data.checkout_url, txRef };
+  }
+
+  private async rejectInitialization(paymentId: string, reason: string) {
+    await this.prisma.payment.updateMany({
+      where: { id: paymentId, status: 'PENDING' },
+      data: {
+        status: 'REJECTED',
+        rejectionReason: reason,
+        reviewedAt: new Date(),
+      },
+    });
   }
 
   /**

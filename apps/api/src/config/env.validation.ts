@@ -88,14 +88,48 @@ export function validateEnv(
     }
   }
 
-  // Bank-receipt auto-verification is optional, but enabling the verifier
-  // without declaring which accounts are ours would let a valid transfer to
-  // ANY account auto-approve — so require the account list when the URL is set.
-  if (config.RECEIPT_VERIFIER_URL && !config.COMPANY_BANK_ACCOUNTS) {
-    errors.push(
-      'COMPANY_BANK_ACCOUNTS is required when RECEIPT_VERIFIER_URL is set ' +
-        '(auto-approval matches the receipt receiver against these accounts)',
-    );
+  // Bank-receipt auto-verification is optional. Once enabled, require both
+  // service authentication and plausible real receiving-account numbers.
+  // This prevents an unsecured scraper endpoint or a placeholder account list
+  // from silently reaching production.
+  if (config.RECEIPT_VERIFIER_URL) {
+    const token =
+      typeof config.RECEIPT_VERIFIER_TOKEN === 'string'
+        ? config.RECEIPT_VERIFIER_TOKEN.trim()
+        : '';
+    if (!token) {
+      errors.push(
+        'RECEIPT_VERIFIER_TOKEN is required when RECEIPT_VERIFIER_URL is set',
+      );
+    } else if (
+      isProd &&
+      (token.length < 32 || /^change[_-]?me/i.test(token))
+    ) {
+      errors.push(
+        'RECEIPT_VERIFIER_TOKEN must be a non-placeholder secret of at least 32 characters in production',
+      );
+    }
+
+    const accountValue =
+      typeof config.COMPANY_BANK_ACCOUNTS === 'string'
+        ? config.COMPANY_BANK_ACCOUNTS
+        : '';
+    const accounts = accountValue
+      .split(',')
+      .map((account) => account.trim())
+      .filter(Boolean);
+    if (accounts.length === 0) {
+      errors.push(
+        'COMPANY_BANK_ACCOUNTS is required when RECEIPT_VERIFIER_URL is set ' +
+          '(auto-approval matches the receipt receiver against these accounts)',
+      );
+    } else if (
+      accounts.some((account) => account.replace(/\D/g, '').length < 8)
+    ) {
+      errors.push(
+        'Each COMPANY_BANK_ACCOUNTS entry must contain at least 8 digits',
+      );
+    }
   }
 
   if (errors.length > 0) {

@@ -76,7 +76,6 @@ must also be registered + given a secret in the dashboard:
 
 | Purpose | URL your app uses | Notes |
 |---|---|---|
-| **Checkout callback** (server→server) | `https://api.lormentor.com/api/v1/payments/chapa/callback` | Chapa sends a GET; the API re-verifies the transaction before approval. |
 | **Webhook** (server→server, source of truth) | `https://api.lormentor.com/api/v1/payments/chapa/webhook` | Chapa POSTs here signed with the webhook secret. |
 | **Return** (browser redirect after paying) | `https://lormentor.com/pricing/payment/callback?tx=<txRef>` | UX only; the app re-verifies with Chapa before trusting it. |
 

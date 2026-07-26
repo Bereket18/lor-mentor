@@ -40,7 +40,7 @@ export default async function PricingPage() {
             Choose your plan
           </h1>
           <p className="text-secondary text-sm max-w-md mx-auto">
-            Pay online with Chapa for instant access — or upload a bank transfer
+            Pay online with Chapa for instant access or upload a bank transfer
             receipt and get approved by admin, usually within 24 hours.
           </p>
         </div>

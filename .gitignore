@@ -37,3 +37,4 @@ uploads/*
 # Python bytecode (receipt-verifier)
 __pycache__/
 *.pyc
+.venv/

@@ -15,10 +15,21 @@ interface PaymentUpdateArgs {
   };
 }
 
+interface PaymentCreateArgs {
+  data: {
+    txRef: string;
+  };
+}
+
 describe('ChapaService', () => {
   const webhookSecret = 'webhook-test-secret';
   const findUnique = jest.fn();
+  const findPlan = jest.fn();
+  const create =
+    jest.fn<(args: PaymentCreateArgs) => Promise<{ id: string }>>();
   const update = jest.fn<(args: PaymentUpdateArgs) => unknown>();
+  const updateMany = jest.fn();
+  const assertNoActiveSubscription = jest.fn();
   const finalizeApproval = jest.fn();
   const config = {
     get: jest.fn((key: string) => {
@@ -26,14 +37,18 @@ describe('ChapaService', () => {
         CHAPA_SECRET_KEY: 'chapa-test-secret',
         CHAPA_WEBHOOK_SECRET: webhookSecret,
         CHAPA_BASE_URL: 'https://chapa.test/v1',
+        API_PUBLIC_URL: 'https://api.lormentor.test',
+        WEB_PUBLIC_URL: 'https://lormentor.test',
       };
       return values[key];
     }),
   } as unknown as ConfigService;
   const prisma = {
-    payment: { findUnique, update },
+    subscriptionPlan: { findUnique: findPlan },
+    payment: { findUnique, create, update, updateMany },
   } as unknown as PrismaService;
   const payments = {
+    assertNoActiveSubscription,
     finalizeApproval,
   } as unknown as PaymentsService;
   const service = new ChapaService(config, prisma, payments);
@@ -55,9 +70,107 @@ describe('ChapaService', () => {
   beforeEach(() => {
     jest.useRealTimers();
     findUnique.mockReset();
+    findPlan.mockReset();
+    create.mockReset();
     update.mockReset();
+    updateMany.mockReset();
+    assertNoActiveSubscription.mockReset();
     finalizeApproval.mockReset();
     jest.restoreAllMocks();
+  });
+
+  it('creates a fresh Chapa transaction reference for every checkout attempt', async () => {
+    findPlan.mockResolvedValue({
+      id: 'plan-1',
+      name: 'Semester',
+      priceETB: '1000',
+      isActive: true,
+    });
+    create
+      .mockResolvedValueOnce({ id: 'payment-1' })
+      .mockResolvedValueOnce({ id: 'payment-2' });
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          status: 'success',
+          data: { checkout_url: 'https://checkout.chapa.test' },
+        }),
+    } as Response);
+    const user = {
+      id: 'student-1',
+      email: 'student@example.com',
+      fullName: 'Test Student',
+    };
+
+    const first = await service.initialize(user, 'plan-1');
+    const second = await service.initialize(user, 'plan-1');
+
+    expect(first.txRef).toMatch(/^lm-[0-9a-f-]{36}$/);
+    expect(second.txRef).toMatch(/^lm-[0-9a-f-]{36}$/);
+    expect(second.txRef).not.toBe(first.txRef);
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(create).toHaveBeenNthCalledWith(1, {
+      data: {
+        userId: 'student-1',
+        planId: 'plan-1',
+        method: 'CHAPA',
+        amount: '1000',
+        currency: 'ETB',
+        txRef: first.txRef,
+      },
+    });
+    expect(create).toHaveBeenNthCalledWith(2, {
+      data: {
+        userId: 'student-1',
+        planId: 'plan-1',
+        method: 'CHAPA',
+        amount: '1000',
+        currency: 'ETB',
+        txRef: second.txRef,
+      },
+    });
+  });
+
+  it('rejects the local attempt when Chapa initialization fails', async () => {
+    const reviewedAt = new Date('2026-07-26T09:00:00.000Z');
+    jest.useFakeTimers().setSystemTime(reviewedAt);
+    findPlan.mockResolvedValue({
+      id: 'plan-1',
+      name: 'Semester',
+      priceETB: '1000',
+      isActive: true,
+    });
+    create.mockResolvedValue({ id: 'payment-1' });
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: false,
+      statusText: 'Bad Request',
+      json: () =>
+        Promise.resolve({
+          status: 'failed',
+          message: 'Transaction reference has been used before',
+        }),
+    } as Response);
+
+    await expect(
+      service.initialize(
+        {
+          id: 'student-1',
+          email: 'student@example.com',
+          fullName: 'Test Student',
+        },
+        'plan-1',
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { id: 'payment-1', status: 'PENDING' },
+      data: {
+        status: 'REJECTED',
+        rejectionReason:
+          'Chapa initialization failed: Transaction reference has been used before',
+        reviewedAt,
+      },
+    });
   });
 
   it('rejects an invalid webhook signature before parsing the payload', async () => {

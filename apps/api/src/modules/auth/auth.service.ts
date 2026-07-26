@@ -2,8 +2,8 @@ import {
   Injectable,
   BadRequestException,
   UnauthorizedException,
+  ServiceUnavailableException,
   Logger,
-  // NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -94,18 +94,76 @@ export class AuthService {
     const token = crypto.randomBytes(32).toString('hex');
     const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-    // 5. Save the token to the database
-    await this.usersService.saveVerifyToken(user.id, token, expiry);
-
     const webBase = this.publicWebBase();
     const verifyUrl = `${webBase}/verify-email?token=${encodeURIComponent(token)}&email=${encodeURIComponent(user.email)}`;
 
-    await this.mail.sendEmailVerification(user.email, verifyUrl);
+    // If storing the token or sending the email fails, roll the account back.
+    // Otherwise the user is left half-created and unable to re-register.
+    try {
+      await this.usersService.saveVerifyToken(user.id, token, expiry);
+      await this.mail.sendEmailVerification(user.email, verifyUrl);
+    } catch (error) {
+      this.logger.error(
+        `Verification setup failed for ${user.email}; rolling back registration`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      await this.prisma.user.delete({ where: { id: user.id } }).catch(() => {});
+      throw new ServiceUnavailableException(
+        'We could not send the verification email. Please try again in a moment.',
+      );
+    }
 
     return {
       message:
         'Registration successful. Please check your email to verify your account.',
     };
+  }
+
+  // ── RESEND VERIFICATION EMAIL ─────────────────────────
+  // Always returns the same generic message so callers can't probe which
+  // emails exist or are unverified (same anti-enumeration stance as
+  // forgot-password).
+  async resendVerification(email: string) {
+    const generic = {
+      message:
+        'If that email is registered and unverified, a new verification link has been sent.',
+    };
+
+    const user = await this.usersService.findByEmail(email);
+    if (!user || user.isEmailVerified) return generic;
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    const verifyUrl = `${this.publicWebBase()}/verify-email?token=${encodeURIComponent(token)}&email=${encodeURIComponent(user.email)}`;
+
+    let tokenSaved = false;
+    try {
+      await this.usersService.saveVerifyToken(user.id, token, expiry);
+      tokenSaved = true;
+      await this.mail.sendEmailVerification(user.email, verifyUrl);
+    } catch (error) {
+      this.logger.error(
+        `Resend verification email failed for user ${user.id}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+
+      // Do not invalidate a previously delivered link when the replacement
+      // email fails. The token condition prevents this rollback from
+      // overwriting a newer token created by a concurrent resend.
+      if (tokenSaved) {
+        await this.prisma.user
+          .updateMany({
+            where: { id: user.id, emailVerifyToken: token },
+            data: {
+              emailVerifyToken: user.emailVerifyToken,
+              emailVerifyExpiry: user.emailVerifyExpiry,
+            },
+          })
+          .catch(() => {});
+      }
+    }
+
+    return generic;
   }
 
   // ── VERIFY EMAIL ──────────────────────────────────────

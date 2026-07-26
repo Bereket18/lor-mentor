@@ -6,7 +6,8 @@ import { test, expect } from "@playwright/test";
  * default to dark, switch on click, and persist the choice across a reload.
  */
 test("theme toggle switches and persists", async ({ page }) => {
-  await page.goto("/login", { waitUntil: "networkidle" });
+  test.setTimeout(60_000);
+  await page.goto("/login", { waitUntil: "domcontentloaded" });
 
   const html = page.locator("html");
   await expect(html).toHaveAttribute("data-theme", "dark");
@@ -16,7 +17,7 @@ test("theme toggle switches and persists", async ({ page }) => {
   await expect(html).toHaveAttribute("data-theme", "light");
 
   // Choice persists across a full reload (localStorage-backed).
-  await page.reload({ waitUntil: "networkidle" });
+  await page.reload({ waitUntil: "domcontentloaded" });
   await expect(html).toHaveAttribute("data-theme", "light");
 
   // Switch back so the context ends in a known state.
