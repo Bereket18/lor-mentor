@@ -18,6 +18,7 @@ Use the same token on both sides:
 # NestJS API
 RECEIPT_VERIFIER_URL=http://127.0.0.1:8000
 RECEIPT_VERIFIER_TOKEN=<generated-token>
+RECEIPT_VERIFIER_TIMEOUT_MS=60000
 COMPANY_BANK_ACCOUNTS=<real-college-account-1>,<real-college-account-2>
 
 # Python verifier process
@@ -58,6 +59,7 @@ In `.env.production`:
 ```env
 RECEIPT_VERIFIER_URL=http://verifier:8000
 RECEIPT_VERIFIER_TOKEN=<generated-token>
+RECEIPT_VERIFIER_TIMEOUT_MS=60000
 COMPANY_BANK_ACCOUNTS=<real-college-account-1>,<real-college-account-2>
 ```
 
@@ -90,4 +92,6 @@ waiting for review. A successful auto-approval requires:
 4. The bank reference has not already been submitted.
 
 If a bank blocks scraping or changes its receipt page, the application keeps
-the payment pending for manual administrator review.
+the payment pending with the submitted reference or URL for manual review.
+Confirmed wrong receiving accounts, underpayments, and failed/cancelled bank
+statuses are rejected and cannot be overridden from the admin dashboard.

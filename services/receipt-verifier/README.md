@@ -6,7 +6,7 @@ the (NestJS) API can verify Ethiopian bank transfers from a transaction
 reference or receipt URL.
 
 It is **stateless** and never touches the app database. It extracts and
-normalizes receipt data; all verification *policy* (does the amount match, is
+normalizes receipt data; all verification _policy_ (does the amount match, is
 the receiver our account, has this reference been used before) lives in the
 NestJS `payments` module.
 
@@ -18,9 +18,11 @@ can't be imported. This service is the bridge: NestJS → HTTP → here.
 ## Endpoints
 
 ### `GET /health`
+
 Liveness + the list of supported banks.
 
 ### `POST /extract`
+
 Header `x-verifier-token: <VERIFIER_SHARED_TOKEN>` (when configured).
 
 ```jsonc
@@ -57,13 +59,13 @@ Returns the **normalized contract** (see `normalize.py`):
 Non-2xx responses carry `{ "detail": { "code", "message" } }`. Codes the
 caller switches on:
 
-| code | meaning | caller action |
-|------|---------|---------------|
-| `NOT_FOUND` | no receipt data extracted | reject / ask user to recheck |
-| `BLOCKED` | 403 / timeout (e.g. Telebirr foreign IP) | fall back to manual admin review |
-| `EXTRACT_FAILED` | scraper/parse error (bank changed page?) | fall back to manual admin review |
-| `BAD_INPUT` / `MISSING_ACCOUNT` / `URL_REQUIRED` / `UNSUPPORTED_BANK` | bad request | surface validation error |
-| `UNAUTHORIZED` | wrong/missing token | fix config |
+| code                                                                  | meaning                                  | caller action                    |
+| --------------------------------------------------------------------- | ---------------------------------------- | -------------------------------- |
+| `NOT_FOUND`                                                           | no receipt data extracted                | reject / ask user to recheck     |
+| `BLOCKED`                                                             | 403 / timeout (e.g. Telebirr foreign IP) | fall back to manual admin review |
+| `EXTRACT_FAILED`                                                      | scraper/parse error (bank changed page?) | fall back to manual admin review |
+| `BAD_INPUT` / `MISSING_ACCOUNT` / `URL_REQUIRED` / `UNSUPPORTED_BANK` | bad request                              | surface validation error         |
+| `UNAUTHORIZED`                                                        | wrong/missing token                      | fix config                       |
 
 ## ⚠️ Deployment constraints
 
@@ -96,6 +98,7 @@ Configure `apps/api/.env`, then restart the NestJS API:
 ```env
 RECEIPT_VERIFIER_URL=http://127.0.0.1:8000
 RECEIPT_VERIFIER_TOKEN=<same-generated-token>
+RECEIPT_VERIFIER_TIMEOUT_MS=60000
 COMPANY_BANK_ACCOUNTS=<real-college-account-1>,<real-college-account-2>
 ```
 

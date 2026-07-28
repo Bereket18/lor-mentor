@@ -29,6 +29,11 @@ interface Verification {
   statusKnown?: boolean;
   statusOk?: boolean | null;
   reviewNote?: string;
+  verifierCode?: string;
+  decision?: string;
+  submittedReference?: string;
+  submittedUrl?: string;
+  submittedAccountMatched?: boolean;
 }
 
 interface Payment {
@@ -37,6 +42,7 @@ interface Payment {
   method: "MANUAL" | "CHAPA";
   receiptNumber?: string | null;
   createdAt: string;
+  receiptPath?: string | null;
   bankName?: string | null;
   bankReference?: string | null;
   verification?: Verification | null;
@@ -60,17 +66,49 @@ const statusColors = {
 // Renders the data extracted from a bank receipt so an admin can eyeball it.
 // A green header means every auto-approval check passed; amber means it was
 // routed here for review (reviewNote explains why).
-function VerificationStrip({ v }: { v: Verification }) {
+function hasReviewEvidence(payment: Payment) {
+  const v = payment.verification;
+  return Boolean(
+    payment.receiptPath ||
+    payment.bankReference ||
+    v?.submittedReference ||
+    v?.submittedUrl ||
+    v?.reference ||
+    v?.amount != null ||
+    v?.receiverAccount,
+  );
+}
+
+function VerificationStrip({
+  payment,
+  v,
+}: {
+  payment: Payment;
+  v: Verification;
+}) {
   const flagged = Boolean(v.reviewNote);
+  const reference =
+    v.reference ?? payment.bankReference ?? v.submittedReference ?? "—";
+  const hasExtractedEvidence = Boolean(
+    v.amount != null ||
+    v.payerName ||
+    v.receiverName ||
+    v.receiverAccount ||
+    v.statusKnown !== undefined,
+  );
   const fields: [string, string][] = [
-    ["Reference", v.reference ?? "—"],
+    ["Reference", reference],
     ["Amount", v.amount != null ? `${v.amount.toLocaleString()} ETB` : "—"],
     ["Payer", v.payerName ?? "—"],
     ["Receiver", v.receiverName ?? "—"],
     ["Receiver acct", v.receiverAccount ?? "—"],
     [
       "Bank status",
-      v.statusKnown ? (v.status ?? "—") : "not reported by bank",
+      v.statusKnown === true
+        ? (v.status ?? "—")
+        : v.statusKnown === false
+          ? "not reported by bank"
+          : "—",
     ],
   ];
 
@@ -88,13 +126,24 @@ function VerificationStrip({ v }: { v: Verification }) {
             <ShieldCheck className="h-3.5 w-3.5" />
           )}
           {flagged ? "Needs review" : "Auto-verified from bank receipt"}
-          {v.bank && (
-            <span className="text-muted uppercase">· {v.bank}</span>
-          )}
+          {v.bank && <span className="text-muted uppercase">· {v.bank}</span>}
         </div>
 
         {flagged && (
           <p className="text-xs text-yellow-400/90 mb-2">{v.reviewNote}</p>
+        )}
+
+        {!hasExtractedEvidence && (
+          <p className="text-xs text-secondary mb-2">
+            No bank fields were extracted. Review the submitted reference or
+            receipt link before deciding.
+          </p>
+        )}
+
+        {v.submittedAccountMatched && (
+          <p className="text-xs text-green-400/90 mb-2">
+            CBE lookup used a configured college receiving account.
+          </p>
         )}
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5">
@@ -107,6 +156,19 @@ function VerificationStrip({ v }: { v: Verification }) {
             </div>
           ))}
         </div>
+
+        {v.submittedUrl && (
+          <a
+            href={v.submittedUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 mt-3 text-xs font-medium
+              text-accent hover:text-accent-hover transition-colors"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            Open submitted bank receipt
+          </a>
+        )}
       </div>
     </div>
   );
@@ -137,6 +199,12 @@ export default function AdminPaymentsPage() {
     try {
       await api.patch(`/payments/${id}/approve`);
       await loadPayments();
+      toast.success("Payment approved");
+    } catch (err: unknown) {
+      toast.error(
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message ?? "Could not approve payment",
+      );
     } finally {
       setActionId(null);
     }
@@ -149,6 +217,12 @@ export default function AdminPaymentsPage() {
         reason: "Receipt could not be verified",
       });
       await loadPayments();
+      toast.success("Payment rejected");
+    } catch (err: unknown) {
+      toast.error(
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message ?? "Could not reject payment",
+      );
     } finally {
       setActionId(null);
     }
@@ -214,116 +288,129 @@ export default function AdminPaymentsPage() {
             </span>
           </div>
 
-          {payments.map((payment, i) => (
-            <div
-              key={payment.id}
-              className={
-                i < payments.length - 1 ? "border-b border-subtle" : ""
-              }
-            >
-            <div className="grid grid-cols-12 gap-4 px-5 py-4 items-center">
-              <div className="col-span-3 min-w-0">
-                <p className="text-sm font-medium text-primary truncate">
-                  {payment.user.fullName}
-                </p>
-                <p className="text-xs text-muted truncate">
-                  {payment.user.email}
-                </p>
-              </div>
+          {payments.map((payment, i) => {
+            const reviewEvidence = hasReviewEvidence(payment);
+            return (
+              <div
+                key={payment.id}
+                className={
+                  i < payments.length - 1 ? "border-b border-subtle" : ""
+                }
+              >
+                <div className="grid grid-cols-12 gap-4 px-5 py-4 items-center">
+                  <div className="col-span-3 min-w-0">
+                    <p className="text-sm font-medium text-primary truncate">
+                      {payment.user.fullName}
+                    </p>
+                    <p className="text-xs text-muted truncate">
+                      {payment.user.email}
+                    </p>
+                  </div>
 
-              <p className="col-span-2 text-sm text-secondary">
-                {payment.user.phoneNumber ?? "—"}
-              </p>
+                  <p className="col-span-2 text-sm text-secondary">
+                    {payment.user.phoneNumber ?? "—"}
+                  </p>
 
-              <div className="col-span-2">
-                <p className="text-sm text-primary">{payment.plan.name}</p>
-                <p className="text-xs text-muted">
-                  {Number(payment.plan.priceETB).toLocaleString()} ETB
-                </p>
-                <span
-                  className={`inline-flex items-center gap-1 mt-1 text-[10px] font-medium
+                  <div className="col-span-2">
+                    <p className="text-sm text-primary">{payment.plan.name}</p>
+                    <p className="text-xs text-muted">
+                      {Number(payment.plan.priceETB).toLocaleString()} ETB
+                    </p>
+                    <span
+                      className={`inline-flex items-center gap-1 mt-1 text-[10px] font-medium
                     px-1.5 py-0.5 rounded ${
                       payment.method === "CHAPA"
                         ? "text-accent bg-accent/10"
                         : "text-secondary bg-white/5"
                     }`}
-                >
-                  {payment.method === "CHAPA" ? (
-                    <Zap className="h-3 w-3" />
-                  ) : (
-                    <Building2 className="h-3 w-3" />
-                  )}
-                  {payment.method === "CHAPA" ? "Online" : "Manual"}
-                </span>
-              </div>
-
-              <div className="col-span-2">
-                <span
-                  className={`text-xs font-medium px-2 py-1 rounded-lg ${statusColors[payment.status]}`}
-                >
-                  {payment.status}
-                </span>
-              </div>
-
-              <div className="col-span-3 flex items-center gap-2">
-                {payment.method === "MANUAL" && (
-                  <button
-                    type="button"
-                    onClick={() => openReceiptImage(payment.id)}
-                    className="flex items-center gap-1 text-xs font-medium text-accent
-                      hover:text-accent-hover transition-colors"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                    Image
-                  </button>
-                )}
-
-                {payment.status === "APPROVED" && (
-                  <button
-                    type="button"
-                    onClick={() => openReceiptPdf(payment.id)}
-                    className="flex items-center gap-1 text-xs font-medium text-secondary
-                      hover:text-primary transition-colors"
-                  >
-                    <FileText className="h-3.5 w-3.5" />
-                    PDF
-                  </button>
-                )}
-
-                {payment.status === "PENDING" && (
-                  <>
-                    <button
-                      onClick={() => handleApprove(payment.id)}
-                      disabled={actionId === payment.id}
-                      className="flex items-center gap-1 text-xs font-medium
-                        text-green-400 hover:text-green-300 disabled:opacity-50"
                     >
-                      {actionId === payment.id ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      {payment.method === "CHAPA" ? (
+                        <Zap className="h-3 w-3" />
                       ) : (
-                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        <Building2 className="h-3 w-3" />
                       )}
-                      Approve
-                    </button>
-                    <button
-                      onClick={() => handleReject(payment.id)}
-                      disabled={actionId === payment.id}
-                      className="flex items-center gap-1 text-xs font-medium
-                        text-red-400 hover:text-red-300 disabled:opacity-50"
+                      {payment.method === "CHAPA" ? "Online" : "Manual"}
+                    </span>
+                  </div>
+
+                  <div className="col-span-2">
+                    <span
+                      className={`text-xs font-medium px-2 py-1 rounded-lg ${statusColors[payment.status]}`}
                     >
-                      <XCircle className="h-3.5 w-3.5" />
-                      Reject
-                    </button>
-                  </>
+                      {payment.status}
+                    </span>
+                  </div>
+
+                  <div className="col-span-3 flex items-center gap-2">
+                    {payment.receiptPath && (
+                      <button
+                        type="button"
+                        onClick={() => openReceiptImage(payment.id)}
+                        className="flex items-center gap-1 text-xs font-medium text-accent
+                      hover:text-accent-hover transition-colors"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Image
+                      </button>
+                    )}
+
+                    {payment.status === "APPROVED" && (
+                      <button
+                        type="button"
+                        onClick={() => openReceiptPdf(payment.id)}
+                        className="flex items-center gap-1 text-xs font-medium text-secondary
+                      hover:text-primary transition-colors"
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                        PDF
+                      </button>
+                    )}
+
+                    {payment.status === "PENDING" && (
+                      <>
+                        {payment.method === "MANUAL" && reviewEvidence && (
+                          <button
+                            onClick={() => handleApprove(payment.id)}
+                            disabled={actionId === payment.id}
+                            className="flex items-center gap-1 text-xs font-medium
+                          text-green-400 hover:text-green-300 disabled:opacity-50"
+                          >
+                            {actionId === payment.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                            )}
+                            Approve
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleReject(payment.id)}
+                          disabled={actionId === payment.id}
+                          className="flex items-center gap-1 text-xs font-medium
+                        text-red-400 hover:text-red-300 disabled:opacity-50"
+                        >
+                          <XCircle className="h-3.5 w-3.5" />
+                          Reject
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {payment.verification && (
+                  <VerificationStrip
+                    payment={payment}
+                    v={payment.verification}
+                  />
+                )}
+                {payment.status === "PENDING" && !reviewEvidence && (
+                  <p className="px-5 pb-4 text-xs text-red-400">
+                    Approval blocked: no receipt or bank evidence is stored.
+                  </p>
                 )}
               </div>
-            </div>
-
-            {payment.verification && (
-              <VerificationStrip v={payment.verification} />
-            )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

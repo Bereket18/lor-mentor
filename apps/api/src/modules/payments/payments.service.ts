@@ -19,6 +19,10 @@ import { isPrivileged } from '../../common/constants/roles';
 import * as fs from 'fs';
 import * as path from 'path';
 
+type ReceiptDecision =
+  | { outcome: 'APPROVE' }
+  | { outcome: 'REVIEW' | 'REJECT'; reason: string };
+
 @Injectable()
 export class PaymentsService {
   private readonly uploadDir = path.join(process.cwd(), 'uploads', 'receipts');
@@ -131,10 +135,11 @@ export class PaymentsService {
    * and decide:
    *   - all checks pass  → create the Payment and auto-approve it (instant
    *                         subscription) via the shared finalizeApproval path.
-   *   - anything unclear → create a PENDING payment for manual admin review,
-   *                         with the reason recorded.
+   *   - incomplete/unavailable evidence → create a PENDING payment for manual
+   *                                       admin review.
+   *   - a confirmed security failure → record it as REJECTED and deny access.
    *
-   * The checks that gate auto-approval (see assertReceiptSatisfiesPlan):
+   * The checks that gate auto-approval (see assessReceipt):
    *   1. receiver account is one of OURS (COMPANY_BANK_ACCOUNTS)
    *   2. amount paid ≥ the plan price
    *   3. status is success, OR the bank exposes no status at all
@@ -172,16 +177,48 @@ export class PaymentsService {
 
     // Cheap pre-check: reject an already-used reference before we scrape the
     // bank. (The DB @unique constraint is the real guard against races below.)
-    const submittedRef = dto.reference?.trim();
+    let submittedRef = dto.reference?.trim();
+    let submittedUrl = dto.url?.trim();
+    const submittedAccount = dto.account?.trim();
+    if (
+      dto.bank === 'tele' &&
+      submittedRef &&
+      /^https:\/\//i.test(submittedRef)
+    ) {
+      submittedUrl = submittedRef;
+      submittedRef = undefined;
+    }
     if (submittedRef) {
       await this.assertReferenceUnused(submittedRef);
+    }
+
+    // CBE's FT lookup needs account digits. Restrict that lookup to the
+    // college's configured receiving accounts so this endpoint cannot be used
+    // as a general-purpose scraper for unrelated CBE transactions. The
+    // extracted receiver account remains the authoritative approval check.
+    if (dto.bank === 'cbe') {
+      if (!submittedAccount) {
+        throw new BadRequestException(
+          'CBE verification requires the last 8 digits of the college receiving account.',
+        );
+      }
+      if (submittedAccount.replace(/\D/g, '').length < 8) {
+        throw new BadRequestException(
+          'CBE verification requires at least 8 account digits.',
+        );
+      }
+      if (!this.isCompanyAccount(submittedAccount)) {
+        throw new BadRequestException(
+          'The CBE account must match the college receiving account.',
+        );
+      }
     }
 
     const result = await this.verifier.extract({
       bank: dto.bank,
       reference: submittedRef,
-      url: dto.url?.trim(),
-      account: dto.account?.trim(),
+      url: submittedUrl,
+      account: submittedAccount,
     });
 
     // Verifier could not give us a trustworthy answer → manual review.
@@ -200,6 +237,7 @@ export class PaymentsService {
       return this.createPendingForReview(userId, dto, plan, null, {
         reason: `Automated verification unavailable (${result.code}). Sent for manual review.`,
         bankReference: submittedRef,
+        verifierCode: result.code,
       });
     }
 
@@ -212,15 +250,18 @@ export class PaymentsService {
       await this.assertReferenceUnused(bankRef);
     }
 
-    const failure = this.assertReceiptSatisfiesPlan(
-      receipt,
-      Number(plan.priceETB),
-    );
-    if (failure) {
-      // Extracted fine, but a check failed (wrong account, too little, etc.).
-      // Route to admin with the extracted data attached so they can decide.
+    const decision = this.assessReceipt(receipt, Number(plan.priceETB));
+    if (decision.outcome === 'REJECT') {
+      await this.createRejectedVerification(userId, dto, plan, receipt, {
+        reason: decision.reason,
+        bankReference: bankRef,
+      });
+      throw new BadRequestException(decision.reason);
+    }
+    if (decision.outcome === 'REVIEW') {
+      // The bank did not expose enough data to make a safe automatic decision.
       return this.createPendingForReview(userId, dto, plan, receipt, {
-        reason: failure,
+        reason: decision.reason,
         bankReference: bankRef,
       });
     }
@@ -238,7 +279,9 @@ export class PaymentsService {
           amount: plan.priceETB,
           bankName: dto.bank,
           bankReference: bankRef,
-          verification: receipt as unknown as Prisma.InputJsonValue,
+          verification: this.buildVerification(receipt, dto, {
+            bankReference: bankRef,
+          }),
         },
       });
     } catch (err) {
@@ -273,32 +316,50 @@ export class PaymentsService {
   }
 
   /**
-   * Returns null when the receipt satisfies the plan (safe to auto-approve),
-   * or a human-readable reason string when it does not.
+   * Distinguish hard failures from incomplete evidence. Confirmed wrong
+   * receiver, underpayment, or failed bank status must never be overridable by
+   * an admin. Missing fields can still be reviewed against submitted evidence.
    */
-  private assertReceiptSatisfiesPlan(
+  private assessReceipt(
     receipt: NormalizedReceipt,
     planPrice: number,
-  ): string | null {
+  ): ReceiptDecision {
+    if (receipt.statusKnown && receipt.statusOk === false) {
+      return {
+        outcome: 'REJECT',
+        reason: `Bank reports transaction status "${receipt.status}".`,
+      };
+    }
+    if (
+      receipt.receiverAccount &&
+      !this.isCompanyAccount(receipt.receiverAccount)
+    ) {
+      return {
+        outcome: 'REJECT',
+        reason: 'Payment was not made to the college receiving account.',
+      };
+    }
+    if (receipt.amount != null && receipt.amount + 0.01 < planPrice) {
+      return {
+        outcome: 'REJECT',
+        reason: `Amount paid (${receipt.amount} ETB) is less than the plan price (${planPrice} ETB).`,
+      };
+    }
     if (!receipt.receiverAccount) {
       // e.g. BOA, whose receipts never expose the beneficiary account.
-      return 'Receiver account not present on this receipt; needs manual review.';
-    }
-    if (!this.isCompanyAccount(receipt.receiverAccount)) {
-      return 'Payment was not made to our account.';
+      return {
+        outcome: 'REVIEW',
+        reason:
+          'Receiver account not present on this receipt; needs manual review.',
+      };
     }
     if (receipt.amount == null) {
-      return 'Could not read the paid amount from the receipt.';
+      return {
+        outcome: 'REVIEW',
+        reason: 'Could not read the paid amount from the receipt.',
+      };
     }
-    if (receipt.amount + 0.01 < planPrice) {
-      return `Amount paid (${receipt.amount} ETB) is less than the plan price (${planPrice} ETB).`;
-    }
-    // statusKnown === false (CBE/Dashen/Awash) is acceptable: a matching
-    // account + amount is our success signal. Only fail on an explicit non-OK.
-    if (receipt.statusKnown && receipt.statusOk === false) {
-      return `Bank reports transaction status "${receipt.status}".`;
-    }
-    return null;
+    return { outcome: 'APPROVE' };
   }
 
   /** Does the receipt's receiver account match one of ours (masking-tolerant)? */
@@ -331,7 +392,11 @@ export class PaymentsService {
     dto: VerifyReceiptDto,
     plan: { id: string; priceETB: Prisma.Decimal; name: string },
     receipt: NormalizedReceipt | null,
-    opts: { reason: string; bankReference: string | null | undefined },
+    opts: {
+      reason: string;
+      bankReference: string | null | undefined;
+      verifierCode?: string;
+    },
   ) {
     try {
       const payment = await this.prisma.payment.create({
@@ -343,9 +408,11 @@ export class PaymentsService {
           bankName: dto.bank,
           bankReference: opts.bankReference ?? null,
           rejectionReason: null,
-          verification: (receipt
-            ? { ...receipt, reviewNote: opts.reason }
-            : { reviewNote: opts.reason }) as unknown as Prisma.InputJsonValue,
+          verification: this.buildVerification(receipt, dto, {
+            reviewNote: opts.reason,
+            verifierCode: opts.verifierCode,
+            bankReference: opts.bankReference,
+          }),
         },
       });
       return {
@@ -363,6 +430,81 @@ export class PaymentsService {
       }
       throw err;
     }
+  }
+
+  /** Record a confirmed bad receipt so its reference cannot be replayed. */
+  private async createRejectedVerification(
+    userId: string,
+    dto: VerifyReceiptDto,
+    plan: { id: string; priceETB: Prisma.Decimal; name: string },
+    receipt: NormalizedReceipt,
+    opts: { reason: string; bankReference: string | null | undefined },
+  ) {
+    try {
+      await this.prisma.payment.create({
+        data: {
+          userId,
+          planId: plan.id,
+          method: 'MANUAL',
+          amount: plan.priceETB,
+          bankName: dto.bank,
+          bankReference: opts.bankReference ?? null,
+          status: 'REJECTED',
+          rejectionReason: opts.reason,
+          reviewedAt: new Date(),
+          verification: this.buildVerification(receipt, dto, {
+            reviewNote: opts.reason,
+            decision: 'REJECTED',
+            bankReference: opts.bankReference,
+          }),
+        },
+      });
+    } catch (err) {
+      if (this.isUniqueViolation(err)) {
+        throw new BadRequestException(
+          'This receipt has already been submitted.',
+        );
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Persist both extracted bank data and the student's submitted lookup
+   * evidence. Never persist the raw CBE account digits; only record that the
+   * lookup was restricted to a configured college account.
+   */
+  private buildVerification(
+    receipt: NormalizedReceipt | null,
+    dto: VerifyReceiptDto,
+    opts: {
+      reviewNote?: string;
+      verifierCode?: string;
+      decision?: string;
+      bankReference?: string | null;
+    },
+  ): Prisma.InputJsonValue {
+    const rawReference = dto.reference?.trim();
+    const referenceIsUrl = Boolean(
+      rawReference && /^https:\/\//i.test(rawReference),
+    );
+    const submittedReference = referenceIsUrl ? undefined : rawReference;
+    const submittedUrl =
+      dto.url?.trim() ?? (referenceIsUrl ? rawReference : undefined);
+    return {
+      ...(receipt ?? {}),
+      ...(opts.reviewNote ? { reviewNote: opts.reviewNote } : {}),
+      ...(opts.verifierCode ? { verifierCode: opts.verifierCode } : {}),
+      ...(opts.decision ? { decision: opts.decision } : {}),
+      ...(submittedReference ? { submittedReference } : {}),
+      ...(submittedUrl ? { submittedUrl } : {}),
+      ...(dto.bank === 'cbe' && dto.account?.trim()
+        ? { submittedAccountMatched: true }
+        : {}),
+      ...(!receipt?.reference && opts.bankReference
+        ? { reference: opts.bankReference }
+        : {}),
+    } as Prisma.InputJsonObject;
   }
 
   /**
@@ -411,6 +553,9 @@ export class PaymentsService {
     }
     if (payment.status === 'REJECTED') {
       throw new BadRequestException('Payment has already been rejected');
+    }
+    if (opts.reviewedBy) {
+      this.assertAdminApprovalAllowed(payment);
     }
 
     const now = opts.paidAt ?? new Date();
@@ -512,6 +657,72 @@ export class PaymentsService {
       message: 'Payment approved and subscription activated',
       receiptNumber,
     };
+  }
+
+  /**
+   * Admin approval is intentionally limited to manual payments with evidence.
+   * Chapa payments must be finalized by Chapa verification, and extracted hard
+   * failures cannot be overridden from the dashboard.
+   */
+  private assertAdminApprovalAllowed(payment: {
+    method: string;
+    receiptPath: string | null;
+    bankReference: string | null;
+    verification: Prisma.JsonValue | null;
+    plan: { priceETB: Prisma.Decimal };
+  }) {
+    if (payment.method === 'CHAPA') {
+      throw new BadRequestException(
+        'Chapa payments can only be approved after successful Chapa verification.',
+      );
+    }
+
+    const verification = this.asVerificationRecord(payment.verification);
+    const hasEvidence = Boolean(
+      payment.receiptPath ||
+      payment.bankReference ||
+      verification?.submittedReference ||
+      verification?.submittedUrl ||
+      verification?.reference ||
+      verification?.amount != null ||
+      verification?.receiverAccount,
+    );
+    if (!hasEvidence) {
+      throw new BadRequestException(
+        'This payment has no receipt or bank evidence and cannot be approved.',
+      );
+    }
+
+    if (this.looksLikeNormalizedReceipt(verification)) {
+      const decision = this.assessReceipt(
+        verification,
+        Number(payment.plan.priceETB),
+      );
+      if (decision.outcome === 'REJECT') {
+        throw new BadRequestException(
+          `This payment cannot be approved: ${decision.reason}`,
+        );
+      }
+    }
+  }
+
+  private asVerificationRecord(
+    value: Prisma.JsonValue | null,
+  ): Record<string, unknown> | null {
+    return value !== null && typeof value === 'object' && !Array.isArray(value)
+      ? value
+      : null;
+  }
+
+  private looksLikeNormalizedReceipt(
+    value: Record<string, unknown> | null,
+  ): value is Record<string, unknown> & NormalizedReceipt {
+    return Boolean(
+      value &&
+      ('receiverAccount' in value ||
+        'amount' in value ||
+        'statusKnown' in value),
+    );
   }
 
   /** Upsert a user's subscription to ACTIVE within a transaction. */

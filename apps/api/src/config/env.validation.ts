@@ -101,10 +101,7 @@ export function validateEnv(
       errors.push(
         'RECEIPT_VERIFIER_TOKEN is required when RECEIPT_VERIFIER_URL is set',
       );
-    } else if (
-      isProd &&
-      (token.length < 32 || /^change[_-]?me/i.test(token))
-    ) {
+    } else if (isProd && (token.length < 32 || /^change[_-]?me/i.test(token))) {
       errors.push(
         'RECEIPT_VERIFIER_TOKEN must be a non-placeholder secret of at least 32 characters in production',
       );
@@ -129,6 +126,20 @@ export function validateEnv(
       errors.push(
         'Each COMPANY_BANK_ACCOUNTS entry must contain at least 8 digits',
       );
+    }
+
+    const timeoutValue = config.RECEIPT_VERIFIER_TIMEOUT_MS;
+    if (timeoutValue !== undefined && timeoutValue !== '') {
+      const timeoutMs = Number(timeoutValue);
+      if (
+        !Number.isInteger(timeoutMs) ||
+        timeoutMs < 5_000 ||
+        timeoutMs > 120_000
+      ) {
+        errors.push(
+          'RECEIPT_VERIFIER_TIMEOUT_MS must be an integer between 5000 and 120000',
+        );
+      }
     }
   }
 

@@ -291,8 +291,8 @@ function SubscribeContent() {
             <p className="text-sm text-secondary">
               You&apos;ll be redirected to Chapa&apos;s secure checkout to pay{" "}
               <strong className="text-primary">{priceLabel}</strong>. Once
-              payment is confirmed, your subscription activates automatically and
-              your receipt is generated instantly.
+              payment is confirmed, your subscription activates automatically
+              and your receipt is generated instantly.
             </p>
             <button
               type="button"
@@ -401,7 +401,9 @@ function SubscribeContent() {
                         value={reference}
                         onChange={(e) => setReference(e.target.value)}
                         placeholder={
-                          bank === "tele" ? "e.g. CHQ0FJ403O" : "e.g. FT25211G11JQ"
+                          bank === "tele"
+                            ? "e.g. CHQ0FJ403O"
+                            : "e.g. FT25211G11JQ"
                         }
                         className="w-full bg-surface border border-default rounded-xl px-4 py-3
                           text-sm text-primary placeholder:text-muted focus:border-accent focus:outline-none"
@@ -422,8 +424,8 @@ function SubscribeContent() {
                             text-sm text-primary placeholder:text-muted focus:border-accent focus:outline-none"
                         />
                         <p className="text-xs text-muted mt-2">
-                          CBE needs the last 8 digits of the paying account to
-                          look up the receipt.
+                          Enter the last 8 digits of the college receiving
+                          account. Other account numbers are rejected.
                         </p>
                       </div>
                     )}
@@ -442,7 +444,8 @@ function SubscribeContent() {
                     submitting ||
                     (bankInput === "url"
                       ? !receiptUrl.trim()
-                      : !reference.trim())
+                      : !reference.trim() ||
+                        (bankInput === "cbe" && !account.trim()))
                   }
                   className="w-full bg-accent hover:bg-accent-hover text-white
                     font-medium rounded-xl py-3 flex items-center justify-center gap-2
@@ -463,45 +466,45 @@ function SubscribeContent() {
                 <div>
                   <label className="block text-xs font-medium text-secondary mb-2 tracking-wide">
                     UPLOAD RECEIPT (IMAGE)
-              </label>
-              <label
-                className="flex flex-col items-center justify-center w-full h-40
+                  </label>
+                  <label
+                    className="flex flex-col items-center justify-center w-full h-40
                   bg-surface border-2 border-dashed border-default rounded-2xl
                   cursor-pointer hover:border-accent/50 transition-colors"
-              >
-                <Upload className="h-6 w-6 text-muted mb-2" />
-                <span className="text-sm text-secondary">
-                  {file ? file.name : "Click to select an image file"}
-                </span>
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  className="hidden"
-                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                />
-              </label>
-              <p className="text-xs text-muted mt-2">
-                Transfer {priceLabel} to the college account, then upload your
-                bank receipt screenshot.
-              </p>
-            </div>
+                  >
+                    <Upload className="h-6 w-6 text-muted mb-2" />
+                    <span className="text-sm text-secondary">
+                      {file ? file.name : "Click to select an image file"}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                  <p className="text-xs text-muted mt-2">
+                    Transfer {priceLabel} to the college account, then upload
+                    your bank receipt screenshot.
+                  </p>
+                </div>
 
-            <button
-              type="submit"
-              disabled={submitting || !file}
-              className="w-full bg-accent hover:bg-accent-hover text-white
+                <button
+                  type="submit"
+                  disabled={submitting || !file}
+                  className="w-full bg-accent hover:bg-accent-hover text-white
                 font-medium rounded-xl py-3 flex items-center justify-center gap-2
                 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                "Submit for review"
-              )}
-            </button>
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    "Submit for review"
+                  )}
+                </button>
               </form>
             )}
           </div>

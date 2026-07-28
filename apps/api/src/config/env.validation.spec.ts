@@ -89,7 +89,9 @@ describe('validateEnv', () => {
         RECEIPT_VERIFIER_TOKEN: 'local-test-token',
         COMPANY_BANK_ACCOUNTS: 'CHANGE_ME,1234',
       }),
-    ).toThrow(/Each COMPANY_BANK_ACCOUNTS entry must contain at least 8 digits/);
+    ).toThrow(
+      /Each COMPANY_BANK_ACCOUNTS entry must contain at least 8 digits/,
+    );
   });
 
   it('rejects a weak verifier token in production', () => {
@@ -117,5 +119,22 @@ describe('validateEnv', () => {
     };
 
     expect(validateEnv({ ...config })).toEqual(config);
+  });
+
+  it('validates the optional receipt-verifier timeout range', () => {
+    expect(() =>
+      validateEnv({
+        NODE_ENV: 'test',
+        JWT_ACCESS_SECRET: 'test-access',
+        JWT_REFRESH_SECRET: 'test-refresh',
+        DATABASE_URL: 'postgresql://localhost/test',
+        RECEIPT_VERIFIER_URL: 'http://127.0.0.1:8000',
+        RECEIPT_VERIFIER_TOKEN: 'local-test-token',
+        RECEIPT_VERIFIER_TIMEOUT_MS: '2000',
+        COMPANY_BANK_ACCOUNTS: '1000123456789',
+      }),
+    ).toThrow(
+      /RECEIPT_VERIFIER_TIMEOUT_MS must be an integer between 5000 and 120000/,
+    );
   });
 });

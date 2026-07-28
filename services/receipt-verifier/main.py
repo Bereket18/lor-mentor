@@ -14,6 +14,7 @@ Deployment notes (see README):
 
 import os
 from typing import Optional
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, model_validator
@@ -24,6 +25,14 @@ from ethiobank_receipts.extractors.cbe import extract_cbe_receipt_info_from_ft
 from normalize import normalize
 
 SUPPORTED_BANKS = {"cbe", "dashen", "awash", "boa", "zemen", "tele"}
+RECEIPT_HOSTS = {
+    "cbe": {"apps.cbe.com.et"},
+    "dashen": {"receipt.dashensuperapp.com"},
+    "awash": {"awashpay.awashbank.com"},
+    "boa": {"cs.bankofabyssinia.com"},
+    "zemen": {"share.zemenbank.com"},
+    "tele": {"transactioninfo.ethiotelecom.et"},
+}
 
 # Optional shared secret. When set, callers must send it as `x-verifier-token`.
 SHARED_TOKEN = os.environ.get("VERIFIER_SHARED_TOKEN", "").strip()
@@ -55,6 +64,37 @@ class VerifierError(Exception):
         self.http_status = http_status
 
 
+def _validate_receipt_url(bank: str, url: str) -> str:
+    """Restrict scraper traffic to the selected bank's real HTTPS host."""
+    try:
+        parsed = urlparse(url.strip())
+    except ValueError as exc:
+        raise VerifierError("BAD_INPUT", "Receipt URL is invalid.", 400) from exc
+
+    hostname = (parsed.hostname or "").lower().rstrip(".")
+    if (
+        parsed.scheme.lower() != "https"
+        or not hostname
+        or parsed.username
+        or parsed.password
+        or hostname not in RECEIPT_HOSTS[bank]
+    ):
+        raise VerifierError(
+            "BAD_INPUT",
+            f"Receipt URL must use the official {bank.upper()} receipt domain.",
+            400,
+        )
+    return url.strip()
+
+
+def _reference_hint(req: ExtractRequest) -> Optional[str]:
+    """Return a stable transaction ID rather than storing a full receipt URL."""
+    value = (req.reference or req.url or "").strip()
+    if req.bank.lower() == "tele" and value.lower().startswith("https://"):
+        return urlparse(value).path.rstrip("/").split("/")[-1] or None
+    return req.reference
+
+
 def _run_extractor(req: ExtractRequest) -> dict:
     """Call the right ethiobank-receipts entry point and return its raw dict."""
     bank = req.bank.lower()
@@ -74,10 +114,13 @@ def _run_extractor(req: ExtractRequest) -> dict:
 
     if bank == "tele" and req.reference and not req.url:
         # Telebirr accepts the bare receipt id.
-        return extract_receipt("tele", req.reference)
+        reference = req.reference.strip()
+        if reference.lower().startswith(("http://", "https://")):
+            reference = _validate_receipt_url(bank, reference)
+        return extract_receipt("tele", reference)
 
     if req.url:
-        return extract_receipt(bank, req.url)
+        return extract_receipt(bank, _validate_receipt_url(bank, req.url))
 
     raise VerifierError(
         "URL_REQUIRED",
@@ -105,7 +148,7 @@ def extract(req: ExtractRequest, x_verifier_token: Optional[str] = Header(defaul
 
     try:
         raw = _run_extractor(req)
-        result = normalize(bank, raw, reference_hint=req.reference)
+        result = normalize(bank, raw, reference_hint=_reference_hint(req))
     except VerifierError as exc:
         raise HTTPException(
             status_code=exc.http_status,

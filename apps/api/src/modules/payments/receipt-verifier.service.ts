@@ -54,13 +54,16 @@ export class ReceiptVerifierService {
   private readonly logger = new Logger(ReceiptVerifierService.name);
   private readonly baseUrl: string | undefined;
   private readonly token: string | undefined;
-  private readonly timeoutMs = 20_000; // extractors scrape live bank pages
+  private readonly timeoutMs: number;
 
   constructor(private readonly config: ConfigService) {
     this.baseUrl = this.config
       .get<string>('RECEIPT_VERIFIER_URL')
       ?.replace(/\/+$/, '');
     this.token = this.config.get<string>('RECEIPT_VERIFIER_TOKEN');
+    this.timeoutMs = Number(
+      this.config.get<string>('RECEIPT_VERIFIER_TIMEOUT_MS') ?? '60000',
+    );
   }
 
   /** True when a verifier URL is configured. */
