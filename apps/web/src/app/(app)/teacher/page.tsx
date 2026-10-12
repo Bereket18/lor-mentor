@@ -13,6 +13,11 @@ interface Course {
   description?: string | null;
   isPublished: boolean;
   _count?: { materials: number };
+  semester?: {
+    id: string;
+    name: string;
+    academicYear?: { id: string; label: string };
+  } | null;
 }
 
 const fadeUp = {
@@ -24,11 +29,16 @@ export default function TeacherDashboardPage() {
   const { user } = useAuth();
   const [courses, setCourses]   = useState<Course[]>([]);
   const [loading, setLoading]   = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     api.get("/courses/mine")
       .then((r) => setCourses(r.data ?? []))
-      .catch(() => setCourses([]))
+      .catch((err) => {
+        console.error('[TeacherDashboard] Failed to load courses:', err);
+        setError('Failed to load courses. Please refresh.');
+        setCourses([]);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -96,6 +106,15 @@ export default function TeacherDashboardPage() {
               <div key={i} className="h-16 rounded-2xl skeleton" />
             ))}
           </div>
+        ) : error ? (
+          <div
+            className="rounded-2xl p-8 text-center"
+            style={{ border: "1px solid rgba(239,68,68,0.2)", background: "rgba(239,68,68,0.05)" }}
+          >
+            <BookOpen className="h-8 w-8 mx-auto mb-3" style={{ color: "rgba(239,68,68,0.6)" }} />
+            <p className="text-secondary text-sm mb-2">{error}</p>
+            <p className="text-muted text-xs">Check the console for details.</p>
+          </div>
         ) : courses.length === 0 ? (
           <div
             className="rounded-2xl p-8 text-center"
@@ -130,6 +149,11 @@ export default function TeacherDashboardPage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-primary truncate">{course.title}</p>
                     <div className="flex items-center gap-3 mt-0.5">
+                      {course.semester && (
+                        <span className="text-xs text-muted truncate">
+                          {course.semester.name}
+                        </span>
+                      )}
                       <span className="text-xs text-muted flex items-center gap-1">
                         <FileText className="h-3 w-3" />
                         {course._count?.materials ?? 0} materials

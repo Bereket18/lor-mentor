@@ -79,13 +79,23 @@ export class CoursesService {
   }
 
   async findByTeacher(teacherId: string) {
-    return this.prisma.course.findMany({
+    console.log('[CoursesService] findByTeacher called with teacherId:', teacherId);
+    const results = await this.prisma.course.findMany({
       where: { teacherId, isArchived: false },
       orderBy: { createdAt: 'desc' },
       include: {
+        semester: {
+          select: {
+            id: true,
+            name: true,
+            academicYear: { select: { id: true, label: true } },
+          },
+        },
         _count: { select: { materials: true } },
       },
     });
+    console.log('[CoursesService] findByTeacher results count:', results.length);
+    return results;
   }
 
   async findAllAdmin() {
