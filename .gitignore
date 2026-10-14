@@ -38,5 +38,5 @@ uploads/*
 __pycache__/
 *.pyc
 .venv/
-.claude
-.kilo
+.claude/
+.kilo/
