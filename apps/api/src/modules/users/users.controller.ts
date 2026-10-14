@@ -102,6 +102,19 @@ export class UsersController {
     return this.usersService.changeStatus(id, isActive, actor.id);
   }
 
+  // Admin: assign or re-assign a user's department and academic year.
+  // Allows fixing program assignment after account creation.
+  @Patch(':id/assignment')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  assignDepartment(
+    @Param('id') id: string,
+    @Body('departmentId') departmentId: string,
+    @Body('academicYearId') academicYearId: string | undefined,
+  ) {
+    return this.usersService.assignDepartment(id, departmentId, academicYearId);
+  }
+
   @Patch('me/profile')
   updateProfile(
     @CurrentUser() user: RequestUser,

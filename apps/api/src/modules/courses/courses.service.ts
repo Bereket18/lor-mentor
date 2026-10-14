@@ -183,6 +183,7 @@ export class CoursesService {
   }
 
   async update(id: string, dto: UpdateCourseDto, actor: CourseActor) {
+    console.log('[CoursesService] update called - courseId:', id, 'dto:', dto, 'actor:', actor);
     const course = await this.ensureExists(id);
 
     if (actor.role === 'TEACHER') {
@@ -198,7 +199,9 @@ export class CoursesService {
       await this.ensureTeacher(dto.teacherId);
     }
 
-    return this.prisma.course.update({ where: { id }, data: dto });
+    const result = await this.prisma.course.update({ where: { id }, data: dto });
+    console.log('[CoursesService] update completed - new teacherId:', result.teacherId);
+    return result;
   }
 
   async archive(id: string) {

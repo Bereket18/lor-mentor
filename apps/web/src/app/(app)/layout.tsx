@@ -7,42 +7,9 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { useAuth } from "@/hooks/use-auth";
+import { isAllowed, homeFor } from "@/lib/route-access";
 
 const COLLAPSED_KEY = "lm-sidebar-collapsed";
-
-// -- Role-based route access --------------------------------------
-// Single source of truth for which roles may load which area. The
-// sidebar already hides links by role, but this enforces it even when
-// a user types a URL directly.
-const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
-// Student-only feature routes (admins/teachers have their own areas)
-const STUDENT_ROUTES = [
-  "/dashboard", "/courses", "/ai-tutor", "/flashcards",
-  "/quiz", "/progress",
-];
-
-// Where each role lands when they hit a route they may not access.
-function homeFor(role?: string) {
-  if (role && ADMIN_ROLES.includes(role)) return "/admin";
-  if (role === "TEACHER") return "/teacher";
-  return "/dashboard";
-}
-
-function isAllowed(pathname: string, role?: string) {
-  if (pathname.startsWith("/admin")) return !!role && ADMIN_ROLES.includes(role);
-  if (pathname.startsWith("/teacher")) return role === "TEACHER";
-  // Forum is shared by students and teachers
-  if (pathname.startsWith("/forum")) return role === "STUDENT" || role === "TEACHER";
-  // Shared routes — any authenticated user
-  if (pathname === "/profile" || pathname.startsWith("/notifications")) return true;
-  // Student feature routes
-  const isStudentRoute = STUDENT_ROUTES.some(
-    (r) => pathname === r || pathname.startsWith(r + "/"),
-  );
-  if (isStudentRoute) return role === "STUDENT";
-  // Anything else (e.g. catch-all profile) — allow
-  return true;
-}
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();

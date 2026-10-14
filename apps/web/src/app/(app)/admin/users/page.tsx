@@ -22,7 +22,10 @@ interface User {
   isEmailVerified: boolean;
   createdAt: string;
   updatedAt: string;
+  departmentId?: string | null;
+  academicYearId?: string | null;
   department?: { id: string; name: string } | null;
+  academicYear?: { id: string; label: string } | null;
 }
 
 // Role display config
@@ -70,6 +73,13 @@ export default function AdminUsersPage() {
   const [cleanupResult,  setCleanupResult]  = useState<string | null>(null);
   const [deletingId,     setDeletingId]     = useState<string | null>(null);
 
+  // Program (dept/year) assignment inline state
+  const [assigningId,  setAssigningId]  = useState<string | null>(null);
+  const [assignDeptId, setAssignDeptId] = useState("");
+  const [assignYearId, setAssignYearId] = useState("");
+  const [assignYears,  setAssignYears]  = useState<{ id: string; label: string }[]>([]);
+  const [assigning,    setAssigning]    = useState(false);
+
   // Roles this actor may create (admins can't mint admins/super-admins)
   const creatableRoles = isSuperAdmin
     ? (["STUDENT", "TEACHER", "ADMIN", "SUPER_ADMIN"] as const)
@@ -104,6 +114,14 @@ export default function AdminUsersPage() {
         .catch(() => setAcademicYears([]));
     }
   }, [isStudentRole, newStaff.departmentId]);
+
+  // Load academic years for the inline assign-program form
+  useEffect(() => {
+    if (!assignDeptId) { setAssignYears([]); return; }
+    api.get(`/academic-years?departmentId=${assignDeptId}`)
+      .then((r) => setAssignYears(r.data ?? []))
+      .catch(() => setAssignYears([]));
+  }, [assignDeptId]);
 
   async function handleCreateStaff() {
     if (!newStaff.fullName.trim() || !newStaff.email.trim()) return;
@@ -174,6 +192,39 @@ export default function AdminUsersPage() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       toast.error(err?.response?.data?.message ?? "Failed to update status");
+    }
+  }
+
+  async function handleAssignDepartment(userId: string) {
+    if (!assignDeptId) return;
+    setAssigning(true);
+    try {
+      const res = await api.patch(`/users/${userId}/assignment`, {
+        departmentId: assignDeptId,
+        academicYearId: assignYearId || undefined,
+      });
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === userId
+            ? {
+                ...u,
+                departmentId: res.data.user.departmentId,
+                academicYearId: res.data.user.academicYearId,
+                department: res.data.user.department,
+                academicYear: res.data.user.academicYear,
+              }
+            : u,
+        ),
+      );
+      toast.success("Program assigned");
+      setAssigningId(null);
+      setAssignDeptId("");
+      setAssignYearId("");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message ?? "Failed to assign program");
+    } finally {
+      setAssigning(false);
     }
   }
 
@@ -482,10 +533,72 @@ export default function AdminUsersPage() {
                   {/* Email */}
                   <p className="col-span-3 text-xs text-secondary truncate">{user.email}</p>
 
-                  {/* Program */}
-                  <p className="col-span-2 text-xs text-muted truncate">
-                    {user.department?.name ?? <span className="opacity-40">—</span>}
-                  </p>
+                  {/* Program — click to assign/reassign */}
+                  <div className="col-span-2">
+                    {assigningId === user.id ? (
+                      <div className="flex flex-col gap-1">
+                        <select
+                          value={assignDeptId}
+                          onChange={(e) => { setAssignDeptId(e.target.value); setAssignYearId(""); }}
+                          className="text-xs rounded-lg px-2 py-1 w-full outline-none"
+                          style={{ background: "var(--bg-elevated)", border: "1px solid rgba(45,212,191,0.25)", color: "var(--text-primary)" }}
+                        >
+                          <option value="">— Dept —</option>
+                          {departments.map((d) => (
+                            <option key={d.id} value={d.id}>{d.name}</option>
+                          ))}
+                        </select>
+                        <select
+                          value={assignYearId}
+                          onChange={(e) => setAssignYearId(e.target.value)}
+                          disabled={!assignDeptId}
+                          className="text-xs rounded-lg px-2 py-1 w-full outline-none disabled:opacity-50"
+                          style={{ background: "var(--bg-elevated)", border: "1px solid rgba(45,212,191,0.25)", color: "var(--text-primary)" }}
+                        >
+                          <option value="">— Year —</option>
+                          {assignYears.map((y) => (
+                            <option key={y.id} value={y.id}>{y.label}</option>
+                          ))}
+                        </select>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => handleAssignDepartment(user.id)}
+                            disabled={!assignDeptId || assigning}
+                            className="text-[10px] px-2 py-0.5 rounded-md font-semibold text-white disabled:opacity-50"
+                            style={{ background: "#147878" }}
+                          >
+                            {assigning ? "…" : "Save"}
+                          </button>
+                          <button
+                            onClick={() => { setAssigningId(null); setAssignDeptId(""); setAssignYearId(""); }}
+                            className="text-[10px] px-2 py-0.5 rounded-md font-semibold"
+                            style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setAssigningId(user.id);
+                          setAssignDeptId(user.departmentId ?? "");
+                          setAssignYearId(user.academicYearId ?? "");
+                        }}
+                        title="Click to assign program"
+                        className="text-left w-full hover:opacity-75 transition-opacity"
+                      >
+                        <span className="text-xs text-muted truncate block">
+                          {user.department?.name ?? <span className="opacity-40">—</span>}
+                        </span>
+                        {user.academicYear && (
+                          <span className="text-[10px] block" style={{ color: "var(--text-muted)", opacity: 0.65 }}>
+                            {user.academicYear.label}
+                          </span>
+                        )}
+                      </button>
+                    )}
+                  </div>
 
                   {/* Role badge + selector */}
                   <div className="col-span-2">

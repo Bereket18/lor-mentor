@@ -16,38 +16,72 @@ const api = axios.create({
 });
 
 // -- Response interceptor -----------------------------------
-// This runs on every response before it reaches our code
-// If the server returns 401 (not logged in) we redirect to login
+// Queued refresh: concurrent 401s share ONE /auth/refresh call.
+// Without this, N parallel 401s fire N refresh requests — the first
+// rotates the jti and the rest fail (replayed jti is denied).
+let isRefreshing = false;
+type QueuedRequest = {
+  resolve: (value: unknown) => void;
+  reject: (reason: unknown) => void;
+};
+let failedQueue: QueuedRequest[] = [];
+
+function processQueue(error: unknown) {
+  failedQueue.forEach((prom) => {
+    if (error) prom.reject(error);
+    else prom.resolve(null);
+  });
+  failedQueue = [];
+}
+
 api.interceptors.response.use(
-  // Success — just return the response as normal
   (response) => response,
-
-  // Error — handle specific status codes
   async (error) => {
-    const status = error?.response?.status;
+    const status = error?.response?.status as number | undefined;
+    const originalRequest = error?.config as
+      | (typeof error.config & { _retry?: boolean })
+      | undefined;
 
-    // 401 means the access token expired
-    // Try to refresh it silently
-    if (status === 401) {
-      // Only try to refresh if we are not already
-      // on an auth page — prevents infinite loop
+    const isRefreshRequest =
+      typeof originalRequest?.url === "string" &&
+      originalRequest.url.includes("/auth/refresh");
+
+    // Only handle 401s for non-refresh requests that haven't been retried yet
+    if (status === 401 && originalRequest && !originalRequest._retry && !isRefreshRequest) {
+      // If a refresh is already in flight, queue this request
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then(() => api.request(originalRequest))
+          .catch((err) => Promise.reject(err));
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
       const isAuthPage =
-        window.location.pathname.startsWith("/login") ||
-        window.location.pathname.startsWith("/register") ||
-        window.location.pathname.startsWith("/admin-login") ||
-        window.location.pathname.startsWith("/pricing");
+        typeof window !== "undefined" &&
+        (window.location.pathname.startsWith("/login") ||
+          window.location.pathname.startsWith("/register") ||
+          window.location.pathname.startsWith("/admin-login") ||
+          window.location.pathname.startsWith("/pricing"));
 
-      if (!isAuthPage) {
-        try {
-          // Try to get a new access token using the refresh token
-          await api.post("/auth/refresh");
+      if (isAuthPage) {
+        isRefreshing = false;
+        return Promise.reject(error);
+      }
 
-          // Retry the original failed request
-          return api.request(error.config);
-        } catch {
-          // Refresh also failed — redirect to login
-          window.location.href = "/login";
-        }
+      try {
+        await api.post("/auth/refresh");
+        processQueue(null);
+        return api.request(originalRequest);
+      } catch (refreshError) {
+        processQueue(refreshError);
+        if (typeof window !== "undefined") window.location.href = "/login";
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
       }
     }
 

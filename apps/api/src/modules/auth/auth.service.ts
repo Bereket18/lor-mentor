@@ -361,20 +361,17 @@ export class AuthService {
 
   // ── RESET PASSWORD ────────────────────────────────────
   async resetPassword(token: string, newPassword: string) {
-    const user = await this.usersService.findByResetToken(token);
+    // Hash first so the DB write is instant once we claim the token.
+    const passwordHash = await bcrypt.hash(newPassword, 12);
 
-    if (!user) {
+    // Atomic claim: one UPDATE that matches the token AND checks expiry.
+    // Eliminates the TOCTOU race in the old findByResetToken + updatePassword
+    // two-trip flow that caused "new password doesn't work after reset".
+    const updated = await this.usersService.claimResetToken(token, passwordHash);
+
+    if (!updated) {
       throw new BadRequestException('Invalid or expired reset link');
     }
-
-    if (user.passwordResetExpiry && user.passwordResetExpiry < new Date()) {
-      throw new BadRequestException(
-        'Reset link has expired. Please request a new one.',
-      );
-    }
-
-    const passwordHash = await bcrypt.hash(newPassword, 12);
-    await this.usersService.updatePassword(user.id, passwordHash);
 
     return { message: 'Password reset successful. You can now log in.' };
   }

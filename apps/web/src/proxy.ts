@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { isProtectedPath } from "@/lib/route-access";
 
 /**
  * Edge auth guard (Next.js 16 "proxy" convention — formerly middleware).
@@ -12,29 +13,14 @@ import type { NextRequest } from "next/server";
  * verify the JWT here). The API still enforces real authentication, and the
  * app layout still enforces fine-grained role access. We accept either cookie:
  * an expired access_token with a valid refresh_token is still a logged-in user
- * (the axios interceptor silently refreshes).
+ * (the axios interceptor silently refreshes). Route list is centralized in
+ * lib/route-access.ts so proxy + layout cannot drift.
  */
-const PROTECTED_PREFIXES = [
-  "/dashboard",
-  "/courses",
-  "/ai-tutor",
-  "/flashcards",
-  "/quiz",
-  "/progress",
-  "/forum",
-  "/profile",
-  "/notifications",
-  "/admin",
-  "/teacher",
-];
 
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  const isProtected = PROTECTED_PREFIXES.some(
-    (p) => pathname === p || pathname.startsWith(p + "/"),
-  );
-  if (!isProtected) return NextResponse.next();
+  if (!isProtectedPath(pathname)) return NextResponse.next();
 
   const hasSession =
     req.cookies.has("access_token") || req.cookies.has("refresh_token");

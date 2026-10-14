@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD, APP_FILTER } from '@nestjs/core';
 import { BullModule } from '@nestjs/bullmq';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -33,11 +33,14 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     // 120 requests / minute / IP is generous for normal app usage.
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     // Root Redis connection — every BullMQ queue in the app shares this
-    BullModule.forRoot({
-      connection: {
-        host: process.env.REDIS_HOST ?? 'localhost',
-        port: parseInt(process.env.REDIS_PORT ?? '6379', 10),
-      },
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        connection: {
+          host: config.get<string>('REDIS_HOST') ?? 'localhost',
+          port: parseInt(config.get<string>('REDIS_PORT') ?? '6379', 10),
+        },
+      }),
     }),
     PrismaModule,
     AuthModule,

@@ -118,6 +118,32 @@ export class UsersService {
       },
     });
   }
+  // Atomically claim a password-reset token and write the new hash in ONE
+  // UPDATE statement. The WHERE clause filters on token value AND non-expired
+  // expiry, so a replayed (already-cleared) or expired token returns count=0
+  // without a prior SELECT — closes the TOCTOU race in the old 2-trip flow
+  // where findByResetToken + updatePassword were separate round-trips that
+  // caused "new password doesn't work after reset".
+  async claimResetToken(
+    token: string,
+    passwordHash: string,
+  ): Promise<boolean> {
+    const result = await this.prisma.user.updateMany({
+      where: {
+        passwordResetToken: token,
+        passwordResetExpiry: { gt: new Date() },
+      },
+      data: {
+        passwordHash,
+        failedLoginCount: 0,
+        lockoutUntil: null,
+        passwordResetToken: null,
+        passwordResetExpiry: null,
+      },
+    });
+    return result.count === 1;
+  }
+
   // Find user by email verification token
   async findByVerifyToken(token: string) {
     return this.prisma.user.findFirst({
@@ -177,7 +203,9 @@ export class UsersService {
           createdAt: true,
           updatedAt: true,
           departmentId: true,
+          academicYearId: true,
           department: { select: { id: true, name: true } },
+          academicYear: { select: { id: true, label: true } },
         },
       }),
       this.prisma.user.count({ where }),
@@ -282,6 +310,59 @@ export class UsersService {
     });
 
     return { message: `Role updated to ${role}`, user };
+  }
+
+  // Assign or re-assign a user's department and optionally academic year.
+  // Admin action — allows fixing program assignment after account creation.
+  // Students always require both fields; staff only require the department.
+  async assignDepartment(
+    userId: string,
+    departmentId: string,
+    academicYearId: string | undefined,
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    const dept = await this.prisma.department.findUnique({
+      where: { id: departmentId },
+    });
+    if (!dept || dept.isArchived) {
+      throw new BadRequestException('Selected department is not valid');
+    }
+
+    if (academicYearId) {
+      const year = await this.prisma.academicYear.findUnique({
+        where: { id: academicYearId },
+        select: { departmentId: true, isArchived: true },
+      });
+      if (!year || year.isArchived || year.departmentId !== departmentId) {
+        throw new BadRequestException(
+          'Selected academic year is not valid for this department',
+        );
+      }
+    } else if (user.role === 'STUDENT') {
+      throw new BadRequestException(
+        'Students require an academic year assignment',
+      );
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { departmentId, academicYearId: academicYearId ?? null },
+      select: {
+        id: true,
+        fullName: true,
+        departmentId: true,
+        academicYearId: true,
+        department: { select: { id: true, name: true } },
+        academicYear: { select: { id: true, label: true } },
+      },
+    });
+
+    return { message: 'Program assigned', user: updated };
   }
 
   // Activate or deactivate a user — admin action
