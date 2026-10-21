@@ -60,11 +60,6 @@ export function useAuth() {
     }
   }
 
-  async function register(fullName: string, email: string, password: string) {
-    const res = await api.post("/auth/register", { fullName, email, password });
-    return res.data;
-  }
-
   // Force a fresh /me (e.g. after editing the profile name).
   async function checkAuth() {
     await queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
@@ -87,7 +82,6 @@ export function useAuth() {
     isStudent,
     login,
     logout,
-    register,
     checkAuth,
   };
 }

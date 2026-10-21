@@ -4,15 +4,22 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
+  Users,
+  CreditCard,
+  Layers,
   BookOpen,
   Bot,
   GraduationCap,
+  MessageSquare,
+  BarChart3,
   User,
 } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 
-// Only 5 items fit on mobile bottom nav
-// We pick the most important ones
-const mobileNav = [
+// Only 5 items fit on the mobile bottom nav, so each role gets the sections
+// they actually use. This used to be student-only for every role, which meant
+// admins/teachers tapped a link and got bounced straight back home.
+const studentNav = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Home" },
   { href: "/courses", icon: BookOpen, label: "Courses" },
   { href: "/ai-tutor", icon: Bot, label: "AI" },
@@ -20,8 +27,26 @@ const mobileNav = [
   { href: "/profile", icon: User, label: "Profile" },
 ];
 
+const adminNav = [
+  { href: "/admin", icon: LayoutDashboard, label: "Overview" },
+  { href: "/admin/users", icon: Users, label: "Users" },
+  { href: "/admin/payments", icon: CreditCard, label: "Payments" },
+  { href: "/admin/courses", icon: BookOpen, label: "Courses" },
+  { href: "/admin/plans", icon: Layers, label: "Plans" },
+];
+
+const teacherNav = [
+  { href: "/teacher", icon: LayoutDashboard, label: "Home" },
+  { href: "/teacher/courses", icon: BookOpen, label: "Courses" },
+  { href: "/forum", icon: MessageSquare, label: "Forum" },
+  { href: "/teacher/analytics", icon: BarChart3, label: "Analytics" },
+  { href: "/profile", icon: User, label: "Profile" },
+];
+
 export function MobileNav() {
   const pathname = usePathname();
+  const { isAdmin, isTeacher } = useAuth();
+  const items = isAdmin ? adminNav : isTeacher ? teacherNav : studentNav;
 
   return (
     <nav
@@ -39,8 +64,11 @@ export function MobileNav() {
         WebkitBackdropFilter: "blur(16px) saturate(160%)",
       }}
     >
-      {mobileNav.map((item) => {
-        const isActive = pathname.startsWith(item.href);
+      {items.map((item) => {
+        const isActive =
+          item.href === "/admin" || item.href === "/dashboard" || item.href === "/teacher"
+            ? pathname === item.href
+            : pathname.startsWith(item.href);
 
         return (
           <Link key={item.href} href={item.href} className="flex-1">

@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/ui/confirm-dialog-provider";
 
 interface Material {
   id: string;
@@ -46,6 +47,7 @@ function GlowInput(props: React.InputHTMLAttributes<HTMLInputElement> & { hasErr
 }
 
 export default function TeacherCoursesPage() {
+  const confirm = useConfirm();
   const [courses,       setCourses]       = useState<Course[]>([]);
   const [loading,       setLoading]       = useState(true);
   const [selectedCourse,setSelectedCourse]= useState<Course | null>(null);
@@ -109,7 +111,13 @@ export default function TeacherCoursesPage() {
 
   async function handleDelete(materialId: string) {
     if (!selectedCourse) return;
-    if (!confirm("Delete this material? This cannot be undone.")) return;
+    const confirmed = await confirm({
+      title: "Delete this material?",
+      description: "This material will be permanently removed. This cannot be undone.",
+      confirmLabel: "Delete material",
+      destructive: true,
+    });
+    if (!confirmed) return;
     await api.delete(`/materials/${materialId}`);
     const m = await api.get(`/materials?courseId=${selectedCourse.id}`);
     const updated = courses.map((c) => c.id === selectedCourse.id ? { ...c, materials: m.data ?? [] } : c);

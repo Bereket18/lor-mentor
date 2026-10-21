@@ -8,10 +8,28 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
+import { useConfirm } from "@/components/ui/confirm-dialog-provider";
 
 import { toast } from "sonner";
 
 interface Department { id: string; name: string }
+
+interface Course {
+  id: string;
+  title: string;
+  isPublished: boolean;
+  isArchived: boolean;
+  teacher?: { id: string; fullName: string } | null;
+  semester?: {
+    id: string;
+    name: string;
+    academicYear?: {
+      id: string;
+      label: string;
+      department?: { name: string } | null;
+    } | null;
+  } | null;
+}
 
 interface User {
   id: string;
@@ -51,12 +69,16 @@ function GlowInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
 
 export default function AdminUsersPage() {
   const { user: currentUser } = useAuth();
+  const confirm = useConfirm();
   const isSuperAdmin = currentUser?.role === "SUPER_ADMIN";
 
   const [users,       setUsers]       = useState<User[]>([]);
+  const [total,       setTotal]       = useState(0);
   const [loading,     setLoading]     = useState(true);
   const [search,      setSearch]      = useState("");
   const [roleFilter,  setRoleFilter]  = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [deptFilter,   setDeptFilter]   = useState("");
   const [sortByRole,  setSortByRole]  = useState(false);
   const [showCreate,  setShowCreate]  = useState(false);
   const [creating,    setCreating]    = useState(false);
@@ -67,11 +89,17 @@ export default function AdminUsersPage() {
     role: "TEACHER" as "STUDENT" | "TEACHER" | "ADMIN" | "SUPER_ADMIN",
     departmentId: "", academicYearId: "",
   });
-  const [createdResult,  setCreatedResult]  = useState<{ name: string; email: string; password: string } | null>(null);
+  const [createdResult,  setCreatedResult]  = useState<{ name: string; email: string; password: string; courses?: number } | null>(null);
   const [cleanupConfirm, setCleanupConfirm] = useState(false);
   const [cleaning,       setCleaning]       = useState(false);
   const [cleanupResult,  setCleanupResult]  = useState<string | null>(null);
   const [deletingId,     setDeletingId]     = useState<string | null>(null);
+
+  // Teacher course pre-assignment (create panel)
+  const [courses,           setCourses]           = useState<Course[]>([]);
+  const [coursesLoading,    setCoursesLoading]    = useState(false);
+  const [courseSearch,      setCourseSearch]      = useState("");
+  const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]);
 
   // Program (dept/year) assignment inline state
   const [assigningId,  setAssigningId]  = useState<string | null>(null);
@@ -85,17 +113,30 @@ export default function AdminUsersPage() {
     ? (["STUDENT", "TEACHER", "ADMIN", "SUPER_ADMIN"] as const)
     : (["STUDENT", "TEACHER"] as const);
   const isStudentRole = newStaff.role === "STUDENT";
+  const isPrivilegedRole =
+    newStaff.role === "ADMIN" || newStaff.role === "SUPER_ADMIN";
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ search, limit: "100", ...(roleFilter ? { role: roleFilter } : {}), ...(sortByRole ? { sortBy: "role" } : {}) });
+      const params = new URLSearchParams({
+        search,
+        limit: "100",
+        ...(roleFilter ? { role: roleFilter } : {}),
+        ...(sortByRole ? { sortBy: "role" } : {}),
+        ...(statusFilter ? { isActive: statusFilter } : {}),
+        ...(deptFilter ? { departmentId: deptFilter } : {}),
+      });
       const res = await api.get(`/users?${params}`);
       setUsers(res.data.users ?? []);
+      setTotal(res.data.meta?.total ?? res.data.users?.length ?? 0);
+    } catch {
+      setUsers([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
-  }, [search, roleFilter, sortByRole]);
+  }, [search, roleFilter, sortByRole, statusFilter, deptFilter]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadUsers(); }, [loadUsers]);
@@ -115,13 +156,55 @@ export default function AdminUsersPage() {
     }
   }, [isStudentRole, newStaff.departmentId]);
 
-  // Load academic years for the inline assign-program form
+  // Load academic years for the inline assign-program form.
+  // When assignDeptId is empty, assignYears stays empty because the fetch
+  // never runs — no synchronous setState needed inside the effect body.
   useEffect(() => {
-    if (!assignDeptId) { setAssignYears([]); return; }
+    if (!assignDeptId) {
+      return;
+    }
+    let cancelled = false;
     api.get(`/academic-years?departmentId=${assignDeptId}`)
-      .then((r) => setAssignYears(r.data ?? []))
-      .catch(() => setAssignYears([]));
+      .then((r) => { if (!cancelled) setAssignYears(r.data ?? []); })
+      .catch(() => { if (!cancelled) setAssignYears([]); });
+    return () => { cancelled = true; };
   }, [assignDeptId]);
+
+  // Derive empty years when no department is selected (during render, not in effect)
+  const effectiveAssignYears = assignDeptId ? assignYears : [];
+
+  // Load the course list for teacher pre-assignment while the create panel is
+  // open on the TEACHER role, so the admin can create the account and assign
+  // courses in one step (audit finding A1 — no second manual pass needed).
+  useEffect(() => {
+    if (!showCreate || newStaff.role !== "TEACHER") return;
+    let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCoursesLoading(true);
+    api.get("/courses/admin")
+      .then((r) => { if (!cancelled) setCourses(r.data ?? []); })
+      .catch(() => { if (!cancelled) setCourses([]); })
+      .finally(() => { if (!cancelled) setCoursesLoading(false); });
+    return () => { cancelled = true; };
+  }, [showCreate, newStaff.role]);
+
+  // Teacher create-panel: the chosen department narrows the pickable courses
+  // (mirrors the API rule — assignable courses must belong to the college's
+  // active catalog).
+  const createDeptName = departments.find((d) => d.id === newStaff.departmentId)?.name ?? "";
+  const visibleCourses = courses
+    .filter((c) => !c.isArchived)
+    .filter((c) => !createDeptName || c.semester?.academicYear?.department?.name === createDeptName)
+    .filter((c) => !courseSearch.trim() || c.title.toLowerCase().includes(courseSearch.trim().toLowerCase()))
+    .sort((a, b) => {
+      const da = a.semester?.academicYear?.department?.name ?? "";
+      const db = b.semester?.academicYear?.department?.name ?? "";
+      if (da !== db) return da.localeCompare(db);
+      const ya = a.semester?.academicYear?.label ?? "";
+      const yb = b.semester?.academicYear?.label ?? "";
+      if (ya !== yb) return ya.localeCompare(yb);
+      return a.title.localeCompare(b.title);
+    });
 
   async function handleCreateStaff() {
     if (!newStaff.fullName.trim() || !newStaff.email.trim()) return;
@@ -132,16 +215,23 @@ export default function AdminUsersPage() {
     setCreating(true);
     setCreatedResult(null);
     try {
-      const payload: Record<string, string> = {
+      const payload: Record<string, unknown> = {
         fullName: newStaff.fullName,
         email: newStaff.email,
         role: newStaff.role,
       };
-      if (newStaff.departmentId) payload.departmentId = newStaff.departmentId;
+      if (!isPrivilegedRole && newStaff.departmentId) payload.departmentId = newStaff.departmentId;
       if (isStudentRole && newStaff.academicYearId) payload.academicYearId = newStaff.academicYearId;
+      if (newStaff.role === "TEACHER" && selectedCourseIds.length > 0) payload.courseIds = selectedCourseIds;
       const res = await api.post("/users/create-staff", payload);
-      setCreatedResult({ name: res.data.user.fullName, email: res.data.user.email, password: res.data.temporaryPassword });
+      setCreatedResult({
+        name: res.data.user.fullName,
+        email: res.data.user.email,
+        password: res.data.temporaryPassword,
+        courses: newStaff.role === "TEACHER" ? selectedCourseIds.length : 0,
+      });
       setNewStaff({ fullName: "", email: "", role: "TEACHER", departmentId: "", academicYearId: "" });
+      setSelectedCourseIds([]);
       await loadUsers();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
@@ -152,7 +242,13 @@ export default function AdminUsersPage() {
   }
 
   async function handleDelete(target: User) {
-    if (!confirm(`Permanently delete ${target.fullName}? This cannot be undone.`)) return;
+    const confirmed = await confirm({
+      title: "Delete this user?",
+      description: `Permanently delete ${target.fullName}? This cannot be undone.`,
+      confirmLabel: "Delete user",
+      destructive: true,
+    });
+    if (!confirmed) return;
     setDeletingId(target.id);
     try {
       await api.delete(`/users/${target.id}`);
@@ -245,6 +341,9 @@ export default function AdminUsersPage() {
   }
 
   const roleGroups = ["SUPER_ADMIN", "ADMIN", "TEACHER", "STUDENT", "GUEST"];
+  const hasActiveFilters = Boolean(
+    search || roleFilter || statusFilter || deptFilter,
+  );
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -253,7 +352,9 @@ export default function AdminUsersPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="font-display text-2xl font-bold text-primary">User Management</h1>
-          <p className="text-secondary text-sm mt-0.5">{users.length} users · sorted by {sortByRole ? "role" : "date"}</p>
+          <p className="text-secondary text-sm mt-0.5">
+            {total} {hasActiveFilters ? "matching users" : "users"} · sorted by {sortByRole ? "role" : "date"}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {isSuperAdmin && (
@@ -345,6 +446,13 @@ export default function AdminUsersPage() {
                     Temporary password: <span className="font-mono font-bold text-primary px-1.5 py-0.5 rounded" style={{ background: "rgba(45,212,191,0.1)" }}>{createdResult.password}</span>
                   </p>
                   <p className="text-muted text-xs mt-1.5">Share this with the staff member — they should change it on first login.</p>
+                  {createdResult.courses !== undefined && (
+                    <p className="text-muted text-xs mt-1">
+                      {createdResult.courses > 0
+                        ? `📚 Assigned to ${createdResult.courses} course${createdResult.courses === 1 ? "" : "s"} — they will appear on the teacher's dashboard at first login.`
+                        : "📚 No courses assigned yet — assign them from the course page when the schedule is ready."}
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -366,7 +474,17 @@ export default function AdminUsersPage() {
                   {creatableRoles.map((r) => (
                     <button
                       key={r}
-                      onClick={() => setNewStaff({ ...newStaff, role: r })}
+                      onClick={() => {
+                        const nextIsPrivileged = r === "ADMIN" || r === "SUPER_ADMIN";
+                        setNewStaff({
+                          ...newStaff,
+                          role: r,
+                          // Admin accounts carry no program — drop any value
+                          // picked while another role was selected.
+                          ...(nextIsPrivileged ? { departmentId: "", academicYearId: "" } : {}),
+                        });
+                        setSelectedCourseIds([]);
+                      }}
                       className="flex-1 min-w-[7rem] py-2.5 rounded-xl text-sm font-semibold transition-all"
                       style={
                         newStaff.role === r
@@ -380,49 +498,144 @@ export default function AdminUsersPage() {
                 </div>
               </div>
 
-              {/* Department / academic year */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-secondary mb-1.5 tracking-widest uppercase">
-                    {isStudentRole
-                      ? <>Department <span style={{ color: "var(--state-error)" }}>*</span></>
-                      : <>Assign Program <span className="text-muted font-normal">(optional)</span></>}
-                  </label>
-                  <select
-                    value={newStaff.departmentId}
-                    onChange={(e) => setNewStaff({ ...newStaff, departmentId: e.target.value, academicYearId: "" })}
-                    aria-label="Department"
-                    className="w-full rounded-xl px-3.5 py-2.5 text-sm text-primary outline-none transition-all"
-                    style={{ background: "var(--bg-elevated)", border: "1px solid rgba(45,212,191,0.12)" }}
-                  >
-                    <option value="">{isStudentRole ? "— Select department —" : "— No program assigned —"}</option>
-                    {departments.map((d) => (
-                      <option key={d.id} value={d.id}>{d.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {isStudentRole && (
+              {/* Department / academic year — hidden for admin roles, which
+                  carry no program */}
+              {!isPrivilegedRole && (
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-secondary mb-1.5 tracking-widest uppercase">
-                      Academic Year <span style={{ color: "var(--state-error)" }}>*</span>
+                      {isStudentRole
+                        ? <>Department <span style={{ color: "var(--state-error)" }}>*</span></>
+                        : <>Assign Program <span className="text-muted font-normal">(optional)</span></>}
                     </label>
                     <select
-                      value={newStaff.academicYearId}
-                      onChange={(e) => setNewStaff({ ...newStaff, academicYearId: e.target.value })}
-                      aria-label="Academic year"
-                      disabled={!newStaff.departmentId}
-                      className="w-full rounded-xl px-3.5 py-2.5 text-sm text-primary outline-none transition-all disabled:opacity-50"
+                      value={newStaff.departmentId}
+                      onChange={(e) => { setNewStaff({ ...newStaff, departmentId: e.target.value, academicYearId: "" }); setSelectedCourseIds([]); }}
+                      aria-label="Department"
+                      className="w-full rounded-xl px-3.5 py-2.5 text-sm text-primary outline-none transition-all"
                       style={{ background: "var(--bg-elevated)", border: "1px solid rgba(45,212,191,0.12)" }}
                     >
-                      <option value="">— Select year —</option>
-                      {academicYears.map((y) => (
-                        <option key={y.id} value={y.id}>{y.label}</option>
+                      <option value="">{isStudentRole ? "— Select department —" : "— No program assigned —"}</option>
+                      {departments.map((d) => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
                       ))}
                     </select>
                   </div>
-                )}
-              </div>
+
+                  {isStudentRole && (
+                    <div>
+                      <label className="block text-xs font-semibold text-secondary mb-1.5 tracking-widest uppercase">
+                        Academic Year <span style={{ color: "var(--state-error)" }}>*</span>
+                      </label>
+                      <select
+                        value={newStaff.academicYearId}
+                        onChange={(e) => setNewStaff({ ...newStaff, academicYearId: e.target.value })}
+                        aria-label="Academic year"
+                        disabled={!newStaff.departmentId}
+                        className="w-full rounded-xl px-3.5 py-2.5 text-sm text-primary outline-none transition-all disabled:opacity-50"
+                        style={{ background: "var(--bg-elevated)", border: "1px solid rgba(45,212,191,0.12)" }}
+                      >
+                        <option value="">— Select year —</option>
+                        {academicYears.map((y) => (
+                          <option key={y.id} value={y.id}>{y.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Teacher course pre-assignment */}
+              {newStaff.role === "TEACHER" && (
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-secondary tracking-widest uppercase">
+                      Assign Courses{" "}
+                      {selectedCourseIds.length > 0
+                        ? <span style={{ color: "#2DD4BF" }}>({selectedCourseIds.length} selected)</span>
+                        : <span className="text-muted font-normal">(optional)</span>}
+                    </label>
+                    {selectedCourseIds.length > 0 && (
+                      <button
+                        onClick={() => setSelectedCourseIds([])}
+                        className="text-[10px] font-semibold text-muted hover:text-primary transition-colors"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  {coursesLoading ? (
+                    <p className="text-xs text-muted py-3 flex items-center gap-2">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading courses…
+                    </p>
+                  ) : courses.length === 0 ? (
+                    <p className="text-xs text-muted py-2">
+                      No courses in the catalog yet — they can be assigned later from the course page.
+                    </p>
+                  ) : (
+                    <>
+                      <input
+                        value={courseSearch}
+                        onChange={(e) => setCourseSearch(e.target.value)}
+                        placeholder="Filter courses by title…"
+                        aria-label="Filter courses"
+                        className="w-full rounded-xl px-3.5 py-2 text-xs text-primary placeholder:text-muted outline-none mb-2"
+                        style={{ background: "var(--bg-elevated)", border: "1px solid rgba(45,212,191,0.12)" }}
+                      />
+                      <div
+                        className="max-h-52 overflow-y-auto rounded-xl"
+                        style={{ background: "var(--bg-elevated)", border: "1px solid rgba(45,212,191,0.12)" }}
+                      >
+                        {visibleCourses.length === 0 ? (
+                          <p className="text-xs text-muted px-3 py-3">
+                            No courses match{createDeptName ? ` in ${createDeptName}` : ""}.
+                          </p>
+                        ) : visibleCourses.map((c) => {
+                          const taken = Boolean(c.teacher);
+                          const checked = selectedCourseIds.includes(c.id);
+                          const meta = [
+                            c.semester?.academicYear?.department?.name,
+                            c.semester?.academicYear?.label,
+                            c.semester?.name,
+                          ].filter(Boolean).join(" · ");
+                          return (
+                            <label
+                              key={c.id}
+                              className={`flex items-start gap-2.5 px-3 py-2 transition-colors ${taken ? "opacity-45 cursor-not-allowed" : "cursor-pointer"}`}
+                              style={{ borderTop: "1px solid rgba(45,212,191,0.05)" }}
+                              onMouseEnter={(e) => { if (!taken) (e.currentTarget as HTMLElement).style.background = "rgba(45,212,191,0.05)"; }}
+                              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = ""; }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                disabled={taken}
+                                onChange={(e) => {
+                                  setSelectedCourseIds((prev) =>
+                                    e.target.checked ? [...prev, c.id] : prev.filter((id) => id !== c.id),
+                                  );
+                                }}
+                                className="mt-0.5 accent-teal-500"
+                              />
+                              <span className="flex-1 min-w-0">
+                                <span className="block text-xs font-medium text-primary truncate">{c.title}</span>
+                                <span className="block text-[10px] text-muted truncate">
+                                  {meta || "—"}
+                                  {!c.isPublished && " · draft"}
+                                  {taken && ` · already taught by ${c.teacher?.fullName ?? "another teacher"}`}
+                                </span>
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                      <p className="text-muted text-[10px] mt-1.5">
+                        Courses already assigned to another teacher are disabled — reassign those from the course page if needed.
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
 
               <button
                 onClick={handleCreateStaff}
@@ -458,12 +671,49 @@ export default function AdminUsersPage() {
         <select
           value={roleFilter}
           onChange={(e) => setRoleFilter(e.target.value)}
+          aria-label="Filter by role"
           className="px-3.5 py-2.5 rounded-xl text-sm text-primary outline-none transition-all"
           style={{ background: "var(--bg-surface)", border: "1px solid rgba(45,212,191,0.1)" }}
         >
           <option value="">All roles</option>
           {roleGroups.map((r) => <option key={r} value={r}>{ROLE_BADGE[r]?.label ?? r}</option>)}
         </select>
+
+        {/* Account status filter — the login gate, not subscription state */}
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          aria-label="Filter by account status"
+          className="px-3.5 py-2.5 rounded-xl text-sm text-primary outline-none transition-all"
+          style={{ background: "var(--bg-surface)", border: "1px solid rgba(45,212,191,0.1)" }}
+        >
+          <option value="">All account statuses</option>
+          <option value="true">Active</option>
+          <option value="false">Inactive</option>
+        </select>
+
+        {/* Program (department) filter */}
+        <select
+          value={deptFilter}
+          onChange={(e) => setDeptFilter(e.target.value)}
+          aria-label="Filter by program"
+          className="px-3.5 py-2.5 rounded-xl text-sm text-primary outline-none transition-all"
+          style={{ background: "var(--bg-surface)", border: "1px solid rgba(45,212,191,0.1)" }}
+        >
+          <option value="">All programs</option>
+          {departments.map((d) => (
+            <option key={d.id} value={d.id}>{d.name}</option>
+          ))}
+        </select>
+
+        {hasActiveFilters && (
+          <button
+            onClick={() => { setSearch(""); setRoleFilter(""); setStatusFilter(""); setDeptFilter(""); }}
+            className="px-3.5 py-2.5 rounded-xl text-xs font-semibold text-muted hover:text-primary transition-colors"
+          >
+            Clear filters
+          </button>
+        )}
 
         {/* Sort toggle */}
         <button
@@ -489,7 +739,7 @@ export default function AdminUsersPage() {
         <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(45,212,191,0.1)" }}>
           {/* Header */}
           <div
-            className="grid grid-cols-12 gap-4 px-5 py-3"
+            className="hidden md:grid grid-cols-12 gap-4 px-5 py-3"
             style={{ borderBottom: "1px solid rgba(45,212,191,0.08)", background: "rgba(45,212,191,0.03)" }}
           >
             {["Name / Status", "Email", "Program", "Role", "Actions"].map((h, i) => (
@@ -505,20 +755,20 @@ export default function AdminUsersPage() {
           </div>
 
           {users.length === 0 ? (
-            <p className="text-sm text-muted text-center py-12">No users found.</p>
+            <p className="text-sm text-muted text-center py-12">No users match the current filters.</p>
           ) : (
             users.map((user, i) => {
               const badge = ROLE_BADGE[user.role] ?? { label: user.role, bg: "rgba(100,116,139,0.1)", color: "#94A3B8" };
               return (
                 <div
                   key={user.id}
-                  className="grid grid-cols-12 gap-4 px-5 py-3.5 items-center transition-colors"
+                  className="grid grid-cols-2 gap-x-4 gap-y-2 px-4 py-4 items-start transition-colors md:grid-cols-12 md:gap-4 md:px-5 md:py-3.5 md:items-center"
                   style={{ borderTop: i > 0 ? "1px solid rgba(45,212,191,0.05)" : undefined }}
                   onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(45,212,191,0.02)"; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = ""; }}
                 >
                   {/* Name */}
-                  <div className="col-span-3 min-w-0">
+                  <div className="col-span-2 min-w-0 md:col-span-3">
                     <p className="text-sm font-medium text-primary truncate">{user.fullName}</p>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span className={`text-[10px] font-medium ${user.isEmailVerified ? "text-success" : "text-warning"}`}>
@@ -531,11 +781,19 @@ export default function AdminUsersPage() {
                   </div>
 
                   {/* Email */}
-                  <p className="col-span-3 text-xs text-secondary truncate">{user.email}</p>
+                  <p className="col-span-2 text-xs text-secondary truncate md:col-span-3">{user.email}</p>
 
-                  {/* Program — click to assign/reassign */}
-                  <div className="col-span-2">
-                    {assigningId === user.id ? (
+                  {/* Program — click to assign/reassign. Admin accounts
+                      carry no program, so there is nothing to edit. */}
+                  <div className="col-span-1 min-w-0 md:col-span-2">
+                    {privileged(user.role) ? (
+                      <span
+                        className="text-xs text-muted truncate block"
+                        title="Programs apply to students and teachers only"
+                      >
+                        {user.department?.name ?? <span className="opacity-40">—</span>}
+                      </span>
+                    ) : assigningId === user.id ? (
                       <div className="flex flex-col gap-1">
                         <select
                           value={assignDeptId}
@@ -556,7 +814,7 @@ export default function AdminUsersPage() {
                           style={{ background: "var(--bg-elevated)", border: "1px solid rgba(45,212,191,0.25)", color: "var(--text-primary)" }}
                         >
                           <option value="">— Year —</option>
-                          {assignYears.map((y) => (
+                          {effectiveAssignYears.map((y) => (
                             <option key={y.id} value={y.id}>{y.label}</option>
                           ))}
                         </select>
@@ -601,7 +859,7 @@ export default function AdminUsersPage() {
                   </div>
 
                   {/* Role badge + selector */}
-                  <div className="col-span-2">
+                  <div className="col-span-1 md:col-span-2">
                     <select
                       value={user.role}
                       onChange={(e) => handleRoleChange(user.id, e.target.value)}
@@ -617,7 +875,7 @@ export default function AdminUsersPage() {
                   </div>
 
                   {/* Actions */}
-                  <div className="col-span-2 flex items-center gap-2">
+                  <div className="col-span-2 flex flex-wrap items-center gap-2 md:flex-nowrap">
                     <button
                       onClick={() => handleStatusToggle(user.id, user.isActive)}
                       disabled={!canModify(user)}

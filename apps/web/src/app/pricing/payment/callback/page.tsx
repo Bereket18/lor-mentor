@@ -171,12 +171,20 @@ function CallbackContent() {
               Your payment could not be confirmed. You weren&apos;t charged, or
               the transaction was cancelled. Please try again.
             </p>
-            <Link
-              href="/pricing"
-              className="inline-block bg-accent text-white rounded-xl px-6 py-3 text-sm font-medium"
-            >
-              Back to pricing
-            </Link>
+            <div className="flex flex-col items-center gap-3">
+              <Link
+                href="/pricing"
+                className="inline-block bg-accent text-white rounded-xl px-6 py-3 text-sm font-medium"
+              >
+                Back to pricing
+              </Link>
+              <Link
+                href="/dashboard"
+                className="text-sm text-secondary hover:text-primary transition-colors"
+              >
+                Back to dashboard
+              </Link>
+            </div>
           </>
         )}
       </div>

@@ -6,10 +6,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, BookOpen, Bot, CreditCard, MessageSquare,
   BarChart3, User, Bell, LogOut, GraduationCap, Layers,
-  ChevronLeft, ChevronRight, ShieldAlert,
+  ChevronLeft, ChevronRight, ShieldAlert, Landmark,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { BrandLogo } from "@/components/shared/brand-logo";
 
 const studentNav = [
   { href: "/dashboard",     icon: LayoutDashboard, label: "Dashboard" },
@@ -26,6 +27,7 @@ const adminNav = [
   { href: "/admin",            icon: LayoutDashboard, label: "Overview" },
   { href: "/admin/users",      icon: User,            label: "Users" },
   { href: "/admin/payments",   icon: CreditCard,      label: "Payments" },
+  { href: "/admin/banks",      icon: Landmark,        label: "Payment banks" },
   { href: "/admin/plans",      icon: CreditCard,      label: "Plans" },
   { href: "/admin/courses",    icon: BookOpen,        label: "Courses" },
   { href: "/admin/moderation", icon: ShieldAlert,     label: "Moderation" },
@@ -47,7 +49,16 @@ interface SidebarProps {
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname  = usePathname();
   const { user, logout, isAdmin, isTeacher } = useAuth();
-  const navItems  = isAdmin ? adminNav : isTeacher ? teacherNav : studentNav;
+  // Audit logs are super-admin only (the API rejects plain admins), so the
+  // link is hidden for them rather than leading to a wall.
+  const navItems  = isAdmin
+    ? adminNav.filter(
+        (item) =>
+          item.href !== "/admin/audit" || user?.role === "SUPER_ADMIN",
+      )
+    : isTeacher
+      ? teacherNav
+      : studentNav;
 
   return (
     <motion.aside
@@ -96,13 +107,14 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
               transition={{ duration: 0.15 }}
-              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{
-                background: "linear-gradient(135deg, #147878 0%, #1A9494 100%)",
-                boxShadow: "0 0 16px var(--teal-glow), inset 0 1px 0 rgba(255,255,255,0.15)",
-              }}
+              className="flex items-center justify-center flex-shrink-0"
             >
-              <span className="text-white font-bold text-sm">L</span>
+              <BrandLogo
+                variant="mark"
+                size={36}
+                alt=""
+                className="ring-1 ring-white/20 shadow-[0_0_16px_var(--teal-glow)]"
+              />
             </motion.div>
           ) : (
             <motion.div
@@ -113,15 +125,12 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               transition={{ duration: 0.15 }}
               className="flex items-center gap-3"
             >
-              <div
-                className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{
-                  background: "linear-gradient(135deg, #147878 0%, #1A9494 100%)",
-                  boxShadow: "0 0 16px var(--teal-glow), inset 0 1px 0 rgba(255,255,255,0.15)",
-                }}
-              >
-                <span className="text-white font-bold text-sm">L</span>
-              </div>
+              <BrandLogo
+                variant="mark"
+                size={36}
+                alt=""
+                className="ring-1 ring-white/20 shadow-[0_0_16px_var(--teal-glow)]"
+              />
               <div className="min-w-0">
                 <p
                   className="font-bold text-sm tracking-wide leading-none whitespace-nowrap"

@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Eye, EyeOff, Loader2, ArrowRight, Shield } from "lucide-react";
+import { Eye, EyeOff, Loader2, ArrowRight } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { BrandLogo } from "@/components/shared/brand-logo";
 
 const schema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -22,6 +23,11 @@ export default function AdminLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Keep submit disabled until React has hydrated. Otherwise a tap on a slow
+  // phone falls back to the browser's native form submit and puts the
+  // credentials in the URL as a GET query string.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const {
     register,
@@ -58,8 +64,14 @@ export default function AdminLoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-base p-6">
       <div className="w-full max-w-[400px] animate-fade-up">
-        <div className="flex items-center gap-2 mb-6">
-          <Shield className="h-5 w-5 text-accent" />
+        <div className="flex items-center gap-2.5 mb-6">
+          <BrandLogo
+            variant="mark"
+            size={32}
+            priority
+            alt=""
+            className="ring-1 ring-white/10"
+          />
           <span className="text-xs font-medium text-accent tracking-wide uppercase">
             Admin Portal
           </span>
@@ -81,7 +93,7 @@ export default function AdminLoginPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} method="post" className="space-y-4">
           <div>
             <label htmlFor="admin-email" className="block text-xs font-medium text-secondary mb-2 tracking-wide">
               EMAIL ADDRESS
@@ -142,7 +154,7 @@ export default function AdminLoginPage() {
 
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={!mounted || isSubmitting}
             className="group w-full bg-accent hover:bg-accent-hover text-white
               font-medium rounded-xl py-3 flex items-center justify-center gap-2
               transition-all disabled:opacity-60 disabled:cursor-not-allowed"

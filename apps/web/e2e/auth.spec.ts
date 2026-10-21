@@ -20,5 +20,7 @@ test("super admin can sign in and reach the admin area", async ({ page }) => {
   await page.locator('input[type="password"]').fill(PASSWORD!);
   await page.getByRole("button", { name: /sign in to admin/i }).click();
 
-  await expect(page).toHaveURL(/\/admin/, { timeout: 15_000 });
+  // /\/admin/ alone also matches /admin-login on the previous page, so it
+  // could pass without a real sign-in redirect. Require a path boundary.
+  await expect(page).toHaveURL(/\/admin(?:\/|\?|$)/, { timeout: 15_000 });
 });

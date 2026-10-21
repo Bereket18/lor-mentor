@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
+import { useConfirm } from "@/components/ui/confirm-dialog-provider";
 
 import { toast } from "sonner";
 
@@ -78,6 +79,7 @@ function ReactionBar({ summary, onToggle }: {
 
 export default function ForumPage() {
   const { user } = useAuth();
+  const confirm = useConfirm();
   const isTeacher = user?.role === "TEACHER";
   const canModerate = ["TEACHER", "ADMIN", "SUPER_ADMIN"].includes(user?.role ?? "");
 
@@ -188,7 +190,14 @@ export default function ForumPage() {
   }
 
   async function deletePost(postId: string) {
-    if (!confirm("Remove this thread?")) return;
+    const confirmed = await confirm({
+      title: "Remove this thread?",
+      description:
+        "The thread and its replies will be removed from the forum. This cannot be undone.",
+      confirmLabel: "Remove thread",
+      destructive: true,
+    });
+    if (!confirmed) return;
     try {
       await api.delete(`/forum/posts/${postId}`);
       setActivePost(null);
@@ -199,7 +208,13 @@ export default function ForumPage() {
   }
 
   async function deleteReply(replyId: string) {
-    if (!confirm("Remove this reply?")) return;
+    const confirmed = await confirm({
+      title: "Remove this reply?",
+      description: "This reply will be removed from the thread.",
+      confirmLabel: "Remove reply",
+      destructive: true,
+    });
+    if (!confirmed) return;
     try {
       await api.delete(`/forum/replies/${replyId}`);
       setActivePost((p) => p ? { ...p, replies: p.replies.filter((r) => r.id !== replyId) } : p);

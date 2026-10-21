@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/ui/confirm-dialog-provider";
 import type { Department, AcademicYear, Semester, Course } from "@/types";
 
 import { toast } from "sonner";
@@ -37,6 +38,7 @@ interface Material {
 const typeIcon = { PDF: FileText, IMAGE: ImageIcon, YOUTUBE: PlayCircle };
 
 export default function AdminCoursesPage() {
+  const confirm = useConfirm();
   const [level, setLevel] = useState<Level>("departments");
 
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -301,7 +303,13 @@ export default function AdminCoursesPage() {
 
   async function handleDeleteMaterial(id: string) {
     if (!selectedCourse) return;
-    if (!confirm("Delete this material? This cannot be undone.")) return;
+    const confirmed = await confirm({
+      title: "Delete this material?",
+      description: "This material will be permanently removed. This cannot be undone.",
+      confirmLabel: "Delete material",
+      destructive: true,
+    });
+    if (!confirmed) return;
     await api.delete(`/materials/${id}`);
     await loadMaterials(selectedCourse.id);
   }

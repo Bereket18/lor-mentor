@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu } from "lucide-react";
+import { LogOut, Menu, User as UserIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
@@ -30,11 +32,32 @@ const pageTitles: Record<string, string> = {
 
 interface TopbarProps {
   onMenuToggle?: () => void;
+  drawerOpen?: boolean;
 }
 
-export function Topbar({ onMenuToggle }: TopbarProps) {
+export function Topbar({ onMenuToggle, drawerOpen = false }: TopbarProps) {
   const pathname = usePathname();
-  const { user }  = useAuth();
+  const { user, logout } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close the account menu on navigation or on an outside click / Escape.
+  useEffect(() => setMenuOpen(false), [pathname]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onPointerDown(event: PointerEvent) {
+      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setMenuOpen(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menuOpen]);
 
   const title = pageTitles[pathname] ?? "Lor Mentor";
 
@@ -54,28 +77,33 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
       }}
     >
       {/* -- Left --------------------------------------- */}
-      <div className="flex items-center gap-3">
-        {/* Mobile hamburger */}
-        <button
-          type="button"
-          aria-label="Open navigation menu"
-          onClick={onMenuToggle}
-          className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg transition-colors"
-          style={{ color: "var(--text-secondary)" }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.color = "var(--text-primary)";
-            (e.currentTarget as HTMLElement).style.background = "var(--teal-dim)";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.color = "var(--text-secondary)";
-            (e.currentTarget as HTMLElement).style.background = "";
-          }}
-        >
-          <Menu className="h-5 w-5" />
-        </button>
-
+      <div className="flex min-w-0 items-center gap-2">
+        {/* The full sidebar is desktop-only; on phones this opens it as a
+            drawer so every admin/teacher section stays reachable. */}
+        {onMenuToggle && (
+          <button
+            type="button"
+            onClick={onMenuToggle}
+            aria-label="Open navigation menu"
+            aria-haspopup="dialog"
+            aria-expanded={drawerOpen}
+            aria-controls="mobile-navigation"
+            className="lg:hidden -ml-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl transition-colors"
+            style={{ color: "var(--text-secondary)" }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.background = "var(--teal-dim)";
+              (e.currentTarget as HTMLElement).style.color = "var(--text-primary)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.background = "";
+              (e.currentTarget as HTMLElement).style.color = "var(--text-secondary)";
+            }}
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        )}
         <h1
-          className="text-sm font-semibold tracking-wide"
+          className="truncate text-sm font-semibold tracking-wide"
           style={{ color: "var(--text-primary)" }}
         >
           {title}
@@ -83,25 +111,72 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
       </div>
 
       {/* -- Right -------------------------------------- */}
-      <div className="flex items-center gap-1.5">
+      <div className="flex flex-shrink-0 items-center gap-1.5">
         {/* Theme toggle — pill variant from shared component */}
         <ThemeToggle variant="pill" />
 
         {/* Notifications — live unread count, links to /notifications */}
         <NotificationBell />
 
-        {/* Avatar */}
-        <div
-          className={cn(
-            "w-8 h-8 rounded-full flex items-center justify-center",
-            "text-white text-xs font-bold cursor-pointer ml-1 select-none",
+        {/* Avatar + account menu. The sidebar is desktop-only, so this is
+            the phone's route to Profile and Log out. */}
+        <div ref={menuRef} className="relative ml-1">
+          <button
+            type="button"
+            aria-label="Account menu"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((open) => !open)}
+            className={cn(
+              "w-8 h-8 rounded-full flex items-center justify-center",
+              "text-white text-xs font-bold cursor-pointer select-none",
+            )}
+            style={{
+              background: "linear-gradient(135deg, #147878 0%, #1A9494 100%)",
+              boxShadow: "0 0 12px rgba(45,212,191,0.3)",
+            }}
+          >
+            {user?.fullName ? getInitials(user.fullName) : "?"}
+          </button>
+
+          {menuOpen && (
+            <div
+              role="menu"
+              className="absolute right-0 top-10 z-50 w-56 rounded-xl border p-1.5 shadow-2xl"
+              style={{
+                background: "var(--bg-elevated)",
+                borderColor: "var(--glass-border)",
+              }}
+            >
+              <div className="px-3 py-2">
+                <p className="text-xs font-semibold text-primary truncate">
+                  {user?.fullName}
+                </p>
+                <p className="text-[11px] text-muted truncate">{user?.email}</p>
+              </div>
+              <Link
+                href="/profile"
+                role="menuitem"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-secondary hover:text-primary hover:bg-[var(--teal-dim)] transition-colors"
+              >
+                <UserIcon className="h-4 w-4" />
+                Profile
+              </Link>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setMenuOpen(false);
+                  void logout();
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-secondary hover:text-primary hover:bg-[var(--teal-dim)] transition-colors"
+              >
+                <LogOut className="h-4 w-4" />
+                Log out
+              </button>
+            </div>
           )}
-          style={{
-            background: "linear-gradient(135deg, #147878 0%, #1A9494 100%)",
-            boxShadow: "0 0 12px rgba(45,212,191,0.3)",
-          }}
-        >
-          {user?.fullName ? getInitials(user.fullName) : "?"}
         </div>
       </div>
     </header>

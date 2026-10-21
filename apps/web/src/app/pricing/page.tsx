@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Check, ArrowRight } from "lucide-react";
+import { Check, ArrowRight, ArrowLeft } from "lucide-react";
 import { PLAN_FEATURES } from "@/lib/plan-features";
+import { BrandLogo } from "@/components/shared/brand-logo";
 
 interface Plan {
   id: string;
@@ -31,11 +32,36 @@ export default async function PricingPage() {
 
   return (
     <div className="min-h-screen bg-base">
-      <div className="max-w-4xl mx-auto px-6 py-16">
+      <div className="max-w-4xl mx-auto px-6 py-10 sm:py-16">
+        <div className="flex items-center justify-between gap-4 mb-10">
+          <div className="flex items-center gap-3">
+            <BrandLogo
+              variant="mark"
+              size={40}
+              priority
+              alt=""
+              className="ring-1 ring-white/10"
+            />
+            <div>
+              <p className="font-bold text-sm tracking-[0.18em] uppercase leading-none text-primary">
+                LOR MENTOR
+              </p>
+              <p className="text-[11px] font-medium mt-1 text-secondary">
+                Lorcan Medical College
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-1.5 text-sm text-secondary
+              hover:text-primary transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to dashboard
+          </Link>
+        </div>
+
         <div className="text-center mb-12">
-          <p className="text-xs font-medium text-accent tracking-wide uppercase mb-3">
-            Lor Mentor · Lorcan Medical College
-          </p>
           <h1 className="font-display text-3xl font-semibold text-primary mb-3">
             Choose your plan
           </h1>

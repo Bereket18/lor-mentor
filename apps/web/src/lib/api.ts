@@ -3,8 +3,14 @@ import axios from "axios";
 // Create one axios instance used everywhere in the app
 // Instead of writing the full URL every time we just write:
 // api.post('/auth/login', data)
+//
+// With no NEXT_PUBLIC_API_URL the base is same-origin ("/api/v1"), which the
+// Next rewrite in next.config.ts proxies to the NestJS API. That keeps auth
+// cookies first-party and makes the same build work on localhost, a LAN IP
+// (phone testing), or a tunnel. Deployments with a separate API host set
+// NEXT_PUBLIC_API_URL and keep the old absolute behaviour.
 const api = axios.create({
-  baseURL: `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/api/v1`,
+  baseURL: `${process.env.NEXT_PUBLIC_API_URL ?? ""}/api/v1`,
 
   // This is critical — tells axios to send cookies
   // with every request (our JWT tokens live in cookies)

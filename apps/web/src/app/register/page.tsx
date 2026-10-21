@@ -10,6 +10,7 @@ import { motion } from "framer-motion";
 import { Eye, EyeOff, Loader2, ArrowRight } from "lucide-react";
 import api from "@/lib/api";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
+import { BrandLogo } from "@/components/shared/brand-logo";
 
 const schema = z
   .object({
@@ -135,6 +136,11 @@ export default function RegisterPage() {
   const [showConfirm,  setShowConfirm]  = useState(false);
   const [serverError,  setServerError]  = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Keep submit disabled until React has hydrated. Otherwise a tap on a slow
+  // phone falls back to the browser's native form submit and puts the
+  // credentials in the URL as a GET query string.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const [departments,  setDepartments]  = useState<Department[]>([]);
   const [years,        setYears]        = useState<AcademicYear[]>([]);
   const [loadingDepts, setLoadingDepts] = useState(true);
@@ -293,21 +299,15 @@ export default function RegisterPage() {
 
         <div className="px-8 pt-9 pb-8">
           {/* -- Logo ------------------------------------------- */}
-          <div className="flex flex-col items-center mb-7">
-            <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center mb-3"
-              style={{
-                background: "linear-gradient(135deg, #147878 0%, #1A9494 60%, #2DD4BF 100%)",
-                boxShadow: "0 0 28px rgba(45,212,191,0.45), inset 0 1px 0 rgba(255,255,255,0.2)",
-              }}
-            >
-              <span className="text-white font-bold text-xl tracking-tight">L</span>
-            </div>
-            <p className="font-bold text-base tracking-widest uppercase leading-none text-primary">
+          <div className="flex flex-col items-center mb-6">
+            <BrandLogo
+              variant="full"
+              size={144}
+              priority
+              className="mb-2 rounded-2xl ring-1 ring-white/10"
+            />
+            <p className="font-bold text-sm tracking-[0.22em] uppercase leading-none text-primary">
               LOR MENTOR
-            </p>
-            <p className="text-[11px] font-medium mt-1 tracking-wider" style={{ color: "#2DD4BF", opacity: 0.8 }}>
-              LORCAN MEDICAL COLLEGE
             </p>
           </div>
 
@@ -337,7 +337,7 @@ export default function RegisterPage() {
           )}
 
           {/* -- Form ------------------------------------------- */}
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={handleSubmit(onSubmit)} method="post" className="space-y-4">
 
             {/* Full name */}
             <div>
@@ -476,7 +476,7 @@ export default function RegisterPage() {
             {/* Submit */}
             <motion.button
               type="submit"
-              disabled={isSubmitting}
+              disabled={!mounted || isSubmitting}
               whileTap={{ scale: 0.98 }}
               className="group relative w-full py-3 mt-1 rounded-2xl flex items-center justify-center gap-2 text-white font-semibold text-sm transition-all duration-200 overflow-hidden disabled:opacity-60 disabled:cursor-not-allowed"
               style={{

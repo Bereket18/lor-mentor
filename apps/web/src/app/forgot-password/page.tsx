@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { ArrowLeft, Loader2, Mail } from "lucide-react";
 import api from "@/lib/api";
+import { BrandLogo } from "@/components/shared/brand-logo";
 
 const schema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -45,13 +46,16 @@ export default function ForgotPasswordPage() {
   return (
     <div className="min-h-screen bg-base flex items-center justify-center p-6">
       <div className="w-full max-w-[420px]">
-        <Link
-          href="/login"
-          className="inline-flex items-center gap-1.5 text-sm text-secondary hover:text-primary mb-8"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to login
-        </Link>
+        <div className="flex items-center justify-between gap-4 mb-8">
+          <Link
+            href="/login"
+            className="inline-flex items-center gap-1.5 text-sm text-secondary hover:text-primary"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to login
+          </Link>
+          <BrandLogo variant="mark" size={32} alt="" />
+        </div>
 
         <div className="glass-panel p-7">
           <div

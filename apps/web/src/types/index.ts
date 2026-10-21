@@ -20,7 +20,6 @@ export interface LoginResponse {
 
 export interface RegisterResponse {
   message: string;
-  verifyToken: string; // Remove in production
 }
 
 // -- API ---------------------------------------------------

@@ -6,6 +6,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Mail, CheckCircle, Loader2, RefreshCw } from "lucide-react";
 import api from "@/lib/api";
+import { BrandLogo } from "@/components/shared/brand-logo";
 
 function VerifyEmailContent() {
   const searchParams = useSearchParams();
@@ -129,6 +130,13 @@ function VerifyEmailContent() {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md"
       >
+        <div className="flex items-center gap-2.5 mb-8">
+          <BrandLogo variant="mark" size={36} alt="" />
+          <span className="text-xs font-semibold tracking-[0.18em] uppercase text-primary">
+            LOR MENTOR
+          </span>
+        </div>
+
         {/* Icon */}
         <div
           className="w-14 h-14 bg-brand-100 rounded-2xl

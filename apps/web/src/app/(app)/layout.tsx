@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { motion } from "framer-motion";
+import { X } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { MobileNav } from "@/components/layout/mobile-nav";
@@ -19,6 +20,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (typeof window === "undefined") return false;
     return localStorage.getItem(COLLAPSED_KEY) === "true";
   });
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // The mobile drawer re-uses the full desktop sidebar. Close it whenever
+  // the route changes (including tapping the item for the current page).
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setMobileMenuOpen(false);
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [mobileMenuOpen]);
 
   function handleToggle() {
     setCollapsed((prev) => {
@@ -111,7 +128,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             boxShadow: "0 1px 0 var(--teal-glow), 0 4px 24px rgba(0,0,0,0.15)",
           }}
         >
-          <Topbar />
+          <Topbar
+            onMenuToggle={() => setMobileMenuOpen(true)}
+            drawerOpen={mobileMenuOpen}
+          />
         </div>
 
         {/* Page content */}
@@ -119,6 +139,57 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </motion.div>
+
+      {/* -- Mobile drawer: the full PC sidebar ---------------------- */}
+      {mobileMenuOpen && (
+        <div
+          id="mobile-navigation"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigation"
+          className="fixed inset-0 z-[60] lg:hidden"
+        >
+          <button
+            type="button"
+            aria-label="Close navigation menu"
+            onClick={() => setMobileMenuOpen(false)}
+            className="absolute inset-0 w-full cursor-default bg-black/60 backdrop-blur-[2px]"
+          />
+          <motion.div
+            initial={{ x: -24, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className="relative h-full w-56 shadow-2xl"
+            onClick={(event) => {
+              if ((event.target as HTMLElement).closest("a")) {
+                setMobileMenuOpen(false);
+              }
+            }}
+          >
+            <Sidebar
+              collapsed={false}
+              onToggle={() => setMobileMenuOpen(false)}
+            />
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(false)}
+              aria-label="Close navigation menu"
+              className="absolute right-2 top-[22px] z-20 flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
+              style={{ color: "var(--text-muted)" }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.background = "var(--teal-dim)";
+                (e.currentTarget as HTMLElement).style.color = "var(--text-primary)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.background = "";
+                (e.currentTarget as HTMLElement).style.color = "var(--text-muted)";
+              }}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </motion.div>
+        </div>
+      )}
 
       {/* -- Mobile nav --------------------------------------------- */}
       <MobileNav />
