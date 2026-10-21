@@ -22,11 +22,18 @@ from pydantic import BaseModel, model_validator
 from ethiobank_receipts import extract_receipt
 from ethiobank_receipts.extractors.cbe import extract_cbe_receipt_info_from_ft
 
+from cbe_links import (
+    extract_mbreciept_token,
+    fetch_mbreciept_receipt,
+    parse_legacy_receipt_url,
+)
 from normalize import normalize
 
 SUPPORTED_BANKS = {"cbe", "dashen", "awash", "boa", "zemen", "tele"}
 RECEIPT_HOSTS = {
-    "cbe": {"apps.cbe.com.et"},
+    # CBE receipts exist in two generations: the legacy FT link and the new
+    # "mbreciept" short link (see cbe_links.py).
+    "cbe": {"apps.cbe.com.et", "mbreciept.cbe.com.et"},
     "dashen": {"receipt.dashensuperapp.com"},
     "awash": {"awashpay.awashbank.com"},
     "boa": {"cs.bankofabyssinia.com"},
@@ -92,6 +99,12 @@ def _reference_hint(req: ExtractRequest) -> Optional[str]:
     value = (req.reference or req.url or "").strip()
     if req.bank.lower() == "tele" and value.lower().startswith("https://"):
         return urlparse(value).path.rstrip("/").split("/")[-1] or None
+    if req.bank.lower() == "cbe" and req.url:
+        # Legacy CBE links carry the FT inside ?id=<FT><digits>. New-style
+        # mbreciept links expose their transaction id in the API payload only,
+        # so there is no hint to give here.
+        legacy = parse_legacy_receipt_url(req.url)
+        return legacy[0] if legacy else None
     return req.reference
 
 
@@ -111,6 +124,33 @@ def _run_extractor(req: ExtractRequest) -> dict:
             return extract_cbe_receipt_info_from_ft(req.reference, req.account)
         except ValueError as exc:  # e.g. fewer than 8 digits
             raise VerifierError("BAD_INPUT", str(exc), http_status=400)
+
+    if bank == "cbe" and req.url:
+        # Both CBE receipt generations are accepted when a student pastes a
+        # link; the host allowlist is enforced before any network call.
+        url = _validate_receipt_url(bank, req.url)
+        token = extract_mbreciept_token(url)
+        if token:
+            raw = fetch_mbreciept_receipt(token)
+            if not raw.get("id"):
+                raise VerifierError(
+                    "EXTRACT_FAILED",
+                    "CBE returned a receipt without a transaction id.",
+                    http_status=502,
+                )
+            return raw
+        legacy = parse_legacy_receipt_url(url)
+        if legacy:
+            ft, account = legacy
+            try:
+                return extract_cbe_receipt_info_from_ft(ft, account)
+            except ValueError as exc:
+                raise VerifierError("BAD_INPUT", str(exc), http_status=400) from exc
+        raise VerifierError(
+            "BAD_INPUT",
+            "CBE receipt link must be a legacy FT link (?id=FT...) or an mbreciept short link.",
+            http_status=400,
+        )
 
     if bank == "tele" and req.reference and not req.url:
         # Telebirr accepts the bare receipt id.

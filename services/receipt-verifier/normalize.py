@@ -73,6 +73,60 @@ def _first(raw: Dict[str, Any], *keys: str) -> Optional[str]:
     return None
 
 
+# CBE transaction references look like "FT" + 10 alphanumerics.
+_FT_REFERENCE_RE = re.compile(r"FT[A-Z0-9]{10}")
+
+
+def _clean_ft_reference(value: Optional[str]) -> Optional[str]:
+    """Return a canonical CBE FT reference, or None when `value` isn't one."""
+    if not isinstance(value, str):
+        return None
+    candidate = value.strip().upper()
+    return candidate if _FT_REFERENCE_RE.fullmatch(candidate) else None
+
+
+# New CBE receipt system ("mbreciept") uses compact datetimes, e.g. 20261013200200.
+_CBE_COMPACT_DATETIME_RE = re.compile(r"^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$")
+
+
+def _parse_cbe_datetime(value: Optional[str]) -> Optional[str]:
+    """Best-effort ISO conversion for mbreciept date fields."""
+    if not value:
+        return None
+    text = str(value).strip()
+    match = _CBE_COMPACT_DATETIME_RE.match(text)
+    if match:
+        year, month, day, hour, minute, second = match.groups()
+        return f"{year}-{month}-{day}T{hour}:{minute}:{second}"
+    return text
+
+
+def _text(value: Any) -> Optional[str]:
+    """Coerce a raw field to a string, keeping None/'' as None."""
+    return None if value in (None, "") else str(value)
+
+
+def _normalize_cbe_new(raw: Dict[str, Any]) -> Dict[str, Any]:
+    """Map the mbreciept public-API payload onto the common contract."""
+    out = _base("cbe", raw, _first(raw, "status"))
+    dates = raw.get("dateTimes")
+    date_value = None
+    if isinstance(dates, list) and dates:
+        date_value = dates[0]
+    elif raw.get("processingDate"):
+        date_value = raw["processingDate"]
+    out.update(
+        reference=_text(raw.get("id")),
+        amount=parse_amount(_first(raw, "amountCredited")),
+        receiverAccount=_text(_first(raw, "creditAccountNo")),
+        receiverName=_text(_first(raw, "creditAccountHolder")),
+        payerName=_text(_first(raw, "debitAccountHolder")),
+        payerAccount=_text(_first(raw, "debitAccountNo")),
+        date=_parse_cbe_datetime(date_value),
+    )
+    return out
+
+
 def _base(bank: str, raw: Dict[str, Any], status_value: Optional[str]) -> Dict[str, Any]:
     status = normalize_status(status_value)
     return {
@@ -96,9 +150,25 @@ def normalize(bank: str, raw: Dict[str, Any], reference_hint: Optional[str] = No
         raise ValueError("Extractor returned no data")
 
     if bank == "cbe":
+        if "creditAccountNo" in raw or "amountCredited" in raw:
+            # New "mbreciept" public-API payload (see cbe_links.py) — the
+            # extractor fetched it; map it onto the common contract.
+            return _normalize_cbe_new(raw)
+        # Legacy PDF-receipt extraction (FT + account digits).
+        # Some CBE layouts (e.g. the "VAT Invoice / Customer Receipt" printed
+        # for CBE-Birr mobile-money transfers) mis-parse "Reference No." and
+        # pick up screen noise like "VAT". When the parsed value isn't an FT
+        # reference, fall back to the lookup reference the caller supplied —
+        # CBE only returned this receipt because it resolved that exact
+        # FT + account pair. A garbage value with no valid hint becomes None
+        # so the caller can decide (it re-falls back to the reference the
+        # student typed).
+        reference = _clean_ft_reference(_first(raw, "reference_no"))
+        if reference is None:
+            reference = _clean_ft_reference(reference_hint)
         out = _base(bank, raw, None)
         out.update(
-            reference=_first(raw, "reference_no"),
+            reference=reference,
             amount=parse_amount(_first(raw, "transferred_amount", "total_debited")),
             receiverAccount=_first(raw, "receiver_account"),
             receiverName=_first(raw, "receiver"),

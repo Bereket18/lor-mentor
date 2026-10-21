@@ -40,8 +40,29 @@ def test_telebirr_url_uses_receipt_id_as_reference_hint():
     assert _reference_hint(req) == "CHQ0FJ403O"
 
 
+def test_accepts_mbreciept_host_for_cbe():
+    url = "https://mbreciept.cbe.com.et/AbC123xyz"
+    assert _validate_receipt_url("cbe", url) == url
+
+
+def test_cbe_url_uses_ft_as_reference_hint():
+    req = ExtractRequest(
+        bank="cbe",
+        url="https://apps.cbe.com.et:100/?id=FT26287CZTG923923036",
+    )
+    assert _reference_hint(req) == "FT26287CZTG9"
+
+
+def test_mbreciept_url_has_no_reference_hint():
+    req = ExtractRequest(bank="cbe", url="https://mbreciept.cbe.com.et/AbC123")
+    assert _reference_hint(req) is None
+
+
 if __name__ == "__main__":
     test_accepts_each_official_bank_host()
     test_rejects_non_bank_and_insecure_urls()
     test_telebirr_url_uses_receipt_id_as_reference_hint()
+    test_accepts_mbreciept_host_for_cbe()
+    test_cbe_url_uses_ft_as_reference_hint()
+    test_mbreciept_url_has_no_reference_hint()
     print("all passed")
