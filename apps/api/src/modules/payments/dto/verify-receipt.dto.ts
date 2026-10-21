@@ -5,17 +5,16 @@ import {
   IsString,
   MaxLength,
 } from 'class-validator';
+import { BANK_CODES } from '../bank-catalog';
 
-export const SUPPORTED_BANKS = [
-  'cbe',
-  'dashen',
-  'awash',
-  'boa',
-  'zemen',
-  'tele',
-] as const;
+/**
+ * Every bank in the admin-managed catalog. Whether a given code is currently
+ * accepted is enforced server-side against the AcceptedBank table — this list
+ * only bounds which identifiers can be sent at all.
+ */
+export const SUPPORTED_BANKS = BANK_CODES;
 
-export type SupportedBank = (typeof SUPPORTED_BANKS)[number];
+export type SupportedBank = string;
 
 /**
  * Student submits a bank transaction reference (or full receipt URL) to be

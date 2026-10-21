@@ -7,12 +7,16 @@ import {
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { CurrentUser } from './common/decorators/current-user.decorator';
 import { PrismaService } from './prisma/prisma.service';
+import { RedisHealthService } from './common/redis/redis-health.service';
 
 import type { RequestUser } from './common/types/request-user';
 
 @Controller()
 export class AppController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redisHealth: RedisHealthService,
+  ) {}
 
   // Liveness — process is up. No dependency checks (used by orchestrators to
   // decide whether to restart the pod).
@@ -26,21 +30,25 @@ export class AppController {
     };
   }
 
-  // Readiness — can this instance actually serve traffic? Verifies the DB is
-  // reachable so a pod with a dead connection is pulled from the load balancer
-  // instead of being marked Ready and served real requests.
+  // Readiness — can this instance actually serve traffic? Verifies the DB and
+  // Redis are reachable so a pod with a dead dependency is pulled from the load
+  // balancer instead of being marked Ready and served real requests.
   // GET /api/v1/health/ready
   @Get('health/ready')
   async getReadiness() {
-    try {
-      await this.prisma.$queryRaw`SELECT 1`;
-    } catch {
+    const [database, redis] = await Promise.all([
+      this.prisma.$queryRaw`SELECT 1`.then(() => true).catch(() => false),
+      this.redisHealth.ping(),
+    ]);
+
+    if (!database || !redis) {
       throw new ServiceUnavailableException({
         status: 'unavailable',
-        database: 'down',
+        database: database ? 'up' : 'down',
+        redis: redis ? 'up' : 'down',
       });
     }
-    return { status: 'ready', database: 'up' };
+    return { status: 'ready', database: 'up', redis: 'up' };
   }
 
   // Protected route — login required

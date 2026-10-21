@@ -367,7 +367,10 @@ export class AuthService {
     // Atomic claim: one UPDATE that matches the token AND checks expiry.
     // Eliminates the TOCTOU race in the old findByResetToken + updatePassword
     // two-trip flow that caused "new password doesn't work after reset".
-    const updated = await this.usersService.claimResetToken(token, passwordHash);
+    const updated = await this.usersService.claimResetToken(
+      token,
+      passwordHash,
+    );
 
     if (!updated) {
       throw new BadRequestException('Invalid or expired reset link');

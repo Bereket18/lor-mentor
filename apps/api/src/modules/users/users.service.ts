@@ -8,7 +8,12 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma, Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
-import { canCreateRole, canChangeRole, canDeleteRole } from './role.util';
+import {
+  canCreateRole,
+  canChangeRole,
+  canDeleteRole,
+  isPrivileged,
+} from './role.util';
 import { CreateUserDto } from './dto/create-user.dto';
 
 @Injectable()
@@ -124,10 +129,7 @@ export class UsersService {
   // without a prior SELECT — closes the TOCTOU race in the old 2-trip flow
   // where findByResetToken + updatePassword were separate round-trips that
   // caused "new password doesn't work after reset".
-  async claimResetToken(
-    token: string,
-    passwordHash: string,
-  ): Promise<boolean> {
+  async claimResetToken(token: string, passwordHash: string): Promise<boolean> {
     const result = await this.prisma.user.updateMany({
       where: {
         passwordResetToken: token,
@@ -164,8 +166,11 @@ export class UsersService {
     search: string;
     role: string;
     sortBy?: string;
+    isActive?: string;
+    departmentId?: string;
   }) {
-    const { page, limit, search, role, sortBy } = options;
+    const { page, limit, search, role, sortBy, isActive, departmentId } =
+      options;
     const skip = (page - 1) * limit;
 
     const where: Prisma.UserWhereInput = {};
@@ -179,6 +184,17 @@ export class UsersService {
 
     if (role && Object.values(Role).includes(role as Role)) {
       where.role = role as Role;
+    }
+
+    // Account status is deliberately separate from subscription status:
+    // isActive is the login gate (changed via PATCH :id/status), while access
+    // to paid content is driven by the Subscription row.
+    if (isActive === 'true' || isActive === 'false') {
+      where.isActive = isActive === 'true';
+    }
+
+    if (departmentId) {
+      where.departmentId = departmentId;
     }
 
     // Role sort order: SUPER_ADMIN > ADMIN > TEACHER > STUDENT > GUEST
@@ -254,15 +270,15 @@ export class UsersService {
 
     const ids = inactive.map((u) => u.id);
 
-    // Delete in correct FK order
-    await this.prisma.progressRecord.deleteMany({
-      where: { userId: { in: ids } },
+    // Delete each account with the full FK cascade in one transaction. The old
+    // version only cleared progress/notification/aiHistory and then failed with
+    // a foreign-key violation for any user that had quiz attempts, forum posts,
+    // payments, subscriptions, etc.
+    await this.prisma.$transaction(async (tx) => {
+      for (const id of ids) {
+        await this.cascadeDeleteUser(tx, id);
+      }
     });
-    await this.prisma.notification.deleteMany({
-      where: { userId: { in: ids } },
-    });
-    await this.prisma.aiHistory.deleteMany({ where: { userId: { in: ids } } });
-    await this.prisma.user.deleteMany({ where: { id: { in: ids } } });
 
     return {
       message: `Deleted ${ids.length} inactive account(s)`,
@@ -315,6 +331,9 @@ export class UsersService {
   // Assign or re-assign a user's department and optionally academic year.
   // Admin action — allows fixing program assignment after account creation.
   // Students always require both fields; staff only require the department.
+  // Admin accounts carry no program: the field has no functional use for them
+  // (verified in the admin-dashboard audit — no course/student scoping reads
+  // an admin's departmentId), so this is rejected for ADMIN/SUPER_ADMIN.
   async assignDepartment(
     userId: string,
     departmentId: string,
@@ -325,6 +344,12 @@ export class UsersService {
       select: { role: true },
     });
     if (!user) throw new NotFoundException('User not found');
+
+    if (isPrivileged(user.role)) {
+      throw new BadRequestException(
+        'Program assignment does not apply to admin accounts',
+      );
+    }
 
     const dept = await this.prisma.department.findUnique({
       where: { id: departmentId },
@@ -366,7 +391,7 @@ export class UsersService {
   }
 
   // Activate or deactivate a user — admin action
-  async changeStatus(userId: string, isActive: boolean, _actorId: string) {
+  async changeStatus(userId: string, isActive: boolean, actorId: string) {
     const user = await this.prisma.user.update({
       where: { id: userId },
       data: { isActive },
@@ -375,6 +400,18 @@ export class UsersService {
         email: true,
         fullName: true,
         isActive: true,
+      },
+    });
+
+    // Account activation/deactivation is a security-relevant action — record
+    // who did it and to whom, alongside the login lockout entries.
+    await this.prisma.auditLog.create({
+      data: {
+        actorId,
+        action: isActive ? 'USER_ACTIVATED' : 'USER_DEACTIVATED',
+        entityType: 'User',
+        entityId: userId,
+        meta: { isActive },
       },
     });
 
@@ -406,6 +443,12 @@ export class UsersService {
       }
       await this.validateDepartmentYear(data.departmentId, data.academicYearId);
     } else if (data.departmentId) {
+      // Admin accounts carry no program (same rule as assignDepartment).
+      if (isPrivileged(data.role)) {
+        throw new BadRequestException(
+          'Program assignment does not apply to admin accounts',
+        );
+      }
       // Optional department for staff — validate if supplied
       const dept = await this.prisma.department.findUnique({
         where: { id: data.departmentId },
@@ -415,28 +458,78 @@ export class UsersService {
       }
     }
 
+    // Optional course pre-assignment for teachers. Validate the whole
+    // selection BEFORE creating anything so a bad request leaves no partial
+    // account behind, then assign inside the same transaction as the account
+    // (the `teacherId: null` filter makes concurrent double-assignment safe:
+    // if another admin just claimed one of the courses, the transaction rolls
+    // back and no account is created).
+    const courseIds = [
+      ...new Set((data.courseIds ?? []).map((id) => id.trim()).filter(Boolean)),
+    ];
+    if (courseIds.length > 0) {
+      if (data.role !== 'TEACHER') {
+        throw new BadRequestException(
+          'Courses can only be assigned to teacher accounts',
+        );
+      }
+      const courses = await this.prisma.course.findMany({
+        where: { id: { in: courseIds }, isArchived: false },
+        select: { id: true, title: true, teacherId: true },
+      });
+      if (courses.length !== courseIds.length) {
+        throw new BadRequestException(
+          'One or more selected courses were not found',
+        );
+      }
+      const taken = courses.find((course) => course.teacherId !== null);
+      if (taken) {
+        throw new BadRequestException(
+          `Course "${taken.title}" already has a teacher assigned. Reassign it from the course page instead.`,
+        );
+      }
+    }
+
     const temporaryPassword = crypto.randomBytes(6).toString('hex');
     const passwordHash = await bcrypt.hash(temporaryPassword, 12);
 
-    const user = await this.prisma.user.create({
-      data: {
-        email: data.email,
-        passwordHash,
-        fullName: data.fullName,
-        role: data.role,
-        isEmailVerified: true,
-        isActive: true,
-        ...(data.departmentId ? { departmentId: data.departmentId } : {}),
-        ...(data.academicYearId ? { academicYearId: data.academicYearId } : {}),
-        ...(data.phoneNumber ? { phoneNumber: data.phoneNumber } : {}),
-      },
-      select: {
-        id: true,
-        email: true,
-        fullName: true,
-        role: true,
-        departmentId: true,
-      },
+    const user = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          email: data.email,
+          passwordHash,
+          fullName: data.fullName,
+          role: data.role,
+          isEmailVerified: true,
+          isActive: true,
+          ...(data.departmentId ? { departmentId: data.departmentId } : {}),
+          ...(data.academicYearId
+            ? { academicYearId: data.academicYearId }
+            : {}),
+          ...(data.phoneNumber ? { phoneNumber: data.phoneNumber } : {}),
+        },
+        select: {
+          id: true,
+          email: true,
+          fullName: true,
+          role: true,
+          departmentId: true,
+        },
+      });
+
+      if (courseIds.length > 0) {
+        const assigned = await tx.course.updateMany({
+          where: { id: { in: courseIds }, teacherId: null, isArchived: false },
+          data: { teacherId: created.id },
+        });
+        if (assigned.count !== courseIds.length) {
+          throw new BadRequestException(
+            'The selected courses were just assigned to another teacher. Please try again.',
+          );
+        }
+      }
+
+      return created;
     });
 
     return { user, temporaryPassword };
@@ -492,84 +585,94 @@ export class UsersService {
     }
 
     await this.prisma.$transaction(async (tx) => {
-      // Simple owned rows
-      await tx.progressRecord.deleteMany({ where: { userId } });
-      await tx.notification.deleteMany({ where: { userId } });
-      await tx.aiHistory.deleteMany({ where: { userId } });
-      await tx.flashcardReview.deleteMany({ where: { userId } });
-
-      // Quiz answers depend on attempts
-      const attempts = await tx.quizAttempt.findMany({
-        where: { userId },
-        select: { id: true },
-      });
-      const attemptIds = attempts.map((a) => a.id);
-      if (attemptIds.length) {
-        await tx.quizAnswer.deleteMany({
-          where: { attemptId: { in: attemptIds } },
-        });
-      }
-      await tx.quizAttempt.deleteMany({ where: { userId } });
-
-      // Forum reactions/reports authored by the user
-      await tx.reaction.deleteMany({ where: { userId } });
-      await tx.report.deleteMany({ where: { reporterId: userId } });
-
-      // The user's replies — clear reactions/reports on them first
-      const replies = await tx.forumReply.findMany({
-        where: { authorId: userId },
-        select: { id: true },
-      });
-      const replyIds = replies.map((r) => r.id);
-      if (replyIds.length) {
-        await tx.reaction.deleteMany({ where: { replyId: { in: replyIds } } });
-        await tx.report.deleteMany({ where: { replyId: { in: replyIds } } });
-        await tx.forumReply.deleteMany({ where: { id: { in: replyIds } } });
-      }
-
-      // The user's posts — clear child replies + reactions/reports first
-      const posts = await tx.forumPost.findMany({
-        where: { authorId: userId },
-        select: { id: true },
-      });
-      const postIds = posts.map((p) => p.id);
-      if (postIds.length) {
-        const childReplies = await tx.forumReply.findMany({
-          where: { postId: { in: postIds } },
-          select: { id: true },
-        });
-        const childReplyIds = childReplies.map((r) => r.id);
-        if (childReplyIds.length) {
-          await tx.reaction.deleteMany({
-            where: { replyId: { in: childReplyIds } },
-          });
-          await tx.report.deleteMany({
-            where: { replyId: { in: childReplyIds } },
-          });
-          await tx.forumReply.deleteMany({
-            where: { id: { in: childReplyIds } },
-          });
-        }
-        await tx.reaction.deleteMany({ where: { postId: { in: postIds } } });
-        await tx.report.deleteMany({ where: { postId: { in: postIds } } });
-        await tx.forumPost.deleteMany({ where: { id: { in: postIds } } });
-      }
-
-      // Billing
-      await tx.payment.deleteMany({ where: { userId } });
-      await tx.subscription.deleteMany({ where: { userId } });
-
-      // Audit logs + detach owned courses
-      await tx.auditLog.deleteMany({ where: { actorId: userId } });
-      await tx.course.updateMany({
-        where: { teacherId: userId },
-        data: { teacherId: null },
-      });
-
-      await tx.user.delete({ where: { id: userId } });
+      await this.cascadeDeleteUser(tx, userId);
     });
 
     return { message: 'User deleted' };
+  }
+
+  // Remove every row that references this user, in FK-safe order, then the user
+  // itself. Shared by deleteUser() and the 12-month inactive-account sweep.
+  // Must run inside a transaction so a partial cleanup can never be committed.
+  private async cascadeDeleteUser(
+    tx: Prisma.TransactionClient,
+    userId: string,
+  ) {
+    // Simple owned rows
+    await tx.progressRecord.deleteMany({ where: { userId } });
+    await tx.notification.deleteMany({ where: { userId } });
+    await tx.aiHistory.deleteMany({ where: { userId } });
+    await tx.flashcardReview.deleteMany({ where: { userId } });
+
+    // Quiz answers depend on attempts
+    const attempts = await tx.quizAttempt.findMany({
+      where: { userId },
+      select: { id: true },
+    });
+    const attemptIds = attempts.map((a) => a.id);
+    if (attemptIds.length) {
+      await tx.quizAnswer.deleteMany({
+        where: { attemptId: { in: attemptIds } },
+      });
+    }
+    await tx.quizAttempt.deleteMany({ where: { userId } });
+
+    // Forum reactions/reports authored by the user
+    await tx.reaction.deleteMany({ where: { userId } });
+    await tx.report.deleteMany({ where: { reporterId: userId } });
+
+    // The user's replies — clear reactions/reports on them first
+    const replies = await tx.forumReply.findMany({
+      where: { authorId: userId },
+      select: { id: true },
+    });
+    const replyIds = replies.map((r) => r.id);
+    if (replyIds.length) {
+      await tx.reaction.deleteMany({ where: { replyId: { in: replyIds } } });
+      await tx.report.deleteMany({ where: { replyId: { in: replyIds } } });
+      await tx.forumReply.deleteMany({ where: { id: { in: replyIds } } });
+    }
+
+    // The user's posts — clear child replies + reactions/reports first
+    const posts = await tx.forumPost.findMany({
+      where: { authorId: userId },
+      select: { id: true },
+    });
+    const postIds = posts.map((p) => p.id);
+    if (postIds.length) {
+      const childReplies = await tx.forumReply.findMany({
+        where: { postId: { in: postIds } },
+        select: { id: true },
+      });
+      const childReplyIds = childReplies.map((r) => r.id);
+      if (childReplyIds.length) {
+        await tx.reaction.deleteMany({
+          where: { replyId: { in: childReplyIds } },
+        });
+        await tx.report.deleteMany({
+          where: { replyId: { in: childReplyIds } },
+        });
+        await tx.forumReply.deleteMany({
+          where: { id: { in: childReplyIds } },
+        });
+      }
+      await tx.reaction.deleteMany({ where: { postId: { in: postIds } } });
+      await tx.report.deleteMany({ where: { postId: { in: postIds } } });
+      await tx.forumPost.deleteMany({ where: { id: { in: postIds } } });
+    }
+
+    // Billing
+    await tx.payment.deleteMany({ where: { userId } });
+    await tx.subscription.deleteMany({ where: { userId } });
+
+    // Audit logs + detach owned courses
+    await tx.auditLog.deleteMany({ where: { actorId: userId } });
+    await tx.course.updateMany({
+      where: { teacherId: userId },
+      data: { teacherId: null },
+    });
+
+    await tx.user.delete({ where: { id: userId } });
   }
 
   // Full profile for the logged-in user — includes role-relevant relations
@@ -611,6 +714,17 @@ export class UsersService {
           },
         },
         payments: {
+          // Hide an online checkout that was opened but never completed, or an
+          // initialization that failed before bank confirmation. A
+          // Chapa-confirmed row (including an underpayment) has a chapaRef; an
+          // approved row is always visible.
+          where: {
+            NOT: {
+              method: 'CHAPA',
+              chapaRef: null,
+              status: { not: 'APPROVED' },
+            },
+          },
           orderBy: { createdAt: 'desc' },
           take: 5,
           select: {
@@ -673,48 +787,5 @@ export class UsersService {
     const passwordHash = await bcrypt.hash(newPassword, 12);
     await this.updatePassword(userId, passwordHash);
     return { message: 'Password changed successfully' };
-  }
-  // Create a teacher or admin account directly — admin action only
-  // The new account gets a random temporary password
-  // In production this will email them an invite link (future sprint)
-  async createStaffAccount(
-    data: { fullName: string; email: string; role: 'TEACHER' | 'ADMIN' },
-    _actorId: string,
-  ) {
-    const existing = await this.prisma.user.findUnique({
-      where: { email: data.email },
-    });
-    if (existing) {
-      throw new Error(`An account with ${data.email} already exists`);
-    }
-
-    // Generate a temporary password
-    const tempPassword = crypto.randomBytes(8).toString('hex');
-    const passwordHash = await bcrypt.hash(tempPassword, 12);
-
-    const user = await this.prisma.user.create({
-      data: {
-        email: data.email,
-        fullName: data.fullName,
-        passwordHash,
-        role: data.role,
-        isEmailVerified: true, // Staff accounts are pre-verified
-        isActive: true,
-      },
-      select: {
-        id: true,
-        email: true,
-        fullName: true,
-        role: true,
-      },
-    });
-
-    // TODO Sprint 7: email the temp password instead of returning it
-    // For now return it so admin can communicate it manually
-    return {
-      message: `${data.role} account created`,
-      user,
-      temporaryPassword: tempPassword,
-    };
   }
 }

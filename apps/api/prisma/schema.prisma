@@ -34,6 +34,10 @@ enum PaymentStatus {
   PENDING
   APPROVED
   REJECTED
+  // An approved payment that was later invalidated by a super admin (wrong
+  // student, refunded, fraudulent receipt found after review). Only APPROVED
+  // rows can be reversed; the original approval fields stay intact.
+  REVERSED
 }
 
 // How a payment was made:
@@ -56,6 +60,7 @@ enum AiStatus {
 enum NotificationType {
   PAYMENT_APPROVED
   PAYMENT_REJECTED
+  PAYMENT_REVERSED
   SUBSCRIPTION_EXPIRING
   SUBSCRIPTION_EXPIRED
   NEW_CONTENT
@@ -180,6 +185,13 @@ model Payment {
   rejectionReason String?
   reviewedBy      String? // admin userId for MANUAL; null for CHAPA auto-approval
   reviewedAt      DateTime?
+
+  // ── Reversal fields (APPROVED → REVERSED) ──
+  // Set when a super admin reverses a previously approved payment. The
+  // approval fields above are never rewritten; these record the reversal.
+  reversalReason String?
+  reversedBy     String? // super-admin userId who reversed it
+  reversedAt     DateTime?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -189,6 +201,28 @@ model Payment {
 
   @@index([userId, status])
   @@index([status])
+}
+
+/**
+ * Admin-managed list of banks the college accepts payments from. The catalog
+ * itself (labels, required input, auto-verify capability) lives in
+ * bank-catalog.ts; this table only records which catalog entries are enabled.
+ * Removing a row never touches existing payments (bankName is a snapshot).
+ */
+model AcceptedBank {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  isActive  Boolean  @default(true)
+
+  // College receiving account for this bank. Optional because a bank can be
+  // enabled before its account is entered; digit-only, validated per bank
+  // (CBE legacy lookup uses the last 8, BOA the last 5). The full number is
+  // shown to students and matched against the receiver on bank receipts.
+  accountNumber String? @unique
+  accountName   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ─── ACADEMIC STRUCTURE ───────────────────────
@@ -248,6 +282,9 @@ model Course {
   quizzes       Quiz[]
   announcements Announcement[] // ✅ Explicit relation tracker mapped here
   forumSection  ForumSection?
+
+  @@index([semesterId])
+  @@index([teacherId])
 }
 
 // ─── MATERIALS ────────────────────────────────
@@ -267,6 +304,8 @@ model Material {
   course          Course           @relation(fields: [courseId], references: [id])
   aiContent       AiContent?
   progressRecords ProgressRecord[]
+
+  @@index([courseId])
 }
 
 // ─── AI CONTENT ───────────────────────────────
@@ -364,6 +403,9 @@ model Question {
   quiz     Quiz?        @relation(fields: [quizId], references: [id])
   quizBank QuizBank?    @relation(fields: [quizBankId], references: [id])
   answers  QuizAnswer[]
+
+  @@index([quizBankId])
+  @@index([quizId])
 }
 
 model QuizAttempt {
@@ -378,6 +420,9 @@ model QuizAttempt {
   user    User         @relation(fields: [userId], references: [id])
   quiz    Quiz         @relation(fields: [quizId], references: [id])
   answers QuizAnswer[]
+
+  @@index([userId])
+  @@index([quizId])
 }
 
 model QuizAnswer {
@@ -389,6 +434,9 @@ model QuizAnswer {
 
   attempt  QuizAttempt @relation(fields: [attemptId], references: [id])
   question Question    @relation(fields: [questionId], references: [id])
+
+  @@index([attemptId])
+  @@index([questionId])
 }
 
 // ─── AI TUTOR HISTORY ─────────────────────────
@@ -402,6 +450,8 @@ model AiHistory {
   createdAt  DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
 }
 
 // ─── FORUM ────────────────────────────────────
@@ -430,6 +480,9 @@ model ForumPost {
   replies   ForumReply[]
   reactions Reaction[]
   reports   Report[]
+
+  @@index([sectionId])
+  @@index([authorId])
 }
 
 model ForumReply {
@@ -444,6 +497,9 @@ model ForumReply {
   author    User       @relation(fields: [authorId], references: [id])
   reactions Reaction[]
   reports   Report[]
+
+  @@index([postId])
+  @@index([authorId])
 }
 
 // ─── NOTIFICATIONS ────────────────────────────
@@ -485,6 +541,8 @@ model Announcement {
   createdAt DateTime @default(now())
 
   course Course @relation(fields: [courseId], references: [id])
+
+  @@index([courseId])
 }
 
 // ─── AUDIT LOGS ───────────────────────────────
@@ -566,4 +624,5 @@ model Report {
   @@index([status])
   @@index([postId])
   @@index([replyId])
+  @@index([reporterId])
 }

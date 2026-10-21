@@ -10,10 +10,7 @@ import { AuthService } from './auth.service';
 describe('AuthService email verification', () => {
   const findByEmail = jest.fn();
   const createUser = jest.fn();
-  const saveVerifyToken =
-    jest.fn<
-      (userId: string, token: string, expiry: Date) => Promise<unknown>
-    >();
+  const saveVerifyToken = jest.fn<Promise<unknown>, [string, string, Date]>();
   const sendEmailVerification = jest.fn();
   const findDepartment = jest.fn();
   const findAcademicYear = jest.fn();

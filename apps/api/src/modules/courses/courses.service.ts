@@ -79,8 +79,7 @@ export class CoursesService {
   }
 
   async findByTeacher(teacherId: string) {
-    console.log('[CoursesService] findByTeacher called with teacherId:', teacherId);
-    const results = await this.prisma.course.findMany({
+    return this.prisma.course.findMany({
       where: { teacherId, isArchived: false },
       orderBy: { createdAt: 'desc' },
       include: {
@@ -94,8 +93,6 @@ export class CoursesService {
         _count: { select: { materials: true } },
       },
     });
-    console.log('[CoursesService] findByTeacher results count:', results.length);
-    return results;
   }
 
   async findAllAdmin() {
@@ -183,7 +180,6 @@ export class CoursesService {
   }
 
   async update(id: string, dto: UpdateCourseDto, actor: CourseActor) {
-    console.log('[CoursesService] update called - courseId:', id, 'dto:', dto, 'actor:', actor);
     const course = await this.ensureExists(id);
 
     if (actor.role === 'TEACHER') {
@@ -199,8 +195,10 @@ export class CoursesService {
       await this.ensureTeacher(dto.teacherId);
     }
 
-    const result = await this.prisma.course.update({ where: { id }, data: dto });
-    console.log('[CoursesService] update completed - new teacherId:', result.teacherId);
+    const result = await this.prisma.course.update({
+      where: { id },
+      data: dto,
+    });
     return result;
   }
 

@@ -17,6 +17,35 @@ export interface GeneratedAiContent {
   }[];
 }
 
+// ~100k characters is roughly 25k tokens — comfortably inside Gemini's
+// context window and enough to cover a full chapter/PDF (the CKD PDF is
+// ~58k characters) instead of only the first 40k.
+const MAX_SOURCE_CHARS = 100_000;
+
+/**
+ * Longer sources deserve longer notes. These targets are capped so the
+ * Markdown summary still fits in the same JSON response as the flashcards
+ * and quiz, while short handouts don't get padded with filler.
+ */
+export function notesLengthTarget(sourceChars: number): string {
+  if (sourceChars < 5_000) {
+    return 'about 200-350 words (8-12 short bullets)';
+  }
+  if (sourceChars < 15_000) {
+    return 'about 350-600 words (12-20 short bullets)';
+  }
+  if (sourceChars < 30_000) {
+    return 'about 600-950 words (20-32 short bullets)';
+  }
+  if (sourceChars < 60_000) {
+    return 'about 1,000-1,500 words (32-48 short bullets)';
+  }
+  if (sourceChars < 100_000) {
+    return 'about 1,400-1,900 words (45-60 short bullets)';
+  }
+  return 'about 1,700-2,200 words (55-75 short bullets)';
+}
+
 @Injectable()
 export class GeminiService {
   private readonly logger = new Logger(GeminiService.name);
@@ -33,19 +62,21 @@ export class GeminiService {
   // and keeps everything thematically consistent (the flashcards and
   // quiz reference the same key topics the summary identified).
   async generateFromText(materialText: string): Promise<GeneratedAiContent> {
-    // Gemini has a context limit. Rather than fail outright on a very
-    // long PDF, we truncate to a safe size and process what we can.
-    const truncated = materialText.slice(0, 40_000);
+    // Keep the whole document (up to a safe context cap). The old 40k cap
+    // cut off the last third of a typical chapter, so the notes missed it.
+    const sourceChars = materialText.length;
+    const truncated = materialText.slice(0, MAX_SOURCE_CHARS);
+    const notesTarget = notesLengthTarget(sourceChars);
 
     const model = this.client.getGenerativeModel({
       // Check Google AI Studio for the current recommended Flash model
       // name when you actually run this — the lineup changes often
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.8-flash',
       // Force strict JSON output. Without this the model frequently wraps the
       // payload in prose or code fences, or truncates the large flashcard/quiz
       // array — any of which makes JSON.parse throw and the job FAIL. JSON mode
-      // guarantees a parseable object, and the bigger token budget prevents the
-      // 15-20 flashcards + 8-10 questions from being cut off mid-array.
+      // guarantees a parseable object; 8192 output tokens fits the longer
+      // Markdown notes plus 15-20 flashcards and 8-10 questions.
       generationConfig: {
         responseMimeType: 'application/json',
         maxOutputTokens: 8192,
@@ -56,11 +87,11 @@ export class GeminiService {
     const prompt = `
 You are an expert medical education assistant creating study material
 for a medical student from a course PDF. Read the material below and
-respond with ONLY valid JSON — no markdown formatting, no code fences,
-no explanation text before or after. Match this exact shape:
+respond with ONLY valid JSON — no code fences, no prose before or after.
+The "summary" value itself is Markdown.
 
 {
-  "summary": "A clear 3-paragraph summary written for a medical student studying for an exam",
+  "summary": "Markdown study notes: a short overview, then '##' sections with '- ' bullets",
   "keyTopics": ["topic 1", "topic 2", "topic 3"],
   "flashcards": [
     { "front": "question or term", "back": "concise answer or definition" }
@@ -75,10 +106,27 @@ no explanation text before or after. Match this exact shape:
   ]
 }
 
+The "summary" is the student's main study note, so make it genuinely
+useful for revision:
+- Start with a 2-4 sentence overview of the document.
+- Then cover every major section using '##' headings (and '###'
+  subheadings where useful).
+- Under each heading, write '- ' bullets. Each bullet is one short,
+  self-contained note: a definition, mechanism, classification, clinical
+  clue, risk factor, investigation, management step, or exam pearl.
+- Use **bold** for key terms. Keep each bullet to 1-2 lines.
+- Prefer many short notes over long paragraphs. Do not pad, repeat, or
+  invent facts that are not in the source. If the material is repetitive,
+  use the lower end of the target range.
+- Scale to the source: this document is ${sourceChars} characters long, so
+  write ${notesTarget}. Cover the whole document, not just the opening.
+- Do not use tables, code blocks, or a references section.
+- The summary is a JSON string: use standard JSON escaping for line breaks.
+
 Generate exactly 5-8 keyTopics, 15-20 flashcards, and 8-10 questions.
 Every question must have exactly 4 options.
 
-MATERIAL:
+MATERIAL${sourceChars > MAX_SOURCE_CHARS ? ' (truncated to the first 100,000 characters)' : ''}:
 ${truncated}
     `.trim();
 
@@ -114,7 +162,7 @@ ${truncated}
   // instruct the model to prefer it; otherwise it answers from general
   // medical knowledge. Returns plain text suitable for a chat bubble.
   async answerQuestion(question: string, context: string): Promise<string> {
-    const model = this.client.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = this.client.getGenerativeModel({ model: 'gemini-3.8-flash' });
 
     const grounding = context
       ? `Use the following course material as your primary reference. If the answer is not covered by it, say so briefly and then answer from general medical knowledge.\n\n--- COURSE MATERIAL ---\n${context.slice(0, 30_000)}\n--- END MATERIAL ---\n`

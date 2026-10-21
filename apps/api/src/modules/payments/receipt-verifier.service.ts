@@ -9,6 +9,8 @@ export interface NormalizedReceipt {
   bank: string;
   reference: string | null;
   amount: number | null;
+  /** ISO currency code when the source exposes it (Cheki returns ETB). */
+  currency?: string | null;
   receiverAccount: string | null;
   receiverName: string | null;
   payerName: string | null;
@@ -17,6 +19,8 @@ export interface NormalizedReceipt {
   statusKnown: boolean;
   statusOk: boolean | null;
   date: string | null;
+  /** Which verification source produced this record (audit provenance). */
+  source?: 'cheki' | 'local';
   raw: Record<string, unknown>;
 }
 

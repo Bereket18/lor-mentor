@@ -11,6 +11,16 @@ const PLACEHOLDERS = new Set([
   '',
 ]);
 
+function looksLikePlaceholder(value: unknown): boolean {
+  if (typeof value !== 'string') return true;
+  const trimmed = value.trim();
+  return (
+    PLACEHOLDERS.has(trimmed) ||
+    /^change[_-]?me/i.test(trimmed) ||
+    /^your[_-]/i.test(trimmed)
+  );
+}
+
 export function validateEnv(
   config: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -27,9 +37,16 @@ export function validateEnv(
 
   // In production, refuse weak/placeholder JWT secrets outright.
   if (isProd) {
+    if (
+      typeof config.DATABASE_URL === 'string' &&
+      /change[_-]?me/i.test(config.DATABASE_URL)
+    ) {
+      errors.push('DATABASE_URL must not use a placeholder in production');
+    }
+
     for (const key of ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET']) {
       const value = config[key];
-      if (typeof value === 'string' && PLACEHOLDERS.has(value)) {
+      if (typeof value === 'string' && looksLikePlaceholder(value)) {
         errors.push(
           `${key} must be changed from its placeholder in production`,
         );
@@ -72,6 +89,37 @@ export function validateEnv(
       }
     }
 
+    if (looksLikePlaceholder(config.SMTP_PASS)) {
+      errors.push('SMTP_PASS must not use a placeholder in production');
+    }
+
+    const smtpFrom = config.SMTP_FROM;
+    if (typeof smtpFrom === 'string' && smtpFrom.trim()) {
+      const fromAddress =
+        smtpFrom.match(/<([^>]+)>/)?.[1]?.trim() ?? smtpFrom.trim();
+      if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(fromAddress)) {
+        errors.push('SMTP_FROM must contain a valid email address');
+      }
+      if (/@resend\.dev$/i.test(fromAddress)) {
+        errors.push(
+          'SMTP_FROM must use a verified sending domain, not resend.dev (F-8)',
+        );
+      }
+    }
+
+    const redisFailMode = config.REDIS_FAIL_MODE;
+    if (redisFailMode !== undefined && redisFailMode !== '') {
+      const mode =
+        typeof redisFailMode === 'string'
+          ? redisFailMode.toLowerCase()
+          : undefined;
+      if (mode !== 'closed' && mode !== 'open') {
+        errors.push(
+          'REDIS_FAIL_MODE must be either "closed" (default) or "open"',
+        );
+      }
+    }
+
     // Public URLs must be real: Chapa's browser callback and webhook are
     // built from these, and CORS must name the real frontend origin or the
     // whole web app is blocked.
@@ -107,6 +155,11 @@ export function validateEnv(
       );
     }
 
+    // Legacy `COMPANY_BANK_ACCOUNTS` is matching-only. The public transfer
+    // panel reads active receiving accounts from the database (managed in
+    // /admin/banks), so this env list is optional. Validate entries only when
+    // an operator has supplied them; never require env values as the primary
+    // source of receiving accounts.
     const accountValue =
       typeof config.COMPANY_BANK_ACCOUNTS === 'string'
         ? config.COMPANY_BANK_ACCOUNTS
@@ -115,12 +168,8 @@ export function validateEnv(
       .split(',')
       .map((account) => account.trim())
       .filter(Boolean);
-    if (accounts.length === 0) {
-      errors.push(
-        'COMPANY_BANK_ACCOUNTS is required when RECEIPT_VERIFIER_URL is set ' +
-          '(auto-approval matches the receipt receiver against these accounts)',
-      );
-    } else if (
+    if (
+      accounts.length > 0 &&
       accounts.some((account) => account.replace(/\D/g, '').length < 8)
     ) {
       errors.push(

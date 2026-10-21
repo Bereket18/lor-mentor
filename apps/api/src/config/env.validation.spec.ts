@@ -49,18 +49,17 @@ describe('validateEnv', () => {
     ).toThrow(/CHAPA_WEBHOOK_SECRET is required once Chapa is enabled/);
   });
 
-  it('requires company account matching when receipt verification is enabled', () => {
-    expect(() =>
-      validateEnv({
-        NODE_ENV: 'test',
-        JWT_ACCESS_SECRET: 'test-access',
-        JWT_REFRESH_SECRET: 'test-refresh',
-        DATABASE_URL: 'postgresql://localhost/test',
-        RECEIPT_VERIFIER_URL: 'http://localhost:8000',
-      }),
-    ).toThrow(
-      /COMPANY_BANK_ACCOUNTS is required when RECEIPT_VERIFIER_URL is set/,
-    );
+  it('allows receipt verification without legacy env accounts because DB accounts are primary', () => {
+    const config = {
+      NODE_ENV: 'test',
+      JWT_ACCESS_SECRET: 'test-access',
+      JWT_REFRESH_SECRET: 'test-refresh',
+      DATABASE_URL: 'postgresql://localhost/test',
+      RECEIPT_VERIFIER_URL: 'http://localhost:8000',
+      RECEIPT_VERIFIER_TOKEN: 'local-test-token',
+    };
+
+    expect(validateEnv({ ...config })).toEqual(config);
   });
 
   it('requires a shared token when receipt verification is enabled', () => {
@@ -105,6 +104,55 @@ describe('validateEnv', () => {
     ).toThrow(
       /RECEIPT_VERIFIER_TOKEN must be a non-placeholder secret of at least 32 characters/,
     );
+  });
+
+  it('rejects placeholder database and SMTP values in production', () => {
+    expect(() =>
+      validateEnv({
+        ...secureProductionConfig,
+        DATABASE_URL:
+          'postgresql://lor:CHANGE_ME_strong_db_password@db:5432/lor_mentor',
+        SMTP_PASS: 'CHANGE_ME_smtp_api_key',
+      }),
+    ).toThrow(
+      /DATABASE_URL must not use a placeholder[\s\S]*SMTP_PASS must not use a placeholder/,
+    );
+  });
+
+  it('rejects a Resend-owned sender in production (F-8)', () => {
+    expect(() =>
+      validateEnv({
+        ...secureProductionConfig,
+        SMTP_FROM: 'Lor Mentor <onboarding@resend.dev>',
+      }),
+    ).toThrow(/SMTP_FROM must use a verified sending domain/);
+  });
+
+  it('rejects an invalid SMTP_FROM address in production', () => {
+    expect(() =>
+      validateEnv({
+        ...secureProductionConfig,
+        SMTP_FROM: 'not-an-email',
+      }),
+    ).toThrow(/SMTP_FROM must contain a valid email address/);
+  });
+
+  it('rejects an unknown Redis fail mode', () => {
+    expect(() =>
+      validateEnv({
+        ...secureProductionConfig,
+        REDIS_FAIL_MODE: 'sometimes',
+      }),
+    ).toThrow(/REDIS_FAIL_MODE must be either "closed" \(default\) or "open"/);
+  });
+
+  it('accepts an explicit closed Redis fail mode', () => {
+    const config = {
+      ...secureProductionConfig,
+      REDIS_FAIL_MODE: 'closed',
+    };
+
+    expect(validateEnv({ ...config })).toEqual(config);
   });
 
   it('accepts complete local receipt-verifier configuration', () => {

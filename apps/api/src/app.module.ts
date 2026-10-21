@@ -7,6 +7,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { validateEnv } from './config/env.validation';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { RedisHealthService } from './common/redis/redis-health.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
@@ -25,6 +26,7 @@ import { QuizModule } from './modules/quiz/quiz.module';
 import { TutorModule } from './modules/tutor/tutor.module';
 import { ProgressModule } from './modules/progress/progress.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { AuditModule } from './modules/audit/audit.module';
 
 @Module({
   imports: [
@@ -60,10 +62,12 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     TutorModule,
     ProgressModule,
     NotificationsModule,
+    AuditModule,
   ],
   controllers: [AppController],
   providers: [
     AppService,
+    RedisHealthService,
     // Apply the rate limiter globally to every route.
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     // One consistent error envelope for every unhandled exception.

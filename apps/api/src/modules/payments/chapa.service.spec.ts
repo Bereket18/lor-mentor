@@ -25,9 +25,8 @@ describe('ChapaService', () => {
   const webhookSecret = 'webhook-test-secret';
   const findUnique = jest.fn();
   const findPlan = jest.fn();
-  const create =
-    jest.fn<(args: PaymentCreateArgs) => Promise<{ id: string }>>();
-  const update = jest.fn<(args: PaymentUpdateArgs) => unknown>();
+  const create = jest.fn<Promise<{ id: string }>, [PaymentCreateArgs]>();
+  const update = jest.fn<unknown, [PaymentUpdateArgs]>();
   const updateMany = jest.fn();
   const assertNoActiveSubscription = jest.fn();
   const finalizeApproval = jest.fn();
@@ -261,6 +260,17 @@ describe('ChapaService', () => {
       service.verifyByTxRef('lm-payment-1', 'student-1'),
     ).resolves.toMatchObject({ status: 'PENDING' });
     expect(finalizeApproval).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 'payment-1' },
+      data: expect.objectContaining({
+        chapaRef: 'lm-payment-1',
+        verification: expect.objectContaining({
+          decision: 'REVIEW',
+          amount: 900,
+          reviewNote: expect.stringContaining('Chapa confirmed 900 ETB'),
+        }),
+      }),
+    });
   });
 
   it('rejects a terminally failed Chapa transaction so it can be retried', async () => {

@@ -6,13 +6,14 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { Prisma } from '@prisma/client';
 import * as crypto from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PaymentsService } from './payments.service';
 
 interface ChapaInitResponse {
   status: string;
-  message?: string;
+  message?: string | Record<string, unknown>;
   data?: { checkout_url?: string };
 }
 
@@ -149,15 +150,29 @@ export class ChapaService {
     }
 
     if (!res.ok || json.status !== 'success' || !json.data?.checkout_url) {
-      const reason = json.message ?? res.statusText ?? 'Unknown Chapa error';
+      // Chapa returns `message` as a string for most errors, but sends a
+      // field-keyed object for validation failures (e.g. an email domain
+      // without MX records). Stringify those so stored rejection reasons,
+      // logs, and the client never see "[object Object]".
+      const rawMessage =
+        json.message ?? res.statusText ?? 'Unknown Chapa error';
+      const reason =
+        typeof rawMessage === 'string'
+          ? rawMessage
+          : Object.entries(rawMessage)
+              .map(
+                ([field, detail]) =>
+                  `${field}: ${
+                    Array.isArray(detail) ? detail.join(', ') : String(detail)
+                  }`,
+              )
+              .join('; ') || 'Unknown Chapa error';
       await this.rejectInitialization(
         payment.id,
         `Chapa initialization failed: ${reason}`,
       );
       this.logger.error(`Chapa initialize failed for ${txRef}: ${reason}`);
-      throw new BadRequestException(
-        json.message ?? 'Could not start the online payment',
-      );
+      throw new BadRequestException(reason);
     }
 
     return { checkoutUrl: json.data.checkout_url, txRef };
@@ -311,6 +326,22 @@ export class ChapaService {
       this.logger.error(
         `Chapa amount mismatch for ${txRef}: settled ${settled} < expected ${expected}. Not approving.`,
       );
+      // Mark the row as gateway-confirmed but underpaid. It stays PENDING for
+      // manual reconciliation, and chapaRef makes it visible to admins —
+      // unlike an initialized checkout, which has no chapaRef.
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: {
+          chapaRef: json.data?.reference ?? txRef,
+          verification: {
+            reviewNote: `Chapa confirmed ${settled} ETB but the selected plan is ${expected} ETB. Manual review required.`,
+            decision: 'REVIEW',
+            source: 'chapa',
+            reference: json.data?.reference ?? txRef,
+            amount: settled,
+          } as Prisma.InputJsonValue,
+        },
+      });
       return;
     }
 

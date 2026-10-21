@@ -1,11 +1,16 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 import { AppController } from './app.controller';
 import type { PrismaService } from './prisma/prisma.service';
+import type { RedisHealthService } from './common/redis/redis-health.service';
 
 describe('AppController', () => {
-  function makeController(queryRaw: () => Promise<unknown>) {
+  function makeController(
+    queryRaw: () => Promise<unknown>,
+    ping: () => Promise<boolean> = () => Promise.resolve(true),
+  ) {
     const prisma = { $queryRaw: queryRaw } as unknown as PrismaService;
-    return new AppController(prisma);
+    const redis = { ping } as unknown as RedisHealthService;
+    return new AppController(prisma, redis);
   }
 
   describe('getHealth (liveness)', () => {
@@ -21,13 +26,14 @@ describe('AppController', () => {
   });
 
   describe('getReadiness', () => {
-    it('reports ready when the database responds', async () => {
+    it('reports ready when the database and Redis respond', async () => {
       const controller = makeController(() =>
         Promise.resolve([{ '?column?': 1 }]),
       );
       await expect(controller.getReadiness()).resolves.toEqual({
         status: 'ready',
         database: 'up',
+        redis: 'up',
       });
     });
 
@@ -38,6 +44,27 @@ describe('AppController', () => {
       await expect(controller.getReadiness()).rejects.toBeInstanceOf(
         ServiceUnavailableException,
       );
+    });
+
+    it('throws ServiceUnavailable when Redis is down', async () => {
+      const controller = makeController(
+        () => Promise.resolve([{ '?column?': 1 }]),
+        () => Promise.resolve(false),
+      );
+
+      let caught: unknown;
+      try {
+        await controller.getReadiness();
+      } catch (err) {
+        caught = err;
+      }
+
+      expect(caught).toBeInstanceOf(ServiceUnavailableException);
+      expect((caught as ServiceUnavailableException).getResponse()).toEqual({
+        status: 'unavailable',
+        database: 'up',
+        redis: 'down',
+      });
     });
   });
 });

@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Param,
   Query,
   Body,
@@ -32,6 +33,11 @@ import { PaymentsService } from './payments.service';
 import { ChapaService } from './chapa.service';
 import { InitializeChapaDto } from './dto/initialize-chapa.dto';
 import { VerifyReceiptDto } from './dto/verify-receipt.dto';
+import {
+  AddBankDto,
+  SetBankAccountDto,
+  UpdateBankDto,
+} from './dto/manage-bank.dto';
 
 import type { RequestUser } from '../../common/types/request-user';
 
@@ -75,8 +81,58 @@ export class PaymentsController {
   @Get('admin')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
-  findAllAdmin() {
-    return this.service.findAllAdmin();
+  findAllAdmin(@Query('status') status = '', @Query('search') search = '') {
+    return this.service.findAllAdmin({ status, search });
+  }
+
+  // ── Admin: accepted payment banks ─────────────
+  // The catalog (codes/labels/auto-verify capability) lives in code; these
+  // endpoints only manage which entries the college currently accepts.
+  @Get('admin/banks')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  listBankCatalog() {
+    return this.service.listBankCatalog();
+  }
+
+  @Post('admin/banks')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  addBank(@Body() dto: AddBankDto) {
+    return this.service.addBank(dto.code);
+  }
+
+  @Patch('admin/banks/:code')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  updateBank(@Param('code') code: string, @Body() dto: UpdateBankDto) {
+    return this.service.updateBank(code, dto.isActive);
+  }
+
+  // College receiving account for an adopted bank. Full number, digit-only;
+  // the service applies the bank's Cheki lookup rule (CBE 8 digits, BOA 5).
+  @Patch('admin/banks/:code/account')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  setBankAccount(
+    @Param('code') code: string,
+    @Body() dto: SetBankAccountDto,
+  ) {
+    return this.service.setBankAccount(code, dto);
+  }
+
+  @Delete('admin/banks/:code/account')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  clearBankAccount(@Param('code') code: string) {
+    return this.service.clearBankAccount(code);
+  }
+
+  @Delete('admin/banks/:code')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  removeBank(@Param('code') code: string) {
+    return this.service.removeBank(code);
   }
 
   // ── Student: my payment history ───────────────
@@ -86,7 +142,27 @@ export class PaymentsController {
     return this.service.findMine(user.id);
   }
 
+  // ── PUBLIC: college receiving accounts for direct transfers ──
+  // Shown on the student payment page so the bank-transfer flow is
+  // completable from the app alone (audit finding F-12). Account numbers are
+  // printed on every bank receipt, so they are not secret.
+  @Get('bank-accounts')
+  getBankAccounts() {
+    return this.service.getBankAccounts();
+  }
+
+  // ── PUBLIC: banks the college accepts (student picker) ──
+  // Only enabled entries; whether a bank is auto-verifiable is returned so the
+  // page can say "manual review" before the student submits.
+  @Get('banks')
+  getAcceptedBanks() {
+    return this.service.getAcceptedBanks();
+  }
+
   // ── MANUAL flow: upload bank receipt ──────────
+  // The upload now also triggers a Cheki OCR scan (QR → bank reference), so
+  // cap retries like the reference flow to stay inside the external quota.
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('submit')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('STUDENT')
@@ -181,6 +257,20 @@ export class PaymentsController {
     @CurrentUser() user: RequestUser,
   ) {
     return this.service.reject(id, user.id, reason);
+  }
+
+  // SUPER_ADMIN only: invalidate a previously approved payment. Removes the
+  // student's access when no other approved payment keeps the subscription
+  // alive. A reason is mandatory.
+  @Patch(':id/reverse')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('SUPER_ADMIN')
+  reverse(
+    @Param('id') id: string,
+    @Body('reason') reason: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.service.reverse(id, user.id, reason);
   }
 
   // ── Admin: view the uploaded MANUAL receipt image ──

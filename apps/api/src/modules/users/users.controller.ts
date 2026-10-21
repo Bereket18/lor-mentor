@@ -45,6 +45,8 @@ export class UsersController {
     @Query('search') search = '',
     @Query('role') role = '',
     @Query('sortBy') sortBy = '',
+    @Query('isActive') isActive = '',
+    @Query('departmentId') departmentId = '',
   ) {
     return this.usersService.findAll({
       page: parseInt(page, 10),
@@ -52,6 +54,8 @@ export class UsersController {
       search,
       role,
       sortBy,
+      isActive,
+      departmentId,
     });
   }
 

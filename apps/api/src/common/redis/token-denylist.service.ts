@@ -15,8 +15,16 @@ import Redis from 'ioredis';
 export class TokenDenylistService implements OnModuleDestroy {
   private readonly logger = new Logger(TokenDenylistService.name);
   private readonly client: Redis;
+  private readonly failMode: 'closed' | 'open';
 
   constructor(config: ConfigService) {
+    // Fail closed by default: if Redis cannot answer, a refresh token cannot
+    // be proven un-revoked, so it must be rejected. `open` exists only as an
+    // explicit local-debug escape hatch and is never recommended in production.
+    this.failMode =
+      config.get<string>('REDIS_FAIL_MODE')?.toLowerCase() === 'open'
+        ? 'open'
+        : 'closed';
     this.client = new Redis({
       host: config.get<string>('REDIS_HOST') ?? 'localhost',
       port: parseInt(config.get<string>('REDIS_PORT') ?? '6379', 10),
@@ -38,20 +46,26 @@ export class TokenDenylistService implements OnModuleDestroy {
     await this.client.set(this.key(jti), '1', 'EX', Math.ceil(ttlSeconds));
   }
 
-  /** True if this token id has been revoked. Fails OPEN if Redis is unreachable. */
+  /**
+   * True if this token id has been revoked.
+   *
+   * Fails CLOSED by default: if Redis is unreachable we cannot prove the token
+   * is still valid, so a refresh attempt is rejected. This deliberately
+   * prioritises revocation correctness over availability. Set
+   * `REDIS_FAIL_MODE=open` only for an explicit local-debug session.
+   */
   async isDenied(jti: string | undefined): Promise<boolean> {
     if (!jti) return false;
     try {
       return (await this.client.exists(this.key(jti))) === 1;
     } catch (err) {
-      // Don't lock everyone out if Redis blips — log and allow. The token still
-      // expires on its own; this only affects the revoke-early guarantee.
+      const allow = this.failMode === 'open';
       this.logger.error(
-        `Denylist check failed (allowing token): ${
+        `Denylist check failed (${allow ? 'allowing' : 'denying'} token): ${
           err instanceof Error ? err.message : String(err)
         }`,
       );
-      return false;
+      return !allow;
     }
   }
 
