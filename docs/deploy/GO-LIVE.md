@@ -9,6 +9,12 @@ unless it says otherwise. Don't skip steps.
 > Python service, Postgres, and Redis together, auto-restarts crashed containers,
 > and starts everything on reboot. So there's no separate Node/PM2 install; Docker
 > does that job more reliably. Everything below reflects the Docker approach.
+>
+> **Audit gates & deferred items:** secret rotation (S-2), Resend domain
+> verification (F-8), Chapa live setup, and the remaining audit gates
+> (T-45 evidence, T-46/T-47/T-48, full verifier build, real TLS) are consolidated
+> in **`docs/audit/HOSTINGER-DEPLOYMENT-PLAYBOOK.md`**. This guide gets the site
+> running; the playbook closes the production gates.
 
 ---
 
@@ -173,6 +179,12 @@ docker compose -f docker-compose.prod.yml -f docker-compose.staging.yml \
 services. The API container **automatically runs database migrations** before it
 starts serving. This takes a few minutes the first time.
 
+> **Verifier note:** the verifier image installs Chromium (~1 GB) for BOA
+> receipts — allow **≥ 2 GB RAM and ~20 GB free disk** on the VPS. Confirm it
+> landed:
+> `docker compose -f docker-compose.prod.yml exec verifier chromium --version`.
+> Never deploy the laptop's `slim-local` image.
+
 Watch it come up:
 ```bash
 docker compose -f docker-compose.prod.yml ps
@@ -255,6 +267,12 @@ and DNS. Full detail in `docs/deploy/email-setup.md`; the short version:
 *The verification code is emailed to the user — never printed to the terminal.*
 (The old console behavior doesn't exist in this codebase.)
 
+> **Acceptance + probe:** full procedure in `docs/audit/RESEND-DOMAIN-VERIFICATION.md`.
+> After switching `SMTP_FROM`, run
+> `npm run check:f8-email -- --api https://api.<domain> --email <non-owner>`
+> and then prove delivery with a real non-owner registration + password reset
+> (Resend → Emails must show **Delivered**). This closes F-8.
+
 ---
 
 # SECTION 5 — Private soak (24–48h)
@@ -306,6 +324,11 @@ This is what makes payments trustworthy. In **Settings → Webhooks**:
 3. Chapa signs each webhook with HMAC-SHA256 and sends `Chapa-Signature` /
    `x-chapa-signature` headers; your app already verifies these and **rejects any
    unsigned or forged "payment succeeded" call** — this is your anti-fraud gate.
+
+> **How verification works + production tests** (server-side re-verify with
+> Chapa's verify endpoint, amount policy, idempotent finalize, spoofed-webhook
+> test): see `docs/audit/HOSTINGER-DEPLOYMENT-PLAYBOOK.md` §4 and
+> `docs/deploy/chapa-production.md` §5.
 
 ### 6.5 Put the keys in the app
 In `.env.production` (both required together — the app enforces all-or-nothing):

@@ -1,5 +1,10 @@
 # Chapa Production Payment Setup
 
+> **Status:** DEFERRED TO DEPLOYMENT (operator decision 2026-10-19) — set up
+> test keys during the soak, switch to live after KYC approval. Consolidated
+> deployment checklist: `HOSTINGER-DEPLOYMENT-PLAYBOOK.md` §4 (includes how a
+> payment is verified at runtime and the production test matrix).
+
 Your app already implements Chapa correctly (`apps/api/src/modules/payments/chapa.service.ts`):
 initialize → hosted checkout → **HMAC-verified webhook** + browser return →
 idempotent `finalizeApproval()`. Nothing in the code changes for production. What's
