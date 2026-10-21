@@ -12,7 +12,9 @@
     "dev:web": "npm run dev --workspace=apps/web",
     "dev:api": "npm run start:dev --workspace=apps/api",
     "build:web": "npm run build --workspace=apps/web",
-    "build:api": "npm run build --workspace=apps/api"
+    "build:api": "npm run build --workspace=apps/api",
+    "check:env": "node scripts/check-env.mjs",
+    "check:f8-email": "node scripts/f8-email-check.mjs"
   },
   "engines": {
     "node": ">=20.0.0",

@@ -8,8 +8,9 @@ build/
 
 # Environment variables — NEVER commit these
 .env
-.env.local
-.env.production
+.env.*
+!.env.example
+!.env.production.example
 
 # Database
 *.db
