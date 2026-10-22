@@ -28,6 +28,7 @@ import * as fs from 'fs';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { AuditAdmin, SkipAudit } from '../../common/decorators/audit.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaymentsService } from './payments.service';
 import { ChapaService } from './chapa.service';
@@ -241,9 +242,12 @@ export class PaymentsController {
     return this.chapa.verifyByTxRef(txRef, user.id);
   }
 
+  // These handlers write their own PAYMENT_* audit records with review
+  // metadata, so suppress the generic interceptor entry.
   @Patch(':id/approve')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
+  @SkipAudit()
   approve(@Param('id') id: string, @CurrentUser() user: RequestUser) {
     return this.service.approve(id, user.id);
   }
@@ -251,6 +255,7 @@ export class PaymentsController {
   @Patch(':id/reject')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
+  @SkipAudit()
   reject(
     @Param('id') id: string,
     @Body('reason') reason: string,
@@ -265,6 +270,7 @@ export class PaymentsController {
   @Patch(':id/reverse')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('SUPER_ADMIN')
+  @SkipAudit()
   reverse(
     @Param('id') id: string,
     @Body('reason') reason: string,
@@ -274,9 +280,11 @@ export class PaymentsController {
   }
 
   // ── Admin: view the uploaded MANUAL receipt image ──
+  // Receipt views expose a student's payment evidence, so log the access.
   @Get(':id/receipt')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
+  @AuditAdmin({ read: true })
   async getReceipt(@Param('id') id: string, @Res() res: Response) {
     const { fullPath, mimeType } = await this.service.getReceiptPath(id);
     res.setHeader('Content-Type', mimeType);
@@ -287,6 +295,7 @@ export class PaymentsController {
   // ── Owner or admin: download the generated PDF receipt ──
   @Get(':id/document')
   @UseGuards(JwtAuthGuard)
+  @AuditAdmin({ read: true })
   async getDocument(
     @Param('id') id: string,
     @CurrentUser() user: RequestUser,

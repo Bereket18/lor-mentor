@@ -3,6 +3,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AuditService } from './audit.service';
+import { AuditQueryDto } from './dto/audit-query.dto';
 
 /**
  * SUPER_ADMIN only: audit entries can carry security-sensitive metadata
@@ -15,7 +16,7 @@ export class AuditController {
   constructor(private readonly audit: AuditService) {}
 
   @Get()
-  findAll(@Query('take') take = '') {
-    return this.audit.findAll(take);
+  findAll(@Query() query: AuditQueryDto) {
+    return this.audit.findAll(query);
   }
 }

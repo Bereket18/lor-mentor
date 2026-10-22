@@ -11,6 +11,7 @@ import {
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { AuditAdmin } from '../../common/decorators/audit.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { ForumService } from './forum.service';
 import { CreatePostDto } from './dto/create-post.dto';
@@ -72,12 +73,16 @@ export class ForumController {
     return this.service.createReply(id, user.id, dto);
   }
 
+  // Shared route: students can delete their own content, but when an admin
+  // removes someone else's post/reply we still want it in the audit trail.
   @Delete('posts/:id')
+  @AuditAdmin()
   removePost(@Param('id') id: string, @CurrentUser() user: RequestUser) {
     return this.service.removePost(id, user.id, user.role);
   }
 
   @Delete('replies/:id')
+  @AuditAdmin()
   removeReply(@Param('id') id: string, @CurrentUser() user: RequestUser) {
     return this.service.removeReply(id, user.id, user.role);
   }

@@ -12,6 +12,7 @@ import {
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { SkipAudit } from '../../common/decorators/audit.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -95,9 +96,12 @@ export class UsersController {
     return this.usersService.deleteUser(id, actor.id, actor.role);
   }
 
+  // changeStatus writes its own richer USER_ACTIVATED / USER_DEACTIVATED
+  // audit entry in UsersService, so don't create a second automatic entry.
   @Patch(':id/status')
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
+  @SkipAudit()
   changeStatus(
     @Param('id') id: string,
     @Body('isActive') isActive: boolean,

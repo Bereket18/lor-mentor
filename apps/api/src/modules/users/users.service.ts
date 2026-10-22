@@ -665,8 +665,8 @@ export class UsersService {
     await tx.payment.deleteMany({ where: { userId } });
     await tx.subscription.deleteMany({ where: { userId } });
 
-    // Audit logs + detach owned courses
-    await tx.auditLog.deleteMany({ where: { actorId: userId } });
+    // Detach owned courses. AuditLog.actorId is ON DELETE SET NULL, so the
+    // audit trail is preserved when the user row is removed.
     await tx.course.updateMany({
       where: { teacherId: userId },
       data: { teacherId: null },
