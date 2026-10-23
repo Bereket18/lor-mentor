@@ -11,6 +11,7 @@ const pageTitles: Record<string, string> = {
   "/dashboard":        "Dashboard",
   "/courses":          "My Courses",
   "/ai-tutor":         "AI Tutor",
+  "/anatomy":          "Anatomy Lab",
   "/flashcards":       "Flashcards",
   "/quiz":             "Quizzes",
   "/forum":            "Forum",
@@ -36,7 +37,9 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
   const pathname = usePathname();
   const { user }  = useAuth();
 
-  const title = pageTitles[pathname] ?? "Lor Mentor";
+  const title =
+    pageTitles[pathname] ??
+    (pathname.startsWith("/anatomy/") ? "Anatomy Lab" : "Lor Mentor");
 
   function getInitials(name: string) {
     return name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();

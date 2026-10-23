@@ -115,7 +115,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-6 pb-20 lg:pb-6">
+        <main className="flex-1 overflow-y-auto p-6 pb-[calc(5rem_+_env(safe-area-inset-bottom,0px))] lg:pb-6">
           {children}
         </main>
       </motion.div>

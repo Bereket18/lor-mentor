@@ -1,5 +1,6 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import type { PrismaService } from '../../prisma/prisma.service';
+import type { GeminiService } from '../ai/gemini.service';
 import type { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { AnatomyService } from './anatomy.service';
 
@@ -7,25 +8,56 @@ import type { RequestUser } from '../../common/types/request-user';
 
 const student = { id: 'student-1', role: 'STUDENT' } as unknown as RequestUser;
 
+const aorta = {
+  id: 'structure-1',
+  systemId: 'system-1',
+  slug: 'aorta',
+  name: 'Aorta',
+  latinName: 'Aorta',
+  summary: 'Main artery',
+  location: 'Central chest',
+  function: 'Distributes blood',
+  bloodSupply: 'Vasa vasorum',
+  clinicalNotes: 'Aortic tears are emergencies',
+  meshName: 'aorta',
+  layer: 'great-vessels',
+  relatedSlugs: [],
+  sortOrder: 1,
+  isReviewed: false,
+};
+
 describe('AnatomyService', () => {
   const findSystems = jest.fn();
   const findSystem = jest.fn();
   const findStructures = jest.fn();
+  const findStructure = jest.fn();
   const ensureActiveForStudent = jest.fn();
+  const explainAnatomyStructure = jest.fn();
+  const generateAnatomyQuiz = jest.fn();
 
   const service = new AnatomyService(
     {
       anatomySystem: { findMany: findSystems, findUnique: findSystem },
-      anatomyStructure: { findMany: findStructures },
+      anatomyStructure: {
+        findMany: findStructures,
+        findFirst: findStructure,
+      },
     } as unknown as PrismaService,
     { ensureActiveForStudent } as unknown as SubscriptionsService,
+    {
+      explainAnatomyStructure,
+      generateAnatomyQuiz,
+    } as unknown as GeminiService,
   );
 
   beforeEach(() => {
     findSystems.mockReset();
     findSystem.mockReset();
     findStructures.mockReset();
+    findStructure.mockReset();
     ensureActiveForStudent.mockReset();
+    explainAnatomyStructure.mockReset();
+    generateAnatomyQuiz.mockReset();
   });
 
   it('lists published systems with a structure count', async () => {
@@ -170,5 +202,113 @@ describe('AnatomyService', () => {
     expect(result.structures[1].related).toEqual([
       { slug: 'aorta', name: 'Aorta' },
     ]);
+  });
+
+  it('requires an active subscription before loading structure text for AI', async () => {
+    findSystem.mockResolvedValue({
+      id: 'system-1',
+      slug: 'heart',
+      name: 'Heart and circulation',
+      isPublished: true,
+      isSample: true,
+    });
+    ensureActiveForStudent.mockRejectedValue(
+      new ForbiddenException('An active subscription is required'),
+    );
+
+    await expect(
+      service.generateStructureQuiz(student, 'heart', 'aorta'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(findStructure).not.toHaveBeenCalled();
+    expect(generateAnatomyQuiz).not.toHaveBeenCalled();
+  });
+
+  it('explains a structure with the curated notes', async () => {
+    findSystem.mockResolvedValue({
+      id: 'system-1',
+      slug: 'heart',
+      name: 'Heart and circulation',
+      isPublished: true,
+      isSample: true,
+    });
+    findStructure.mockResolvedValue(aorta);
+    explainAnatomyStructure.mockResolvedValue('The aorta is the main artery.');
+
+    await expect(
+      service.explainStructure(student, 'heart', 'aorta', {
+        question: 'Why is it important?',
+      }),
+    ).resolves.toEqual({
+      explanation: 'The aorta is the main artery.',
+    });
+    expect(ensureActiveForStudent).toHaveBeenCalledWith('student-1', 'STUDENT');
+    expect(findStructure).toHaveBeenCalledWith({
+      where: { systemId: 'system-1', slug: 'aorta' },
+    });
+    expect(explainAnatomyStructure).toHaveBeenCalledWith({
+      systemName: 'Heart and circulation',
+      structureName: 'Aorta',
+      latinName: 'Aorta',
+      summary: 'Main artery',
+      location: 'Central chest',
+      function: 'Distributes blood',
+      bloodSupply: 'Vasa vasorum',
+      clinicalNotes: 'Aortic tears are emergencies',
+      question: 'Why is it important?',
+    });
+  });
+
+  it('generates a structure quiz', async () => {
+    findSystem.mockResolvedValue({
+      id: 'system-1',
+      slug: 'heart',
+      name: 'Heart and circulation',
+      isPublished: true,
+      isSample: true,
+    });
+    findStructure.mockResolvedValue(aorta);
+    generateAnatomyQuiz.mockResolvedValue({
+      questions: [
+        {
+          text: 'Which vessel is the main artery?',
+          options: ['Aorta', 'SVC', 'IVC', 'Pulmonary trunk'],
+          correctOption: 'Aorta',
+          explanation: 'The aorta distributes blood to the body.',
+        },
+      ],
+    });
+
+    await expect(
+      service.generateStructureQuiz(student, 'heart', 'aorta'),
+    ).resolves.toEqual({
+      system: { slug: 'heart', name: 'Heart and circulation' },
+      structure: { slug: 'aorta', name: 'Aorta', latinName: 'Aorta' },
+      questions: [
+        {
+          text: 'Which vessel is the main artery?',
+          options: ['Aorta', 'SVC', 'IVC', 'Pulmonary trunk'],
+          correctOption: 'Aorta',
+          explanation: 'The aorta distributes blood to the body.',
+        },
+      ],
+    });
+    expect(generateAnatomyQuiz).toHaveBeenCalledWith(
+      expect.objectContaining({ structureName: 'Aorta' }),
+    );
+  });
+
+  it('throws NotFound when the structure does not exist', async () => {
+    findSystem.mockResolvedValue({
+      id: 'system-1',
+      slug: 'heart',
+      name: 'Heart and circulation',
+      isPublished: true,
+      isSample: true,
+    });
+    findStructure.mockResolvedValue(null);
+
+    await expect(
+      service.explainStructure(student, 'heart', 'missing', {}),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

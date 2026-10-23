@@ -7,14 +7,15 @@ import {
   BookOpen,
   Bot,
   GraduationCap,
+  HeartPulse,
   User,
 } from "lucide-react";
 
-// Only 5 items fit on mobile bottom nav
-// We pick the most important ones
+// Six compact items fit on current phones; keep labels short.
 const mobileNav = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Home" },
   { href: "/courses", icon: BookOpen, label: "Courses" },
+  { href: "/anatomy", icon: HeartPulse, label: "Anatomy" },
   { href: "/ai-tutor", icon: Bot, label: "AI" },
   { href: "/quiz", icon: GraduationCap, label: "Quiz" },
   { href: "/profile", icon: User, label: "Profile" },

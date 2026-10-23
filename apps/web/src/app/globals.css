@@ -582,6 +582,27 @@
   }
 }
 
+/* ----------------------------------------------------------------
+   SAFE AREA UTILITIES
+   `viewport-fit=cover` (set in app/layout.tsx) lets the page paint
+   under notches and home indicators. These utilities keep interactive
+   UI out of those areas without changing the desktop layout.
+   ---------------------------------------------------------------- */
+@layer utilities {
+  .safe-area-inset-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .safe-area-inset-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .safe-area-inset-x {
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+}
+
 
 /* -- Print protection — hides everything when Ctrl+P is pressed -- */
 /* Users who open the PDF viewer and try to print get a blank page  */

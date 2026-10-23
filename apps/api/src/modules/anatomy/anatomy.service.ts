@@ -1,14 +1,32 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { GeminiService } from '../ai/gemini.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { ExplainStructureDto } from './dto/explain-structure.dto';
 
 import type { RequestUser } from '../../common/types/request-user';
+import type { AnatomyStructureContext } from '../ai/gemini.service';
+
+interface AnatomySystemNotes {
+  name: string;
+}
+
+interface AnatomyStructureNotes {
+  name: string;
+  latinName: string | null;
+  summary: string;
+  location: string | null;
+  function: string | null;
+  bloodSupply: string | null;
+  clinicalNotes: string | null;
+}
 
 @Injectable()
 export class AnatomyService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly subscriptions: SubscriptionsService,
+    private readonly gemini: GeminiService,
   ) {}
 
   // The picker only needs metadata, never the protected structure text.
@@ -76,6 +94,98 @@ export class AnatomyService {
       ...system,
       structureCount: structures.length,
       structures,
+    };
+  }
+
+  // AI study tools are intentionally paid even for the free sample system:
+  // every call spends Gemini quota, and the sample preview itself stays open.
+  async explainStructure(
+    user: RequestUser,
+    systemSlug: string,
+    structureSlug: string,
+    dto: ExplainStructureDto,
+  ) {
+    const { system, structure } = await this.findStructureForAi(
+      user,
+      systemSlug,
+      structureSlug,
+    );
+    const explanation = await this.gemini.explainAnatomyStructure(
+      this.toAiContext(system, structure, dto.question),
+    );
+
+    return { explanation };
+  }
+
+  async generateStructureQuiz(
+    user: RequestUser,
+    systemSlug: string,
+    structureSlug: string,
+  ) {
+    const { system, structure } = await this.findStructureForAi(
+      user,
+      systemSlug,
+      structureSlug,
+    );
+    const quiz = await this.gemini.generateAnatomyQuiz(
+      this.toAiContext(system, structure),
+    );
+
+    return {
+      system: { slug: system.slug, name: system.name },
+      structure: {
+        slug: structure.slug,
+        name: structure.name,
+        latinName: structure.latinName,
+      },
+      questions: quiz.questions,
+    };
+  }
+
+  private async findStructureForAi(
+    user: RequestUser,
+    systemSlug: string,
+    structureSlug: string,
+  ) {
+    const system = await this.prisma.anatomySystem.findUnique({
+      where: { slug: systemSlug },
+    });
+
+    if (!system || !system.isPublished) {
+      throw new NotFoundException('Anatomy system not found');
+    }
+
+    // Check access before loading structure text, matching the detail route.
+    await this.subscriptions.ensureActiveForStudent(user.id, user.role);
+
+    const structure = await this.prisma.anatomyStructure.findFirst({
+      where: { systemId: system.id, slug: structureSlug },
+    });
+
+    if (!structure) {
+      throw new NotFoundException('Anatomy structure not found');
+    }
+
+    return { system, structure };
+  }
+
+  private toAiContext(
+    system: AnatomySystemNotes,
+    structure: AnatomyStructureNotes,
+    question?: string,
+  ): AnatomyStructureContext {
+    return {
+      systemName: system.name,
+      structureName: structure.name,
+      latinName: structure.latinName ?? 'Not recorded',
+      summary: structure.summary,
+      location: structure.location ?? 'Not recorded in the verified notes.',
+      function: structure.function ?? 'Not recorded in the verified notes.',
+      bloodSupply:
+        structure.bloodSupply ?? 'Not recorded in the verified notes.',
+      clinicalNotes:
+        structure.clinicalNotes ?? 'Not recorded in the verified notes.',
+      question: question?.trim() || undefined,
     };
   }
 }
