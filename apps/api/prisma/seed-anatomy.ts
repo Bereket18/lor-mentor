@@ -158,7 +158,8 @@ const HEART_STRUCTURES: AnatomyStructureSeed[] = [
       'Right side of the heart, between the right atrium and right ventricle.',
     function:
       'Opens to let blood enter the right ventricle and closes to prevent backflow.',
-    bloodSupply: 'Right coronary artery branches.',
+    bloodSupply:
+      'Leaflets are largely avascular and nourished by diffusion; only the valve ring receives small branches from nearby coronary arteries.',
     clinicalNotes:
       'The valve can leak or narrow. Murmurs and symptoms are assessed with examination and echocardiography.',
     meshName: 'tricuspid_valve',
@@ -174,7 +175,8 @@ const HEART_STRUCTURES: AnatomyStructureSeed[] = [
     location: 'Exit of the right ventricle.',
     function:
       'Opens when the right ventricle contracts and closes to prevent blood returning to the ventricle.',
-    bloodSupply: 'Right coronary artery branches.',
+    bloodSupply:
+      'Leaflets are largely avascular and nourished by diffusion; only the valve ring receives small branches from nearby coronary arteries.',
     clinicalNotes:
       'Narrowing or leakage can affect flow to the lungs. Diagnosis requires clinical assessment and imaging.',
     meshName: 'pulmonary_valve',
@@ -191,7 +193,8 @@ const HEART_STRUCTURES: AnatomyStructureSeed[] = [
       'Left side of the heart, between the left atrium and left ventricle.',
     function:
       'Lets oxygen-rich blood enter the left ventricle and closes to prevent backflow.',
-    bloodSupply: 'Circumflex artery and branches of the left coronary artery.',
+    bloodSupply:
+      'Leaflets are largely avascular and nourished by diffusion; only the valve ring receives small branches from nearby coronary arteries.',
     clinicalNotes:
       'Mitral valve problems can cause breathlessness or fatigue. A clinician confirms the cause with examination and echocardiography.',
     meshName: 'mitral_valve',
@@ -207,7 +210,7 @@ const HEART_STRUCTURES: AnatomyStructureSeed[] = [
     function:
       'Opens during ventricular contraction and closes to keep blood from flowing back into the heart.',
     bloodSupply:
-      'The coronary arteries arise just above the valve; the valve itself is supplied by small branches.',
+      'Leaflets are largely avascular and nourished by diffusion; only the valve ring receives small branches from nearby coronary arteries.',
     clinicalNotes:
       'Narrowing or leakage can reduce forward flow. Symptoms such as exertional chest pain or fainting need urgent medical review.',
     meshName: 'aortic_valve',
