@@ -551,6 +551,7 @@ model AnatomyStructure {
   system AnatomySystem @relation(fields: [systemId], references: [id], onDelete: Cascade)
 
   @@unique([systemId, slug])
+  @@unique([systemId, meshName])
   @@index([systemId, sortOrder])
 }
 
