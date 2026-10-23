@@ -8,25 +8,28 @@ import type { RequestUser } from '../../common/types/request-user';
 const student = { id: 'student-1', role: 'STUDENT' } as unknown as RequestUser;
 
 describe('AnatomyService', () => {
-  const findMany = jest.fn();
-  const findUnique = jest.fn();
+  const findSystems = jest.fn();
+  const findSystem = jest.fn();
+  const findStructures = jest.fn();
   const ensureActiveForStudent = jest.fn();
 
   const service = new AnatomyService(
     {
-      anatomySystem: { findMany, findUnique },
+      anatomySystem: { findMany: findSystems, findUnique: findSystem },
+      anatomyStructure: { findMany: findStructures },
     } as unknown as PrismaService,
     { ensureActiveForStudent } as unknown as SubscriptionsService,
   );
 
   beforeEach(() => {
-    findMany.mockReset();
-    findUnique.mockReset();
+    findSystems.mockReset();
+    findSystem.mockReset();
+    findStructures.mockReset();
     ensureActiveForStudent.mockReset();
   });
 
   it('lists published systems with a structure count', async () => {
-    findMany.mockResolvedValue([
+    findSystems.mockResolvedValue([
       {
         id: 'system-1',
         slug: 'heart',
@@ -53,56 +56,60 @@ describe('AnatomyService', () => {
         structureCount: 26,
       },
     ]);
-    expect(findMany).toHaveBeenCalledWith(
+    expect(findSystems).toHaveBeenCalledWith(
       expect.objectContaining({ where: { isPublished: true } }),
     );
   });
 
-  it('throws NotFound for a missing or unpublished system', async () => {
-    findUnique.mockResolvedValue(null);
+  it('throws NotFound for a missing or unpublished system without loading structures', async () => {
+    findSystem.mockResolvedValue(null);
     await expect(service.getSystem(student, 'missing')).rejects.toBeInstanceOf(
       NotFoundException,
     );
 
-    findUnique.mockResolvedValue({
+    findSystem.mockResolvedValue({
       id: 'system-2',
       slug: 'brain',
       isPublished: false,
       isSample: true,
-      structures: [],
     });
     await expect(service.getSystem(student, 'brain')).rejects.toBeInstanceOf(
       NotFoundException,
     );
     expect(ensureActiveForStudent).not.toHaveBeenCalled();
+    expect(findStructures).not.toHaveBeenCalled();
   });
 
   it('allows a sample system without a subscription check', async () => {
-    findUnique.mockResolvedValue({
+    findSystem.mockResolvedValue({
       id: 'system-1',
       slug: 'heart',
       name: 'Heart and circulation',
       isPublished: true,
       isSample: true,
-      structures: [],
     });
+    findStructures.mockResolvedValue([]);
 
     await expect(service.getSystem(student, 'heart')).resolves.toMatchObject({
       slug: 'heart',
       structureCount: 0,
     });
     expect(ensureActiveForStudent).not.toHaveBeenCalled();
+    expect(findStructures).toHaveBeenCalledWith({
+      where: { systemId: 'system-1' },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+    });
   });
 
   it('checks the subscription for a non-sample system', async () => {
-    findUnique.mockResolvedValue({
+    findSystem.mockResolvedValue({
       id: 'system-2',
       slug: 'brain',
       name: 'Brain and nervous system',
       isPublished: true,
       isSample: false,
-      structures: [],
     });
+    findStructures.mockResolvedValue([]);
     ensureActiveForStudent.mockResolvedValue(undefined);
 
     await expect(service.getSystem(student, 'brain')).resolves.toMatchObject({
@@ -111,14 +118,13 @@ describe('AnatomyService', () => {
     expect(ensureActiveForStudent).toHaveBeenCalledWith('student-1', 'STUDENT');
   });
 
-  it('propagates ForbiddenException from the subscription check', async () => {
-    findUnique.mockResolvedValue({
+  it('does not load structure text when the subscription check fails', async () => {
+    findSystem.mockResolvedValue({
       id: 'system-2',
       slug: 'brain',
       name: 'Brain and nervous system',
       isPublished: true,
       isSample: false,
-      structures: [],
     });
     ensureActiveForStudent.mockRejectedValue(
       new ForbiddenException('An active subscription is required'),
@@ -127,32 +133,34 @@ describe('AnatomyService', () => {
     await expect(service.getSystem(student, 'brain')).rejects.toBeInstanceOf(
       ForbiddenException,
     );
+    expect(findSystem).toHaveBeenCalledWith({ where: { slug: 'brain' } });
+    expect(findStructures).not.toHaveBeenCalled();
   });
 
   it('resolves related slugs to names and drops unknown slugs', async () => {
-    findUnique.mockResolvedValue({
+    findSystem.mockResolvedValue({
       id: 'system-1',
       slug: 'heart',
       name: 'Heart and circulation',
       isPublished: true,
       isSample: true,
-      structures: [
-        {
-          id: 'structure-1',
-          slug: 'aorta',
-          name: 'Aorta',
-          relatedSlugs: ['left-ventricle', 'missing'],
-          sortOrder: 1,
-        },
-        {
-          id: 'structure-2',
-          slug: 'left-ventricle',
-          name: 'Left ventricle',
-          relatedSlugs: ['aorta'],
-          sortOrder: 2,
-        },
-      ],
     });
+    findStructures.mockResolvedValue([
+      {
+        id: 'structure-1',
+        slug: 'aorta',
+        name: 'Aorta',
+        relatedSlugs: ['left-ventricle', 'missing'],
+        sortOrder: 1,
+      },
+      {
+        id: 'structure-2',
+        slug: 'left-ventricle',
+        name: 'Left ventricle',
+        relatedSlugs: ['aorta'],
+        sortOrder: 2,
+      },
+    ]);
 
     const result = await service.getSystem(student, 'heart');
 

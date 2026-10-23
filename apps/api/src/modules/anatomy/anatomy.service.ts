@@ -39,13 +39,10 @@ export class AnatomyService {
   // sample system must remain accessible to unsubscribed students, while a
   // normal system must not leak its structure text.
   async getSystem(user: RequestUser, slug: string) {
+    // Load only system metadata first. Structure text must not be fetched
+    // until the caller has passed both the publication and access checks.
     const system = await this.prisma.anatomySystem.findUnique({
       where: { slug },
-      include: {
-        structures: {
-          orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-        },
-      },
     });
 
     if (!system || !system.isPublished) {
@@ -56,13 +53,18 @@ export class AnatomyService {
       await this.subscriptions.ensureActiveForStudent(user.id, user.role);
     }
 
+    const systemStructures = await this.prisma.anatomyStructure.findMany({
+      where: { systemId: system.id },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+    });
+
     // Related structures are stored as slugs so the seed stays readable and
     // does not need to know generated ids. Resolve names in one pass, and drop
     // any stale slug instead of failing the whole system.
     const bySlug = new Map(
-      system.structures.map((structure) => [structure.slug, structure]),
+      systemStructures.map((structure) => [structure.slug, structure]),
     );
-    const structures = system.structures.map((structure) => ({
+    const structures = systemStructures.map((structure) => ({
       ...structure,
       related: structure.relatedSlugs.flatMap((relatedSlug) => {
         const related = bySlug.get(relatedSlug);
