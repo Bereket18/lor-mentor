@@ -5,7 +5,8 @@ CREATE TYPE "PaymentMethod" AS ENUM ('MANUAL', 'CHAPA');
 ALTER TABLE "Payment" ADD COLUMN     "amount" DECIMAL(65,30),
 ADD COLUMN     "chapaRef" TEXT,
 ADD COLUMN     "currency" TEXT NOT NULL DEFAULT 'ETB',
-ADD COLUMN     "meth" TIMESTAMP(3),
+ADD COLUMN     "method" "PaymentMethod" NOT NULL DEFAULT 'MANUAL',
+ADD COLUMN     "paidAt" TIMESTAMP(3),
 ADD COLUMN     "receiptNumber" TEXT,
 ADD COLUMN     "txRef" TEXT,
 ALTER COLUMN "receiptPath" DROP NOT NULL;
@@ -17,8 +18,7 @@ CREATE UNIQUE INDEX "Payment_txRef_key" ON "Payment"("txRef");
 CREATE UNIQUE INDEX "Payment_receiptNumber_key" ON "Payment"("receiptNumber");
 
 -- CreateIndex
-CREATE INDEX "Payment_userId_stod" "PaymentMethod" NOT NULL DEFAULT 'MANUAL',
-ADD COLUMN     "paidAtatus_idx" ON "Payment"("userId", "status");
+CREATE INDEX "Payment_userId_status_idx" ON "Payment"("userId", "status");
 
 -- CreateIndex
 CREATE INDEX "Payment_status_idx" ON "Payment"("status");
