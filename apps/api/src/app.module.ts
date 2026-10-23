@@ -25,6 +25,7 @@ import { QuizModule } from './modules/quiz/quiz.module';
 import { TutorModule } from './modules/tutor/tutor.module';
 import { ProgressModule } from './modules/progress/progress.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { AnatomyModule } from './modules/anatomy/anatomy.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     TutorModule,
     ProgressModule,
     NotificationsModule,
+    AnatomyModule,
   ],
   controllers: [AppController],
   providers: [
