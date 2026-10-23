@@ -14,6 +14,7 @@
     "start:prod": "node dist/src/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "db:seed": "ts-node prisma/seed.ts",
+    "db:seed:anatomy": "ts-node prisma/seed-anatomy.ts",
     "db:reset": "prisma migrate reset --force && npm run db:seed",
     "test": "jest",
     "test:watch": "jest --watch",
