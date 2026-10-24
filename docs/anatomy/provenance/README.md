@@ -6,7 +6,7 @@ outside the repository.
 
 - Release asset: `apps/web/public/models/anatomy/heart.v1.glb`
 - Provenance manifest: `apps/web/public/models/anatomy/manifest.json`
-- Source map (committed): `apps/web/scripts/anatomy-heart.source.json`
+- Source map (local only, intentionally uncommitted): `apps/web/scripts/anatomy-heart.source.json`
 - Build script: `apps/web/scripts/build-anatomy-model.mjs`
 - Validator: `apps/web/scripts/validate-anatomy-model.mjs`
 - Contract test: `apps/api/src/modules/anatomy/anatomy-model.contract.spec.ts`
@@ -104,6 +104,10 @@ Or through npm:
 npm run build:anatomy-model --workspace=apps/web -- --source-dir <path>
 npm run validate:anatomy-model --workspace=apps/web
 ```
+
+The build reads `apps/web/scripts/anatomy-heart.source.json`. That map is
+intentionally left untracked, so a clean clone must supply it (or an equivalent
+mapping) before the model can be rebuilt.
 
 To re-download only the selected members, use HTTP range requests against the
 archive URL and the local-header offsets from the ZIP central directory. The
