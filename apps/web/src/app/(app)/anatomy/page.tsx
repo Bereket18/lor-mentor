@@ -195,6 +195,16 @@ export default function AnatomyPage() {
           ))}
         </div>
       )}
+
+      <p className="mt-8 text-center text-[11px] text-muted">
+        3D anatomy models use BodyParts3D data.{" "}
+        <Link
+          href="/attribution/anatomy"
+          className="font-medium text-accent hover:underline"
+        >
+          Sources and licence
+        </Link>
+      </p>
     </div>
   );
 }

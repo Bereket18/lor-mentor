@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { isAxiosError } from "axios";
@@ -8,17 +8,24 @@ import {
   ArrowLeft,
   Boxes,
   CreditCard,
+  ExternalLink,
+  Eye,
+  EyeOff,
   Loader2,
   RotateCcw,
   Scan,
+  SearchX,
 } from "lucide-react";
 import api from "@/lib/api";
 import { AnatomyDetailPanel } from "@/components/anatomy/anatomy-detail-panel";
+import { layerLabel, orderedLayers } from "@/lib/anatomy";
 import type { AnatomySystemDetail } from "@/types/anatomy";
 
 const AnatomyScene = dynamic(
   () =>
-    import("@/components/anatomy/anatomy-scene").then((module) => module.AnatomyScene),
+    import("@/components/anatomy/anatomy-scene").then(
+      (module) => module.AnatomyScene,
+    ),
   {
     ssr: false,
     loading: () => (
@@ -130,12 +137,25 @@ function ViewerState({
 export function AnatomyViewer({ slug }: AnatomyViewerProps) {
   const [system, setSystem] = useState<AnatomySystemDetail | null>(null);
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [hiddenLayers, setHiddenLayers] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ViewerError | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [resetKey, setResetKey] = useState(0);
+  const [modelAttempt, setModelAttempt] = useState(0);
   const [modelReady, setModelReady] = useState(false);
-  const handleModelReady = useCallback(() => setModelReady(true), []);
+  const [modelError, setModelError] = useState<string | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const handleModelReady = useCallback(() => {
+    setModelError(null);
+    setModelReady(true);
+  }, []);
+  const handleModelError = useCallback((message: string) => {
+    setModelReady(false);
+    setModelError(message);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -146,6 +166,10 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
         if (!active) return;
         setSystem(response.data);
         setSelectedSlug(null);
+        setQuery("");
+        setHiddenLayers([]);
+        setModelReady(false);
+        setModelError(null);
       })
       .catch((requestError: unknown) => {
         if (!active) return;
@@ -160,6 +184,57 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
       active = false;
     };
   }, [slug, reloadKey]);
+
+  const layers = useMemo(
+    () => (system ? orderedLayers(system.structures) : []),
+    [system],
+  );
+
+  const structures = useMemo(
+    () => system?.structures ?? [],
+    [system],
+  );
+
+  const hiddenMeshNames = useMemo(
+    () =>
+      structures
+        .filter(
+          (structure) =>
+            structure.layer !== null && hiddenLayers.includes(structure.layer),
+        )
+        .map((structure) => structure.meshName),
+    [structures, hiddenLayers],
+  );
+
+  // Keyboard shortcuts: Escape clears the selection and "/" focuses search.
+  // Ignore both while the user is typing in another field so normal form use
+  // never breaks.
+  useEffect(() => {
+    function onKeyDown(event: globalThis.KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      const typing =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        target?.isContentEditable;
+
+      if (event.key === "Escape" && !typing) {
+        setSelectedSlug(null);
+        return;
+      }
+
+      if (
+        (event.key === "/" || ((event.metaKey || event.ctrlKey) && event.key === "k")) &&
+        !typing
+      ) {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   if (loading) {
     return (
@@ -188,7 +263,6 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
     );
   }
 
-  const structures = system.structures;
   const selected =
     structures.find((structure) => structure.slug === selectedSlug) ?? null;
 
@@ -200,6 +274,20 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
     const structure = structures.find((item) => item.meshName === meshName);
     if (structure) setSelectedSlug(structure.slug);
   }
+
+  function toggleLayer(layer: string) {
+    const hiding = !hiddenLayers.includes(layer);
+    if (hiding && selected?.layer === layer) {
+      setSelectedSlug(null);
+    }
+    setHiddenLayers(
+      hiding
+        ? [...hiddenLayers, layer]
+        : hiddenLayers.filter((item) => item !== layer),
+    );
+  }
+
+  const allLayersVisible = hiddenLayers.length === 0;
 
   return (
     <div className="-m-6 flex min-h-[calc(100vh-3.5rem)] flex-col bg-base pb-20 lg:h-[calc(100vh-3.5rem)] lg:pb-0">
@@ -231,14 +319,22 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 lg:flex-shrink-0">
+        <div className="flex flex-wrap items-center gap-2 lg:flex-shrink-0">
           <p className="hidden text-[11px] text-muted sm:block">
             Drag to rotate · Scroll to zoom · Click a structure
           </p>
+          <Link
+            href="/attribution/anatomy"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 py-2 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            Sources
+          </Link>
           <button
             type="button"
             onClick={() => {
               setModelReady(false);
+              setModelError(null);
               setResetKey((key) => key + 1);
             }}
             className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 py-2 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
@@ -248,6 +344,50 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
           </button>
         </div>
       </header>
+
+      <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-border bg-surface/40 px-4 py-2.5 sm:px-6">
+        <span className="text-[11px] font-medium uppercase tracking-wide text-muted">
+          Layers
+        </span>
+        <div className="-mx-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-1 py-0.5">
+          {layers.map((layer) => {
+            const visible = !hiddenLayers.includes(layer);
+            const count = structures.filter(
+              (structure) => structure.layer === layer,
+            ).length;
+            return (
+              <button
+                key={layer}
+                type="button"
+                aria-pressed={visible}
+                onClick={() => toggleLayer(layer)}
+                className={`inline-flex flex-shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors ${
+                  visible
+                    ? "border-accent/30 bg-accent/10 text-accent"
+                    : "border-border bg-elevated text-muted hover:border-border-accent hover:text-secondary"
+                }`}
+              >
+                {visible ? (
+                  <Eye className="h-3 w-3" aria-hidden />
+                ) : (
+                  <EyeOff className="h-3 w-3" aria-hidden />
+                )}
+                {layerLabel(layer)}
+                <span className="text-[10px] opacity-70">{count}</span>
+              </button>
+            );
+          })}
+        </div>
+        {!allLayersVisible && (
+          <button
+            type="button"
+            onClick={() => setHiddenLayers([])}
+            className="flex-shrink-0 rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
+          >
+            Show all
+          </button>
+        )}
+      </div>
 
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.85fr)]">
         <div className="relative h-[52vh] min-h-[360px] overflow-hidden border-b border-border lg:h-auto lg:min-h-0 lg:border-b-0 lg:border-r">
@@ -261,19 +401,54 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
           />
 
           {system.modelUrl ? (
-            <div className="absolute inset-0">
+            <div
+              className="absolute inset-0"
+              role="img"
+              aria-label={`Interactive 3D model of ${system.name}. Use the structure navigator for a keyboard-accessible list of structures.`}
+            >
               <AnatomyScene
-                key={resetKey}
-                modelUrl={system.modelUrl}
+                key={`${resetKey}-${modelAttempt}`}
+                modelUrl={
+                  modelAttempt === 0
+                    ? system.modelUrl
+                    : `${system.modelUrl}?retry=${modelAttempt}`
+                }
                 selectedMeshName={selected?.meshName ?? null}
+                hiddenMeshNames={hiddenMeshNames}
                 onSelectMesh={selectMesh}
                 onModelReady={handleModelReady}
+                onModelError={handleModelError}
               />
-              {!modelReady && (
+              {!modelReady && !modelError && (
                 <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
                   <div className="flex items-center gap-2 rounded-full border border-border bg-elevated/90 px-4 py-2 text-xs text-secondary shadow-card backdrop-blur">
                     <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />
                     Loading 3D model…
+                  </div>
+                </div>
+              )}
+              {modelError && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center p-6">
+                  <div className="max-w-sm rounded-xl border border-warning/30 bg-elevated/95 p-5 text-center backdrop-blur">
+                    <SearchX className="mx-auto mb-2 h-7 w-7 text-warning" />
+                    <p className="text-sm font-medium text-primary">
+                      3D model could not load
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed text-secondary">
+                      The written structure notes are still available in the
+                      navigator. Check your connection and try again.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModelError(null);
+                        setModelReady(false);
+                        setModelAttempt((attempt) => attempt + 1);
+                      }}
+                      className="mt-3 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
+                    >
+                      Retry model
+                    </button>
                   </div>
                 </div>
               )}
@@ -306,6 +481,11 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
               )}
             </div>
           )}
+
+          <p className="pointer-events-none absolute bottom-4 right-4 hidden rounded-lg border border-border bg-elevated/80 px-2.5 py-1.5 text-[10px] text-muted backdrop-blur sm:block">
+            Press <kbd className="font-sans font-semibold">/</kbd> to search ·{" "}
+            <kbd className="font-sans font-semibold">Esc</kbd> to clear
+          </p>
         </div>
 
         <div className="min-h-[460px] p-3 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden lg:p-4">
@@ -314,6 +494,12 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
             selected={selected}
             onSelect={(structure) => setSelectedSlug(structure.slug)}
             onClear={() => setSelectedSlug(null)}
+            query={query}
+            onQueryChange={setQuery}
+            visibleLayers={layers.filter(
+              (layer) => !hiddenLayers.includes(layer),
+            )}
+            searchInputRef={searchInputRef}
           />
         </div>
       </div>

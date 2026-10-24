@@ -29,6 +29,7 @@ export interface AnatomyStructure {
   meshName: string;
   layer: string | null;
   relatedSlugs: string[];
+  references: string[];
   sortOrder: number;
   isReviewed: boolean;
   related: AnatomyStructureRelated[];

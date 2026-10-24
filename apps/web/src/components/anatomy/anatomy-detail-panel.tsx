@@ -1,16 +1,23 @@
 "use client";
 
+import { useRef } from "react";
+import type { KeyboardEvent, RefObject } from "react";
 import {
   Activity,
   ArrowLeft,
   ChevronRight,
   Droplets,
+  ExternalLink,
   MapPin,
+  Search,
   ShieldAlert,
   ShieldCheck,
   Stethoscope,
+  X,
 } from "lucide-react";
+import Link from "next/link";
 import { AnatomyAiPanel } from "@/components/anatomy/anatomy-ai-panel";
+import { layerLabel, matchesStructureQuery } from "@/lib/anatomy";
 import type {
   AnatomyStructure,
   AnatomySystemDetail,
@@ -21,27 +28,10 @@ interface AnatomyDetailPanelProps {
   selected: AnatomyStructure | null;
   onSelect: (structure: AnatomyStructure) => void;
   onClear: () => void;
-}
-
-const LAYER_LABELS: Record<string, string> = {
-  chambers: "Chambers",
-  septum: "Septum",
-  valves: "Valves",
-  "great-vessels": "Great vessels",
-  "coronary-circulation": "Coronary circulation",
-  "wall-layers": "Wall layers",
-  conduction: "Conduction system",
-};
-
-function layerLabel(layer: string | null): string {
-  if (!layer) return "Other structures";
-  return (
-    LAYER_LABELS[layer] ??
-    layer
-      .split("-")
-      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-      .join(" ")
-  );
+  query: string;
+  onQueryChange: (value: string) => void;
+  visibleLayers: string[];
+  searchInputRef?: RefObject<HTMLInputElement | null>;
 }
 
 function InfoRow({
@@ -75,9 +65,22 @@ export function AnatomyDetailPanel({
   selected,
   onSelect,
   onClear,
+  query,
+  onQueryChange,
+  visibleLayers,
+  searchInputRef,
 }: AnatomyDetailPanelProps) {
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const visible = new Set(visibleLayers);
+  const filtered = system.structures.filter(
+    (structure) =>
+      (!structure.layer || visible.has(structure.layer)) &&
+      matchesStructureQuery(structure, query),
+  );
+
   const grouped = new Map<string, AnatomyStructure[]>();
-  for (const structure of system.structures) {
+  for (const structure of filtered) {
     const key = structure.layer ?? "other";
     const existing = grouped.get(key);
     if (existing) {
@@ -87,11 +90,39 @@ export function AnatomyDetailPanel({
     }
   }
 
+  const isFiltering = query.trim().length > 0 || filtered.length !== system.structures.length;
+
+  // Roving arrow-key support inside the grouped list. Native buttons already
+  // handle Enter/Space; this makes the long list faster to scan from a keyboard.
+  function handleListKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    const keys = ["ArrowDown", "ArrowUp", "Home", "End"];
+    if (!keys.includes(event.key)) return;
+
+    const buttons = Array.from(
+      listRef.current?.querySelectorAll<HTMLButtonElement>(
+        "[data-anatomy-structure]",
+      ) ?? [],
+    );
+    if (buttons.length === 0) return;
+
+    event.preventDefault();
+    const current = buttons.indexOf(
+      document.activeElement as HTMLButtonElement,
+    );
+
+    let next = 0;
+    if (event.key === "End") next = buttons.length - 1;
+    else if (event.key === "ArrowDown") next = Math.min(current + 1, buttons.length - 1);
+    else if (event.key === "ArrowUp") next = Math.max(current - 1, 0);
+
+    buttons[next].focus();
+  }
+
   return (
     <aside className="glass-panel flex h-full min-h-0 flex-col overflow-hidden">
       <div className="border-b border-border p-5">
         <div className="flex items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0">
             <p className="text-[11px] font-medium uppercase tracking-wide text-accent">
               Structure navigator
             </p>
@@ -112,33 +143,40 @@ export function AnatomyDetailPanel({
         </div>
 
         <label
-          htmlFor="anatomy-structure"
+          htmlFor="anatomy-structure-search"
           className="mt-4 block text-[11px] font-medium uppercase tracking-wide text-muted"
         >
-          Jump to a structure
+          Search structures
         </label>
-        <select
-          id="anatomy-structure"
-          value={selected?.slug ?? ""}
-          onChange={(event) => {
-            const next = system.structures.find(
-              (structure) => structure.slug === event.target.value,
-            );
-            if (next) {
-              onSelect(next);
-            } else {
-              onClear();
-            }
-          }}
-          className="mt-1.5 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-primary outline-none transition-colors focus:border-accent"
-        >
-          <option value="">Choose a structure…</option>
-          {system.structures.map((structure) => (
-            <option key={structure.slug} value={structure.slug}>
-              {structure.name}
-            </option>
-          ))}
-        </select>
+        <div className="relative mt-1.5">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+          <input
+            ref={searchInputRef}
+            id="anatomy-structure-search"
+            type="search"
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            placeholder="Name, Latin name, or note…"
+            autoComplete="off"
+            className="w-full rounded-lg border border-border bg-elevated py-2 pl-9 pr-9 text-sm text-primary outline-none transition-colors placeholder:text-muted focus:border-accent [&::-webkit-search-cancel-button]:hidden"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => onQueryChange("")}
+              aria-label="Clear search"
+              className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface hover:text-primary"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+
+        {isFiltering && (
+          <p className="mt-2 text-[11px] text-muted" role="status">
+            Showing {filtered.length} of {system.structures.length} structures
+          </p>
+        )}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-5">
@@ -231,6 +269,31 @@ export function AnatomyDetailPanel({
               </div>
             )}
 
+            {selected.references.length > 0 && (
+              <div className="mt-5 border-t border-border pt-4">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted">
+                  References
+                </p>
+                <ul className="mt-2 space-y-2">
+                  {selected.references.map((reference) => (
+                    <li
+                      key={reference}
+                      className="text-[11px] leading-relaxed text-muted"
+                    >
+                      {reference}
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  href="/attribution/anatomy"
+                  className="mt-3 inline-flex items-center gap-1 text-[11px] font-medium text-accent hover:underline"
+                >
+                  Model sources and licence
+                  <ExternalLink className="h-3 w-3" />
+                </Link>
+              </div>
+            )}
+
             <AnatomyAiPanel systemSlug={system.slug} structure={selected} />
           </div>
         ) : (
@@ -240,30 +303,56 @@ export function AnatomyDetailPanel({
               group below.
             </p>
 
-            <div className="mt-5 space-y-5">
-              {Array.from(grouped.entries()).map(([layer, structures]) => (
-                <div key={layer}>
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted">
-                    {layerLabel(layer === "other" ? null : layer)}
-                  </p>
-                  <div className="mt-2 space-y-1.5">
-                    {structures.map((structure) => (
-                      <button
-                        key={structure.slug}
-                        type="button"
-                        onClick={() => onSelect(structure)}
-                        className="flex w-full items-center justify-between gap-3 rounded-lg border border-border bg-elevated px-3 py-2.5 text-left text-sm text-secondary transition-colors hover:border-border-accent hover:text-primary"
-                      >
-                        <span className="min-w-0 truncate">
-                          {structure.name}
-                        </span>
-                        <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 text-muted" />
-                      </button>
-                    ))}
+            {filtered.length === 0 ? (
+              <div className="mt-6 rounded-xl border border-border bg-elevated p-4 text-center">
+                <p className="text-sm font-medium text-primary">
+                  No structures match
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-secondary">
+                  Try a different search term, or turn a layer back on in the
+                  filter bar above the model.
+                </p>
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => onQueryChange("")}
+                    className="mt-3 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
+                  >
+                    Clear search
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div
+                ref={listRef}
+                onKeyDown={handleListKeyDown}
+                className="mt-5 space-y-5"
+              >
+                {Array.from(grouped.entries()).map(([layer, structures]) => (
+                  <div key={layer}>
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted">
+                      {layerLabel(layer === "other" ? null : layer)}
+                    </p>
+                    <div className="mt-2 space-y-1.5">
+                      {structures.map((structure) => (
+                        <button
+                          key={structure.slug}
+                          type="button"
+                          data-anatomy-structure
+                          onClick={() => onSelect(structure)}
+                          className="flex w-full items-center justify-between gap-3 rounded-lg border border-border bg-elevated px-3 py-2.5 text-left text-sm text-secondary transition-colors hover:border-border-accent hover:text-primary focus:outline-none focus-visible:border-accent focus-visible:ring-1 focus-visible:ring-accent"
+                        >
+                          <span className="min-w-0 truncate">
+                            {structure.name}
+                          </span>
+                          <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 text-muted" />
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
