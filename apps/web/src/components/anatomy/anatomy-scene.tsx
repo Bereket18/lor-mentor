@@ -13,6 +13,7 @@ interface AnatomySceneProps {
   onSelectMesh: (meshName: string | null) => void;
   onModelReady?: () => void;
   onModelError?: (message: string) => void;
+  onRendererUnavailable?: () => void;
 }
 
 interface AnatomyModelProps extends AnatomySceneProps {
@@ -238,6 +239,49 @@ class ModelErrorBoundary extends Component<
   }
 }
 
+class SceneErrorBoundary extends Component<
+  { children: ReactNode; onError?: () => void },
+  { failed: boolean }
+> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error("Anatomy renderer failed to start", error);
+    this.props.onError?.();
+  }
+
+  render() {
+    if (this.state.failed) {
+      return null;
+    }
+
+    return this.props.children;
+  }
+}
+
+/**
+ * The Canvas creates its WebGL renderer during mount. Checking first keeps a
+ * browser with WebGL disabled from throwing an uncaught error and taking the
+ * whole page down with it.
+ */
+function canCreateWebGLContext() {
+  try {
+    const canvas = document.createElement("canvas");
+    const context =
+      canvas.getContext("webgl2") ?? canvas.getContext("webgl");
+    if (!context) return false;
+
+    context.getExtension("WEBGL_lose_context")?.loseContext();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function AnatomyScene({
   modelUrl,
   selectedMeshName,
@@ -245,8 +289,17 @@ export function AnatomyScene({
   onSelectMesh,
   onModelReady,
   onModelError,
+  onRendererUnavailable,
 }: AnatomySceneProps) {
   const [hoveredMesh, setHoveredMesh] = useState<string | null>(null);
+  // The scene is client-only, so the probe can run during the first render.
+  const [webglSupported] = useState<boolean | null>(() =>
+    typeof document === "undefined" ? null : canCreateWebGLContext(),
+  );
+
+  useEffect(() => {
+    if (webglSupported === false) onRendererUnavailable?.();
+  }, [webglSupported, onRendererUnavailable]);
 
   useEffect(() => {
     document.body.style.cursor = hoveredMesh ? "pointer" : "auto";
@@ -255,43 +308,49 @@ export function AnatomyScene({
     };
   }, [hoveredMesh]);
 
+  // Wait for the capability check so the Canvas is never mounted in a browser
+  // that cannot create a WebGL context.
+  if (webglSupported !== true) return null;
+
   return (
-    <Canvas
-      frameloop="always"
-      camera={{ position: [0, 0, 7], fov: 45, near: 0.01, far: 100 }}
-      dpr={[1, 2]}
-      gl={{ antialias: true, alpha: true }}
-      onPointerMissed={() => onSelectMesh(null)}
-      style={{ touchAction: "none" }}
-    >
-      <ambientLight intensity={1.1} />
-      <directionalLight position={[4, 6, 8]} intensity={2.2} />
-      <directionalLight position={[-4, -2, -6]} intensity={0.7} />
-      <pointLight position={[0, 0, 5]} intensity={0.8} color="#2dd4bf" />
+    <SceneErrorBoundary onError={onRendererUnavailable}>
+      <Canvas
+        frameloop="always"
+        camera={{ position: [0, 0, 7], fov: 45, near: 0.01, far: 100 }}
+        dpr={[1, 2]}
+        gl={{ antialias: true, alpha: true }}
+        onPointerMissed={() => onSelectMesh(null)}
+        style={{ touchAction: "none" }}
+      >
+        <ambientLight intensity={1.1} />
+        <directionalLight position={[4, 6, 8]} intensity={2.2} />
+        <directionalLight position={[-4, -2, -6]} intensity={0.7} />
+        <pointLight position={[0, 0, 5]} intensity={0.8} color="#2dd4bf" />
 
-      <ModelErrorBoundary onError={onModelError}>
-        <Suspense fallback={null}>
-          <Bounds fit clip observe margin={1.25}>
-            <AnatomyModel
-              modelUrl={modelUrl}
-              selectedMeshName={selectedMeshName}
-              hiddenMeshNames={hiddenMeshNames}
-              onSelectMesh={onSelectMesh}
-              onHoverMesh={setHoveredMesh}
-              onModelReady={onModelReady}
-            />
-          </Bounds>
-        </Suspense>
-      </ModelErrorBoundary>
+        <ModelErrorBoundary onError={onModelError}>
+          <Suspense fallback={null}>
+            <Bounds fit clip observe margin={1.25}>
+              <AnatomyModel
+                modelUrl={modelUrl}
+                selectedMeshName={selectedMeshName}
+                hiddenMeshNames={hiddenMeshNames}
+                onSelectMesh={onSelectMesh}
+                onHoverMesh={setHoveredMesh}
+                onModelReady={onModelReady}
+              />
+            </Bounds>
+          </Suspense>
+        </ModelErrorBoundary>
 
-      <OrbitControls
-        makeDefault
-        enablePan={false}
-        enableDamping
-        dampingFactor={0.08}
-        minDistance={0.2}
-        maxDistance={14}
-      />
-    </Canvas>
+        <OrbitControls
+          makeDefault
+          enablePan={false}
+          enableDamping
+          dampingFactor={0.08}
+          minDistance={0.2}
+          maxDistance={14}
+        />
+      </Canvas>
+    </SceneErrorBoundary>
   );
 }

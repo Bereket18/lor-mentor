@@ -146,6 +146,7 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
   const [modelAttempt, setModelAttempt] = useState(0);
   const [modelReady, setModelReady] = useState(false);
   const [modelError, setModelError] = useState<string | null>(null);
+  const [rendererUnavailable, setRendererUnavailable] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const handleModelReady = useCallback(() => {
@@ -155,6 +156,11 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
   const handleModelError = useCallback((message: string) => {
     setModelReady(false);
     setModelError(message);
+  }, []);
+  const handleRendererUnavailable = useCallback(() => {
+    setModelReady(false);
+    setModelError(null);
+    setRendererUnavailable(true);
   }, []);
 
   useEffect(() => {
@@ -170,6 +176,7 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
         setHiddenLayers([]);
         setModelReady(false);
         setModelError(null);
+        setRendererUnavailable(false);
       })
       .catch((requestError: unknown) => {
         if (!active) return;
@@ -335,6 +342,7 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
             onClick={() => {
               setModelReady(false);
               setModelError(null);
+              setRendererUnavailable(false);
               setResetKey((key) => key + 1);
             }}
             className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 py-2 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
@@ -403,54 +411,90 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
           {system.modelUrl ? (
             <div
               className="absolute inset-0"
-              role="img"
-              aria-label={`Interactive 3D model of ${system.name}. Use the structure navigator for a keyboard-accessible list of structures.`}
+              role={rendererUnavailable ? undefined : "img"}
+              aria-label={
+                rendererUnavailable
+                  ? undefined
+                  : `Interactive 3D model of ${system.name}. Use the structure navigator for a keyboard-accessible list of structures.`
+              }
             >
-              <AnatomyScene
-                key={`${resetKey}-${modelAttempt}`}
-                modelUrl={
-                  modelAttempt === 0
-                    ? system.modelUrl
-                    : `${system.modelUrl}?retry=${modelAttempt}`
-                }
-                selectedMeshName={selected?.meshName ?? null}
-                hiddenMeshNames={hiddenMeshNames}
-                onSelectMesh={selectMesh}
-                onModelReady={handleModelReady}
-                onModelError={handleModelError}
-              />
-              {!modelReady && !modelError && (
-                <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-                  <div className="flex items-center gap-2 rounded-full border border-border bg-elevated/90 px-4 py-2 text-xs text-secondary shadow-card backdrop-blur">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />
-                    Loading 3D model…
-                  </div>
-                </div>
-              )}
-              {modelError && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center p-6">
-                  <div className="max-w-sm rounded-xl border border-warning/30 bg-elevated/95 p-5 text-center backdrop-blur">
-                    <SearchX className="mx-auto mb-2 h-7 w-7 text-warning" />
+              {rendererUnavailable ? (
+                <div className="absolute inset-0 flex items-center justify-center p-6">
+                  <div className="max-w-sm rounded-xl border border-border bg-elevated/95 p-5 text-center backdrop-blur">
+                    <Scan className="mx-auto mb-2 h-7 w-7 text-warning" />
                     <p className="text-sm font-medium text-primary">
-                      3D model could not load
+                      3D view unavailable
                     </p>
                     <p className="mt-1 text-xs leading-relaxed text-secondary">
-                      The written structure notes are still available in the
-                      navigator. Check your connection and try again.
+                      This browser could not start WebGL, which the interactive
+                      model needs. The written structure notes are still
+                      available in the navigator. Enable hardware acceleration
+                      or open the lab in another browser, then retry.
                     </p>
                     <button
                       type="button"
                       onClick={() => {
-                        setModelError(null);
+                        setRendererUnavailable(false);
                         setModelReady(false);
+                        setModelError(null);
                         setModelAttempt((attempt) => attempt + 1);
                       }}
                       className="mt-3 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
                     >
-                      Retry model
+                      Retry 3D view
                     </button>
                   </div>
                 </div>
+              ) : (
+                <>
+                  <AnatomyScene
+                    key={`${resetKey}-${modelAttempt}`}
+                    modelUrl={
+                      modelAttempt === 0
+                        ? system.modelUrl
+                        : `${system.modelUrl}?retry=${modelAttempt}`
+                    }
+                    selectedMeshName={selected?.meshName ?? null}
+                    hiddenMeshNames={hiddenMeshNames}
+                    onSelectMesh={selectMesh}
+                    onModelReady={handleModelReady}
+                    onModelError={handleModelError}
+                    onRendererUnavailable={handleRendererUnavailable}
+                  />
+                  {!modelReady && !modelError && (
+                    <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+                      <div className="flex items-center gap-2 rounded-full border border-border bg-elevated/90 px-4 py-2 text-xs text-secondary shadow-card backdrop-blur">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />
+                        Loading 3D model…
+                      </div>
+                    </div>
+                  )}
+                  {modelError && (
+                    <div className="absolute inset-0 z-10 flex items-center justify-center p-6">
+                      <div className="max-w-sm rounded-xl border border-warning/30 bg-elevated/95 p-5 text-center backdrop-blur">
+                        <SearchX className="mx-auto mb-2 h-7 w-7 text-warning" />
+                        <p className="text-sm font-medium text-primary">
+                          3D model could not load
+                        </p>
+                        <p className="mt-1 text-xs leading-relaxed text-secondary">
+                          The written structure notes are still available in
+                          the navigator. Check your connection and try again.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setModelError(null);
+                            setModelReady(false);
+                            setModelAttempt((attempt) => attempt + 1);
+                          }}
+                          className="mt-3 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
+                        >
+                          Retry model
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           ) : (
