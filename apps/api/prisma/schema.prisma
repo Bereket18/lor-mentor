@@ -543,6 +543,8 @@ model AnatomyStructure {
   // Slugs of related structures within the same system. Stored as slugs so
   // the seed stays readable and the API can resolve names in one pass.
   relatedSlugs  String[] @default([])
+  // FMA concepts and textbook citations backing the teaching notes.
+  references    String[] @default([])
   sortOrder     Int      @default(0)
   isReviewed    Boolean  @default(false)
   createdAt     DateTime @default(now())
