@@ -289,7 +289,7 @@ function align4(value) {
   return (value + 3) & ~3;
 }
 
-function buildGlb(structures, metadata) {
+function buildGlb(structures, metadata, copyright) {
   const bufferParts = [];
   const bufferViews = [];
   const accessors = [];
@@ -422,6 +422,7 @@ function buildGlb(structures, metadata) {
     asset: {
       version: "2.0",
       generator: "LOR Mentor Anatomy Lab model pipeline",
+      copyright,
       extras: metadata,
     },
     scene: 0,
@@ -637,11 +638,31 @@ function main() {
   const isV2 = Array.isArray(config.sources);
   const textOnly = config.textOnly ?? [];
   const license = {
-    notice: primarySource.requiredCredit,
-    licenseUrl: primarySource.licenseUrl,
+    notice:
+      "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International",
+    licenseUrl:
+      "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+    statements: [
+      {
+        source:
+          "BodyParts3D licence page (last updated 2025-02-27) and README_e.html",
+        statement:
+          "The license for this database is specified in the Creative Commons Attribution 4.0 International.",
+      },
+      {
+        source:
+          "Header comment in all 3,492 distributed BodyParts3D 4.0 OBJ files",
+        statement:
+          "The license for this database is specified in the Creative Commons Attribution-Share Alike 2.1 Japan.",
+      },
+    ],
     status:
-      "Development asset. Commercial clearance is pending written clarification of the CC BY-SA 2.1 Japan headers in the source OBJ files.",
+      "Which licence applies is being clarified with the Database Center for Life Science (DBCLS).",
+    adaptedModelTerms:
+      "The adapted model file is offered under the same terms as the stricter statement, CC BY-SA 2.1 Japan.",
   };
+  const copyright =
+    "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International. A second licence statement (CC BY-SA 2.1 Japan) exists; see extras.license.";
 
   const metadata = {
     title: "LOR Mentor heart anatomy model",
@@ -651,7 +672,7 @@ function main() {
     license,
   };
 
-  const glb = buildGlb(structures, metadata);
+  const glb = buildGlb(structures, metadata, copyright);
   const modelPath = args.out ? resolve(args.out) : defaultModelPath;
   const manifestPath = args.manifest
     ? resolve(args.manifest)

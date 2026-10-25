@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, ExternalLink, Info, ShieldAlert } from "lucide-react";
+import { ArrowLeft, ExternalLink, Info } from "lucide-react";
 import manifest from "../../../../public/models/anatomy/manifest.json";
 
 export const metadata: Metadata = {
@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 };
 
 const CREDIT =
-  "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International.";
+  "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International";
 
 export default function AnatomyAttributionPage() {
   return (
@@ -71,34 +71,37 @@ export default function AnatomyAttributionPage() {
               <dd>{manifest.model.file}</dd>
             </div>
             <div className="flex flex-wrap gap-x-2">
+              <dt className="font-medium text-secondary">Model size:</dt>
+              <dd>{manifest.model.bytes.toLocaleString("en-US")} bytes</dd>
+            </div>
+            <div className="flex flex-wrap gap-x-2">
               <dt className="font-medium text-secondary">Model SHA-256:</dt>
               <dd className="break-all font-mono">{manifest.model.sha256}</dd>
             </div>
           </dl>
         </section>
 
-        <section className="mt-6 rounded-xl border border-warning/25 bg-warning/5 p-6">
-          <div className="flex items-start gap-3">
-            <ShieldAlert className="mt-0.5 h-5 w-5 flex-shrink-0 text-warning" />
-            <div>
-              <h2 className="font-display text-base font-semibold text-primary">
-                Licence version discrepancy
-              </h2>
-              <p className="mt-2 text-sm leading-relaxed text-secondary">
-                The current BodyParts3D licence page (last updated 27 February
-                2025) states CC BY 4.0. The header comments inside the
-                distributed 4.0 OBJ files still refer to CC Attribution-Share
-                Alike 2.1 Japan. We publish this development asset under the
-                current CC BY 4.0 terms with the required credit above.
-              </p>
-              <p className="mt-2 text-sm leading-relaxed text-secondary">
-                Commercial release of this model is on hold until the
-                discrepancy is clarified in writing by the dataset publisher.
-                If you need to reuse the model commercially, treat the licence
-                as unresolved.
-              </p>
-            </div>
-          </div>
+        <section className="glass-panel mt-6 p-6">
+          <h2 className="font-display text-lg font-semibold text-primary">
+            Licence status
+          </h2>
+          <p className="mt-2 text-sm leading-relaxed text-secondary">
+            The BodyParts3D licence page and README state CC BY 4.0. The header
+            of every distributed BodyParts3D 4.0 OBJ file states CC BY-SA 2.1
+            Japan. Which licence applies is being clarified with the Database
+            Center for Life Science (DBCLS). In the meantime we credit the
+            source as both licences require, describe our changes below, and
+            offer the adapted model file under the same terms as the stricter
+            statement, CC BY-SA 2.1 Japan. Licence page:{" "}
+            <a
+              href="https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html"
+              target="_blank"
+              rel="noreferrer noopener"
+              className="text-accent hover:underline"
+            >
+              https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html
+            </a>
+          </p>
         </section>
 
         <section className="glass-panel mt-6 p-6">
@@ -121,8 +124,9 @@ export default function AnatomyAttributionPage() {
               used; surface colours are ours.
             </li>
             <li>
-              Wrote the written notes, quizzes, and interface copy for Lor
-              Mentor. They are not copied from BodyParts3D or its documentation.
+              Teaching notes, quizzes and interface text are LOR Mentor content
+              and are pending faculty review. They are not part of the
+              BodyParts3D dataset.
             </li>
           </ul>
           <p className="mt-3 text-xs leading-relaxed text-muted">

@@ -3,8 +3,8 @@
   "system": "heart",
   "model": {
     "file": "heart.v1.glb",
-    "bytes": 1841176,
-    "sha256": "27f4e92c8db1ee48dca4ea49171a8c49c28efb90fc4775a299ad7f9149a4a5fc",
+    "bytes": 1841856,
+    "sha256": "e7723082d617b7d9198210200c7c4e82a052e699cec5cdc2faf6c652fc6f0db0",
     "triangles": 93842,
     "structures": 14
   },
@@ -28,9 +28,20 @@
     "mapping": "x/1000, z/1000, -y/1000; then centre on the combined bounding box"
   },
   "license": {
-    "notice": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International.",
+    "notice": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International",
     "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
-    "status": "Development asset. Commercial clearance is pending written clarification of the CC BY-SA 2.1 Japan headers in the source OBJ files."
+    "statements": [
+      {
+        "source": "BodyParts3D licence page (last updated 2025-02-27) and README_e.html",
+        "statement": "The license for this database is specified in the Creative Commons Attribution 4.0 International."
+      },
+      {
+        "source": "Header comment in all 3,492 distributed BodyParts3D 4.0 OBJ files",
+        "statement": "The license for this database is specified in the Creative Commons Attribution-Share Alike 2.1 Japan."
+      }
+    ],
+    "status": "Which licence applies is being clarified with the Database Center for Life Science (DBCLS).",
+    "adaptedModelTerms": "The adapted model file is offered under the same terms as the stricter statement, CC BY-SA 2.1 Japan."
   },
   "structures": [
     {
