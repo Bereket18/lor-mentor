@@ -4,12 +4,12 @@
  *
  *   npm run validate:anatomy-model --workspace=apps/web
  *
- * By default this checks the live v1 asset. Pass a GLB and manifest pair to
- * validate a candidate release without switching the live model:
+ * By default this checks the live v2 asset. Pass a GLB and manifest pair to
+ * validate a candidate release without touching the live model:
  *
  *   node scripts/validate-anatomy-model.mjs \
- *     --glb public/models/anatomy/heart.v2.glb \
- *     --manifest public/models/anatomy/heart.v2.manifest.json
+ *     --glb path/to/candidate.glb \
+ *     --manifest path/to/candidate.manifest.json
  *
  * This checks the asset itself, not the seed. The seed-to-model contract is
  * covered by apps/api/src/modules/anatomy/anatomy-model.contract.spec.ts.
@@ -34,7 +34,7 @@ function check(condition, message) {
 
 function parseArgs(argv) {
   const args = {
-    glb: join(modelDir, "heart.v1.glb"),
+    glb: join(modelDir, "heart.v2.glb"),
     manifest: join(modelDir, "manifest.json"),
   };
 
@@ -53,7 +53,7 @@ function usage() {
   return [
     "Usage: node scripts/validate-anatomy-model.mjs [--glb <path>] [--manifest <path>]",
     "",
-    "Defaults to the live v1 asset and manifest.",
+    "Defaults to the live v2 asset and manifest.",
   ].join("\n");
 }
 
@@ -174,11 +174,15 @@ function main() {
   const meshNames = meshes.map((mesh) => mesh.name);
 
   check(
-    nodeNames.every((name) => typeof name === "string" && name.trim().length > 0),
+    nodeNames.every(
+      (name) => typeof name === "string" && name.trim().length > 0,
+    ),
     "Every GLB node must have a non-empty name",
   );
   check(
-    meshNames.every((name) => typeof name === "string" && name.trim().length > 0),
+    meshNames.every(
+      (name) => typeof name === "string" && name.trim().length > 0,
+    ),
     "Every GLB mesh must have a non-empty name",
   );
   check(
@@ -227,9 +231,18 @@ function main() {
     const textOnly = manifest.textOnly ?? [];
     const textOnlySlugs = textOnly.map((item) => item.slug);
 
-    check(sources.length >= 2, "A v2 manifest must record both source archives");
-    check(sourceTrees.has("PART-OF"), "A v2 manifest must record the PART-OF archive");
-    check(sourceTrees.has("IS-A"), "A v2 manifest must record the IS-A archive");
+    check(
+      sources.length >= 2,
+      "A v2 manifest must record both source archives",
+    );
+    check(
+      sourceTrees.has("PART-OF"),
+      "A v2 manifest must record the PART-OF archive",
+    );
+    check(
+      sourceTrees.has("IS-A"),
+      "A v2 manifest must record the IS-A archive",
+    );
     for (const source of sources) {
       check(
         typeof source.archive === "string" && source.archive.length > 0,

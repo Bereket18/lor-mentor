@@ -53,6 +53,15 @@
     "targetUpAxis": "Y",
     "mapping": "x/1000, z/1000, -y/1000; then centre on the combined bounding box"
   },
+  "changes": [
+    "Selected 52 source OBJ files from the PART-OF and IS-A trees: 42 PART-OF files and 10 IS-A files.",
+    "Merged each structure's source parts into one selectable mesh: 17 selectable nodes.",
+    "Moved the arch of the aorta out of the aorta node into a separate aortic_arch node, and added separate pulmonary_arteries and pulmonary_veins nodes.",
+    "Converted millimetres and the Z-up axis to metres and Y-up, centred the combined model, and recomputed vertex normals.",
+    "Exported one uncompressed GLB with stable mesh names. No source colours or textures are used; surface colours are ours.",
+    "Kept 9 structures as text-only entries because BodyParts3D 4.0 has no independent mesh for them. They show \"No 3D model\".",
+    "Wrote the teaching notes, quizzes, and interface copy for Lor Mentor. They are not copied from BodyParts3D or its documentation."
+  ],
   "license": {
     "notice": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International",
     "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
@@ -76,10 +85,7 @@
       "layer": "chambers",
       "color": "#c96b6b",
       "triangles": 20028,
-      "fma": [
-        "FMA11359",
-        "FMA9457"
-      ],
+      "fma": ["FMA11359", "FMA9457"],
       "files": [
         {
           "id": "FJ2424",
@@ -105,12 +111,7 @@
       "layer": "chambers",
       "color": "#b95757",
       "triangles": 4336,
-      "fma": [
-        "FMA9291",
-        "FMA7260",
-        "FMA7261",
-        "FMA7262"
-      ],
+      "fma": ["FMA9291", "FMA7260", "FMA7261", "FMA7262"],
       "files": [
         {
           "id": "FJ2423",
@@ -152,10 +153,7 @@
       "layer": "chambers",
       "color": "#d47a72",
       "triangles": 8608,
-      "fma": [
-        "FMA9465",
-        "FMA9531"
-      ],
+      "fma": ["FMA9465", "FMA9531"],
       "files": [
         {
           "id": "FJ2425",
@@ -181,11 +179,7 @@
       "layer": "chambers",
       "color": "#c25f5a",
       "triangles": 3318,
-      "fma": [
-        "FMA9466",
-        "FMA7265",
-        "FMA7264"
-      ],
+      "fma": ["FMA9466", "FMA7265", "FMA7264"],
       "files": [
         {
           "id": "FJ2422",
@@ -219,11 +213,7 @@
       "layer": "valves",
       "color": "#e8d8b0",
       "triangles": 17612,
-      "fma": [
-        "FMA7238",
-        "FMA7239",
-        "FMA7240"
-      ],
+      "fma": ["FMA7238", "FMA7239", "FMA7240"],
       "files": [
         {
           "id": "FJ2421",
@@ -257,11 +247,7 @@
       "layer": "valves",
       "color": "#e3d3aa",
       "triangles": 3638,
-      "fma": [
-        "FMA7247",
-        "FMA7250",
-        "FMA7249"
-      ],
+      "fma": ["FMA7247", "FMA7250", "FMA7249"],
       "files": [
         {
           "id": "FJ2417",
@@ -295,10 +281,7 @@
       "layer": "valves",
       "color": "#e8d8b0",
       "triangles": 11378,
-      "fma": [
-        "FMA7242",
-        "FMA7243"
-      ],
+      "fma": ["FMA7242", "FMA7243"],
       "files": [
         {
           "id": "FJ2420",
@@ -324,11 +307,7 @@
       "layer": "valves",
       "color": "#e3d3aa",
       "triangles": 2150,
-      "fma": [
-        "FMA7253",
-        "FMA7254",
-        "FMA7252"
-      ],
+      "fma": ["FMA7253", "FMA7254", "FMA7252"],
       "files": [
         {
           "id": "FJ2435",
@@ -362,9 +341,7 @@
       "layer": "great-vessels",
       "color": "#5f7fa6",
       "triangles": 598,
-      "fma": [
-        "FMA4720"
-      ],
+      "fma": ["FMA4720"],
       "files": [
         {
           "id": "FJ3645",
@@ -382,9 +359,7 @@
       "layer": "great-vessels",
       "color": "#5f7fa6",
       "triangles": 3080,
-      "fma": [
-        "FMA10951"
-      ],
+      "fma": ["FMA10951"],
       "files": [
         {
           "id": "FJ3441",
@@ -410,9 +385,7 @@
       "layer": "great-vessels",
       "color": "#6f8fb5",
       "triangles": 1302,
-      "fma": [
-        "FMA8612"
-      ],
+      "fma": ["FMA8612"],
       "files": [
         {
           "id": "FJ2966",
@@ -430,10 +403,7 @@
       "layer": "great-vessels",
       "color": "#6f8fb5",
       "triangles": 6128,
-      "fma": [
-        "FMA50872",
-        "FMA50873"
-      ],
+      "fma": ["FMA50872", "FMA50873"],
       "files": [
         {
           "id": "FJ3019",
@@ -459,12 +429,7 @@
       "layer": "great-vessels",
       "color": "#8f6f9e",
       "triangles": 2598,
-      "fma": [
-        "FMA49911",
-        "FMA49913",
-        "FMA49914",
-        "FMA49916"
-      ],
+      "fma": ["FMA49911", "FMA49913", "FMA49914", "FMA49916"],
       "files": [
         {
           "id": "FJ3040",
@@ -530,10 +495,7 @@
       "layer": "great-vessels",
       "color": "#b34a45",
       "triangles": 2686,
-      "fma": [
-        "FMA3736",
-        "FMA87217"
-      ],
+      "fma": ["FMA3736", "FMA87217"],
       "files": [
         {
           "id": "FJ3413",
@@ -559,9 +521,7 @@
       "layer": "great-vessels",
       "color": "#b34a45",
       "triangles": 670,
-      "fma": [
-        "FMA3768"
-      ],
+      "fma": ["FMA3768"],
       "files": [
         {
           "id": "FJ3411",
@@ -579,12 +539,7 @@
       "layer": "coronary-circulation",
       "color": "#d97757",
       "triangles": 10756,
-      "fma": [
-        "FMA3802",
-        "FMA3855",
-        "FMA74912",
-        "FMA3895"
-      ],
+      "fma": ["FMA3802", "FMA3855", "FMA74912", "FMA3895"],
       "files": [
         {
           "id": "FJ2723",
@@ -666,12 +621,7 @@
       "layer": "coronary-circulation",
       "color": "#6b8fc4",
       "triangles": 3682,
-      "fma": [
-        "FMA4706",
-        "FMA4707",
-        "FMA4713",
-        "FMA4714"
-      ],
+      "fma": ["FMA4706", "FMA4707", "FMA4713", "FMA4714"],
       "files": [
         {
           "id": "FJ2655",

@@ -41,10 +41,7 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const webRoot = resolve(scriptDir, "..");
 
 const configPath = join(scriptDir, "anatomy-heart.source.json");
-const defaultModelPath = join(
-  webRoot,
-  "public/models/anatomy/heart.v1.glb",
-);
+const defaultModelPath = join(webRoot, "public/models/anatomy/heart.v2.glb");
 const defaultManifestPath = join(
   webRoot,
   "public/models/anatomy/manifest.json",
@@ -127,9 +124,7 @@ function buildSourceIndexes(specs) {
     }
 
     const index = indexObjFiles(sourceDir);
-    const target = label
-      ? (byTree.get(label) ?? new Map())
-      : combined;
+    const target = label ? (byTree.get(label) ?? new Map()) : combined;
     if (label && !byTree.has(label)) byTree.set(label, target);
 
     for (const [id, file] of index) {
@@ -332,9 +327,7 @@ function buildGlb(structures, metadata, copyright) {
     // 16-bit indices are valid up to 65,535 vertices and halve the index
     // payload for every structure that fits. Use 32-bit only when needed.
     const useShortIndices = positions.length / 3 <= 0xffff;
-    const indexArray = useShortIndices
-      ? Uint16Array.from(indices)
-      : indices;
+    const indexArray = useShortIndices ? Uint16Array.from(indices) : indices;
     const indexBuffer = Buffer.from(
       indexArray.buffer,
       indexArray.byteOffset,
@@ -360,26 +353,29 @@ function buildGlb(structures, metadata, copyright) {
       maxZ = Math.max(maxZ, positions[i + 2]);
     }
 
-    const positionAccessor = accessors.push({
-      bufferView: positionView,
-      componentType: 5126,
-      count: positions.length / 3,
-      type: "VEC3",
-      min: [round(minX), round(minY), round(minZ)],
-      max: [round(maxX), round(maxY), round(maxZ)],
-    }) - 1;
-    const normalAccessor = accessors.push({
-      bufferView: normalView,
-      componentType: 5126,
-      count: normals.length / 3,
-      type: "VEC3",
-    }) - 1;
-    const indexAccessor = accessors.push({
-      bufferView: indexView,
-      componentType: useShortIndices ? 5123 : 5125,
-      count: indices.length,
-      type: "SCALAR",
-    }) - 1;
+    const positionAccessor =
+      accessors.push({
+        bufferView: positionView,
+        componentType: 5126,
+        count: positions.length / 3,
+        type: "VEC3",
+        min: [round(minX), round(minY), round(minZ)],
+        max: [round(maxX), round(maxY), round(maxZ)],
+      }) - 1;
+    const normalAccessor =
+      accessors.push({
+        bufferView: normalView,
+        componentType: 5126,
+        count: normals.length / 3,
+        type: "VEC3",
+      }) - 1;
+    const indexAccessor =
+      accessors.push({
+        bufferView: indexView,
+        componentType: useShortIndices ? 5123 : 5125,
+        count: indices.length,
+        type: "SCALAR",
+      }) - 1;
 
     materials.push({
       name: `mat_${structure.meshName}`,
@@ -461,13 +457,7 @@ function buildGlb(structures, metadata, copyright) {
   binHeader.writeUInt32LE(binBuffer.byteLength, 0);
   binHeader.writeUInt32LE(0x004e4942, 4);
 
-  return Buffer.concat([
-    header,
-    jsonHeader,
-    jsonBuffer,
-    binHeader,
-    binBuffer,
-  ]);
+  return Buffer.concat([header, jsonHeader, jsonBuffer, binHeader, binBuffer]);
 }
 
 function main() {
@@ -623,10 +613,7 @@ function main() {
       structure.positions[i + 1] -= center[1];
       structure.positions[i + 2] -= center[2];
     }
-    structure.normals = computeNormals(
-      structure.positions,
-      structure.indices,
-    );
+    structure.normals = computeNormals(structure.positions, structure.indices);
   }
 
   const totalTriangles = structures.reduce(
@@ -640,8 +627,7 @@ function main() {
   const license = {
     notice:
       "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International",
-    licenseUrl:
-      "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+    licenseUrl: "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
     statements: [
       {
         source:
@@ -712,7 +698,8 @@ function main() {
       uniqueSourceFiles: true,
       sourceHeadersVerified: true,
       ...(isV2 ? { sourceHashesVerified: true } : {}),
-      unrepresentedStructures: "deferred; see docs/anatomy/provenance/README.md",
+      unrepresentedStructures:
+        "deferred; see docs/anatomy/provenance/README.md",
     },
   };
 

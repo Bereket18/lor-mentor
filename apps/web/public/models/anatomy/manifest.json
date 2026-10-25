@@ -1,25 +1,51 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "system": "heart",
   "model": {
-    "file": "heart.v1.glb",
-    "bytes": 1841856,
-    "sha256": "e7723082d617b7d9198210200c7c4e82a052e699cec5cdc2faf6c652fc6f0db0",
-    "triangles": 93842,
-    "structures": 14
+    "file": "heart.v2.glb",
+    "bytes": 2003856,
+    "sha256": "b1fac8e02842b40b9cd123e3e896d868254d07b63ed3bc856977d511b879541d",
+    "triangles": 102568,
+    "structures": 17,
+    "textOnlyStructures": 9,
+    "totalStructures": 26
   },
-  "source": {
-    "dataset": "BodyParts3D 4.0 (PART-OF tree, polygon reduction 99%)",
-    "archive": "partof_BP3D_4.0_obj_99.zip",
-    "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_BP3D_4.0_obj_99.zip",
-    "archiveBytes": 64888505,
-    "archiveEtag": "\"3de1eb9-4dd48e9fe8d00\"",
-    "archiveLastModified": "Wed, 22 May 2013 06:45:40 GMT",
-    "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
-    "licenseUpdated": "2025-02-27",
-    "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
-    "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
-  },
+  "sources": [
+    {
+      "tree": "PART-OF",
+      "dataset": "BodyParts3D 4.0",
+      "polygonReduction": "99%",
+      "archive": "partof_BP3D_4.0_obj_99.zip",
+      "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_BP3D_4.0_obj_99.zip",
+      "archiveBytes": 64888505,
+      "archiveEtag": "\"3de1eb9-4dd48e9fe8d00\"",
+      "archiveLastModified": "Wed, 22 May 2013 06:45:40 GMT",
+      "archiveSha256": "9fbc713fffeee924a5a657d9813d84d7eb957bded63adb854931dd5e3eb61c97",
+      "extractedObjFiles": 1258,
+      "usedFor": "v1: 43 files across 14 structures. v2: 42 files across 14 structures; FJ3411 moves to aortic-arch and is sourced from IS-A.",
+      "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "licenseUpdated": "2025-02-27",
+      "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
+      "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
+    },
+    {
+      "tree": "IS-A",
+      "dataset": "BodyParts3D 4.0",
+      "polygonReduction": "99%",
+      "archive": "isa_BP3D_4.0_obj_99.zip",
+      "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/isa_BP3D_4.0_obj_99.zip",
+      "archiveBytes": 142903898,
+      "archiveEtag": "\"8848a5a-4dd48ec9df000\"",
+      "archiveLastModified": "Wed, 22 May 2013 06:46:24 GMT",
+      "archiveSha256": "40665852c49f218326590e204db91064a1ecfc3c6f8cbd7bbbcaac62c7cd409e",
+      "extractedObjFiles": 2234,
+      "usedFor": "v2: 10 files across 3 new structures (pulmonary arteries, pulmonary veins, aortic arch).",
+      "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "licenseUpdated": "2025-02-27",
+      "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
+      "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
+    }
+  ],
   "transform": {
     "sourceUnits": "millimetres",
     "sourceUpAxis": "Z",
@@ -27,6 +53,15 @@
     "targetUpAxis": "Y",
     "mapping": "x/1000, z/1000, -y/1000; then centre on the combined bounding box"
   },
+  "changes": [
+    "Selected 52 source OBJ files from the PART-OF and IS-A trees: 42 PART-OF files and 10 IS-A files.",
+    "Merged each structure's source parts into one selectable mesh: 17 selectable nodes.",
+    "Moved the arch of the aorta out of the aorta node into a separate aortic_arch node, and added separate pulmonary_arteries and pulmonary_veins nodes.",
+    "Converted millimetres and the Z-up axis to metres and Y-up, centred the combined model, and recomputed vertex normals.",
+    "Exported one uncompressed GLB with stable mesh names. No source colours or textures are used; surface colours are ours.",
+    "Kept 9 structures as text-only entries because BodyParts3D 4.0 has no independent mesh for them. They show \"No 3D model\".",
+    "Wrote the teaching notes, quizzes, and interface copy for Lor Mentor. They are not copied from BodyParts3D or its documentation."
+  ],
   "license": {
     "notice": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International",
     "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
@@ -50,13 +85,11 @@
       "layer": "chambers",
       "color": "#c96b6b",
       "triangles": 20028,
-      "fma": [
-        "FMA11359",
-        "FMA9457"
-      ],
+      "fma": ["FMA11359", "FMA9457"],
       "files": [
         {
           "id": "FJ2424",
+          "archive": "PART-OF",
           "concept": "FMA11359",
           "name": "Cavity of right atrium",
           "sha256": "8bd340059ff697cfe9ce57f2427e8c5a982e248a1d2230d477a4fe094adc2a2a",
@@ -64,6 +97,7 @@
         },
         {
           "id": "FJ2439",
+          "archive": "PART-OF",
           "concept": "FMA9457",
           "name": "Wall of right atrium",
           "sha256": "e7c21cd1659eced056eb56e28f4fa9019ace451ea6e0333097846177f807bb5a",
@@ -77,15 +111,11 @@
       "layer": "chambers",
       "color": "#b95757",
       "triangles": 4336,
-      "fma": [
-        "FMA9291",
-        "FMA7260",
-        "FMA7261",
-        "FMA7262"
-      ],
+      "fma": ["FMA9291", "FMA7260", "FMA7261", "FMA7262"],
       "files": [
         {
           "id": "FJ2423",
+          "archive": "PART-OF",
           "concept": "FMA9291",
           "name": "Cavity of right ventricle",
           "sha256": "390747e238ba9239961d02d1e02516d7af7aacc86d2bc0c29fc835381032ceeb",
@@ -93,6 +123,7 @@
         },
         {
           "id": "FJ2419",
+          "archive": "PART-OF",
           "concept": "FMA7260",
           "name": "Anterior papillary muscle of right ventricle",
           "sha256": "05242b351343b3cce42237dd3e8256a53bb395eaee90e4e8a465578259b58fe8",
@@ -100,6 +131,7 @@
         },
         {
           "id": "FJ2430",
+          "archive": "PART-OF",
           "concept": "FMA7261",
           "name": "Posterior papillary muscle of right ventricle",
           "sha256": "92d65071f4ffc0bb22dcf5da52160cb22fd90056af85d9cbb0cb56794b8b5bac",
@@ -107,6 +139,7 @@
         },
         {
           "id": "FJ2437",
+          "archive": "PART-OF",
           "concept": "FMA7262",
           "name": "Septal papillary muscle of right ventricle",
           "sha256": "510fbbf7a56981733876388838d5acfa392de92a37e84a68d489882e7a063dcb",
@@ -120,13 +153,11 @@
       "layer": "chambers",
       "color": "#d47a72",
       "triangles": 8608,
-      "fma": [
-        "FMA9465",
-        "FMA9531"
-      ],
+      "fma": ["FMA9465", "FMA9531"],
       "files": [
         {
           "id": "FJ2425",
+          "archive": "PART-OF",
           "concept": "FMA9465",
           "name": "Cavity of left atrium",
           "sha256": "223233fef054fb67b81d27881f10a1acce47c9ade147546b6859fa90e4e37dc3",
@@ -134,6 +165,7 @@
         },
         {
           "id": "FJ2438",
+          "archive": "PART-OF",
           "concept": "FMA9531",
           "name": "Wall of left atrium",
           "sha256": "187235f3c3612ef27abde924d01c71579c2946435e64319164f43e5ad008284d",
@@ -147,14 +179,11 @@
       "layer": "chambers",
       "color": "#c25f5a",
       "triangles": 3318,
-      "fma": [
-        "FMA9466",
-        "FMA7265",
-        "FMA7264"
-      ],
+      "fma": ["FMA9466", "FMA7265", "FMA7264"],
       "files": [
         {
           "id": "FJ2422",
+          "archive": "PART-OF",
           "concept": "FMA9466",
           "name": "Cavity of left ventricle",
           "sha256": "88654bd73fa155daf0b44fd67bccaec81c9e37c105e046076993f2684c463d95",
@@ -162,6 +191,7 @@
         },
         {
           "id": "FJ2418",
+          "archive": "PART-OF",
           "concept": "FMA7265",
           "name": "Anterolateral head of lateral papillary muscle of left ventricle",
           "sha256": "e462c4455225f7d99845af95988ca2d9885144fbb3f7567610ca5635ca3a3dbc",
@@ -169,6 +199,7 @@
         },
         {
           "id": "FJ2429",
+          "archive": "PART-OF",
           "concept": "FMA7264",
           "name": "Lateral papillary muscle of left ventricle",
           "sha256": "83ad99e19bb6105883aa99a86a3c0089385dc5d2de96844c3e9eec6616e571e8",
@@ -182,14 +213,11 @@
       "layer": "valves",
       "color": "#e8d8b0",
       "triangles": 17612,
-      "fma": [
-        "FMA7238",
-        "FMA7239",
-        "FMA7240"
-      ],
+      "fma": ["FMA7238", "FMA7239", "FMA7240"],
       "files": [
         {
           "id": "FJ2421",
+          "archive": "PART-OF",
           "concept": "FMA7238",
           "name": "Anterior leaflet of tricuspid valve",
           "sha256": "ab4d65a190910effcffa60cb5522359756504edb45b9dd312971083cb70c3af7",
@@ -197,6 +225,7 @@
         },
         {
           "id": "FJ2433",
+          "archive": "PART-OF",
           "concept": "FMA7239",
           "name": "Posterior leaflet of tricuspid valve",
           "sha256": "736c0689a5489394df568e2788d27e1a547d8fcbc464490e7bef94ba9c66e8e8",
@@ -204,6 +233,7 @@
         },
         {
           "id": "FJ2436",
+          "archive": "PART-OF",
           "concept": "FMA7240",
           "name": "Septal leaflet of tricuspid valve",
           "sha256": "d2d152ec63544d37077ede2c72f2e8ebd80eb98537386ab917c6a19788f8ed98",
@@ -217,14 +247,11 @@
       "layer": "valves",
       "color": "#e3d3aa",
       "triangles": 3638,
-      "fma": [
-        "FMA7247",
-        "FMA7250",
-        "FMA7249"
-      ],
+      "fma": ["FMA7247", "FMA7250", "FMA7249"],
       "files": [
         {
           "id": "FJ2417",
+          "archive": "PART-OF",
           "concept": "FMA7247",
           "name": "Left anterior cusp of pulmonary valve",
           "sha256": "b4888f2a738be2f11b98d909c3fc08c0a3ccb05f88a94e53d7e283ad17af15dc",
@@ -232,6 +259,7 @@
         },
         {
           "id": "FJ2427",
+          "archive": "PART-OF",
           "concept": "FMA7250",
           "name": "Posterior cusp of pulmonary valve",
           "sha256": "2c07c02f4913f9ee34b4a169f64ab506394a751d0906fad9aa596329da703a1e",
@@ -239,6 +267,7 @@
         },
         {
           "id": "FJ2434",
+          "archive": "PART-OF",
           "concept": "FMA7249",
           "name": "Right anterior cusp of pulmonary valve",
           "sha256": "ab3806e8ae151df2ea1973043cd5ffe48a89f73dc27c81b2a1d4c1b6cee51131",
@@ -252,13 +281,11 @@
       "layer": "valves",
       "color": "#e8d8b0",
       "triangles": 11378,
-      "fma": [
-        "FMA7242",
-        "FMA7243"
-      ],
+      "fma": ["FMA7242", "FMA7243"],
       "files": [
         {
           "id": "FJ2420",
+          "archive": "PART-OF",
           "concept": "FMA7242",
           "name": "Anterior leaflet of mitral valve",
           "sha256": "859e44dbbc0e66eb64da60eff23afba5c4bba1a9b6aaf260d075502c0f3c4f44",
@@ -266,6 +293,7 @@
         },
         {
           "id": "FJ2432",
+          "archive": "PART-OF",
           "concept": "FMA7243",
           "name": "Posterior leaflet of mitral valve",
           "sha256": "bdcf7f32b2a16bd8d7b2920ac0f03958174c90d31353e9b38c4462aacfc038f3",
@@ -279,14 +307,11 @@
       "layer": "valves",
       "color": "#e3d3aa",
       "triangles": 2150,
-      "fma": [
-        "FMA7253",
-        "FMA7254",
-        "FMA7252"
-      ],
+      "fma": ["FMA7253", "FMA7254", "FMA7252"],
       "files": [
         {
           "id": "FJ2435",
+          "archive": "PART-OF",
           "concept": "FMA7253",
           "name": "Anterior cusp of aortic valve",
           "sha256": "410689ed978de91a6f14a3332f333b9b8db32931edb47e880cf7bc58b505d191",
@@ -294,6 +319,7 @@
         },
         {
           "id": "FJ2426",
+          "archive": "PART-OF",
           "concept": "FMA7254",
           "name": "Left posterior cusp of aortic valve",
           "sha256": "a309412ea0b21043e9851a6e8d7d529db01034c379f0b846a49f2ac070c94bee",
@@ -301,6 +327,7 @@
         },
         {
           "id": "FJ2431",
+          "archive": "PART-OF",
           "concept": "FMA7252",
           "name": "Right posterior cusp of aortic valve",
           "sha256": "6ab13f8acf9a3cf93830ab28538e39c423b24c07ffad6c305196671dfc419df0",
@@ -314,12 +341,11 @@
       "layer": "great-vessels",
       "color": "#5f7fa6",
       "triangles": 598,
-      "fma": [
-        "FMA4720"
-      ],
+      "fma": ["FMA4720"],
       "files": [
         {
           "id": "FJ3645",
+          "archive": "PART-OF",
           "concept": "FMA4720",
           "name": "Superior vena cava",
           "sha256": "68710b61d5edce86b6a31ce0a471c88cf63308671f78ba57d9974f6514cdb04b",
@@ -333,12 +359,11 @@
       "layer": "great-vessels",
       "color": "#5f7fa6",
       "triangles": 3080,
-      "fma": [
-        "FMA10951"
-      ],
+      "fma": ["FMA10951"],
       "files": [
         {
           "id": "FJ3441",
+          "archive": "PART-OF",
           "concept": "FMA10951",
           "name": "Inferior vena cava",
           "sha256": "749081b95f406bd38edea220d216f84aa17e019b91c117e7cfd5f3e546ea1163",
@@ -346,6 +371,7 @@
         },
         {
           "id": "FJ3659",
+          "archive": "PART-OF",
           "concept": "FMA10951",
           "name": "Inferior vena cava",
           "sha256": "a2ff79789ca4d74a0ed2382f347918bc630710f92fab40146ba7353b98bc2b02",
@@ -359,12 +385,11 @@
       "layer": "great-vessels",
       "color": "#6f8fb5",
       "triangles": 1302,
-      "fma": [
-        "FMA8612"
-      ],
+      "fma": ["FMA8612"],
       "files": [
         {
           "id": "FJ2966",
+          "archive": "PART-OF",
           "concept": "FMA8612",
           "name": "Pulmonary trunk",
           "sha256": "5da4132e171716c7a0f78806a14520bee79b993f814de83b1e1f2f2f8cf95edd",
@@ -373,37 +398,138 @@
       ]
     },
     {
+      "slug": "pulmonary-arteries",
+      "meshName": "pulmonary_arteries",
+      "layer": "great-vessels",
+      "color": "#6f8fb5",
+      "triangles": 6128,
+      "fma": ["FMA50872", "FMA50873"],
+      "files": [
+        {
+          "id": "FJ3019",
+          "archive": "IS-A",
+          "concept": "FMA50872",
+          "name": "Right pulmonary artery",
+          "sha256": "c773fc2d3d3f79544699c16f38f56619730a6d5a1a2c8bb4d8f0dc2ab6889d97",
+          "triangles": 678
+        },
+        {
+          "id": "FJ2924",
+          "archive": "IS-A",
+          "concept": "FMA50873",
+          "name": "Left pulmonary artery",
+          "sha256": "0cb5312cf816387fdad0d3809a5b5cae1445806ce85546adea39240bc72d2580",
+          "triangles": 5450
+        }
+      ]
+    },
+    {
+      "slug": "pulmonary-veins",
+      "meshName": "pulmonary_veins",
+      "layer": "great-vessels",
+      "color": "#8f6f9e",
+      "triangles": 2598,
+      "fma": ["FMA49911", "FMA49913", "FMA49914", "FMA49916"],
+      "files": [
+        {
+          "id": "FJ3040",
+          "archive": "IS-A",
+          "concept": "FMA49911",
+          "name": "Right inferior pulmonary vein",
+          "sha256": "2e15b98f227f16c3dcacab1a93a26d42e07cd2c2d72ba34b1ef438396f598a12",
+          "triangles": 196
+        },
+        {
+          "id": "FJ2944",
+          "archive": "IS-A",
+          "concept": "FMA49913",
+          "name": "Left inferior pulmonary vein",
+          "sha256": "a531b898f54ae008b1ad0c0f0993158e1a15cfbebee79098033ea8c2d2f84372",
+          "triangles": 310
+        },
+        {
+          "id": "FJ2950",
+          "archive": "IS-A",
+          "concept": "FMA49913",
+          "name": "Left inferior pulmonary vein",
+          "sha256": "f32bbffccdb0528ed085041ad4243b5b4817a26aa82a73669f9132d6c54f17de",
+          "triangles": 326
+        },
+        {
+          "id": "FJ2955",
+          "archive": "IS-A",
+          "concept": "FMA49913",
+          "name": "Left inferior pulmonary vein",
+          "sha256": "bfbb5067eb2da9857069139f12d019bb0f599babc89730aeb4accb1a77916991",
+          "triangles": 556
+        },
+        {
+          "id": "FJ3020",
+          "archive": "IS-A",
+          "concept": "FMA49914",
+          "name": "Right superior pulmonary vein",
+          "sha256": "074ba67bb3db8f93d6ac7d4e9d2bd1ddcca6e54a2bcb765ec146a9fd30bb3aa8",
+          "triangles": 324
+        },
+        {
+          "id": "FJ2925",
+          "archive": "IS-A",
+          "concept": "FMA49916",
+          "name": "Left superior pulmonary vein",
+          "sha256": "e87124704e4ca94bfe3206a571e464fe8ccc41afe0f36ee5ccf46cf00aaf4918",
+          "triangles": 414
+        },
+        {
+          "id": "FJ2933",
+          "archive": "IS-A",
+          "concept": "FMA49916",
+          "name": "Left superior pulmonary vein",
+          "sha256": "64e0d2deec1d847be95f41a25c616935c9b400f233a2c07a8c453a3441f80a35",
+          "triangles": 472
+        }
+      ]
+    },
+    {
       "slug": "aorta",
       "meshName": "aorta",
       "layer": "great-vessels",
       "color": "#b34a45",
-      "triangles": 3356,
-      "fma": [
-        "FMA3736",
-        "FMA3768",
-        "FMA87217"
-      ],
+      "triangles": 2686,
+      "fma": ["FMA3736", "FMA87217"],
       "files": [
         {
           "id": "FJ3413",
+          "archive": "PART-OF",
           "concept": "FMA3736",
           "name": "Ascending aorta",
           "sha256": "f4d566821c5ee6347147631b4d1b1e5c5cb3465e05ec23fadffa161c268c7bb2",
           "triangles": 396
         },
         {
-          "id": "FJ3411",
-          "concept": "FMA3768",
-          "name": "Arch of aorta",
-          "sha256": "7f1bbd874b05ea618649bfd5a51ac2675523f419dd3e5f5e160d90f47bd413db",
-          "triangles": 670
-        },
-        {
           "id": "FJ1931",
+          "archive": "PART-OF",
           "concept": "FMA87217",
           "name": "Descending thoracic aorta",
           "sha256": "3d7af57f70b77dc8dbf784bcb9863743ceeec351b642f9ccf110e6a747e77899",
           "triangles": 2290
+        }
+      ]
+    },
+    {
+      "slug": "aortic-arch",
+      "meshName": "aortic_arch",
+      "layer": "great-vessels",
+      "color": "#b34a45",
+      "triangles": 670,
+      "fma": ["FMA3768"],
+      "files": [
+        {
+          "id": "FJ3411",
+          "archive": "IS-A",
+          "concept": "FMA3768",
+          "name": "Arch of aorta",
+          "sha256": "9eeb5e5a627e8145f03961c661c9c66d8fdc55ed1234d04b84212b87a21d902c",
+          "triangles": 670
         }
       ]
     },
@@ -413,15 +539,11 @@
       "layer": "coronary-circulation",
       "color": "#d97757",
       "triangles": 10756,
-      "fma": [
-        "FMA3802",
-        "FMA3855",
-        "FMA74912",
-        "FMA3895"
-      ],
+      "fma": ["FMA3802", "FMA3855", "FMA74912", "FMA3895"],
       "files": [
         {
           "id": "FJ2723",
+          "archive": "PART-OF",
           "concept": "FMA3802",
           "name": "Trunk of right coronary artery",
           "sha256": "a98fe0acbf5a00bd5f73dcbc47f01dfbb932ea72607fd2e74231f6cfe49619d1",
@@ -429,6 +551,7 @@
         },
         {
           "id": "FJ2737",
+          "archive": "PART-OF",
           "concept": "FMA3855",
           "name": "Trunk of left coronary artery",
           "sha256": "f350efef8902f0ca4c4ef440a650c3ec4515d6a412340beb596536f4b1b72f32",
@@ -436,6 +559,7 @@
         },
         {
           "id": "FJ2631",
+          "archive": "PART-OF",
           "concept": "FMA74912",
           "name": "Trunk of anterior interventricular branch of left coronary artery",
           "sha256": "06c78376e08c2eed7416d0e2a841e47952b5d95cafa89fbcb7612c072cd65573",
@@ -443,6 +567,7 @@
         },
         {
           "id": "FJ2649",
+          "archive": "PART-OF",
           "concept": "FMA3895",
           "name": "Circumflex branch of left coronary artery",
           "sha256": "0603b5d96efc1cde531c9301a578b05c747080e9a845ca5b244b973c51b14d67",
@@ -450,6 +575,7 @@
         },
         {
           "id": "FJ2650",
+          "archive": "PART-OF",
           "concept": "FMA3895",
           "name": "Circumflex branch of left coronary artery",
           "sha256": "ec32539fad28298dd01611d624051765eac07c989d461151996907381a1220d9",
@@ -457,6 +583,7 @@
         },
         {
           "id": "FJ2651",
+          "archive": "PART-OF",
           "concept": "FMA3895",
           "name": "Circumflex branch of left coronary artery",
           "sha256": "2fb72c01e8e2b65a8f262e314a9b85cd1c2256defc2d00e1bd8d857013c28d54",
@@ -464,6 +591,7 @@
         },
         {
           "id": "FJ2652",
+          "archive": "PART-OF",
           "concept": "FMA3895",
           "name": "Circumflex branch of left coronary artery",
           "sha256": "ebfa7ccd9598b689c247175e49c89ab8ea3baaef763b5554db38306a689be916",
@@ -471,6 +599,7 @@
         },
         {
           "id": "FJ2653",
+          "archive": "PART-OF",
           "concept": "FMA3895",
           "name": "Circumflex branch of left coronary artery",
           "sha256": "fa365a612a1850f3628ef7224ce0988f1fe2d9cdb4e8c6aa4db10d2a1962a4c3",
@@ -478,6 +607,7 @@
         },
         {
           "id": "FJ2654",
+          "archive": "PART-OF",
           "concept": "FMA3895",
           "name": "Circumflex branch of left coronary artery",
           "sha256": "2d4b35919118657f1d5b8d842d2c78021d4676f78082c71e55e7d8aba9616fa8",
@@ -491,15 +621,11 @@
       "layer": "coronary-circulation",
       "color": "#6b8fc4",
       "triangles": 3682,
-      "fma": [
-        "FMA4706",
-        "FMA4707",
-        "FMA4713",
-        "FMA4714"
-      ],
+      "fma": ["FMA4706", "FMA4707", "FMA4713", "FMA4714"],
       "files": [
         {
           "id": "FJ2655",
+          "archive": "PART-OF",
           "concept": "FMA4706",
           "name": "Coronary sinus",
           "sha256": "6cc76de968f59ae4244f5990fc00023a1ad137e500eea7e3ab02740a9505e030",
@@ -507,6 +633,7 @@
         },
         {
           "id": "FJ2656",
+          "archive": "PART-OF",
           "concept": "FMA4707",
           "name": "Great cardiac vein",
           "sha256": "30995a449ef7c390dcda7f800e38fb1656d23202b162c4a83abf160380dc4cbd",
@@ -514,6 +641,7 @@
         },
         {
           "id": "FJ2678",
+          "archive": "PART-OF",
           "concept": "FMA4713",
           "name": "Middle cardiac vein",
           "sha256": "38301a006cea2ceb60663cd08e4f3dd5d590cc72f5c671262a464d3d03c60cef",
@@ -521,6 +649,7 @@
         },
         {
           "id": "FJ2724",
+          "archive": "PART-OF",
           "concept": "FMA4714",
           "name": "Small cardiac vein",
           "sha256": "419e6a37e1fd0b0e7468654b6b58e561229a94f9641f5b04506271659017b2d4",
@@ -528,6 +657,7 @@
         },
         {
           "id": "FJ2731",
+          "archive": "PART-OF",
           "concept": "FMA4714",
           "name": "Small cardiac vein",
           "sha256": "ac26ffa55a72b44913d761c6b922f6c000f9a229f29740ab765e5ef5fe43f9c5",
@@ -536,10 +666,67 @@
       ]
     }
   ],
+  "textOnly": [
+    {
+      "slug": "interventricular-septum",
+      "layer": "septum",
+      "legacyMeshName": "interventricular_septum",
+      "reason": "No ventricular-septum concept in either parts list. No separate septum mesh is available; the chamber meshes are not a substitute."
+    },
+    {
+      "slug": "pericardium",
+      "layer": "wall-layers",
+      "legacyMeshName": "pericardium",
+      "reason": "No pericardium concept in either parts list."
+    },
+    {
+      "slug": "endocardium",
+      "layer": "wall-layers",
+      "legacyMeshName": "endocardium",
+      "reason": "No endocardium concept. Only subendocardial layer concepts FMA84856/FMA84857 exist, which are not the endocardium itself."
+    },
+    {
+      "slug": "myocardium",
+      "layer": "wall-layers",
+      "legacyMeshName": "myocardium",
+      "reason": "No whole-myocardium concept. Thirteen regional or partial concepts exist (FMA9535, FMA9558, FMA83447, FMA83448, FMA84856, FMA84857, FMA84931, FMA84932, FMA86056, FMA86063, FMA86064, FMA87178, FMA87179); their element files overlap the papillary-muscle geometry already used by the chamber nodes."
+    },
+    {
+      "slug": "epicardium",
+      "layer": "wall-layers",
+      "legacyMeshName": "epicardium",
+      "reason": "No epicardium concept in either parts list."
+    },
+    {
+      "slug": "sinoatrial-node",
+      "layer": "conduction",
+      "legacyMeshName": "sinoatrial_node",
+      "reason": "No sinoatrial node concept in either parts list."
+    },
+    {
+      "slug": "atrioventricular-node",
+      "layer": "conduction",
+      "legacyMeshName": "atrioventricular_node",
+      "reason": "No atrioventricular node concept in either parts list."
+    },
+    {
+      "slug": "bundle-of-his",
+      "layer": "conduction",
+      "legacyMeshName": "bundle_of_his",
+      "reason": "No bundle of His or atrioventricular bundle concept in either parts list."
+    },
+    {
+      "slug": "purkinje-fibers",
+      "layer": "conduction",
+      "legacyMeshName": "purkinje_fibers",
+      "reason": "No Purkinje fibre concept in either parts list."
+    }
+  ],
   "checks": {
     "uniqueMeshNames": true,
     "uniqueSourceFiles": true,
     "sourceHeadersVerified": true,
+    "sourceHashesVerified": true,
     "unrepresentedStructures": "deferred; see docs/anatomy/provenance/README.md"
   }
 }

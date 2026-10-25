@@ -68,10 +68,10 @@ describe('AnatomyService', () => {
         name: 'Heart and circulation',
         latinName: 'Systema cardiovasculare',
         description: 'Sample description',
-        modelUrl: '/models/anatomy/heart.v1.glb',
+        modelUrl: '/models/anatomy/heart.v2.glb',
         isSample: true,
         sortOrder: 1,
-        _count: { structures: 14 },
+        _count: { structures: 26 },
       },
     ]);
 
@@ -82,10 +82,10 @@ describe('AnatomyService', () => {
         name: 'Heart and circulation',
         latinName: 'Systema cardiovasculare',
         description: 'Sample description',
-        modelUrl: '/models/anatomy/heart.v1.glb',
+        modelUrl: '/models/anatomy/heart.v2.glb',
         isSample: true,
         sortOrder: 1,
-        structureCount: 14,
+        structureCount: 26,
       },
     ]);
     expect(findSystems).toHaveBeenCalledWith(

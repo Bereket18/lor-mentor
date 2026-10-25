@@ -46,17 +46,23 @@ export default function AnatomyAttributionPage() {
           <dl className="mt-4 space-y-2 text-xs text-muted">
             <div className="flex flex-wrap gap-x-2">
               <dt className="font-medium text-secondary">Dataset:</dt>
-              <dd>{manifest.source.dataset}</dd>
+              <dd>
+                BodyParts3D 4.0,{" "}
+                {manifest.sources.map((source) => source.tree).join(" and ")}{" "}
+                trees, 99% polygon reduction
+              </dd>
             </div>
             <div className="flex flex-wrap gap-x-2">
-              <dt className="font-medium text-secondary">Archive:</dt>
-              <dd className="break-all">{manifest.source.archive}</dd>
+              <dt className="font-medium text-secondary">Archives:</dt>
+              <dd className="break-all">
+                {manifest.sources.map((source) => source.archive).join(" and ")}
+              </dd>
             </div>
             <div className="flex flex-wrap gap-x-2">
               <dt className="font-medium text-secondary">Licence page:</dt>
               <dd>
                 <a
-                  href={manifest.source.licenseUrl}
+                  href={manifest.license.licenseUrl}
                   target="_blank"
                   rel="noreferrer noopener"
                   className="inline-flex items-center gap-1 text-accent hover:underline"
@@ -77,6 +83,18 @@ export default function AnatomyAttributionPage() {
             <div className="flex flex-wrap gap-x-2">
               <dt className="font-medium text-secondary">Model SHA-256:</dt>
               <dd className="break-all font-mono">{manifest.model.sha256}</dd>
+            </div>
+            <div className="flex flex-wrap gap-x-2">
+              <dt className="font-medium text-secondary">Model structures:</dt>
+              <dd>
+                {manifest.model.structures} mesh nodes +{" "}
+                {manifest.model.textOnlyStructures} text-only structures (
+                {manifest.model.totalStructures} total)
+              </dd>
+            </div>
+            <div className="flex flex-wrap gap-x-2">
+              <dt className="font-medium text-secondary">Model triangles:</dt>
+              <dd>{manifest.model.triangles.toLocaleString("en-US")}</dd>
             </div>
           </dl>
         </section>
@@ -110,27 +128,39 @@ export default function AnatomyAttributionPage() {
           </h2>
           <ul className="mt-3 space-y-2 text-sm leading-relaxed text-secondary">
             <li>
-              Selected only the source meshes that represent the 14 structures
-              in this release.
+              Selected 52 source OBJ files from the PART-OF and IS-A trees: 42
+              PART-OF files and 10 IS-A files.
             </li>
             <li>
               Merged each structure&apos;s source parts into one selectable
-              mesh, converted millimetres and the Z-up axis to metres and Y-up,
-              and centred the combined model.
+              mesh: 17 selectable nodes.
             </li>
             <li>
-              Recomputed vertex normals and exported a single GLB with stable
-              mesh names. No colours or textures from the source dataset are
-              used; surface colours are ours.
+              Moved the arch of the aorta out of the <code>aorta</code> node
+              into a separate <code>aortic_arch</code> node, and added separate{" "}
+              <code>pulmonary_arteries</code> and <code>pulmonary_veins</code>{" "}
+              nodes.
             </li>
             <li>
-              Teaching notes, quizzes and interface text are LOR Mentor content
-              and are pending faculty review. They are not part of the
-              BodyParts3D dataset.
+              Converted millimetres and the Z-up axis to metres and Y-up,
+              centred the combined model, and recomputed vertex normals.
+            </li>
+            <li>
+              Exported one uncompressed GLB with stable mesh names. No source
+              colours or textures are used; surface colours are ours.
+            </li>
+            <li>
+              Kept 9 structures as text-only entries because BodyParts3D 4.0 has
+              no independent mesh for them. They show &ldquo;No 3D model&rdquo;.
+            </li>
+            <li>
+              Wrote the teaching notes, quizzes, and interface copy for Lor
+              Mentor. They are not copied from BodyParts3D or its documentation,
+              and are pending faculty review.
             </li>
           </ul>
           <p className="mt-3 text-xs leading-relaxed text-muted">
-            The downloaded archive is not committed to this repository. The
+            The downloaded archives are not committed to this repository. The
             reproducible build script, source file map, and provenance manifest
             are. See <code>docs/anatomy/provenance/README.md</code> in the
             repository.
@@ -148,13 +178,15 @@ export default function AnatomyAttributionPage() {
           </p>
           <ul className="mt-3 space-y-2 text-xs leading-relaxed text-muted">
             <li>
-              Drake RL, Vogl AW, Mitchell AWM. <em>Gray&apos;s Anatomy for Students</em>.
-              4th ed. Elsevier; 2020.
+              Drake RL, Vogl AW, Mitchell AWM.{" "}
+              <em>Gray&apos;s Anatomy for Students</em>. 4th ed. Elsevier; 2020.
             </li>
             <li>
               Standring S, ed.{" "}
-              <em>Gray&apos;s Anatomy: The Anatomical Basis of Clinical Practice</em>.
-              42nd ed. Elsevier; 2020.
+              <em>
+                Gray&apos;s Anatomy: The Anatomical Basis of Clinical Practice
+              </em>
+              . 42nd ed. Elsevier; 2020.
             </li>
             <li>
               Moore KL, Dalley AF, Agur AMR.{" "}
@@ -179,9 +211,10 @@ export default function AnatomyAttributionPage() {
         </section>
 
         <p className="mt-8 text-[11px] text-muted">
-          Model built from {manifest.structures.length} selectable structures
-          and {manifest.model.triangles.toLocaleString("en-US")} triangles. See
-          also the repository&apos;s <code>THIRD_PARTY_NOTICES.md</code>.
+          Model built from {manifest.model.structures} selectable structures,{" "}
+          {manifest.model.textOnlyStructures} text-only structures, and{" "}
+          {manifest.model.triangles.toLocaleString("en-US")} triangles. See also
+          the repository&apos;s <code>THIRD_PARTY_NOTICES.md</code>.
         </p>
       </div>
     </main>

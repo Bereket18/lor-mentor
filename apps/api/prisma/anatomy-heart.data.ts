@@ -4,8 +4,8 @@
  * This module is the single source of truth for the heart system and its
  * structures. It is imported by the seed script and by the seed-to-model
  * contract test, which verifies that every non-null `meshName` maps to exactly
- * one node in the candidate v2 GLB and that the v1 subset matches the live
- * asset.
+ * one node in the live v2 GLB. heart.v1.glb remains in the repository as the
+ * rollback asset and is checked separately.
  *
  * Scope rule: a structure is included when the BodyParts3D source has a mesh
  * that represents that structure on its own, or when it is an approved
@@ -39,7 +39,7 @@ export const HEART_SYSTEM = {
   latinName: 'Systema cardiovasculare',
   description:
     'Explore the chambers, valves, great vessels, and coronary circulation of the heart. This sample is a free preview and is pending faculty review. Model geometry is derived from BodyParts3D 4.0; see the attribution page for credit and licence details.',
-  modelUrl: '/models/anatomy/heart.v1.glb',
+  modelUrl: '/models/anatomy/heart.v2.glb',
   isSample: true,
   isPublished: true,
   sortOrder: 1,

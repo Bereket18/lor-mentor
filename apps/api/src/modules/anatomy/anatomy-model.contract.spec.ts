@@ -19,17 +19,16 @@ import {
  * test fails loudly when they drift: a renamed mesh, a removed structure, a
  * stale model URL, or a manifest that no longer matches the binary.
  *
- * Phase 2 ships heart.v2.glb alongside the live v1 asset. The live contract
- * checks the 26-row seed against the 14 nodes that v1 actually ships, while the
- * v2 target contract checks the approved 26-row mapping against the candidate
- * asset. The live model URL is intentionally still v1.
+ * heart.v2.glb is the live asset. heart.v1.glb stays in the repository as the
+ * rollback asset and must not be edited. The live manifest is kept identical
+ * to the v2 provenance manifest.
  */
 
 const ASSET_DIR = join(__dirname, '../../../../web/public/models/anatomy');
 const MANIFEST_PATH = join(ASSET_DIR, 'manifest.json');
-const GLB_PATH = join(ASSET_DIR, 'heart.v1.glb');
 const V2_MANIFEST_PATH = join(ASSET_DIR, 'heart.v2.manifest.json');
 const V2_GLB_PATH = join(ASSET_DIR, 'heart.v2.glb');
+const V1_GLB_PATH = join(ASSET_DIR, 'heart.v1.glb');
 
 interface GlbJson {
   nodes: { name: string; mesh: number; extras?: { layer?: string } }[];
@@ -58,6 +57,7 @@ interface V2Manifest {
     licenseUrl: string;
     license: string;
   }[];
+  changes: string[];
   license: { notice: string; licenseUrl: string; status: string };
   structures: {
     slug: string;
@@ -93,49 +93,35 @@ function readGlbJson(path: string): GlbJson {
   ) as GlbJson;
 }
 
-describe('Anatomy seed-to-model contract', () => {
-  const manifest = JSON.parse(readFileSync(MANIFEST_PATH, 'utf8')) as {
-    schemaVersion: number;
-    system: string;
-    model: {
-      file: string;
-      bytes: number;
-      sha256: string;
-      triangles: number;
-      structures: number;
-    };
-    source: {
-      archive: string;
-      archiveBytes: number;
-      requiredCredit: string;
-      licenseUrl: string;
-    };
-    license: { status: string };
-    structures: {
-      slug: string;
-      meshName: string;
-      layer: string;
-      triangles: number;
-      fma: string[];
-      files: { id: string; concept: string; name: string; sha256: string }[];
-    }[];
-  };
-  const glb = readGlbJson(GLB_PATH);
-  const glbBytes = readFileSync(GLB_PATH);
+describe('Anatomy live seed-to-model contract (v2)', () => {
+  const manifest = JSON.parse(
+    readFileSync(MANIFEST_PATH, 'utf8'),
+  ) as V2Manifest;
+  const glb = readGlbJson(V2_GLB_PATH);
+  const glbBytes = readFileSync(V2_GLB_PATH);
 
-  it('ships the model file referenced by the seed system', () => {
+  it('ships the v2 model file referenced by the seed system', () => {
     expect(HEART_SYSTEM.modelUrl).toBe(
       `/models/anatomy/${manifest.model.file}`,
     );
-    expect(manifest.model.file).toBe('heart.v1.glb');
-    expect(existsSync(GLB_PATH)).toBe(true);
+    expect(manifest.model.file).toBe('heart.v2.glb');
+    expect(existsSync(V2_GLB_PATH)).toBe(true);
   });
 
-  it('keeps the manifest and the GLB binary in sync', () => {
+  it('keeps the live manifest and the served GLB in sync', () => {
     expect(manifest.model.bytes).toBe(glbBytes.byteLength);
     expect(manifest.model.sha256).toBe(
       createHash('sha256').update(glbBytes).digest('hex'),
     );
+    expect(manifest.model.triangles).toBe(102_568);
+  });
+
+  it('keeps the live manifest identical to the v2 provenance manifest', () => {
+    const provenance = JSON.parse(
+      readFileSync(V2_MANIFEST_PATH, 'utf8'),
+    ) as V2Manifest;
+
+    expect(manifest).toEqual(provenance);
   });
 
   it('has a valid, fully referenced seed', () => {
@@ -159,102 +145,6 @@ describe('Anatomy seed-to-model contract', () => {
     }
   });
 
-  it('has exactly one GLB node per v1 manifest structure', () => {
-    const manifestNames = manifest.structures.map(
-      (structure) => structure.meshName,
-    );
-    const nodeNames = glb.nodes.map((node) => node.name);
-
-    expect(new Set(manifestNames).size).toBe(manifestNames.length);
-    expect([...nodeNames].sort()).toEqual([...manifestNames].sort());
-  });
-
-  it('keeps slugs, layers, and triangle counts aligned', () => {
-    expect(manifest.system).toBe(HEART_SYSTEM.slug);
-    expect(manifest.structures).toHaveLength(14);
-
-    const seedBySlug = new Map(
-      HEART_STRUCTURES.map((structure) => [structure.slug, structure]),
-    );
-
-    for (const structure of manifest.structures) {
-      const seed = seedBySlug.get(structure.slug);
-      expect(seed).toBeDefined();
-      expect(seed?.meshName).toBe(structure.meshName);
-      expect(seed?.layer).toBe(structure.layer);
-      expect(structure.triangles).toBeGreaterThan(0);
-
-      const node = glb.nodes.find((item) => item.name === structure.meshName);
-      expect(node?.extras?.layer).toBe(structure.layer);
-    }
-
-    const totalTriangles = glb.nodes.reduce((total, node) => {
-      const mesh = glb.meshes[node.mesh];
-      const meshTriangles = mesh.primitives.reduce((sum, primitive) => {
-        const accessor =
-          primitive.indices === undefined
-            ? undefined
-            : glb.accessors[primitive.indices];
-        return sum + Math.floor((accessor?.count ?? 0) / 3);
-      }, 0);
-      return total + meshTriangles;
-    }, 0);
-    expect(totalTriangles).toBe(manifest.model.triangles);
-  });
-
-  it('keeps the three v2-only mesh rows out of the live v1 asset', () => {
-    const v1MeshNames = new Set(
-      manifest.structures.map((structure) => structure.meshName),
-    );
-    const seedMeshNames = HEART_STRUCTURES.map(
-      (structure) => structure.meshName,
-    ).filter((name): name is string => name !== null);
-    const v2Only = seedMeshNames.filter((name) => !v1MeshNames.has(name));
-
-    expect([...v2Only].sort()).toEqual([
-      'aortic_arch',
-      'pulmonary_arteries',
-      'pulmonary_veins',
-    ]);
-
-    const nodeNames = new Set(glb.nodes.map((node) => node.name));
-    for (const name of v2Only) {
-      expect(nodeNames.has(name)).toBe(false);
-    }
-    for (const structure of HEART_STRUCTURES) {
-      if (structure.meshName === null) {
-        expect(nodeNames.has(structure.slug.replace(/-/g, '_'))).toBe(false);
-      }
-    }
-  });
-
-  it('records provenance and licence metadata', () => {
-    expect(manifest.schemaVersion).toBe(1);
-    expect(manifest.source.archive).toMatch(/^partof_BP3D_4\.0_obj_99\.zip$/);
-    expect(manifest.source.archiveBytes).toBe(64_888_505);
-    expect(manifest.source.requiredCredit).toContain('BodyParts3D');
-    expect(manifest.source.licenseUrl).toContain('bodyparts3d');
-    expect(manifest.license.status).toMatch(/pending|development/i);
-
-    for (const structure of manifest.structures) {
-      expect(structure.fma.length).toBeGreaterThan(0);
-      expect(structure.files.length).toBeGreaterThan(0);
-      for (const file of structure.files) {
-        expect(file.id).toMatch(/^FJ\d+$/);
-        expect(file.concept).toMatch(/^FMA\d+$/);
-        expect(file.sha256).toMatch(/^[a-f0-9]{64}$/);
-      }
-    }
-  });
-});
-
-describe('Anatomy v2 target contract (candidate, not yet live)', () => {
-  const manifest = JSON.parse(
-    readFileSync(V2_MANIFEST_PATH, 'utf8'),
-  ) as V2Manifest;
-  const glb = readGlbJson(V2_GLB_PATH);
-  const glbBytes = readFileSync(V2_GLB_PATH);
-
   it('maps all 26 approved structures into 17 mesh and 9 text-only rows', () => {
     expect(HEART_V2_TARGET_STRUCTURES).toHaveLength(26);
     expect(HEART_V2_MESH_STRUCTURES).toHaveLength(17);
@@ -267,16 +157,6 @@ describe('Anatomy v2 target contract (candidate, not yet live)', () => {
       new Set(HEART_V2_MESH_STRUCTURES.map((structure) => structure.meshName))
         .size,
     ).toBe(17);
-  });
-
-  it('ships the v2 candidate without switching the live v1 asset', () => {
-    expect(HEART_SYSTEM.modelUrl).toBe('/models/anatomy/heart.v1.glb');
-    expect(manifest.model.file).toBe('heart.v2.glb');
-    expect(existsSync(V2_GLB_PATH)).toBe(true);
-    expect(manifest.model.bytes).toBe(glbBytes.byteLength);
-    expect(manifest.model.sha256).toBe(
-      createHash('sha256').update(glbBytes).digest('hex'),
-    );
   });
 
   it('has exactly one node for each of the 17 mesh structures', () => {
@@ -303,6 +183,7 @@ describe('Anatomy v2 target contract (candidate, not yet live)', () => {
   });
 
   it('keeps manifest rows aligned with the 17 mesh nodes', () => {
+    expect(manifest.system).toBe(HEART_SYSTEM.slug);
     expect(manifest.structures).toHaveLength(17);
 
     const manifestBySlug = new Map(
@@ -335,12 +216,11 @@ describe('Anatomy v2 target contract (candidate, not yet live)', () => {
     }, 0);
 
     expect(totalTriangles).toBe(manifest.model.triangles);
-    expect(manifest.model.triangles).toBe(102_568);
     expect(manifest.model.triangles).toBeLessThanOrEqual(150_000);
     expect(manifest.model.bytes).toBeLessThanOrEqual(5 * 1024 * 1024);
   });
 
-  it('records both archives, per-file provenance, and the licence caveat', () => {
+  it('records both archives, per-file provenance, the v2 changes, and the licence caveat', () => {
     expect(manifest.schemaVersion).toBe(2);
     expect(manifest.sources).toHaveLength(2);
     expect(manifest.sources.map((source) => source.tree).sort()).toEqual([
@@ -363,9 +243,17 @@ describe('Anatomy v2 target contract (candidate, not yet live)', () => {
       }
     }
 
+    expect(manifest.changes).toHaveLength(7);
+    expect(manifest.changes.join(' ')).toMatch(/52 source OBJ files/);
+    expect(manifest.changes.join(' ')).toMatch(/17 selectable nodes/);
+    expect(manifest.changes.join(' ')).toMatch(/9 structures as text-only/);
+    expect(manifest.changes.join(' ')).toMatch(/aortic_arch/);
+    expect(manifest.changes.join(' ')).toMatch(/pulmonary_arteries/);
+    expect(manifest.changes.join(' ')).toMatch(/pulmonary_veins/);
+
     expect(manifest.license.notice).toContain('BodyParts3D');
     expect(manifest.license.licenseUrl).toContain('bodyparts3d');
-    expect(manifest.license.status).toMatch(/pending|development/i);
+    expect(manifest.license.status).toMatch(/clarif|pending|development/i);
   });
 
   it('keeps the live seed aligned with the v2 target mapping', () => {
@@ -383,5 +271,26 @@ describe('Anatomy v2 target contract (candidate, not yet live)', () => {
       expect(seed?.meshName).toBe(target.meshName);
       expect(seed?.layer).toBe(target.layer);
     }
+  });
+
+  it('keeps the v1 rollback asset intact and out of the live manifest', () => {
+    expect(existsSync(V1_GLB_PATH)).toBe(true);
+
+    const v1Bytes = readFileSync(V1_GLB_PATH);
+    const v1 = readGlbJson(V1_GLB_PATH);
+    const v1Names = new Set(v1.nodes.map((node) => node.name));
+
+    expect(v1.nodes).toHaveLength(14);
+    expect(createHash('sha256').update(v1Bytes).digest('hex')).toBe(
+      'e7723082d617b7d9198210200c7c4e82a052e699cec5cdc2faf6c652fc6f0db0',
+    );
+    for (const name of [
+      'aortic_arch',
+      'pulmonary_arteries',
+      'pulmonary_veins',
+    ]) {
+      expect(v1Names.has(name)).toBe(false);
+    }
+    expect(manifest.model.file).not.toBe('heart.v1.glb');
   });
 });
