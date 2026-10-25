@@ -108,7 +108,7 @@ function ViewerState({
           {status === 403 && (
             <Link
               href="/pricing"
-              className="rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
+              className="min-h-11 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
             >
               View plans
             </Link>
@@ -117,14 +117,14 @@ function ViewerState({
             <button
               type="button"
               onClick={onRetry}
-              className="rounded-lg border border-border bg-elevated px-4 py-2.5 text-sm font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
+              className="min-h-11 rounded-lg border border-border bg-elevated px-4 py-2.5 text-sm font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
             >
               Try again
             </button>
           )}
           <Link
             href="/anatomy"
-            className="rounded-lg border border-border bg-elevated px-4 py-2.5 text-sm font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
+            className="min-h-11 rounded-lg border border-border bg-elevated px-4 py-2.5 text-sm font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
           >
             Back to Anatomy Lab
           </Link>
@@ -146,6 +146,7 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
   const [modelAttempt, setModelAttempt] = useState(0);
   const [modelReady, setModelReady] = useState(false);
   const [modelError, setModelError] = useState<string | null>(null);
+  const [modelMeshNames, setModelMeshNames] = useState<string[] | null>(null);
   const [rendererUnavailable, setRendererUnavailable] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -153,12 +154,17 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
     setModelError(null);
     setModelReady(true);
   }, []);
+  const handleModelMeshesLoaded = useCallback((meshNames: string[]) => {
+    setModelMeshNames(meshNames);
+  }, []);
   const handleModelError = useCallback((message: string) => {
     setModelReady(false);
+    setModelMeshNames(null);
     setModelError(message);
   }, []);
   const handleRendererUnavailable = useCallback(() => {
     setModelReady(false);
+    setModelMeshNames(null);
     setModelError(null);
     setRendererUnavailable(true);
   }, []);
@@ -176,6 +182,7 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
         setHiddenLayers([]);
         setModelReady(false);
         setModelError(null);
+        setModelMeshNames(null);
         setRendererUnavailable(false);
       })
       .catch((requestError: unknown) => {
@@ -213,6 +220,29 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
         .filter((meshName): meshName is string => meshName !== null),
     [structures, hiddenLayers],
   );
+
+  const selected = useMemo(
+    () =>
+      structures.find((structure) => structure.slug === selectedSlug) ?? null,
+    [structures, selectedSlug],
+  );
+
+  const selectedIsTextOnly = selected !== null && selected.meshName === null;
+  const selectedMeshMissing =
+    selected?.meshName != null &&
+    modelMeshNames !== null &&
+    !modelMeshNames.includes(selected.meshName);
+
+  // A database mesh that is absent from the loaded GLB is a content bug. Keep
+  // it out of production consoles, but make it visible while developing.
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return;
+    if (!selectedMeshMissing || !selected || !system) return;
+
+    console.warn(
+      `[anatomy] Selected structure "${selected.name}" references mesh "${selected.meshName}", which is not present in ${system.modelUrl}.`,
+    );
+  }, [selectedMeshMissing, selected, system]);
 
   // Keyboard shortcuts: Escape clears the selection and "/" focuses search.
   // Ignore both while the user is typing in another field so normal form use
@@ -271,9 +301,6 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
     );
   }
 
-  const selected =
-    structures.find((structure) => structure.slug === selectedSlug) ?? null;
-
   function selectMesh(meshName: string | null) {
     if (!meshName) {
       setSelectedSlug(null);
@@ -299,12 +326,23 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
 
   return (
     <div className="-m-6 flex min-h-[calc(100vh-3.5rem)] flex-col bg-base pb-20 lg:h-[calc(100vh-3.5rem)] lg:pb-0">
+      <div
+        className="sr-only"
+        aria-live="polite"
+        aria-atomic="true"
+        data-testid="anatomy-live-region"
+      >
+        {selectedIsTextOnly && selected
+          ? `${selected.name}: no 3D model, notes only`
+          : ""}
+      </div>
+
       <header className="flex flex-shrink-0 flex-col gap-3 border-b border-border bg-surface/70 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           <Link
             href="/anatomy"
             aria-label="Back to Anatomy Lab"
-            className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-border bg-elevated text-secondary transition-colors hover:border-border-accent hover:text-primary"
+            className="mt-0.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg border border-border bg-elevated text-secondary transition-colors hover:border-border-accent hover:text-primary"
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>
@@ -313,7 +351,7 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
               <h1 className="truncate font-display text-lg font-semibold text-primary sm:text-xl">
                 {system.name}
               </h1>
-              <span className="rounded-full border border-accent/20 bg-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
+              <span className="rounded-full border border-accent/20 bg-accent/10 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-accent">
                 {system.isSample ? "Free preview" : "Subscriber"}
               </span>
             </div>
@@ -328,12 +366,12 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 lg:flex-shrink-0">
-          <p className="hidden text-[11px] text-muted sm:block">
+          <p className="hidden text-xs text-muted sm:block">
             Drag to rotate · Scroll to zoom · Click a structure
           </p>
           <Link
             href="/attribution/anatomy"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 py-2 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 py-2 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
           >
             <ExternalLink className="h-3.5 w-3.5" />
             Sources
@@ -343,10 +381,11 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
             onClick={() => {
               setModelReady(false);
               setModelError(null);
+              setModelMeshNames(null);
               setRendererUnavailable(false);
               setResetKey((key) => key + 1);
             }}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 py-2 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 py-2 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
           >
             <RotateCcw className="h-3.5 w-3.5" />
             Reset view
@@ -355,7 +394,7 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
       </header>
 
       <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-border bg-surface/40 px-4 py-2.5 sm:px-6">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-muted">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted">
           Layers
         </span>
         <div className="-mx-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-1 py-0.5">
@@ -370,7 +409,7 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
                 type="button"
                 aria-pressed={visible}
                 onClick={() => toggleLayer(layer)}
-                className={`inline-flex flex-shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors ${
+                className={`inline-flex min-h-11 flex-shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
                   visible
                     ? "border-accent/30 bg-accent/10 text-accent"
                     : "border-border bg-elevated text-muted hover:border-border-accent hover:text-secondary"
@@ -382,7 +421,7 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
                   <EyeOff className="h-3 w-3" aria-hidden />
                 )}
                 {layerLabel(layer)}
-                <span className="text-[10px] opacity-70">{count}</span>
+                <span className="text-xs opacity-70">{count}</span>
               </button>
             );
           })}
@@ -391,7 +430,7 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
           <button
             type="button"
             onClick={() => setHiddenLayers([])}
-            className="flex-shrink-0 rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
+            className="min-h-11 flex-shrink-0 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
           >
             Show all
           </button>
@@ -438,9 +477,10 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
                         setRendererUnavailable(false);
                         setModelReady(false);
                         setModelError(null);
+                        setModelMeshNames(null);
                         setModelAttempt((attempt) => attempt + 1);
                       }}
-                      className="mt-3 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
+                      className="mt-3 min-h-11 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
                     >
                       Retry 3D view
                     </button>
@@ -456,9 +496,11 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
                         : `${system.modelUrl}?retry=${modelAttempt}`
                     }
                     selectedMeshName={selected?.meshName ?? null}
+                    selectedIsTextOnly={selectedIsTextOnly}
                     hiddenMeshNames={hiddenMeshNames}
                     onSelectMesh={selectMesh}
                     onModelReady={handleModelReady}
+                    onModelMeshesLoaded={handleModelMeshesLoaded}
                     onModelError={handleModelError}
                     onRendererUnavailable={handleRendererUnavailable}
                   />
@@ -486,9 +528,10 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
                           onClick={() => {
                             setModelError(null);
                             setModelReady(false);
+                            setModelMeshNames(null);
                             setModelAttempt((attempt) => attempt + 1);
                           }}
-                          className="mt-3 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
+                          className="mt-3 min-h-11 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
                         >
                           Retry model
                         </button>
@@ -513,21 +556,48 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
             </div>
           )}
 
+          {selected && (selectedIsTextOnly || selectedMeshMissing) && (
+            <div
+              data-testid="anatomy-viewport-status"
+              data-state={selectedIsTextOnly ? "text-only" : "missing-mesh"}
+              className="pointer-events-none absolute left-4 top-4 z-20 max-w-[calc(100%-2rem)]"
+            >
+              <div
+                className={`inline-flex items-center gap-1.5 rounded-full border bg-elevated/95 px-3 py-2 text-xs font-medium shadow-card backdrop-blur ${
+                  selectedIsTextOnly
+                    ? "border-border text-secondary"
+                    : "border-warning/30 text-warning"
+                }`}
+              >
+                {selectedIsTextOnly ? (
+                  <Boxes className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
+                ) : (
+                  <SearchX className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
+                )}
+                <span>
+                  {selectedIsTextOnly
+                    ? "No 3D model for this structure"
+                    : "This structure is not in the loaded 3D model"}
+                </span>
+              </div>
+            </div>
+          )}
+
           {selected && (
             <div className="pointer-events-none absolute bottom-4 left-4 max-w-[calc(100%-2rem)] rounded-xl border border-white/15 bg-slate-950/70 px-4 py-3 text-white shadow-lg backdrop-blur">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-teal-300">
+              <p className="text-xs font-semibold uppercase tracking-wide text-teal-300">
                 Selected structure
               </p>
               <p className="mt-0.5 text-sm font-semibold">{selected.name}</p>
               {selected.latinName && (
-                <p className="text-[11px] italic text-white/60">
+                <p className="text-xs italic text-white/60">
                   {selected.latinName}
                 </p>
               )}
             </div>
           )}
 
-          <p className="pointer-events-none absolute bottom-4 right-4 hidden rounded-lg border border-border bg-elevated/80 px-2.5 py-1.5 text-[10px] text-muted backdrop-blur sm:block">
+          <p className="pointer-events-none absolute bottom-4 right-4 hidden rounded-lg border border-border bg-elevated/80 px-2.5 py-1.5 text-xs text-muted backdrop-blur sm:block">
             Press <kbd className="font-sans font-semibold">/</kbd> to search ·{" "}
             <kbd className="font-sans font-semibold">Esc</kbd> to clear
           </p>
