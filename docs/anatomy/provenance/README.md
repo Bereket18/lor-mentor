@@ -4,21 +4,23 @@ This directory records where the Anatomy Lab heart model came from, how it was
 built, and what is still unresolved. The source archives are deliberately kept
 outside the repository.
 
-**Current release state (Phase 2):** `heart.v2.glb` is a validated candidate.
-`heart.v1.glb` and the live `manifest.json` remain the shipped release until the
-candidate and the licence wording are approved. The API seed still has 14 rows;
-the 26-row seed and the nullable-`meshName` migration are proposals only.
+**Current local release state:** `heart.v2.glb` is the live release. `heart.v1.glb` is
+kept as the verified rollback asset. The API seed has 26 rows: 17 mesh structures
+and 9 text-only structures. The nullable-`meshName` migration and the text-only
+viewer treatment are applied. The v2 switch and the exact rollback procedure are
+recorded in [`v2-switch.md`](./v2-switch.md).
 
-- Live release asset: `apps/web/public/models/anatomy/heart.v1.glb`
-- Live provenance manifest: `apps/web/public/models/anatomy/manifest.json`
-- Candidate v2 asset: `apps/web/public/models/anatomy/heart.v2.glb`
-- Candidate v2 manifest: `apps/web/public/models/anatomy/heart.v2.manifest.json`
-- Source map (local only, intentionally uncommitted): `apps/web/scripts/anatomy-heart.source.json`
+- Live release asset: `apps/web/public/models/anatomy/heart.v2.glb`
+- Live provenance manifest: `apps/web/public/models/anatomy/manifest.json` (identical to `heart.v2.manifest.json`)
+- Rollback asset: `apps/web/public/models/anatomy/heart.v1.glb`
+- v2 provenance manifest: `apps/web/public/models/anatomy/heart.v2.manifest.json`
+- Source map (committed, sanitised): `apps/web/scripts/anatomy-heart.source.json`
 - Build script: `apps/web/scripts/build-anatomy-model.mjs`
 - Validator: `apps/web/scripts/validate-anatomy-model.mjs`
 - Contract test: `apps/api/src/modules/anatomy/anatomy-model.contract.spec.ts`
 - Phase 1 mapping: [`phase-1-source-mapping.md`](./phase-1-source-mapping.md)
 - Phase 2 build and change proposals: [`phase-2-build-and-proposals.md`](./phase-2-build-and-proposals.md)
+- v2 switch and rollback: [`v2-switch.md`](./v2-switch.md)
 
 ## 1. Source dataset
 
@@ -42,7 +44,7 @@ SHA-256 values below cover the complete archives.
 Integrity is enforced at build time. The source map records each file's archive,
 FMA concept, English name, and SHA-256. The build fails if a file is missing, is
 read from the wrong labelled archive, has a mismatched header, or has a different
-SHA-256. The v2 candidate uses 52 unique files: 42 from PART-OF and 10 from IS-A.
+SHA-256. The live v2 asset uses 52 unique files: 42 from PART-OF and 10 from IS-A.
 
 ### Licence status
 
@@ -59,15 +61,16 @@ asset**. **Commercial release is blocked** until DBCLS provides written
 clarification. Do not describe CC BY 4.0 as the only applicable licence, and do
 not remove this caveat without a written record of that clarification.
 
-The exact proposed credits-page, manifest, and GLB metadata wording is in
-[`phase-2-build-and-proposals.md`](./phase-2-build-and-proposals.md) §3. It has
-**not** been applied. The v2 candidate currently carries the same interim
-licence block as v1.
+The exact credits-page, manifest, and GLB metadata wording proposed in
+[`phase-2-build-and-proposals.md`](./phase-2-build-and-proposals.md) §3 has
+**not** been applied. The live v2 asset and the credits page currently carry the
+same interim licence block and required credit as v1, so the caveat above still
+applies.
 
 ## 2. Selected structures
 
-The v2 candidate has 17 independently selectable mesh nodes. Nine further
-structures are text-only and must show **“No 3D model”**. Meshes marked with the
+The live v2 asset has 17 independently selectable mesh nodes. Nine further
+structures are text-only and show **“No 3D model”**. Meshes marked with the
 same FMA concept come from multiple source OBJ parts and are merged into one node.
 
 | Slug | Mesh name | Archive | Layer | Source files | Triangles | FMA concepts |
@@ -100,10 +103,9 @@ file's header or hash does not match the committed expectation.
 ### Text-only structures
 
 These nine structures have no independent BodyParts3D 4.0 mesh. No schematic or
-substitute mesh is used. The viewer must show **“No 3D model”** and keep the
-teaching text, search, and keyboard tree working. The API and viewer currently
-assume a non-null `meshName`; the nullable field and the “No 3D model” treatment
-are Phase 3 work and are not applied in Phase 2.
+substitute mesh is used. The nullable `meshName` field and the **“No 3D model”**
+treatment are applied: the viewer keeps the teaching text, search, keyboard tree,
+and camera still for these rows.
 
 | Slug | Layer | Why there is no mesh |
 | --- | --- | --- |
@@ -142,8 +144,17 @@ different `Representation ID` and `Build-up logic` fields.
 The source archives are not committed. Extract them, or place the selected
 `FJ*.obj` files in a directory, then run the build.
 
-For the v2 candidate, pass one labelled directory per archive so each file is
+For the live v2 asset, pass one labelled directory per archive so each file is
 read from the archive recorded in the source map:
+
+```bash
+node apps/web/scripts/build-anatomy-model.mjs \
+  --source-dir "PART-OF=C:\path\to\partof_BP3D_4.0_obj_99" \
+  --source-dir "IS-A=C:\path\to\isa_BP3D_4.0_obj_99"
+```
+
+That writes `heart.v2.glb` and updates `manifest.json` by default. To regenerate
+the separate v2 provenance manifest instead, add:
 
 ```bash
 node apps/web/scripts/build-anatomy-model.mjs \
@@ -153,40 +164,36 @@ node apps/web/scripts/build-anatomy-model.mjs \
   --manifest apps/web/public/models/anatomy/heart.v2.manifest.json
 ```
 
-Validate the live v1 asset (the default):
+Validate the live v2 asset (the default):
 
 ```bash
 npm run validate:anatomy-model --workspace=apps/web
 ```
 
-Validate the v2 candidate without switching the live asset:
-
-```bash
-node apps/web/scripts/validate-anatomy-model.mjs \
-  --glb apps/web/public/models/anatomy/heart.v2.glb \
-  --manifest apps/web/public/models/anatomy/heart.v2.manifest.json
-```
+The seed-to-model contract test also checks the preserved v1 rollback asset and
+its hash, and verifies that the live manifest is identical to the v2 provenance
+manifest.
 
 The build reads `apps/web/scripts/anatomy-heart.source.json`. That map is
-intentionally left untracked, so a clean clone must supply it (or an equivalent
-mapping) before the model can be rebuilt. It records both source archives, all
-52 file hashes, and the nine text-only rows.
+committed and sanitised; it records both source archives, all 52 file hashes, and
+the nine text-only rows.
 
 ## 5. Current asset checksums
 
-| Field | v1 (live) | v2 (candidate) |
+| Field | v1 (rollback) | v2 (live) |
 | --- | ---: | ---: |
 | File | `heart.v1.glb` | `heart.v2.glb` |
-| Bytes | 1,841,176 | 2,003,180 |
+| Bytes | 1,841,856 | 2,003,856 |
 | MiB | 1.76 | 1.91 |
 | Triangles | 93,842 | 102,568 |
 | Mesh structures | 14 | 17 |
 | Text-only structures | 0 | 9 |
 | Total structures | 14 | 26 |
-| SHA-256 | `27f4e92c8db1ee48dca4ea49171a8c49c28efb90fc4775a299ad7f9149a4a5fc` | `f3ead239ce9a9cb08a1832d98e633dde19e883d21178d69461f47fdcfc649a61` |
+| SHA-256 | `e7723082d617b7d9198210200c7c4e82a052e699cec5cdc2faf6c652fc6f0db0` | `b1fac8e02842b40b9cd123e3e896d868254d07b63ed3bc856977d511b879541d` |
 
-The manifests are the source of truth. The v1 value above is also in
-`manifest.json`; the v2 value is in `heart.v2.manifest.json`.
+The manifests are the source of truth. The live v2 values are also in
+`manifest.json` and `heart.v2.manifest.json`; the v1 values are checked by the
+contract test against the preserved rollback asset.
 
 ## 6. Content review status
 
@@ -203,17 +210,18 @@ Measured on 2026-10-25 from the built assets (Node `zlib`, maximum settings):
 
 | Asset | Raw bytes | Raw MiB | gzip | gzip ratio | Brotli | Brotli ratio |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `heart.v1.glb` | 1,841,176 | 1.76 | 1,521,726 | 82.6% | 1,294,125 | 70.3% |
-| `heart.v2.glb` | 2,003,180 | 1.91 | 1,657,033 | 82.7% | 1,410,664 | 70.4% |
+| `heart.v1.glb` | 1,841,856 | 1.76 | 1,521,870 | 82.6% | 1,295,306 | 70.3% |
+| `heart.v2.glb` | 2,003,856 | 1.91 | 1,657,284 | 82.7% | 1,411,174 | 70.4% |
 
-The v1 model has 14 draw calls; the v2 candidate has 17. Both have no textures,
-no external buffers, and no runtime decoder. Enable gzip or Brotli for `.glb` at
-the static host or CDN; the versioned filenames make long-lived caching safe.
+The v1 rollback asset has 14 draw calls; the live v2 asset has 17. Both have no
+textures, no external buffers, and no runtime decoder. Enable gzip or Brotli for
+`.glb` at the static host or CDN; the versioned filenames make long-lived caching
+safe.
 
 **Validation gap:** physical-device testing on low-end phones and throttled
 connections was not possible in this environment. Before release, test the
 viewer on a mid-range Android device and a simulated Slow 3G connection, and
-record first-render time and interaction smoothness. The v2 candidate is still
+record first-render time and interaction smoothness. The live v2 asset is still
 below the 5 MB and 150,000-triangle release limits, but it has not been checked
 on a device.
 
@@ -223,26 +231,33 @@ on a device.
   the same GLB bytes and SHA-256.
 - The source map records a SHA-256 for every one of the 52 files. The build
   verifies each hash and fails on a mismatch.
-- GLB output is uncompressed. The v2 candidate is 1.91 MiB, small enough to
+- GLB output is uncompressed. The live v2 asset is 1.91 MiB, small enough to
   avoid a decoder dependency. Re-evaluate compression if the structure count
   grows substantially.
 - The model ships with no textures and no external buffers.
 - Browser caching is handled by the static host; the versioned filenames
   (`heart.v1.glb`, `heart.v2.glb`) make cache busting explicit when the model
   changes.
-- The v2 candidate is built from the same coordinate frame as v1. If either
+- The live v2 asset is built from the same coordinate frame as v1. If either
   archive is replaced, re-run the Phase 1 geometry comparison before rebuilding.
 
-## 9. What is not applied
+## 9. Rollback and remaining work
 
-Phase 2 did **not**:
+The v2 switch is applied in this working tree. The exact code and database
+rollback procedure is in [`v2-switch.md`](./v2-switch.md). No schema migration or
+teaching-text update was needed for the switch: the seed reconcile set the system
+`modelUrl` and refreshed derived fields, and all 26 protected teaching-text
+hashes matched before and after.
 
-- switch `manifest.json` or `HEART_SYSTEM.modelUrl` to v2;
-- apply the nullable-`meshName` migration;
-- change the 14-row seed or run the seed;
-- apply the proposed licence wording to the credits page, manifest, or GLB;
-- change the viewer or any UI.
+The following work is still open:
 
-The exact proposals and the safe update path are in
-[`phase-2-build-and-proposals.md`](./phase-2-build-and-proposals.md). The live v1
-asset and manifest are unchanged.
+- the final licence wording proposed in
+  [`phase-2-build-and-proposals.md`](./phase-2-build-and-proposals.md) §3 has not
+  been applied; commercial release remains blocked until DBCLS clarifies the
+  licence;
+- the live v2 asset has not been tested on a physical low-end phone or a
+  throttled connection;
+- no faculty member has reviewed the teaching text (`isReviewed` is still
+  `false` for every row).
+
+The switch has not been pushed or deployed from this working tree.
