@@ -1,0 +1,391 @@
+{
+  "schemaVersion": 1,
+  "phase": 1,
+  "generatedAt": "2026-10-25",
+  "status": "proposed; awaiting mapping approval",
+  "dataset": {
+    "name": "BodyParts3D",
+    "version": "4.0",
+    "home": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/",
+    "downloadPage": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/download.html",
+    "licencePage": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+    "licencePageLastUpdated": "2025-02-27"
+  },
+  "archives": [
+    {
+      "tree": "PART-OF",
+      "fileName": "partof_BP3D_4.0_obj_99.zip",
+      "url": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_BP3D_4.0_obj_99.zip",
+      "retrievedAt": "2026-10-25T18:18:50.6349311+03:00",
+      "bytes": 64888505,
+      "etag": "\"3de1eb9-4dd48e9fe8d00\"",
+      "lastModified": "Wed, 22 May 2013 06:45:40 GMT",
+      "sha256": "9fbc713fffeee924a5a657d9813d84d7eb957bded63adb854931dd5e3eb61c97",
+      "extractedObjFiles": 1258,
+      "licenceHeaderFiles": 1258,
+      "licenceHeaderVariants": 0,
+      "usedFor": "v1: 43 files across 14 structures. v2: 42 files across 14 structures; FJ3411 moves to aortic-arch and is sourced from IS-A."
+    },
+    {
+      "tree": "IS-A",
+      "fileName": "isa_BP3D_4.0_obj_99.zip",
+      "url": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/isa_BP3D_4.0_obj_99.zip",
+      "retrievedAt": "2026-10-25T18:28:37.3516102+03:00",
+      "bytes": 142903898,
+      "etag": "\"8848a5a-4dd48ec9df000\"",
+      "lastModified": "Wed, 22 May 2013 06:46:24 GMT",
+      "sha256": "40665852c49f218326590e204db91064a1ecfc3c6f8cbd7bbbcaac62c7cd409e",
+      "extractedObjFiles": 2234,
+      "licenceHeaderFiles": 2234,
+      "licenceHeaderVariants": 0,
+      "usedFor": "v2: 10 files across 3 new structures (pulmonary arteries, pulmonary veins, aortic arch)."
+    }
+  ],
+  "smallFiles": [
+    {
+      "file": "README_e.html",
+      "url": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/README_e.html",
+      "bytes": 19263,
+      "sha256": "f9a90b4d945ad0fe50db45c712e931aa54e52667187b30d7085b6cc394f40107",
+      "etag": "\"4b3f-62f16ad16c300\"",
+      "lastModified": "Thu, 27 Feb 2025 02:45:00 GMT",
+      "retrieved": "2026-10-25"
+    },
+    {
+      "file": "isa_parts_list_e.txt",
+      "url": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/isa_parts_list_e.txt",
+      "bytes": 128086,
+      "sha256": "ab7796deedd49205e77f3609a1cb8c53e2bbee14ecb5c9a6ca05227469780513",
+      "etag": "\"1f456-4dd45f8977500\"",
+      "lastModified": "Wed, 22 May 2013 03:15:00 GMT",
+      "retrieved": "2026-10-25"
+    },
+    {
+      "file": "partof_parts_list_e.txt",
+      "url": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_parts_list_e.txt",
+      "bytes": 59351,
+      "sha256": "9224080557053e6f1322f1e13ab27f0ecde0db19bb3b505f0631afad230eeebd",
+      "etag": "\"e7d7-4dd45f8977500\"",
+      "lastModified": "Wed, 22 May 2013 03:15:00 GMT",
+      "retrieved": "2026-10-25"
+    },
+    {
+      "file": "partof_inclusion_relation_list.txt",
+      "url": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_inclusion_relation_list.txt",
+      "bytes": 91241,
+      "sha256": "1b40738270931e3c1d955ce34e0fce0d8d10d8c5ad543463e40b4b4c0243007c",
+      "etag": "\"16469-4dd485e296e80\"",
+      "lastModified": "Wed, 22 May 2013 06:06:34 GMT",
+      "retrieved": "2026-10-25"
+    },
+    {
+      "file": "isa_inclusion_relation_list.txt",
+      "url": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/isa_inclusion_relation_list.txt",
+      "bytes": 207664,
+      "sha256": "26e7d818e03a8c909fe09c561f38d0d513423c87681f9450a803bc38f5b07564",
+      "etag": "\"32b30-4dd485e0aea00\"",
+      "lastModified": "Wed, 22 May 2013 06:06:32 GMT",
+      "retrieved": "2026-10-25"
+    },
+    {
+      "file": "isa_element_parts.txt",
+      "url": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/isa_element_parts.txt",
+      "bytes": 1142159,
+      "sha256": "a3de74423f943b0d724ae8f59b3a817f87c423a544f8db98113b1980817cbeaf",
+      "etag": "\"116d8f-4dd482e3d5d80\"",
+      "lastModified": "Wed, 22 May 2013 05:53:10 GMT",
+      "retrieved": "2026-10-25"
+    },
+    {
+      "file": "partof_element_parts.txt",
+      "url": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_element_parts.txt",
+      "bytes": 651179,
+      "sha256": "3f5f6df1028eb122b30de77c711597b6bb8e5541658e5985859fd228adbf88ea",
+      "etag": "\"9efab-4dd482e3d5d80\"",
+      "lastModified": "Wed, 22 May 2013 05:53:10 GMT",
+      "retrieved": "2026-10-25"
+    },
+    {
+      "file": "licence_page_2026-10-25.html",
+      "url": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "bytes": 14694,
+      "sha256": "cc8ecd3f09912424346dcc1a4e608b1ff4c29988f6304cf316e414440b1e18ad",
+      "etag": "W/\"cc8ecd3f09912424346dcc1a4e608b1f\"",
+      "lastModified": null,
+      "retrieved": "2026-10-25",
+      "pageLastUpdated": "2025-02-27",
+      "note": "Dynamically generated page; ETag and bytes can vary per request. This row records the saved snapshot and its retrieval response."
+    }
+  ],
+  "licence": {
+    "objHeaders": {
+      "exactLine": "# The license for this database is specified in the Creative Commons Attribution-Share Alike 2.1 Japan. If you use data from this database, please be sure attribute this database as follows: \"BodyParts3D, (c)  The Database Center for Life Science licensed under CC Attribution-Share Alike 2.1 Japan\".",
+      "lineLength": 300,
+      "counts": {
+        "partof": 1258,
+        "isa": 2234,
+        "total": 3492
+      },
+      "variants": 0,
+      "filesWithoutLine": 0
+    },
+    "readme": {
+      "licenseStatement": "The license for this database is specified in the Creative Commons Attribution 4.0 International.",
+      "creditLine": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International",
+      "creditNote": "The HTML source renders the copyright sign as 'c' but the character is U+00A9 (©).",
+      "bytes": 19263,
+      "sha256": "f9a90b4d945ad0fe50db45c712e931aa54e52667187b30d7085b6cc394f40107",
+      "lastModified": "Thu, 27 Feb 2025 02:45:00 GMT"
+    },
+    "website": {
+      "licenseStatement": "The license for this database is specified in the Creative Commons Attribution 4.0 International.",
+      "creditLine": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International",
+      "pageLastUpdated": "2025-02-27",
+      "snapshotBytes": 14694,
+      "snapshotSha256": "cc8ecd3f09912424346dcc1a4e608b1ff4c29988f6304cf316e414440b1e18ad"
+    },
+    "caveat": "The distributed 4.0 OBJ headers state CC BY-SA 2.1 Japan, while the README and current website state CC BY 4.0 International. The README also links the CC BY 4.0 summary to the CC BY-SA 2.1 Japan deed. This remains unresolved. Do not change the licence wording without written clarification from DBCLS. The model stays a development asset; commercial release is blocked."
+  },
+  "coordinateFrame": {
+    "conclusion": "The PART-OF and IS-A archives share one coordinate frame. Combining them in heart.v2.glb is safe.",
+    "sharedMeshes": [
+      {
+        "elementId": "FJ3411",
+        "concept": "FMA3768",
+        "name": "Arch of aorta",
+        "partof": {
+          "representation": "BP10404",
+          "buildUpLogic": "FMA 3.0 part_of",
+          "vertices": 381,
+          "faces": 670,
+          "boundsMin": [-6.83046, -137.163, 1281.9],
+          "boundsMax": [34.8378, -49.8449, 1317.09],
+          "sha256": "7f1bbd874b05ea618649bfd5a51ac2675523f419dd3e5f5e160d90f47bd413db"
+        },
+        "isa": {
+          "representation": "BP10322",
+          "buildUpLogic": "FMA 3.0 is_a",
+          "vertices": 381,
+          "faces": 670,
+          "boundsMin": [-6.83046, -137.163, 1281.9],
+          "boundsMax": [34.8378, -49.8449, 1317.09],
+          "sha256": "9eeb5e5a627e8145f03961c661c9c66d8fdc55ed1234d04b84212b87a21d902c"
+        },
+        "sameBounds": true,
+        "sameVertexCount": true,
+        "sameFaceCount": true,
+        "shaDiffCause": "Header fields Representation ID and Build-up logic only; geometry lines are identical."
+      },
+      {
+        "elementId": "FJ2966",
+        "concept": "FMA8612",
+        "name": "Pulmonary trunk",
+        "partof": {
+          "representation": "BP9912",
+          "buildUpLogic": "FMA 3.0 part_of",
+          "vertices": 871,
+          "faces": 1302,
+          "boundsMin": [11.2747, -158.864, 1256.5],
+          "boundsMax": [42.075, -116.516, 1293.61],
+          "sha256": "5da4132e171716c7a0f78806a14520bee79b993f814de83b1e1f2f2f8cf95edd"
+        },
+        "isa": {
+          "representation": "BP8690",
+          "buildUpLogic": "FMA 3.0 is_a",
+          "vertices": 871,
+          "faces": 1302,
+          "boundsMin": [11.2747, -158.864, 1256.5],
+          "boundsMax": [42.075, -116.516, 1293.61],
+          "sha256": "7d4fbfbeebdb541b4053e62e6ba9e55bdbc8d1354de8192f94d7c6008812ab3f"
+        },
+        "sameBounds": true,
+        "sameVertexCount": true,
+        "sameFaceCount": true,
+        "shaDiffCause": "Header fields Representation ID and Build-up logic only; geometry lines are identical."
+      }
+    ],
+    "all43SharedFiles": {
+      "count": 43,
+      "sameVertices": true,
+      "sameFaces": true,
+      "sameBounds": true,
+      "sameGeometryLines": true,
+      "headerDiffFields": ["Representation ID", "Build-up logic"]
+    }
+  },
+  "newMeshSources": [
+    {
+      "slug": "pulmonary-arteries",
+      "meshName": "pulmonary_arteries",
+      "archive": "IS-A",
+      "elementId": "FJ3019",
+      "concept": "FMA50872",
+      "name": "Right pulmonary artery",
+      "triangles": 678,
+      "boundsMin": [-58.9455, -131.2, 1224.4],
+      "boundsMax": [36.938, -62.9648, 1294.01],
+      "sha256": "c773fc2d3d3f79544699c16f38f56619730a6d5a1a2c8bb4d8f0dc2ab6889d97"
+    },
+    {
+      "slug": "pulmonary-arteries",
+      "meshName": "pulmonary_arteries",
+      "archive": "IS-A",
+      "elementId": "FJ2924",
+      "concept": "FMA50873",
+      "name": "Left pulmonary artery",
+      "triangles": 5450,
+      "boundsMin": [14.7515, -136.595, 1226.21],
+      "boundsMax": [79.084, -58.0499, 1294.05],
+      "sha256": "0cb5312cf816387fdad0d3809a5b5cae1445806ce85546adea39240bc72d2580"
+    },
+    {
+      "slug": "pulmonary-veins",
+      "meshName": "pulmonary_veins",
+      "archive": "IS-A",
+      "elementId": "FJ3040",
+      "concept": "FMA49911",
+      "name": "Right inferior pulmonary vein",
+      "triangles": 196,
+      "boundsMin": [-33.8068, -89.0205, 1211.28],
+      "boundsMax": [-6.28302, -76.0429, 1228.89],
+      "sha256": "2e15b98f227f16c3dcacab1a93a26d42e07cd2c2d72ba34b1ef438396f598a12"
+    },
+    {
+      "slug": "pulmonary-veins",
+      "meshName": "pulmonary_veins",
+      "archive": "IS-A",
+      "elementId": "FJ2944",
+      "concept": "FMA49913",
+      "name": "Left inferior pulmonary vein",
+      "triangles": 310,
+      "boundsMin": [42.6331, -78.0178, 1201.54],
+      "boundsMax": [56.0191, -53.5181, 1229.51],
+      "sha256": "a531b898f54ae008b1ad0c0f0993158e1a15cfbebee79098033ea8c2d2f84372"
+    },
+    {
+      "slug": "pulmonary-veins",
+      "meshName": "pulmonary_veins",
+      "archive": "IS-A",
+      "elementId": "FJ2950",
+      "concept": "FMA49913",
+      "name": "Left inferior pulmonary vein",
+      "triangles": 326,
+      "boundsMin": [37.6384, -83.4903, 1210.4],
+      "boundsMax": [65.3636, -71.841, 1229.82],
+      "sha256": "f32bbffccdb0528ed085041ad4243b5b4817a26aa82a73669f9132d6c54f17de"
+    },
+    {
+      "slug": "pulmonary-veins",
+      "meshName": "pulmonary_veins",
+      "archive": "IS-A",
+      "elementId": "FJ2955",
+      "concept": "FMA49913",
+      "name": "Left inferior pulmonary vein",
+      "triangles": 556,
+      "boundsMin": [32.8489, -91.3169, 1214.12],
+      "boundsMax": [72.9742, -70.9183, 1236.36],
+      "sha256": "bfbb5067eb2da9857069139f12d019bb0f599babc89730aeb4accb1a77916991"
+    },
+    {
+      "slug": "pulmonary-veins",
+      "meshName": "pulmonary_veins",
+      "archive": "IS-A",
+      "elementId": "FJ3020",
+      "concept": "FMA49914",
+      "name": "Right superior pulmonary vein",
+      "triangles": 324,
+      "boundsMin": [-37.1408, -106.536, 1234.93],
+      "boundsMax": [-14.0164, -88.3313, 1261.77],
+      "sha256": "074ba67bb3db8f93d6ac7d4e9d2bd1ddcca6e54a2bcb765ec146a9fd30bb3aa8"
+    },
+    {
+      "slug": "pulmonary-veins",
+      "meshName": "pulmonary_veins",
+      "archive": "IS-A",
+      "elementId": "FJ2925",
+      "concept": "FMA49916",
+      "name": "Left superior pulmonary vein",
+      "triangles": 414,
+      "boundsMin": [34.7494, -99.608, 1251.45],
+      "boundsMax": [55.1678, -82.1238, 1273.22],
+      "sha256": "e87124704e4ca94bfe3206a571e464fe8ccc41afe0f36ee5ccf46cf00aaf4918"
+    },
+    {
+      "slug": "pulmonary-veins",
+      "meshName": "pulmonary_veins",
+      "archive": "IS-A",
+      "elementId": "FJ2933",
+      "concept": "FMA49916",
+      "name": "Left superior pulmonary vein",
+      "triangles": 472,
+      "boundsMin": [33.6998, -110.848, 1218.88],
+      "boundsMax": [81.8161, -81.5478, 1258.09],
+      "sha256": "64e0d2deec1d847be95f41a25c616935c9b400f233a2c07a8c453a3441f80a35"
+    },
+    {
+      "slug": "aortic-arch",
+      "meshName": "aortic_arch",
+      "archive": "IS-A",
+      "elementId": "FJ3411",
+      "concept": "FMA3768",
+      "name": "Arch of aorta",
+      "triangles": 670,
+      "boundsMin": [-6.83046, -137.163, 1281.9],
+      "boundsMax": [34.8378, -49.8449, 1317.09],
+      "sha256": "9eeb5e5a627e8145f03961c661c9c66d8fdc55ed1234d04b84212b87a21d902c"
+    }
+  ],
+  "triangles": {
+    "v1Total": 93842,
+    "v2ExistingAfterArchSplit": 93172,
+    "v2NewMeshOnly": 9396,
+    "v2Total": 102568,
+    "v2Limit": 150000
+  },
+  "textOnly": [
+    {
+      "slug": "interventricular-septum",
+      "reason": "No ventricular-septum concept in either parts list. No separate septum mesh is available; the chamber meshes are not a substitute."
+    },
+    {
+      "slug": "pericardium",
+      "reason": "No pericardium concept in either parts list."
+    },
+    {
+      "slug": "endocardium",
+      "reason": "No endocardium concept. Only subendocardial layer concepts FMA84856/FMA84857 exist, which are not the endocardium itself."
+    },
+    {
+      "slug": "myocardium",
+      "reason": "No whole-myocardium concept. Thirteen regional or partial concepts exist (FMA9535, FMA9558, FMA83447, FMA83448, FMA84856, FMA84857, FMA84931, FMA84932, FMA86056, FMA86063, FMA86064, FMA87178, FMA87179); their element files overlap the papillary-muscle geometry already used by the chamber nodes."
+    },
+    {
+      "slug": "epicardium",
+      "reason": "No epicardium concept in either parts list."
+    },
+    {
+      "slug": "sinoatrial-node",
+      "reason": "No sinoatrial node concept in either parts list."
+    },
+    {
+      "slug": "atrioventricular-node",
+      "reason": "No atrioventricular node concept in either parts list."
+    },
+    {
+      "slug": "bundle-of-his",
+      "reason": "No bundle of His or atrioventricular bundle concept in either parts list."
+    },
+    {
+      "slug": "purkinje-fibers",
+      "reason": "No Purkinje fibre concept in either parts list."
+    }
+  ],
+  "verification": {
+    "sharedFilesChecked": 43,
+    "sharedFilesGeometryIdentical": true,
+    "newFilesChecked": 10,
+    "newFilesConceptAndNameMatch": true,
+    "failures": 0,
+    "method": "Compared vertex counts, face counts, exact bounds, and SHA-256 of all non-comment geometry lines for every file present in both archives. Compared Concept ID and English name headers for every new IS-A file."
+  }
+}
