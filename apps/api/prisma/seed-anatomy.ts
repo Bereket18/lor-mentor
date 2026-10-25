@@ -13,8 +13,9 @@
  *   - Default mode is create-only. Existing systems and structures are never
  *     updated, so faculty edits and isReviewed values survive re-seeding.
  *   - `--reconcile` updates system metadata (including the versioned model URL),
- *     refreshes the source citation list on existing structures, and creates
- *     missing structures. It never overwrites summaries, notes, or isReviewed.
+ *     refreshes the derived citation, sort-order, and related-structure fields
+ *     on existing structures, and creates missing structures. It never
+ *     overwrites summaries, notes, names, or isReviewed.
  *   - `--prune-stale` deletes structures that exist in the database but are not
  *     in the seed. It requires an explicit flag because it is destructive.
  *     Take a database backup first and review the printed list.
@@ -81,20 +82,27 @@ async function main() {
 
   let created = 0;
   let skipped = 0;
-  let referencesUpdated = 0;
+  let reconciled = 0;
 
   for (const [index, structure] of HEART_STRUCTURES.entries()) {
     const existing = bySlug.get(structure.slug);
     if (existing) {
       skipped += 1;
-      // Citations are derived from the model sources, not faculty writing, so
-      // reconcile may refresh them. Teaching text and review state stay put.
+      // Citations, order, and related slugs are derived from the model and
+      // navigation graph, not faculty writing, so reconcile may refresh them.
+      // Teaching text, names, and review state stay put. meshName is excluded
+      // on purpose: legacy text-only rows may still hold an old mesh name and
+      // a blanket update could collide with the unique index.
       if (reconcile) {
         await prisma.anatomyStructure.update({
           where: { id: existing.id },
-          data: { references: structure.references },
+          data: {
+            references: structure.references,
+            sortOrder: index + 1,
+            relatedSlugs: structure.relatedSlugs,
+          },
         });
-        referencesUpdated += 1;
+        reconciled += 1;
       }
       continue;
     }
@@ -110,7 +118,9 @@ async function main() {
     created += 1;
   }
 
-  const seedSlugs = new Set(HEART_STRUCTURES.map((structure) => structure.slug));
+  const seedSlugs = new Set(
+    HEART_STRUCTURES.map((structure) => structure.slug),
+  );
   const stale = existingStructures.filter(
     (structure) => !seedSlugs.has(structure.slug),
   );
@@ -121,7 +131,7 @@ async function main() {
     );
     for (const structure of stale) {
       console.warn(
-        `  - ${structure.slug} (mesh: ${structure.meshName})${structure.isReviewed ? ' [faculty reviewed]' : ''}`,
+        `  - ${structure.slug} (mesh: ${structure.meshName ?? 'no 3D model'})${structure.isReviewed ? ' [faculty reviewed]' : ''}`,
       );
     }
     console.warn(
@@ -148,7 +158,7 @@ async function main() {
 
   console.log(
     `Heart seed complete: ${created} created, ${skipped} already existed, ${total} total${
-      referencesUpdated > 0 ? `, ${referencesUpdated} citation lists refreshed` : ''
+      reconciled > 0 ? `, ${reconciled} existing rows reconciled` : ''
     }${stale.length > 0 && !pruneStale ? `, ${stale.length} stale` : ''}.`,
   );
 }

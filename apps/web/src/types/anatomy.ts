@@ -26,7 +26,7 @@ export interface AnatomyStructure {
   function: string | null;
   bloodSupply: string | null;
   clinicalNotes: string | null;
-  meshName: string;
+  meshName: string | null;
   layer: string | null;
   relatedSlugs: string[];
   references: string[];

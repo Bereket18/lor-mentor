@@ -538,7 +538,9 @@ model AnatomyStructure {
   function      String?
   bloodSupply   String?
   clinicalNotes String?
-  meshName      String
+  // Null for text-only structures that have teaching content but no
+  // independently selectable mesh in the shipped model.
+  meshName      String?
   layer         String?
   // Slugs of related structures within the same system. Stored as slugs so
   // the seed stays readable and the API can resolve names in one pass.

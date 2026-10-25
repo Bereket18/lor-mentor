@@ -20,9 +20,9 @@ import {
  * stale model URL, or a manifest that no longer matches the binary.
  *
  * Phase 2 ships heart.v2.glb alongside the live v1 asset. The live contract
- * below still checks v1 and the current 14-row seed. The v2 target contract
- * checks the approved 26-row mapping and the candidate asset without requiring
- * the schema or seed changes to be applied yet.
+ * checks the 26-row seed against the 14 nodes that v1 actually ships, while the
+ * v2 target contract checks the approved 26-row mapping against the candidate
+ * asset. The live model URL is intentionally still v1.
  */
 
 const ASSET_DIR = join(__dirname, '../../../../web/public/models/anatomy');
@@ -97,8 +97,19 @@ describe('Anatomy seed-to-model contract', () => {
   const manifest = JSON.parse(readFileSync(MANIFEST_PATH, 'utf8')) as {
     schemaVersion: number;
     system: string;
-    model: { file: string; bytes: number; sha256: string; triangles: number; structures: number };
-    source: { archive: string; archiveBytes: number; requiredCredit: string; licenseUrl: string };
+    model: {
+      file: string;
+      bytes: number;
+      sha256: string;
+      triangles: number;
+      structures: number;
+    };
+    source: {
+      archive: string;
+      archiveBytes: number;
+      requiredCredit: string;
+      licenseUrl: string;
+    };
     license: { status: string };
     structures: {
       slug: string;
@@ -129,39 +140,49 @@ describe('Anatomy seed-to-model contract', () => {
 
   it('has a valid, fully referenced seed', () => {
     expect(() => validateHeartSeed()).not.toThrow();
-    expect(HEART_STRUCTURES).toHaveLength(14);
+    expect(HEART_STRUCTURES).toHaveLength(26);
+
+    const meshStructures = HEART_STRUCTURES.filter(
+      (structure) => structure.meshName !== null,
+    );
+    const textOnlyStructures = HEART_STRUCTURES.filter(
+      (structure) => structure.meshName === null,
+    );
+    expect(meshStructures).toHaveLength(17);
+    expect(textOnlyStructures).toHaveLength(9);
+
     for (const structure of HEART_STRUCTURES) {
       expect(structure.references.length).toBeGreaterThan(0);
-      expect(structure.meshName).toMatch(/^[a-z0-9_]+$/);
+      if (structure.meshName !== null) {
+        expect(structure.meshName).toMatch(/^[a-z0-9_]+$/);
+      }
     }
   });
 
-  it('has exactly one GLB node per seeded structure', () => {
-    const seedNames = HEART_STRUCTURES.map((structure) => structure.meshName);
+  it('has exactly one GLB node per v1 manifest structure', () => {
+    const manifestNames = manifest.structures.map(
+      (structure) => structure.meshName,
+    );
     const nodeNames = glb.nodes.map((node) => node.name);
 
-    expect(new Set(seedNames).size).toBe(seedNames.length);
-    expect([...nodeNames].sort()).toEqual([...seedNames].sort());
-
-    for (const structure of HEART_STRUCTURES) {
-      expect(nodeNames.filter((name) => name === structure.meshName)).toHaveLength(1);
-    }
+    expect(new Set(manifestNames).size).toBe(manifestNames.length);
+    expect([...nodeNames].sort()).toEqual([...manifestNames].sort());
   });
 
   it('keeps slugs, layers, and triangle counts aligned', () => {
     expect(manifest.system).toBe(HEART_SYSTEM.slug);
-    expect(manifest.structures).toHaveLength(HEART_STRUCTURES.length);
+    expect(manifest.structures).toHaveLength(14);
 
-    const manifestBySlug = new Map(
-      manifest.structures.map((structure) => [structure.slug, structure]),
+    const seedBySlug = new Map(
+      HEART_STRUCTURES.map((structure) => [structure.slug, structure]),
     );
 
-    for (const structure of HEART_STRUCTURES) {
-      const entry = manifestBySlug.get(structure.slug);
-      expect(entry).toBeDefined();
-      expect(entry?.meshName).toBe(structure.meshName);
-      expect(entry?.layer).toBe(structure.layer);
-      expect(entry?.triangles).toBeGreaterThan(0);
+    for (const structure of manifest.structures) {
+      const seed = seedBySlug.get(structure.slug);
+      expect(seed).toBeDefined();
+      expect(seed?.meshName).toBe(structure.meshName);
+      expect(seed?.layer).toBe(structure.layer);
+      expect(structure.triangles).toBeGreaterThan(0);
 
       const node = glb.nodes.find((item) => item.name === structure.meshName);
       expect(node?.extras?.layer).toBe(structure.layer);
@@ -179,6 +200,32 @@ describe('Anatomy seed-to-model contract', () => {
       return total + meshTriangles;
     }, 0);
     expect(totalTriangles).toBe(manifest.model.triangles);
+  });
+
+  it('keeps the three v2-only mesh rows out of the live v1 asset', () => {
+    const v1MeshNames = new Set(
+      manifest.structures.map((structure) => structure.meshName),
+    );
+    const seedMeshNames = HEART_STRUCTURES.map(
+      (structure) => structure.meshName,
+    ).filter((name): name is string => name !== null);
+    const v2Only = seedMeshNames.filter((name) => !v1MeshNames.has(name));
+
+    expect([...v2Only].sort()).toEqual([
+      'aortic_arch',
+      'pulmonary_arteries',
+      'pulmonary_veins',
+    ]);
+
+    const nodeNames = new Set(glb.nodes.map((node) => node.name));
+    for (const name of v2Only) {
+      expect(nodeNames.has(name)).toBe(false);
+    }
+    for (const structure of HEART_STRUCTURES) {
+      if (structure.meshName === null) {
+        expect(nodeNames.has(structure.slug.replace(/-/g, '_'))).toBe(false);
+      }
+    }
   });
 
   it('records provenance and licence metadata', () => {
@@ -301,9 +348,7 @@ describe('Anatomy v2 target contract (candidate, not yet live)', () => {
       'PART-OF',
     ]);
 
-    const sourceTrees = new Set(
-      manifest.sources.map((source) => source.tree),
-    );
+    const sourceTrees = new Set(manifest.sources.map((source) => source.tree));
     for (const source of manifest.sources) {
       expect(source.requiredCredit).toContain('BodyParts3D');
       expect(source.license).toContain('CC BY 4.0');
@@ -323,27 +368,20 @@ describe('Anatomy v2 target contract (candidate, not yet live)', () => {
     expect(manifest.license.status).toMatch(/pending|development/i);
   });
 
-  it('keeps the live seed a subset until the seed change is approved', () => {
+  it('keeps the live seed aligned with the v2 target mapping', () => {
     const liveBySlug = new Map(
       HEART_STRUCTURES.map((structure) => [structure.slug, structure]),
     );
 
-    if (HEART_STRUCTURES.length === 26) {
-      for (const target of HEART_V2_TARGET_STRUCTURES) {
-        const seed = liveBySlug.get(target.slug);
-        expect(seed).toBeDefined();
-        expect(seed?.meshName).toBe(target.meshName);
-        expect(seed?.layer).toBe(target.layer);
-      }
-      return;
-    }
-
-    expect(HEART_STRUCTURES).toHaveLength(14);
-    const targetNames = new Set(
-      HEART_V2_MESH_STRUCTURES.map((structure) => structure.meshName),
+    expect(HEART_STRUCTURES).toHaveLength(HEART_V2_TARGET_STRUCTURES.length);
+    expect(HEART_STRUCTURES.map((structure) => structure.slug)).toEqual(
+      HEART_V2_TARGET_STRUCTURES.map((structure) => structure.slug),
     );
-    for (const structure of HEART_STRUCTURES) {
-      expect(targetNames.has(structure.meshName)).toBe(true);
+    for (const target of HEART_V2_TARGET_STRUCTURES) {
+      const seed = liveBySlug.get(target.slug);
+      expect(seed).toBeDefined();
+      expect(seed?.meshName).toBe(target.meshName);
+      expect(seed?.layer).toBe(target.layer);
     }
   });
 });

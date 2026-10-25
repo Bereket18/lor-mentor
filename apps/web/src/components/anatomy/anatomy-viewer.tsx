@@ -209,7 +209,8 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
           (structure) =>
             structure.layer !== null && hiddenLayers.includes(structure.layer),
         )
-        .map((structure) => structure.meshName),
+        .map((structure) => structure.meshName)
+        .filter((meshName): meshName is string => meshName !== null),
     [structures, hiddenLayers],
   );
 
