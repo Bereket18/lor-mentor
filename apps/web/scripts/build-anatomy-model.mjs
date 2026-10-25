@@ -2,13 +2,22 @@
 /**
  * Build the Anatomy Lab heart model from BodyParts3D 4.0 source geometry.
  *
- * The source archive is NOT committed. Point this script at an extracted
- * PART-OF archive (or a directory containing the selected FJ*.obj files):
+ * The source archives are NOT committed. Point this script at an extracted
+ * archive (or a directory containing the selected FJ*.obj files):
  *
  *   node scripts/build-anatomy-model.mjs --source-dir "C:\path\to\partof_BP3D_4.0_obj_99"
  *
+ * For a model that combines the PART-OF and IS-A trees, pass one labelled
+ * source directory per tree so each file is read from the archive recorded in
+ * the source map:
+ *
+ *   node scripts/build-anatomy-model.mjs \
+ *     --source-dir "PART-OF=C:\path\to\partof_BP3D_4.0_obj_99" \
+ *     --source-dir "IS-A=C:\path\to\isa_BP3D_4.0_obj_99"
+ *
  * The script:
  *   - validates every source OBJ header against the checked-in manifest config
+ *   - verifies each file's SHA-256 when the source map records one
  *   - converts mm/Z-up geometry to metres/Y-up
  *   - merges source parts into one selectable glTF node per AnatomyStructure
  *   - writes a versioned GLB plus a provenance manifest
@@ -25,7 +34,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -42,27 +51,33 @@ const defaultManifestPath = join(
 );
 
 function parseArgs(argv) {
-  const args = { sourceDir: process.env.BODYPARTS3D_SOURCE_DIR };
+  const args = { sourceDirs: [] };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg === "--source-dir") args.sourceDir = argv[++i];
+    if (arg === "--source-dir") args.sourceDirs.push(argv[++i]);
     else if (arg === "--out") args.out = argv[++i];
     else if (arg === "--manifest") args.manifest = argv[++i];
     else if (arg === "--help" || arg === "-h") args.help = true;
     else throw new Error(`Unknown argument: ${arg}`);
+  }
+  if (args.sourceDirs.length === 0 && process.env.BODYPARTS3D_SOURCE_DIR) {
+    args.sourceDirs.push(process.env.BODYPARTS3D_SOURCE_DIR);
   }
   return args;
 }
 
 function usage() {
   return [
-    "Usage: node scripts/build-anatomy-model.mjs --source-dir <dir>",
+    "Usage: node scripts/build-anatomy-model.mjs --source-dir <dir> [--source-dir <dir> ...]",
     "",
     "Options:",
-    "  --source-dir <dir>  Extracted BodyParts3D 4.0 PART-OF archive, or a",
-    "                      directory containing the selected FJ*.obj files.",
-    "  --out <path>        Output GLB path.",
-    "  --manifest <path>   Output provenance manifest path.",
+    "  --source-dir <dir>       Extracted BodyParts3D 4.0 archive, or a",
+    "                           directory containing the selected FJ*.obj files.",
+    "                           Repeat for multiple archives. Prefix a directory",
+    "                           with TREE= to bind it to a source tree, for",
+    "                           example --source-dir PART-OF=C:\\bp3d\\partof.",
+    "  --out <path>             Output GLB path.",
+    "  --manifest <path>        Output provenance manifest path.",
   ].join("\n");
 }
 
@@ -85,6 +100,72 @@ function indexObjFiles(sourceDir) {
     if (id) byId.set(id, file);
   }
   return byId;
+}
+
+/**
+ * Build lookup tables for one or more source directories. A directory may be
+ * labelled with a source tree (`PART-OF=...` or `IS-A=...`). Labelled
+ * directories are kept separate so the same element ID can exist in both
+ * archives without an ambiguity error. Unlabelled directories are combined
+ * into one index for callers that copied all selected files into one place.
+ */
+function buildSourceIndexes(specs) {
+  const combined = new Map();
+  const byTree = new Map();
+
+  for (const spec of specs) {
+    const separator = spec.indexOf("=");
+    const label =
+      separator > 0 ? spec.slice(0, separator).trim().toUpperCase() : null;
+    const rawPath = separator > 0 ? spec.slice(separator + 1) : spec;
+    const sourceDir = isAbsolute(rawPath)
+      ? rawPath
+      : resolve(process.cwd(), rawPath);
+
+    if (!existsSync(sourceDir) || !statSync(sourceDir).isDirectory()) {
+      throw new Error(`Source directory does not exist: ${sourceDir}`);
+    }
+
+    const index = indexObjFiles(sourceDir);
+    const target = label
+      ? (byTree.get(label) ?? new Map())
+      : combined;
+    if (label && !byTree.has(label)) byTree.set(label, target);
+
+    for (const [id, file] of index) {
+      if (target.has(id)) {
+        throw new Error(
+          `Source file ${id} appears more than once in ${label ?? "the combined source directories"}`,
+        );
+      }
+      target.set(id, file);
+    }
+  }
+
+  return { combined, byTree };
+}
+
+function resolveSourceFile(file, indexes) {
+  if (file.archive) {
+    const tree = indexes.byTree.get(file.archive.toUpperCase());
+    if (tree) {
+      const match = tree.get(file.id);
+      if (!match) {
+        throw new Error(
+          `Missing source file ${file.id}.obj from ${file.archive}. Check the labelled source directory.`,
+        );
+      }
+      return match;
+    }
+  }
+
+  const match = indexes.combined.get(file.id);
+  if (!match) {
+    throw new Error(
+      `Missing source file ${file.id}.obj. Extract the archive or pass a directory containing the selected files.`,
+    );
+  }
+  return match;
 }
 
 function readHeader(text, key) {
@@ -394,7 +475,7 @@ function main() {
     console.log(usage());
     return;
   }
-  if (!args.sourceDir) {
+  if (args.sourceDirs.length === 0) {
     console.error(
       "A BodyParts3D source directory is required. The source archive is not committed.\n\n" +
         usage(),
@@ -403,15 +484,19 @@ function main() {
     return;
   }
 
-  const sourceDir = isAbsolute(args.sourceDir)
-    ? args.sourceDir
-    : resolve(process.cwd(), args.sourceDir);
-  if (!existsSync(sourceDir) || !statSync(sourceDir).isDirectory()) {
-    throw new Error(`Source directory does not exist: ${sourceDir}`);
-  }
-
+  const sourceIndexes = buildSourceIndexes(args.sourceDirs);
   const config = JSON.parse(readFileSync(configPath, "utf8"));
-  const objFiles = indexObjFiles(sourceDir);
+  const sources = Array.isArray(config.sources)
+    ? config.sources
+    : config.source
+      ? [config.source]
+      : [];
+  if (sources.length === 0) {
+    throw new Error("The source map must define source or sources metadata");
+  }
+  const sourceTrees = new Set(
+    sources.map((source) => source.tree?.toUpperCase()).filter(Boolean),
+  );
   const sourceFileHashes = new Map();
   const usedFiles = new Set();
   const structures = [];
@@ -437,13 +522,14 @@ function main() {
       }
       usedFiles.add(file.id);
 
-      const objPath = objFiles.get(file.id);
-      if (!objPath) {
+      const archive = file.archive?.toUpperCase() ?? null;
+      if (archive && sourceTrees.size > 0 && !sourceTrees.has(archive)) {
         throw new Error(
-          `Missing source file ${file.id}.obj. Extract the PART-OF archive or pass a directory containing the selected files.`,
+          `${file.id}: source archive ${archive} is not declared in the source map`,
         );
       }
 
+      const objPath = resolveSourceFile(file, sourceIndexes);
       const text = readFileSync(objPath, "utf8");
       const concept = readHeader(text, "Concept ID");
       const name = readHeader(text, "English name");
@@ -474,9 +560,15 @@ function main() {
 
       fma.add(file.concept);
       const hash = createHash("sha256").update(text).digest("hex");
+      if (file.sha256 && hash !== file.sha256.toLowerCase()) {
+        throw new Error(
+          `${file.id}: source SHA-256 does not match the source map (expected ${file.sha256}, found ${hash})`,
+        );
+      }
       sourceFileHashes.set(file.id, hash);
       fileManifest.push({
         id: file.id,
+        ...(archive ? { archive } : {}),
         concept: file.concept,
         name: file.name,
         sha256: hash,
@@ -541,16 +633,22 @@ function main() {
     0,
   );
 
+  const primarySource = sources[0];
+  const isV2 = Array.isArray(config.sources);
+  const textOnly = config.textOnly ?? [];
+  const license = {
+    notice: primarySource.requiredCredit,
+    licenseUrl: primarySource.licenseUrl,
+    status:
+      "Development asset. Commercial clearance is pending written clarification of the CC BY-SA 2.1 Japan headers in the source OBJ files.",
+  };
+
   const metadata = {
     title: "LOR Mentor heart anatomy model",
-    source: config.source,
+    dataset: primarySource.dataset ?? "BodyParts3D 4.0",
+    ...(isV2 ? { sources } : { source: primarySource }),
     transform: config.transform,
-    license: {
-      notice: config.source.requiredCredit,
-      licenseUrl: config.source.licenseUrl,
-      status:
-        "Development asset. Commercial clearance is pending written clarification of the CC BY-SA 2.1 Japan headers in the source OBJ files.",
-    },
+    license,
   };
 
   const glb = buildGlb(structures, metadata);
@@ -560,18 +658,24 @@ function main() {
     : defaultManifestPath;
 
   const manifest = {
-    schemaVersion: 1,
+    schemaVersion: isV2 ? 2 : 1,
     system: config.system,
     model: {
-      file: "heart.v1.glb",
+      file: basename(modelPath),
       bytes: glb.byteLength,
       sha256: createHash("sha256").update(glb).digest("hex"),
       triangles: totalTriangles,
       structures: structures.length,
+      ...(isV2
+        ? {
+            textOnlyStructures: textOnly.length,
+            totalStructures: structures.length + textOnly.length,
+          }
+        : {}),
     },
-    source: config.source,
+    ...(isV2 ? { sources } : { source: primarySource }),
     transform: config.transform,
-    license: metadata.license,
+    license,
     structures: structures.map((structure) => ({
       slug: structure.slug,
       meshName: structure.meshName,
@@ -581,10 +685,12 @@ function main() {
       fma: structure.fma,
       files: structure.files,
     })),
+    ...(isV2 ? { textOnly } : {}),
     checks: {
       uniqueMeshNames: true,
       uniqueSourceFiles: true,
       sourceHeadersVerified: true,
+      ...(isV2 ? { sourceHashesVerified: true } : {}),
       unrepresentedStructures: "deferred; see docs/anatomy/provenance/README.md",
     },
   };
@@ -594,7 +700,7 @@ function main() {
 
   console.log(`Wrote ${modelPath}`);
   console.log(
-    `  ${structures.length} structures, ${totalTriangles.toLocaleString()} triangles, ${(glb.byteLength / 1024 / 1024).toFixed(2)} MB`,
+    `  ${structures.length} mesh structures${textOnly.length > 0 ? ` + ${textOnly.length} text-only` : ""}, ${totalTriangles.toLocaleString()} triangles, ${(glb.byteLength / 1024 / 1024).toFixed(2)} MB`,
   );
   console.log(`Wrote ${manifestPath}`);
   console.log(`  model sha256 ${manifest.model.sha256}`);
