@@ -47,6 +47,16 @@ const defaultManifestPath = join(
   "public/models/anatomy/manifest.json",
 );
 
+const v2Changes = [
+  "Selected 52 source OBJ files from the PART-OF and IS-A trees: 42 PART-OF files and 10 IS-A files.",
+  "Merged each structure's source parts into one selectable mesh: 17 selectable nodes.",
+  "Moved the arch of the aorta out of the aorta node into a separate aortic_arch node, and added separate pulmonary_arteries and pulmonary_veins nodes.",
+  "Converted millimetres and the Z-up axis to metres and Y-up, centred the combined model, and recomputed vertex normals.",
+  "Exported one uncompressed GLB with stable mesh names. No source colours or textures are used; surface colours are ours.",
+  'Kept 9 structures as text-only entries because BodyParts3D 4.0 has no independent mesh for them. They show "No 3D model".',
+  "Wrote the teaching notes, quizzes, and interface copy for Lor Mentor. They are not copied from BodyParts3D or its documentation.",
+];
+
 function parseArgs(argv) {
   const args = { sourceDirs: [] };
   for (let i = 0; i < argv.length; i += 1) {
@@ -682,6 +692,7 @@ function main() {
     },
     ...(isV2 ? { sources } : { source: primarySource }),
     transform: config.transform,
+    ...(isV2 ? { changes: v2Changes } : {}),
     license,
     structures: structures.map((structure) => ({
       slug: structure.slug,
