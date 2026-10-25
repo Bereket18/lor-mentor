@@ -9,9 +9,11 @@ import { Bounds, OrbitControls, useGLTF } from "@react-three/drei";
 interface AnatomySceneProps {
   modelUrl: string;
   selectedMeshName: string | null;
+  selectedIsTextOnly?: boolean;
   hiddenMeshNames: string[];
   onSelectMesh: (meshName: string | null) => void;
   onModelReady?: () => void;
+  onModelMeshesLoaded?: (meshNames: string[]) => void;
   onModelError?: (message: string) => void;
   onRendererUnavailable?: () => void;
 }
@@ -28,10 +30,12 @@ interface OrbitControlsLike {
 function AnatomyModel({
   modelUrl,
   selectedMeshName,
+  selectedIsTextOnly = false,
   hiddenMeshNames,
   onSelectMesh,
   onHoverMesh,
   onModelReady,
+  onModelMeshesLoaded,
 }: AnatomyModelProps) {
   const { scene } = useGLTF(modelUrl);
 
@@ -66,6 +70,14 @@ function AnatomyModel({
   useEffect(() => {
     onModelReady?.();
   }, [model, onModelReady]);
+
+  useEffect(() => {
+    const meshNames = new Set<string>();
+    model.traverse((object) => {
+      if (object.name) meshNames.add(object.name);
+    });
+    onModelMeshesLoaded?.([...meshNames]);
+  }, [model, onModelMeshesLoaded]);
 
   useEffect(() => {
     const hidden = new Set(hiddenMeshNames);
@@ -119,7 +131,11 @@ function AnatomyModel({
         }}
         onPointerOut={() => onHoverMesh(null)}
       />
-      <CameraFocus model={model} selectedMeshName={selectedMeshName} />
+      <CameraFocus
+        model={model}
+        selectedMeshName={selectedMeshName}
+        selectedIsTextOnly={selectedIsTextOnly}
+      />
     </>
   );
 }
@@ -128,13 +144,19 @@ function AnatomyModel({
  * Ease the orbit target toward the selected structure (or the whole model when
  * nothing is selected). Keeping the current viewing direction avoids a jarring
  * camera jump while still bringing the selected mesh to the centre.
+ *
+ * A text-only structure has no mesh, so selecting it must not move the camera.
+ * That is different from clearing the selection, which returns to the whole
+ * model.
  */
 function CameraFocus({
   model,
   selectedMeshName,
+  selectedIsTextOnly,
 }: {
   model: THREE.Object3D;
   selectedMeshName: string | null;
+  selectedIsTextOnly: boolean;
 }) {
   const camera = useThree((state) => state.camera);
   const controls = useThree(
@@ -147,17 +169,36 @@ function CameraFocus({
     toPosition: THREE.Vector3;
     progress: number;
   } | null>(null);
-  const previousSelection = useRef<string | null | undefined>(undefined);
+  const previousSelection = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     if (!controls) return;
+
+    const selectionKey = selectedIsTextOnly
+      ? "text-only"
+      : selectedMeshName
+        ? `mesh:${selectedMeshName}`
+        : "none";
+
     // Skip the initial fit so Bounds can frame the whole model uninterrupted.
     if (previousSelection.current === undefined) {
-      previousSelection.current = selectedMeshName;
+      previousSelection.current = selectionKey;
       return;
     }
-    if (previousSelection.current === selectedMeshName) return;
-    previousSelection.current = selectedMeshName;
+    if (previousSelection.current === selectionKey) return;
+    previousSelection.current = selectionKey;
+
+    // A text-only structure has no mesh to frame. Cancel any in-flight focus
+    // and leave the camera exactly where the learner left it.
+    if (selectedIsTextOnly) {
+      animation.current = null;
+      return;
+    }
+
+    // Stop an in-flight animation before starting a new one. If the new target
+    // is missing from the GLB, the camera should stay put rather than finish
+    // the previous move.
+    animation.current = null;
 
     const target = selectedMeshName
       ? model.getObjectByName(selectedMeshName)
@@ -186,7 +227,7 @@ function CameraFocus({
       toPosition: center.clone().add(direction.multiplyScalar(distance)),
       progress: 0,
     };
-  }, [selectedMeshName, model, controls, camera]);
+  }, [selectedMeshName, selectedIsTextOnly, model, controls, camera]);
 
   useFrame((_, delta) => {
     const current = animation.current;
@@ -285,9 +326,11 @@ function canCreateWebGLContext() {
 export function AnatomyScene({
   modelUrl,
   selectedMeshName,
+  selectedIsTextOnly = false,
   hiddenMeshNames,
   onSelectMesh,
   onModelReady,
+  onModelMeshesLoaded,
   onModelError,
   onRendererUnavailable,
 }: AnatomySceneProps) {
@@ -333,10 +376,12 @@ export function AnatomyScene({
               <AnatomyModel
                 modelUrl={modelUrl}
                 selectedMeshName={selectedMeshName}
+                selectedIsTextOnly={selectedIsTextOnly}
                 hiddenMeshNames={hiddenMeshNames}
                 onSelectMesh={onSelectMesh}
                 onHoverMesh={setHoveredMesh}
                 onModelReady={onModelReady}
+                onModelMeshesLoaded={onModelMeshesLoaded}
               />
             </Bounds>
           </Suspense>
