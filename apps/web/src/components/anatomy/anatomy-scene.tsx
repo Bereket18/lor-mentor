@@ -10,6 +10,7 @@ import {
   disposeModel,
 } from "@/components/anatomy/anatomy-model-resources";
 import { isAllowedAnatomyModelUrl } from "@/lib/anatomy";
+import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 
 interface AnatomySceneProps {
   modelUrl: string;
@@ -26,6 +27,7 @@ interface AnatomySceneProps {
 
 interface AnatomyModelProps extends AnatomySceneProps {
   onHoverMesh: (meshName: string | null) => void;
+  reducedMotion: boolean;
 }
 
 interface OrbitControlsLike {
@@ -35,6 +37,8 @@ interface OrbitControlsLike {
 }
 
 const BASE_DAMPING_FACTOR = 0.08;
+
+const instantInterpolate = () => 1;
 
 function applyTimeBasedDamping(
   controls: OrbitControlsLike,
@@ -50,13 +54,13 @@ function applyTimeBasedDamping(
  * can keep requesting frames for tens of seconds after the user lets go. Scale
  * the per-frame factor by elapsed time to keep the settle time consistent.
  */
-function ControlsDamping() {
+function ControlsDamping({ reducedMotion }: { reducedMotion: boolean }) {
   const controls = useThree(
     (state) => state.controls,
   ) as unknown as OrbitControlsLike | null;
 
   useFrame((_, delta) => {
-    if (!controls) return;
+    if (!controls || reducedMotion) return;
     applyTimeBasedDamping(controls, delta);
   }, -2);
 
@@ -192,6 +196,7 @@ function AnatomyModel({
   onHoverMesh,
   onModelReady,
   onModelMeshesLoaded,
+  reducedMotion,
 }: AnatomyModelProps) {
   const invalidate = useThree((state) => state.invalidate);
   const { scene } = useGLTF(modelUrl);
@@ -254,8 +259,13 @@ function AnatomyModel({
         model={model}
         selectedMeshName={selectedMeshName}
         selectedIsTextOnly={selectedIsTextOnly}
+        reducedMotion={reducedMotion}
       />
-      <SelectionHighlight model={model} selectedMeshName={selectedMeshName} />
+      <SelectionHighlight
+        model={model}
+        selectedMeshName={selectedMeshName}
+        reducedMotion={reducedMotion}
+      />
     </>
   );
 }
@@ -273,10 +283,12 @@ function CameraFocus({
   model,
   selectedMeshName,
   selectedIsTextOnly,
+  reducedMotion,
 }: {
   model: THREE.Object3D;
   selectedMeshName: string | null;
   selectedIsTextOnly: boolean;
+  reducedMotion: boolean;
 }) {
   const camera = useThree((state) => state.camera);
   const invalidate = useThree((state) => state.invalidate);
@@ -341,15 +353,35 @@ function CameraFocus({
     // Bounds; the first fitted view would otherwise be overridden.
     if (direction.lengthSq() === 0) return;
 
+    const toPosition = center
+      .clone()
+      .add(direction.multiplyScalar(distance));
+
+    if (reducedMotion) {
+      controls.target.copy(center);
+      camera.position.copy(toPosition);
+      controls.update();
+      invalidate();
+      return;
+    }
+
     animation.current = {
       fromTarget: controls.target.clone(),
       toTarget: center,
       fromPosition: camera.position.clone(),
-      toPosition: center.clone().add(direction.multiplyScalar(distance)),
+      toPosition,
       progress: 0,
     };
     invalidate();
-  }, [selectedMeshName, selectedIsTextOnly, model, controls, camera, invalidate]);
+  }, [
+    selectedMeshName,
+    selectedIsTextOnly,
+    model,
+    controls,
+    camera,
+    invalidate,
+    reducedMotion,
+  ]);
 
   useFrame((_, delta) => {
     const current = animation.current;
@@ -388,9 +420,11 @@ function CameraFocus({
 function SelectionHighlight({
   model,
   selectedMeshName,
+  reducedMotion,
 }: {
   model: THREE.Object3D;
   selectedMeshName: string | null;
+  reducedMotion: boolean;
 }) {
   const invalidate = useThree((state) => state.invalidate);
   const transition = useRef<{
@@ -449,9 +483,16 @@ function SelectionHighlight({
       return;
     }
 
+    if (reducedMotion) {
+      settleHighlight(items);
+      transition.current = null;
+      invalidate();
+      return;
+    }
+
     transition.current = { items, progress: 0 };
     invalidate();
-  }, [model, selectedMeshName, invalidate]);
+  }, [model, selectedMeshName, invalidate, reducedMotion]);
 
   useFrame((_, delta) => {
     const current = transition.current;
@@ -575,6 +616,7 @@ export function AnatomyScene({
     typeof document === "undefined" ? null : canCreateWebGLContext(),
   );
   const hoveredMesh = useRef<string | null>(null);
+  const reducedMotion = usePrefersReducedMotion();
 
   const handleHoverMesh = useCallback((meshName: string | null) => {
     if (hoveredMesh.current === meshName) return;
@@ -626,7 +668,7 @@ export function AnatomyScene({
         <pointLight position={[0, 0, 5]} intensity={0.8} color="#2dd4bf" />
 
         <ResizeInvalidator />
-        <ControlsDamping />
+        <ControlsDamping reducedMotion={reducedMotion} />
         <ContextLossHandler
           onLost={onRendererUnavailable}
           onRestored={onRendererRestored}
@@ -634,7 +676,13 @@ export function AnatomyScene({
 
         <ModelErrorBoundary onError={onModelError}>
           <Suspense fallback={null}>
-            <Bounds fit clip observe margin={1.25}>
+            <Bounds
+              fit
+              clip
+              observe
+              margin={1.25}
+              interpolateFunc={reducedMotion ? instantInterpolate : undefined}
+            >
               <AnatomyModel
                 modelUrl={modelUrl}
                 selectedMeshName={selectedMeshName}
@@ -642,6 +690,7 @@ export function AnatomyScene({
                 hiddenMeshNames={hiddenMeshNames}
                 onSelectMesh={onSelectMesh}
                 onHoverMesh={handleHoverMesh}
+                reducedMotion={reducedMotion}
                 onModelReady={onModelReady}
                 onModelMeshesLoaded={onModelMeshesLoaded}
               />
@@ -652,7 +701,7 @@ export function AnatomyScene({
         <OrbitControls
           makeDefault
           enablePan={false}
-          enableDamping
+          enableDamping={!reducedMotion}
           dampingFactor={BASE_DAMPING_FACTOR}
           minDistance={0.2}
           maxDistance={14}
