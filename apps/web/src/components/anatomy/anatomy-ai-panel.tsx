@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { ANATOMY_FOCUS_RING } from "@/components/anatomy/anatomy-focus";
 import { Markdown } from "@/components/shared/markdown";
 import type {
   AnatomyQuizQuestion,
@@ -131,7 +132,7 @@ export function AnatomyAiPanel({
           type="button"
           onClick={() => void explain()}
           disabled={loading !== null}
-          className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border bg-elevated px-3 py-2 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+          className={`inline-flex min-h-11 items-center gap-2 rounded-lg border border-border bg-elevated px-3 py-2 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary disabled:cursor-not-allowed disabled:opacity-50 ${ANATOMY_FOCUS_RING}`}
         >
           {loading === "explain" ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -144,7 +145,7 @@ export function AnatomyAiPanel({
           type="button"
           onClick={() => void startQuiz()}
           disabled={loading !== null}
-          className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border bg-elevated px-3 py-2 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+          className={`inline-flex min-h-11 items-center gap-2 rounded-lg border border-border bg-elevated px-3 py-2 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary disabled:cursor-not-allowed disabled:opacity-50 ${ANATOMY_FOCUS_RING}`}
         >
           {loading === "quiz" ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -175,7 +176,7 @@ export function AnatomyAiPanel({
               {error.locked && (
                 <Link
                   href="/pricing"
-                  className="mt-2 inline-flex min-h-11 items-center font-medium text-accent underline decoration-accent/40 underline-offset-2"
+                  className={`mt-2 inline-flex min-h-11 items-center font-medium text-accent underline decoration-accent/40 underline-offset-2 ${ANATOMY_FOCUS_RING}`}
                 >
                   View subscription plans
                 </Link>
@@ -237,6 +238,7 @@ export function AnatomyAiPanel({
                           showWrong &&
                             "border-error/50 bg-error/10 text-error",
                           submitted && "cursor-default",
+                          ANATOMY_FOCUS_RING,
                         )}
                       >
                         <span className="mt-0.5 flex-shrink-0">
@@ -271,7 +273,7 @@ export function AnatomyAiPanel({
               type="button"
               onClick={() => setSubmitted(true)}
               disabled={Object.keys(answers).length !== quiz.length}
-              className="min-h-11 w-full rounded-lg bg-accent px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
+              className={`min-h-11 w-full rounded-lg bg-accent px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50 ${ANATOMY_FOCUS_RING}`}
             >
               Check answers
             </button>
@@ -284,7 +286,7 @@ export function AnatomyAiPanel({
                 type="button"
                 onClick={() => void startQuiz()}
                 disabled={loading !== null}
-                className="inline-flex min-h-11 items-center px-2 text-xs font-medium text-accent transition-colors hover:text-accent-hover disabled:opacity-50"
+                className={`inline-flex min-h-11 items-center px-2 text-xs font-medium text-accent transition-colors hover:text-accent-hover disabled:opacity-50 ${ANATOMY_FOCUS_RING}`}
               >
                 Generate another quiz
               </button>

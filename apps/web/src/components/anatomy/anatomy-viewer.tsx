@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 import { AnatomyDetailPanel } from "@/components/anatomy/anatomy-detail-panel";
+import { ANATOMY_FOCUS_RING } from "@/components/anatomy/anatomy-focus";
 import {
   isAllowedAnatomyModelUrl,
   layerLabel,
@@ -113,7 +114,7 @@ function ViewerState({
           {status === 403 && (
             <Link
               href="/pricing"
-              className="min-h-11 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
+              className={`min-h-11 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover ${ANATOMY_FOCUS_RING}`}
             >
               View plans
             </Link>
@@ -122,14 +123,14 @@ function ViewerState({
             <button
               type="button"
               onClick={onRetry}
-              className="min-h-11 rounded-lg border border-border bg-elevated px-4 py-2.5 text-sm font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
+              className={`min-h-11 rounded-lg border border-border bg-elevated px-4 py-2.5 text-sm font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary ${ANATOMY_FOCUS_RING}`}
             >
               Try again
             </button>
           )}
           <Link
             href="/anatomy"
-            className="min-h-11 rounded-lg border border-border bg-elevated px-4 py-2.5 text-sm font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
+            className={`min-h-11 rounded-lg border border-border bg-elevated px-4 py-2.5 text-sm font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary ${ANATOMY_FOCUS_RING}`}
           >
             Back to Anatomy Lab
           </Link>
@@ -241,6 +242,11 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
   const modelUrlBlocked =
     system?.modelUrl != null && !isAllowedAnatomyModelUrl(system.modelUrl);
   const sceneUnavailable = rendererUnavailable || modelUrlBlocked;
+  const sceneAriaLabel = sceneUnavailable
+    ? undefined
+    : selected
+      ? `Interactive 3D model of ${system?.name ?? "this system"}. Selected structure: ${selected.name}. Use the structure navigator for a keyboard-accessible tree of structures.`
+      : `Interactive 3D model of ${system?.name ?? "this system"}. Use the structure navigator for a keyboard-accessible tree of structures.`;
 
   // A database mesh that is absent from the loaded GLB is a content bug. Keep
   // it out of production consoles, but make it visible while developing.
@@ -341,8 +347,12 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
         aria-atomic="true"
         data-testid="anatomy-live-region"
       >
-        {selectedIsTextOnly && selected
-          ? `${selected.name}: no 3D model, notes only`
+        {selected
+          ? `${selected.name} selected. ${
+              selectedIsTextOnly || selectedMeshMissing
+                ? "No 3D model; notes only."
+                : "Shown in the 3D model."
+            }`
           : ""}
       </div>
 
@@ -351,7 +361,7 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
           <Link
             href="/anatomy"
             aria-label="Back to Anatomy Lab"
-            className="mt-0.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg border border-border bg-elevated text-secondary transition-colors hover:border-border-accent hover:text-primary"
+            className={`mt-0.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg border border-border bg-elevated text-secondary transition-colors hover:border-border-accent hover:text-primary ${ANATOMY_FOCUS_RING}`}
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>
@@ -380,7 +390,7 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
           </p>
           <Link
             href="/attribution/anatomy"
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 py-2 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
+            className={`inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 py-2 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary ${ANATOMY_FOCUS_RING}`}
           >
             <ExternalLink className="h-3.5 w-3.5" />
             Sources
@@ -394,7 +404,7 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
               setRendererUnavailable(false);
               setResetKey((key) => key + 1);
             }}
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 py-2 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
+            className={`inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 py-2 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary ${ANATOMY_FOCUS_RING}`}
           >
             <RotateCcw className="h-3.5 w-3.5" />
             Reset view
@@ -422,7 +432,7 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
                   visible
                     ? "border-accent/30 bg-accent/10 text-accent"
                     : "border-border bg-elevated text-muted hover:border-border-accent hover:text-secondary"
-                }`}
+                } ${ANATOMY_FOCUS_RING}`}
               >
                 {visible ? (
                   <Eye className="h-3 w-3" aria-hidden />
@@ -439,7 +449,7 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
           <button
             type="button"
             onClick={() => setHiddenLayers([])}
-            className="min-h-11 flex-shrink-0 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
+            className={`min-h-11 flex-shrink-0 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary ${ANATOMY_FOCUS_RING}`}
           >
             Show all
           </button>
@@ -461,11 +471,7 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
             <div
               className="absolute inset-0"
               role={sceneUnavailable ? undefined : "img"}
-              aria-label={
-                sceneUnavailable
-                  ? undefined
-                  : `Interactive 3D model of ${system.name}. Use the structure navigator for a keyboard-accessible list of structures.`
-              }
+              aria-label={sceneAriaLabel}
             >
               {!modelUrlBlocked && (
                 <AnatomyScene
@@ -513,7 +519,7 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
                         setModelMeshNames(null);
                         setModelAttempt((attempt) => attempt + 1);
                       }}
-                      className="mt-3 min-h-11 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
+                      className={`mt-3 min-h-11 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary ${ANATOMY_FOCUS_RING}`}
                     >
                       Retry model
                     </button>
@@ -542,7 +548,7 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
                         setModelMeshNames(null);
                         setModelAttempt((attempt) => attempt + 1);
                       }}
-                      className="mt-3 min-h-11 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
+                      className={`mt-3 min-h-11 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary ${ANATOMY_FOCUS_RING}`}
                     >
                       Retry 3D view
                     </button>
@@ -563,7 +569,7 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
                     </p>
                     <Link
                       href="/anatomy"
-                      className="mt-3 inline-flex min-h-11 items-center rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
+                      className={`mt-3 inline-flex min-h-11 items-center rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary ${ANATOMY_FOCUS_RING}`}
                     >
                       Back to Anatomy Lab
                     </Link>
