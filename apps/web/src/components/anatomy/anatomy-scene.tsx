@@ -1,6 +1,6 @@
 "use client";
 
-import { Component, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Component, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
@@ -25,6 +25,95 @@ interface AnatomyModelProps extends AnatomySceneProps {
 interface OrbitControlsLike {
   target: THREE.Vector3;
   update: () => void;
+  dampingFactor: number;
+}
+
+const BASE_DAMPING_FACTOR = 0.08;
+
+function applyTimeBasedDamping(
+  controls: OrbitControlsLike,
+  delta: number,
+): void {
+  const seconds = THREE.MathUtils.clamp(delta, 1 / 120, 0.1);
+  controls.dampingFactor =
+    1 - Math.pow(1 - BASE_DAMPING_FACTOR, seconds * 60);
+}
+
+/**
+ * OrbitControls damps once per rendered frame, so on a slow device the tail
+ * can keep requesting frames for tens of seconds after the user lets go. Scale
+ * the per-frame factor by elapsed time to keep the settle time consistent.
+ */
+function ControlsDamping() {
+  const controls = useThree(
+    (state) => state.controls,
+  ) as unknown as OrbitControlsLike | null;
+
+  useFrame((_, delta) => {
+    if (!controls) return;
+    applyTimeBasedDamping(controls, delta);
+  }, -2);
+
+  return null;
+}
+
+interface HighlightTransition {
+  material: THREE.MeshStandardMaterial;
+  from: number;
+  to: number;
+  baseEmissive: THREE.Color;
+  baseIntensity: number;
+  restoreOnFinish: boolean;
+}
+
+/**
+ * three.js materials are imperative objects. Mutating them from a helper (not
+ * from the component body) keeps React's immutability lint rule happy while
+ * still letting the render loop animate the highlight.
+ */
+function advanceHighlight(
+  items: HighlightTransition[],
+  eased: number,
+): void {
+  for (const item of items) {
+    item.material.emissiveIntensity = THREE.MathUtils.lerp(
+      item.from,
+      item.to,
+      eased,
+    );
+  }
+}
+
+function settleHighlight(items: HighlightTransition[]): void {
+  for (const item of items) {
+    if (item.restoreOnFinish) {
+      item.material.emissive.copy(item.baseEmissive);
+      item.material.emissiveIntensity = item.baseIntensity;
+    } else {
+      item.material.emissiveIntensity = item.to;
+    }
+  }
+}
+
+/** Every standard material attached to a mesh below `object`. */
+function collectStandardMaterials(
+  object: THREE.Object3D | null | undefined,
+): THREE.MeshStandardMaterial[] {
+  if (!object) return [];
+
+  const materials = new Set<THREE.MeshStandardMaterial>();
+  object.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    const list = Array.isArray(child.material)
+      ? child.material
+      : [child.material];
+    for (const material of list) {
+      if (material instanceof THREE.MeshStandardMaterial) {
+        materials.add(material);
+      }
+    }
+  });
+  return [...materials];
 }
 
 function AnatomyModel({
@@ -37,6 +126,7 @@ function AnatomyModel({
   onModelReady,
   onModelMeshesLoaded,
 }: AnatomyModelProps) {
+  const invalidate = useThree((state) => state.invalidate);
   const { scene } = useGLTF(modelUrl);
 
   // The loader caches scenes. Clone before changing materials so selecting one
@@ -55,8 +145,8 @@ function AnatomyModel({
       const clonedMaterials = materials.map((material) => {
         const cloned = material.clone();
         if (cloned instanceof THREE.MeshStandardMaterial) {
-          object.userData.baseEmissive = cloned.emissive.clone();
-          object.userData.baseEmissiveIntensity = cloned.emissiveIntensity;
+          cloned.userData.baseEmissive = cloned.emissive.clone();
+          cloned.userData.baseEmissiveIntensity = cloned.emissiveIntensity;
         }
         return cloned;
       });
@@ -69,7 +159,8 @@ function AnatomyModel({
 
   useEffect(() => {
     onModelReady?.();
-  }, [model, onModelReady]);
+    invalidate();
+  }, [model, onModelReady, invalidate]);
 
   useEffect(() => {
     const meshNames = new Set<string>();
@@ -85,31 +176,8 @@ function AnatomyModel({
       if (!(object instanceof THREE.Mesh)) return;
       object.visible = !hidden.has(object.name);
     });
-  }, [model, hiddenMeshNames]);
-
-  useEffect(() => {
-    model.traverse((object) => {
-      if (!(object instanceof THREE.Mesh)) return;
-      const materials = Array.isArray(object.material)
-        ? object.material
-        : [object.material];
-
-      for (const material of materials) {
-        if (!(material instanceof THREE.MeshStandardMaterial)) continue;
-        const baseEmissive = object.userData.baseEmissive as
-          | THREE.Color
-          | undefined;
-        material.emissive.copy(baseEmissive ?? new THREE.Color("#000000"));
-        material.emissiveIntensity =
-          (object.userData.baseEmissiveIntensity as number | undefined) ?? 0;
-
-        if (object.name === selectedMeshName) {
-          material.emissive.set("#2dd4bf");
-          material.emissiveIntensity = 0.55;
-        }
-      }
-    });
-  }, [model, selectedMeshName]);
+    invalidate();
+  }, [model, hiddenMeshNames, invalidate]);
 
   return (
     <>
@@ -136,6 +204,7 @@ function AnatomyModel({
         selectedMeshName={selectedMeshName}
         selectedIsTextOnly={selectedIsTextOnly}
       />
+      <SelectionHighlight model={model} selectedMeshName={selectedMeshName} />
     </>
   );
 }
@@ -159,6 +228,7 @@ function CameraFocus({
   selectedIsTextOnly: boolean;
 }) {
   const camera = useThree((state) => state.camera);
+  const invalidate = useThree((state) => state.invalidate);
   const controls = useThree(
     (state) => state.controls,
   ) as unknown as OrbitControlsLike | null;
@@ -227,7 +297,8 @@ function CameraFocus({
       toPosition: center.clone().add(direction.multiplyScalar(distance)),
       progress: 0,
     };
-  }, [selectedMeshName, selectedIsTextOnly, model, controls, camera]);
+    invalidate();
+  }, [selectedMeshName, selectedIsTextOnly, model, controls, camera, invalidate]);
 
   useFrame((_, delta) => {
     const current = animation.current;
@@ -248,8 +319,121 @@ function CameraFocus({
     );
     controls.update();
 
-    if (current.progress >= 1) animation.current = null;
+    if (current.progress >= 1) {
+      animation.current = null;
+    } else {
+      invalidate();
+    }
   });
+
+  return null;
+}
+
+/**
+ * Fade the teal emissive highlight in/out without touching every mesh on every
+ * frame. Only the materials belonging to the outgoing and incoming selection
+ * are animated, and the loop stops as soon as the fade settles.
+ */
+function SelectionHighlight({
+  model,
+  selectedMeshName,
+}: {
+  model: THREE.Object3D;
+  selectedMeshName: string | null;
+}) {
+  const invalidate = useThree((state) => state.invalidate);
+  const transition = useRef<{
+    items: HighlightTransition[];
+    progress: number;
+  } | null>(null);
+  const previousMaterials = useRef<THREE.MeshStandardMaterial[]>([]);
+
+  useEffect(() => {
+    previousMaterials.current = [];
+    transition.current = null;
+  }, [model]);
+
+  useEffect(() => {
+    const target = selectedMeshName
+      ? model.getObjectByName(selectedMeshName)
+      : null;
+    const nextMaterials = collectStandardMaterials(target);
+    const nextSet = new Set(nextMaterials);
+    const items: HighlightTransition[] = [];
+
+    for (const material of previousMaterials.current) {
+      if (nextSet.has(material)) continue;
+      items.push({
+        material,
+        from: material.emissiveIntensity,
+        to: 0,
+        baseEmissive:
+          (material.userData.baseEmissive as THREE.Color | undefined)?.clone() ??
+          new THREE.Color("#000000"),
+        baseIntensity:
+          (material.userData.baseEmissiveIntensity as number | undefined) ?? 0,
+        restoreOnFinish: true,
+      });
+    }
+
+    for (const material of nextMaterials) {
+      material.emissive.set("#2dd4bf");
+      items.push({
+        material,
+        from: material.emissiveIntensity,
+        to: 0.55,
+        baseEmissive:
+          (material.userData.baseEmissive as THREE.Color | undefined)?.clone() ??
+          new THREE.Color("#000000"),
+        baseIntensity:
+          (material.userData.baseEmissiveIntensity as number | undefined) ?? 0,
+        restoreOnFinish: false,
+      });
+    }
+
+    previousMaterials.current = nextMaterials;
+
+    if (items.length === 0) {
+      transition.current = null;
+      return;
+    }
+
+    transition.current = { items, progress: 0 };
+    invalidate();
+  }, [model, selectedMeshName, invalidate]);
+
+  useFrame((_, delta) => {
+    const current = transition.current;
+    if (!current) return;
+
+    current.progress = Math.min(1, current.progress + delta / 0.18);
+    const eased = 1 - Math.pow(1 - current.progress, 3);
+
+    advanceHighlight(current.items, eased);
+
+    if (current.progress >= 1) {
+      settleHighlight(current.items);
+      transition.current = null;
+    } else {
+      invalidate();
+    }
+  });
+
+  return null;
+}
+
+/**
+ * R3F resizes the canvas itself, but an explicit invalidation guarantees a
+ * demand-mode render after the container (for example the mobile viewport)
+ * changes size.
+ */
+function ResizeInvalidator() {
+  const size = useThree((state) => state.size);
+  const invalidate = useThree((state) => state.invalidate);
+
+  useEffect(() => {
+    invalidate();
+  }, [size.width, size.height, invalidate]);
 
   return null;
 }
@@ -334,22 +518,27 @@ export function AnatomyScene({
   onModelError,
   onRendererUnavailable,
 }: AnatomySceneProps) {
-  const [hoveredMesh, setHoveredMesh] = useState<string | null>(null);
   // The scene is client-only, so the probe can run during the first render.
   const [webglSupported] = useState<boolean | null>(() =>
     typeof document === "undefined" ? null : canCreateWebGLContext(),
   );
+  const hoveredMesh = useRef<string | null>(null);
+
+  const handleHoverMesh = useCallback((meshName: string | null) => {
+    if (hoveredMesh.current === meshName) return;
+    hoveredMesh.current = meshName;
+    document.body.style.cursor = meshName ? "pointer" : "auto";
+  }, []);
 
   useEffect(() => {
     if (webglSupported === false) onRendererUnavailable?.();
   }, [webglSupported, onRendererUnavailable]);
 
   useEffect(() => {
-    document.body.style.cursor = hoveredMesh ? "pointer" : "auto";
     return () => {
       document.body.style.cursor = "auto";
     };
-  }, [hoveredMesh]);
+  }, []);
 
   // Wait for the capability check so the Canvas is never mounted in a browser
   // that cannot create a WebGL context.
@@ -358,7 +547,7 @@ export function AnatomyScene({
   return (
     <SceneErrorBoundary onError={onRendererUnavailable}>
       <Canvas
-        frameloop="always"
+        frameloop="demand"
         camera={{ position: [0, 0, 7], fov: 45, near: 0.01, far: 100 }}
         dpr={[1, 2]}
         gl={{ antialias: true, alpha: true }}
@@ -370,6 +559,9 @@ export function AnatomyScene({
         <directionalLight position={[-4, -2, -6]} intensity={0.7} />
         <pointLight position={[0, 0, 5]} intensity={0.8} color="#2dd4bf" />
 
+        <ResizeInvalidator />
+        <ControlsDamping />
+
         <ModelErrorBoundary onError={onModelError}>
           <Suspense fallback={null}>
             <Bounds fit clip observe margin={1.25}>
@@ -379,7 +571,7 @@ export function AnatomyScene({
                 selectedIsTextOnly={selectedIsTextOnly}
                 hiddenMeshNames={hiddenMeshNames}
                 onSelectMesh={onSelectMesh}
-                onHoverMesh={setHoveredMesh}
+                onHoverMesh={handleHoverMesh}
                 onModelReady={onModelReady}
                 onModelMeshesLoaded={onModelMeshesLoaded}
               />
@@ -391,7 +583,7 @@ export function AnatomyScene({
           makeDefault
           enablePan={false}
           enableDamping
-          dampingFactor={0.08}
+          dampingFactor={BASE_DAMPING_FACTOR}
           minDistance={0.2}
           maxDistance={14}
         />
