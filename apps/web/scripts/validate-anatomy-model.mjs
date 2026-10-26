@@ -3,11 +3,12 @@
  * Validate an Anatomy Lab model against its provenance manifest.
  *
  *   npm run validate:anatomy-model --workspace=apps/web
+ *   node scripts/validate-anatomy-model.mjs --system urinary
  *
- * By default this checks the live v2 asset. Pass a GLB and manifest pair to
- * validate a candidate release without touching the live model:
+ * By default this checks the live heart v2 asset. Pass a GLB and manifest pair
+ * to validate a candidate release without touching the live model:
  *
- *   node scripts/validate-anatomy-model.mjs \
+ *   node scripts/validate-anatomy-model.mjs --system urinary \
  *     --glb path/to/candidate.glb \
  *     --manifest path/to/candidate.manifest.json
  *
@@ -25,6 +26,7 @@ const modelDir = resolve(scriptDir, "../public/models/anatomy");
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_TRIANGLES = 150_000;
+const SYSTEMS = new Set(["heart", "urinary"]);
 
 const failures = [];
 
@@ -32,28 +34,47 @@ function check(condition, message) {
   if (!condition) failures.push(message);
 }
 
+function defaultAssets(system) {
+  return system === "urinary"
+    ? {
+        glb: join(modelDir, "urinary.v1.glb"),
+        manifest: join(modelDir, "urinary.v1.manifest.json"),
+      }
+    : {
+        glb: join(modelDir, "heart.v2.glb"),
+        manifest: join(modelDir, "manifest.json"),
+      };
+}
+
 function parseArgs(argv) {
-  const args = {
-    glb: join(modelDir, "heart.v2.glb"),
-    manifest: join(modelDir, "manifest.json"),
-  };
+  const args = { system: "heart", glb: null, manifest: null };
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg === "--glb") args.glb = resolve(argv[++i]);
+    if (arg === "--system") args.system = argv[++i];
+    else if (arg === "--glb") args.glb = resolve(argv[++i]);
     else if (arg === "--manifest") args.manifest = resolve(argv[++i]);
     else if (arg === "--help" || arg === "-h") args.help = true;
     else throw new Error(`Unknown argument: ${arg}`);
   }
 
+  if (!SYSTEMS.has(args.system)) {
+    throw new Error(
+      `Unknown system "${args.system}". Expected one of: ${[...SYSTEMS].join(", ")}`,
+    );
+  }
+
+  const defaults = defaultAssets(args.system);
+  args.glb = args.glb ?? defaults.glb;
+  args.manifest = args.manifest ?? defaults.manifest;
   return args;
 }
 
 function usage() {
   return [
-    "Usage: node scripts/validate-anatomy-model.mjs [--glb <path>] [--manifest <path>]",
+    "Usage: node scripts/validate-anatomy-model.mjs [--system heart|urinary] [--glb <path>] [--manifest <path>]",
     "",
-    "Defaults to the live v2 asset and manifest.",
+    "Defaults to the live heart v2 asset. --system urinary checks urinary.v1.",
   ].join("\n");
 }
 
@@ -87,7 +108,80 @@ function parseGlb(buffer) {
     return null;
   }
 
-  return json;
+  const binHeaderOffset = 20 + jsonLength;
+  if (binHeaderOffset + 8 > buffer.byteLength) {
+    failures.push("GLB has no BIN chunk header");
+    return { json, bin: null };
+  }
+  const binLength = buffer.readUInt32LE(binHeaderOffset);
+  const binType = buffer.readUInt32LE(binHeaderOffset + 4);
+  check(binType === 0x004e4942, "Second GLB chunk is not BIN");
+  check(
+    binHeaderOffset + 8 + binLength <= buffer.byteLength,
+    "GLB BIN chunk runs past the end of the file",
+  );
+
+  return {
+    json,
+    bin: buffer.subarray(
+      binHeaderOffset + 8,
+      Math.min(binHeaderOffset + 8 + binLength, buffer.byteLength),
+    ),
+  };
+}
+
+function readAccessor(glb, index) {
+  const accessor = glb.json.accessors?.[index];
+  if (!accessor) return null;
+  const view = glb.json.bufferViews?.[accessor.bufferView];
+  if (!view || !glb.bin) return null;
+
+  const componentSizes = { 5123: 2, 5125: 4, 5126: 4 };
+  const componentCounts = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 };
+  const componentSize = componentSizes[accessor.componentType];
+  const componentCount = componentCounts[accessor.type];
+  if (!componentSize || !componentCount) return null;
+
+  const byteOffset = (view.byteOffset ?? 0) + (accessor.byteOffset ?? 0);
+  const length = accessor.count * componentCount;
+  if (byteOffset + length * componentSize > glb.bin.byteLength) {
+    failures.push(`Accessor ${index} runs past the end of the BIN chunk`);
+    return null;
+  }
+
+  if (accessor.componentType === 5126) {
+    return new Float32Array(
+      glb.bin.buffer,
+      glb.bin.byteOffset + byteOffset,
+      length,
+    );
+  }
+  if (accessor.componentType === 5123) {
+    return new Uint16Array(
+      glb.bin.buffer,
+      glb.bin.byteOffset + byteOffset,
+      length,
+    );
+  }
+  return new Uint32Array(
+    glb.bin.buffer,
+    glb.bin.byteOffset + byteOffset,
+    length,
+  );
+}
+
+function nodeCentroidX(glb, nodeName) {
+  const node = glb.json.nodes?.find((item) => item.name === nodeName);
+  if (!node) return null;
+  const mesh = glb.json.meshes?.[node.mesh];
+  const primitive = mesh?.primitives?.[0];
+  if (!primitive) return null;
+  const positions = readAccessor(glb, primitive.attributes?.POSITION);
+  if (!positions || positions.length === 0) return null;
+
+  let sum = 0;
+  for (let i = 0; i < positions.length; i += 3) sum += positions[i];
+  return sum / (positions.length / 3);
 }
 
 function isFiniteVector(value, length) {
@@ -117,18 +211,22 @@ function main() {
 
   const glb = readFileSync(args.glb);
   const manifest = JSON.parse(readFileSync(args.manifest, "utf8"));
-  const json = parseGlb(glb);
-  if (!json) {
+  const parsedGlb = parseGlb(glb);
+  if (!parsedGlb) {
     report();
     return;
   }
+  const { json } = parsedGlb;
 
   const isV2 = manifest.schemaVersion === 2;
   check(
     manifest.schemaVersion === 1 || isV2,
     "Manifest schemaVersion must be 1 or 2",
   );
-  check(manifest.system === "heart", "Manifest system must be heart");
+  check(
+    manifest.system === args.system,
+    `Manifest system "${manifest.system}" does not match --system ${args.system}`,
+  );
   check(manifest.model, "Manifest is missing model metadata");
   check(
     manifest.model?.file === basename(args.glb),
@@ -154,6 +252,63 @@ function main() {
     json.asset?.extras?.license?.notice?.includes("BodyParts3D"),
     "GLB asset extras must record the BodyParts3D credit",
   );
+  check(
+    typeof json.asset?.copyright === "string" &&
+      json.asset.copyright.includes("BodyParts3D") &&
+      json.asset.copyright.includes("CC BY-SA 2.1 Japan"),
+    "GLB asset copyright must record the BodyParts3D credit and both licence statements",
+  );
+  check(
+    JSON.stringify(json.asset?.extras?.license) ===
+      JSON.stringify(manifest.license),
+    "GLB asset extras.license must match the manifest licence object",
+  );
+  const publicJson = JSON.stringify({ manifest, asset: json.asset });
+  check(
+    !publicJson.includes("commercialRelease"),
+    "Public anatomy metadata must not contain commercialRelease",
+  );
+  check(
+    !publicJson.toLowerCase().includes("development asset"),
+    'Public anatomy metadata must not contain "development asset"',
+  );
+
+  if (args.system === "urinary") {
+    check(
+      manifest.transform?.scale === 0.001,
+      "Urinary manifest transform.scale must be 0.001",
+    );
+    check(
+      isFiniteVector(manifest.transform?.offsetMetres, 3),
+      "Urinary manifest transform.offsetMetres must be a finite 3-vector",
+    );
+    check(
+      manifest.transform?.offsetConvention ===
+        "bodyPosition = modelPosition + offsetMetres",
+      "Urinary manifest must record the offset convention",
+    );
+    check(
+      Array.isArray(json.asset?.extras?.adaptations) &&
+        json.asset.extras.adaptations.length > 0,
+      "Urinary GLB asset extras must record the urinary adaptations",
+    );
+
+    const heartPath = join(modelDir, "heart.v2.glb");
+    if (existsSync(heartPath)) {
+      const heart = parseGlb(readFileSync(heartPath));
+      if (heart) {
+        check(
+          json.asset?.copyright === heart.json.asset?.copyright,
+          "Urinary asset.copyright must use the same wording as heart.v2.glb",
+        );
+        check(
+          JSON.stringify(json.asset?.extras?.license) ===
+            JSON.stringify(heart.json.asset?.extras?.license),
+          "Urinary asset.extras.license must use the same wording as heart.v2.glb",
+        );
+      }
+    }
+  }
   check(json.scene === 0, "GLB must declare scene 0");
   check(
     Array.isArray(json.scenes) && json.scenes.length === 1,
@@ -303,6 +458,14 @@ function main() {
           `Text-only structure "${item.slug}" must not have a GLB node named "${item.legacyMeshName}"`,
         );
       }
+      check(
+        !nodeNames.includes(item.slug),
+        `Text-only structure "${item.slug}" must not have a GLB node with the slug as its name`,
+      );
+      check(
+        !nodeNames.includes(item.slug.replace(/-/g, "_")),
+        `Text-only structure "${item.slug}" must not have a GLB node named "${item.slug.replace(/-/g, "_")}"`,
+      );
     }
 
     for (const structure of manifestStructures) {
@@ -310,6 +473,130 @@ function main() {
         check(
           sourceTrees.has(file.archive),
           `Source file ${file.id} references undeclared archive ${file.archive}`,
+        );
+      }
+    }
+  }
+
+  if (args.system === "urinary") {
+    const textOnly = manifest.textOnly ?? [];
+    check(
+      manifestStructures.length === 10,
+      `Urinary manifest must list 10 mesh structures, found ${manifestStructures.length}`,
+    );
+    check(
+      textOnly.length === 5,
+      `Urinary manifest must list 5 text-only structures, found ${textOnly.length}`,
+    );
+    check(
+      manifest.model?.totalStructures === 15,
+      "Urinary manifest must record 15 total structures",
+    );
+
+    const expectedSharedFiles = new Map([
+      ["right-renal-artery", 1],
+      ["left-renal-artery", 1],
+      ["right-renal-vein", 2],
+      ["left-renal-vein", 2],
+    ]);
+    const sharedStructures = manifest.sharedStructures ?? [];
+    check(
+      sharedStructures.length === expectedSharedFiles.size,
+      `Urinary manifest must record ${expectedSharedFiles.size} shared structures`,
+    );
+    for (const [slug, fileCount] of expectedSharedFiles) {
+      const structure = manifestStructures.find((item) => item.slug === slug);
+      check(
+        Boolean(structure),
+        `Urinary manifest is missing shared structure "${slug}"`,
+      );
+      if (!structure) continue;
+      check(
+        Array.isArray(structure.sharedWith) &&
+          structure.sharedWith.includes("cardiovascular"),
+        `Shared structure "${slug}" must be marked sharedWith cardiovascular`,
+      );
+      check(
+        structure.canonicalOwner === "cardiovascular",
+        `Shared structure "${slug}" must keep cardiovascular as canonicalOwner`,
+      );
+      check(
+        Array.isArray(structure.files) && structure.files.length === fileCount,
+        `Shared structure "${slug}" must record ${fileCount} source element IDs`,
+      );
+    }
+
+    const orientation = manifest.orientation;
+    const outputAxis = orientation?.outputFrame?.patientLeftAxis;
+    const sourceAxis = orientation?.sourceFrame?.patientLeftAxis;
+    check(
+      outputAxis === "+X" || outputAxis === "-X",
+      "Urinary manifest must record the output patient-left X axis",
+    );
+    check(
+      sourceAxis === "+X" || sourceAxis === "-X",
+      "Urinary manifest must record the source patient-left X axis",
+    );
+    check(
+      sourceAxis === outputAxis,
+      "Urinary source and output frames must agree on the patient-left axis",
+    );
+    check(
+      manifest.checks?.orientationVerified === true,
+      "Urinary manifest must confirm the orientation check passed",
+    );
+
+    const orientationChecks = orientation?.checks ?? [];
+    const requiredPairs = [
+      ["left_kidney", "right_kidney"],
+      ["left_ureter", "right_ureter"],
+    ];
+    for (const [left, right] of requiredPairs) {
+      check(
+        orientationChecks.some(
+          (item) => item.left === left && item.right === right,
+        ),
+        `Urinary orientation checks must include ${left}/${right}`,
+      );
+    }
+
+    const outputSign = outputAxis === "+X" ? 1 : outputAxis === "-X" ? -1 : 0;
+    const sourceSign = sourceAxis === "+X" ? 1 : sourceAxis === "-X" ? -1 : 0;
+    for (const pair of orientationChecks) {
+      const leftX = nodeCentroidX(parsedGlb, pair.left);
+      const rightX = nodeCentroidX(parsedGlb, pair.right);
+      check(
+        Number.isFinite(leftX) && Number.isFinite(rightX),
+        `Cannot read centroids for orientation pair ${pair.left}/${pair.right}`,
+      );
+      if (Number.isFinite(leftX) && Number.isFinite(rightX) && outputSign) {
+        check(
+          outputSign * (leftX - rightX) > 0,
+          `Left/right swap detected for ${pair.left}/${pair.right} in the output GLB`,
+        );
+        const recordedLeft = orientation?.outputFrame?.centroidX?.[pair.left];
+        const recordedRight = orientation?.outputFrame?.centroidX?.[pair.right];
+        check(
+          Math.abs(leftX - recordedLeft) < 1e-5 &&
+            Math.abs(rightX - recordedRight) < 1e-5,
+          `Recorded output centroid X does not match the GLB for ${pair.left}/${pair.right}`,
+        );
+      }
+
+      const sourceLeft = orientation?.sourceFrame?.centroidX?.[pair.left];
+      const sourceRight = orientation?.sourceFrame?.centroidX?.[pair.right];
+      check(
+        Number.isFinite(sourceLeft) && Number.isFinite(sourceRight),
+        `Urinary manifest is missing source centroids for ${pair.left}/${pair.right}`,
+      );
+      if (
+        Number.isFinite(sourceLeft) &&
+        Number.isFinite(sourceRight) &&
+        sourceSign
+      ) {
+        check(
+          sourceSign * (sourceLeft - sourceRight) > 0,
+          `Left/right swap detected for ${pair.left}/${pair.right} in the source frame`,
         );
       }
     }
