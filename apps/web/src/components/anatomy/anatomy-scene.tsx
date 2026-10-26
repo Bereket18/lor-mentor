@@ -34,6 +34,7 @@ interface OrbitControlsLike {
   target: THREE.Vector3;
   update: () => void;
   dampingFactor: number;
+  domElement: HTMLElement;
 }
 
 const BASE_DAMPING_FACTOR = 0.08;
@@ -63,6 +64,45 @@ function ControlsDamping({ reducedMotion }: { reducedMotion: boolean }) {
     if (!controls || reducedMotion) return;
     applyTimeBasedDamping(controls, delta);
   }, -2);
+
+  return null;
+}
+
+/**
+ * OrbitControls sets `touch-action: none` on the canvas so a drag always
+ * rotates. On phones that traps the page at the 3D viewport: the structure
+ * notes below the canvas are unreachable by swiping. Allow vertical panning
+ * so a vertical swipe scrolls the page, while horizontal drags still rotate.
+ */
+function TouchScrollHandler() {
+  const gl = useThree((state) => state.gl);
+  const controls = useThree(
+    (state) => state.controls,
+  ) as unknown as OrbitControlsLike | null;
+
+  useEffect(() => {
+    const canvas = gl.domElement;
+    // R3F wraps the canvas in two divs; OrbitControls disables touch scrolling
+    // on the canvas and on the outer wrapper, so both need to allow pan-y.
+    const wrapper = canvas.parentElement?.parentElement ?? null;
+    const elements = Array.from(
+      new Set(
+        [controls?.domElement, canvas, wrapper].filter(
+          (element): element is HTMLElement => Boolean(element),
+        ),
+      ),
+    );
+    const previous = elements.map((element) => element.style.touchAction);
+    const frame = requestAnimationFrame(() => {
+      for (const element of elements) element.style.touchAction = "pan-y";
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      elements.forEach((element, index) => {
+        element.style.touchAction = previous[index] ?? "";
+      });
+    };
+  }, [controls, gl]);
 
   return null;
 }
@@ -660,7 +700,7 @@ export function AnatomyScene({
         dpr={[1, 2]}
         gl={{ antialias: true, alpha: true }}
         onPointerMissed={() => onSelectMesh(null)}
-        style={{ touchAction: "none" }}
+        style={{ touchAction: "pan-y" }}
       >
         <ambientLight intensity={1.1} />
         <directionalLight position={[4, 6, 8]} intensity={2.2} />
@@ -668,6 +708,7 @@ export function AnatomyScene({
         <pointLight position={[0, 0, 5]} intensity={0.8} color="#2dd4bf" />
 
         <ResizeInvalidator />
+        <TouchScrollHandler />
         <ControlsDamping reducedMotion={reducedMotion} />
         <ContextLossHandler
           onLost={onRendererUnavailable}
