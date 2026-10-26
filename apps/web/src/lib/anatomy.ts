@@ -57,3 +57,17 @@ export function matchesStructureQuery(
     layerLabel(structure.layer),
   ].some((field) => field?.toLowerCase().includes(value));
 }
+
+/**
+ * Only root-relative anatomy GLB paths may reach the loader. Reject absolute
+ * URLs, protocol-relative URLs, path traversal, encoded segments, and other
+ * file types so a bad API response cannot make the browser fetch an arbitrary
+ * resource. The optional retry query is the one the viewer adds to bypass the
+ * GLTF cache after a failed load.
+ */
+const ANATOMY_MODEL_URL =
+  /^\/models\/anatomy\/[a-zA-Z0-9_-]+(?:\.[a-zA-Z0-9_-]+)*\.glb(?:\?retry=\d+)?$/;
+
+export function isAllowedAnatomyModelUrl(value: string): boolean {
+  return ANATOMY_MODEL_URL.test(value);
+}

@@ -15,10 +15,15 @@ import {
   RotateCcw,
   Scan,
   SearchX,
+  ShieldAlert,
 } from "lucide-react";
 import api from "@/lib/api";
 import { AnatomyDetailPanel } from "@/components/anatomy/anatomy-detail-panel";
-import { layerLabel, orderedLayers } from "@/lib/anatomy";
+import {
+  isAllowedAnatomyModelUrl,
+  layerLabel,
+  orderedLayers,
+} from "@/lib/anatomy";
 import type { AnatomySystemDetail } from "@/types/anatomy";
 
 const AnatomyScene = dynamic(
@@ -233,6 +238,9 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
     selected?.meshName != null &&
     modelMeshNames !== null &&
     !modelMeshNames.includes(selected.meshName);
+  const modelUrlBlocked =
+    system?.modelUrl != null && !isAllowedAnatomyModelUrl(system.modelUrl);
+  const sceneUnavailable = rendererUnavailable || modelUrlBlocked;
 
   // A database mesh that is absent from the loaded GLB is a content bug. Keep
   // it out of production consoles, but make it visible while developing.
@@ -452,31 +460,33 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
           {system.modelUrl ? (
             <div
               className="absolute inset-0"
-              role={rendererUnavailable ? undefined : "img"}
+              role={sceneUnavailable ? undefined : "img"}
               aria-label={
-                rendererUnavailable
+                sceneUnavailable
                   ? undefined
                   : `Interactive 3D model of ${system.name}. Use the structure navigator for a keyboard-accessible list of structures.`
               }
             >
-              <AnatomyScene
-                key={`${resetKey}-${modelAttempt}`}
-                modelUrl={
-                  modelAttempt === 0
-                    ? system.modelUrl
-                    : `${system.modelUrl}?retry=${modelAttempt}`
-                }
-                selectedMeshName={selected?.meshName ?? null}
-                selectedIsTextOnly={selectedIsTextOnly}
-                hiddenMeshNames={hiddenMeshNames}
-                onSelectMesh={selectMesh}
-                onModelReady={handleModelReady}
-                onModelMeshesLoaded={handleModelMeshesLoaded}
-                onModelError={handleModelError}
-                onRendererUnavailable={handleRendererUnavailable}
-                onRendererRestored={handleRendererRestored}
-              />
-              {!rendererUnavailable && !modelReady && !modelError && (
+              {!modelUrlBlocked && (
+                <AnatomyScene
+                  key={`${resetKey}-${modelAttempt}`}
+                  modelUrl={
+                    modelAttempt === 0
+                      ? system.modelUrl
+                      : `${system.modelUrl}?retry=${modelAttempt}`
+                  }
+                  selectedMeshName={selected?.meshName ?? null}
+                  selectedIsTextOnly={selectedIsTextOnly}
+                  hiddenMeshNames={hiddenMeshNames}
+                  onSelectMesh={selectMesh}
+                  onModelReady={handleModelReady}
+                  onModelMeshesLoaded={handleModelMeshesLoaded}
+                  onModelError={handleModelError}
+                  onRendererUnavailable={handleRendererUnavailable}
+                  onRendererRestored={handleRendererRestored}
+                />
+              )}
+              {!modelUrlBlocked && !rendererUnavailable && !modelReady && !modelError && (
                 <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
                   <div className="flex items-center gap-2 rounded-full border border-border bg-elevated/90 px-4 py-2 text-xs text-secondary shadow-card backdrop-blur">
                     <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />
@@ -484,7 +494,7 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
                   </div>
                 </div>
               )}
-              {!rendererUnavailable && modelError && (
+              {!modelUrlBlocked && !rendererUnavailable && modelError && (
                 <div className="absolute inset-0 z-10 flex items-center justify-center p-6">
                   <div className="max-w-sm rounded-xl border border-warning/30 bg-elevated/95 p-5 text-center backdrop-blur">
                     <SearchX className="mx-auto mb-2 h-7 w-7 text-warning" />
@@ -536,6 +546,27 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
                     >
                       Retry 3D view
                     </button>
+                  </div>
+                </div>
+              )}
+              {modelUrlBlocked && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center p-6">
+                  <div className="max-w-sm rounded-xl border border-warning/30 bg-elevated/95 p-5 text-center backdrop-blur">
+                    <ShieldAlert className="mx-auto mb-2 h-7 w-7 text-warning" />
+                    <p className="text-sm font-medium text-primary">
+                      3D model blocked
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed text-secondary">
+                      This system points to a model that is not an allowed
+                      same-origin anatomy file. The written structure notes are
+                      still available in the navigator.
+                    </p>
+                    <Link
+                      href="/anatomy"
+                      className="mt-3 inline-flex min-h-11 items-center rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
+                    >
+                      Back to Anatomy Lab
+                    </Link>
                   </div>
                 </div>
               )}

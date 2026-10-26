@@ -9,6 +9,7 @@ import {
   cloneAnatomyModel,
   disposeModel,
 } from "@/components/anatomy/anatomy-model-resources";
+import { isAllowedAnatomyModelUrl } from "@/lib/anatomy";
 
 interface AnatomySceneProps {
   modelUrl: string;
@@ -590,6 +591,20 @@ export function AnatomyScene({
       document.body.style.cursor = "auto";
     };
   }, []);
+
+  const modelUrlAllowed = isAllowedAnatomyModelUrl(modelUrl);
+
+  useEffect(() => {
+    if (!modelUrlAllowed) {
+      onModelError?.(
+        "The 3D model URL is not an allowed same-origin anatomy file.",
+      );
+    }
+  }, [modelUrlAllowed, onModelError]);
+
+  // Refuse an unsafe URL before useGLTF is mounted, even if a caller bypasses
+  // the viewer's own check.
+  if (!modelUrlAllowed) return null;
 
   // Wait for the capability check so the Canvas is never mounted in a browser
   // that cannot create a WebGL context.
