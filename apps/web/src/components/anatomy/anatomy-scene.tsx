@@ -5,6 +5,10 @@ import type { ReactNode } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Bounds, OrbitControls, useGLTF } from "@react-three/drei";
+import {
+  cloneAnatomyModel,
+  disposeModel,
+} from "@/components/anatomy/anatomy-model-resources";
 
 interface AnatomySceneProps {
   modelUrl: string;
@@ -116,6 +120,27 @@ function collectStandardMaterials(
   return [...materials];
 }
 
+const pendingDisposals = new WeakMap<
+  THREE.Object3D,
+  ReturnType<typeof setTimeout>
+>();
+
+function cancelModelDisposal(model: THREE.Object3D): void {
+  const pending = pendingDisposals.get(model);
+  if (!pending) return;
+  clearTimeout(pending);
+  pendingDisposals.delete(model);
+}
+
+function scheduleModelDisposal(model: THREE.Object3D): void {
+  cancelModelDisposal(model);
+  const timer = setTimeout(() => {
+    pendingDisposals.delete(model);
+    disposeModel(model);
+  }, 0);
+  pendingDisposals.set(model, timer);
+}
+
 function AnatomyModel({
   modelUrl,
   selectedMeshName,
@@ -131,31 +156,15 @@ function AnatomyModel({
 
   // The loader caches scenes. Clone before changing materials so selecting one
   // mesh never leaks into another viewer or a later mount.
-  const model = useMemo(() => {
-    const clone = scene.clone(true);
-    clone.traverse((object) => {
-      if (!(object instanceof THREE.Mesh)) return;
+  const model = useMemo(() => cloneAnatomyModel(scene), [scene]);
 
-      object.castShadow = true;
-      object.receiveShadow = true;
-
-      const materials = Array.isArray(object.material)
-        ? object.material
-        : [object.material];
-      const clonedMaterials = materials.map((material) => {
-        const cloned = material.clone();
-        if (cloned instanceof THREE.MeshStandardMaterial) {
-          cloned.userData.baseEmissive = cloned.emissive.clone();
-          cloned.userData.baseEmissiveIntensity = cloned.emissiveIntensity;
-        }
-        return cloned;
-      });
-      object.material = Array.isArray(object.material)
-        ? clonedMaterials
-        : clonedMaterials[0];
-    });
-    return clone;
-  }, [scene]);
+  // Dispose only when the model is really gone. StrictMode unmounts and
+  // remounts effects in development, so the disposal is deferred one tick and
+  // cancelled by the remount.
+  useEffect(() => {
+    cancelModelDisposal(model);
+    return () => scheduleModelDisposal(model);
+  }, [model]);
 
   useEffect(() => {
     onModelReady?.();
