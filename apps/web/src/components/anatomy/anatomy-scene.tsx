@@ -20,6 +20,7 @@ interface AnatomySceneProps {
   onModelMeshesLoaded?: (meshNames: string[]) => void;
   onModelError?: (message: string) => void;
   onRendererUnavailable?: () => void;
+  onRendererRestored?: () => void;
 }
 
 interface AnatomyModelProps extends AnatomySceneProps {
@@ -57,6 +58,46 @@ function ControlsDamping() {
     if (!controls) return;
     applyTimeBasedDamping(controls, delta);
   }, -2);
+
+  return null;
+}
+
+/**
+ * A lost WebGL context (driver reset, GPU process crash, tab suspended) is
+ * recoverable. Preventing the default lets the browser restore it; the parent
+ * shows the existing "3D view unavailable" overlay in the meantime and clears
+ * it when the context comes back.
+ */
+function ContextLossHandler({
+  onLost,
+  onRestored,
+}: {
+  onLost?: () => void;
+  onRestored?: () => void;
+}) {
+  const gl = useThree((state) => state.gl);
+  const invalidate = useThree((state) => state.invalidate);
+
+  useEffect(() => {
+    const canvas = gl.domElement;
+
+    const handleLost = (event: Event) => {
+      event.preventDefault();
+      onLost?.();
+    };
+    const handleRestored = () => {
+      onRestored?.();
+      invalidate();
+    };
+
+    canvas.addEventListener("webglcontextlost", handleLost);
+    canvas.addEventListener("webglcontextrestored", handleRestored);
+
+    return () => {
+      canvas.removeEventListener("webglcontextlost", handleLost);
+      canvas.removeEventListener("webglcontextrestored", handleRestored);
+    };
+  }, [gl, onLost, onRestored, invalidate]);
 
   return null;
 }
@@ -526,6 +567,7 @@ export function AnatomyScene({
   onModelMeshesLoaded,
   onModelError,
   onRendererUnavailable,
+  onRendererRestored,
 }: AnatomySceneProps) {
   // The scene is client-only, so the probe can run during the first render.
   const [webglSupported] = useState<boolean | null>(() =>
@@ -570,6 +612,10 @@ export function AnatomyScene({
 
         <ResizeInvalidator />
         <ControlsDamping />
+        <ContextLossHandler
+          onLost={onRendererUnavailable}
+          onRestored={onRendererRestored}
+        />
 
         <ModelErrorBoundary onError={onModelError}>
           <Suspense fallback={null}>

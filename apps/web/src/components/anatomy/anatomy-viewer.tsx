@@ -163,10 +163,11 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
     setModelError(message);
   }, []);
   const handleRendererUnavailable = useCallback(() => {
-    setModelReady(false);
-    setModelMeshNames(null);
     setModelError(null);
     setRendererUnavailable(true);
+  }, []);
+  const handleRendererRestored = useCallback(() => {
+    setRendererUnavailable(false);
   }, []);
 
   useEffect(() => {
@@ -458,18 +459,69 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
                   : `Interactive 3D model of ${system.name}. Use the structure navigator for a keyboard-accessible list of structures.`
               }
             >
-              {rendererUnavailable ? (
-                <div className="absolute inset-0 flex items-center justify-center p-6">
+              <AnatomyScene
+                key={`${resetKey}-${modelAttempt}`}
+                modelUrl={
+                  modelAttempt === 0
+                    ? system.modelUrl
+                    : `${system.modelUrl}?retry=${modelAttempt}`
+                }
+                selectedMeshName={selected?.meshName ?? null}
+                selectedIsTextOnly={selectedIsTextOnly}
+                hiddenMeshNames={hiddenMeshNames}
+                onSelectMesh={selectMesh}
+                onModelReady={handleModelReady}
+                onModelMeshesLoaded={handleModelMeshesLoaded}
+                onModelError={handleModelError}
+                onRendererUnavailable={handleRendererUnavailable}
+                onRendererRestored={handleRendererRestored}
+              />
+              {!rendererUnavailable && !modelReady && !modelError && (
+                <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+                  <div className="flex items-center gap-2 rounded-full border border-border bg-elevated/90 px-4 py-2 text-xs text-secondary shadow-card backdrop-blur">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />
+                    Loading 3D model…
+                  </div>
+                </div>
+              )}
+              {!rendererUnavailable && modelError && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center p-6">
+                  <div className="max-w-sm rounded-xl border border-warning/30 bg-elevated/95 p-5 text-center backdrop-blur">
+                    <SearchX className="mx-auto mb-2 h-7 w-7 text-warning" />
+                    <p className="text-sm font-medium text-primary">
+                      3D model could not load
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed text-secondary">
+                      The written structure notes are still available in the
+                      navigator. Check your connection and try again.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModelError(null);
+                        setModelReady(false);
+                        setModelMeshNames(null);
+                        setModelAttempt((attempt) => attempt + 1);
+                      }}
+                      className="mt-3 min-h-11 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
+                    >
+                      Retry model
+                    </button>
+                  </div>
+                </div>
+              )}
+              {rendererUnavailable && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center p-6">
                   <div className="max-w-sm rounded-xl border border-border bg-elevated/95 p-5 text-center backdrop-blur">
                     <Scan className="mx-auto mb-2 h-7 w-7 text-warning" />
                     <p className="text-sm font-medium text-primary">
                       3D view unavailable
                     </p>
                     <p className="mt-1 text-xs leading-relaxed text-secondary">
-                      This browser could not start WebGL, which the interactive
-                      model needs. The written structure notes are still
-                      available in the navigator. Enable hardware acceleration
-                      or open the lab in another browser, then retry.
+                      The 3D renderer was interrupted or could not start. The
+                      written structure notes are still available in the
+                      navigator. Retry, or enable hardware acceleration and open
+                      the lab in another browser.
                     </p>
                     <button
                       type="button"
@@ -486,59 +538,6 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
                     </button>
                   </div>
                 </div>
-              ) : (
-                <>
-                  <AnatomyScene
-                    key={`${resetKey}-${modelAttempt}`}
-                    modelUrl={
-                      modelAttempt === 0
-                        ? system.modelUrl
-                        : `${system.modelUrl}?retry=${modelAttempt}`
-                    }
-                    selectedMeshName={selected?.meshName ?? null}
-                    selectedIsTextOnly={selectedIsTextOnly}
-                    hiddenMeshNames={hiddenMeshNames}
-                    onSelectMesh={selectMesh}
-                    onModelReady={handleModelReady}
-                    onModelMeshesLoaded={handleModelMeshesLoaded}
-                    onModelError={handleModelError}
-                    onRendererUnavailable={handleRendererUnavailable}
-                  />
-                  {!modelReady && !modelError && (
-                    <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-                      <div className="flex items-center gap-2 rounded-full border border-border bg-elevated/90 px-4 py-2 text-xs text-secondary shadow-card backdrop-blur">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />
-                        Loading 3D model…
-                      </div>
-                    </div>
-                  )}
-                  {modelError && (
-                    <div className="absolute inset-0 z-10 flex items-center justify-center p-6">
-                      <div className="max-w-sm rounded-xl border border-warning/30 bg-elevated/95 p-5 text-center backdrop-blur">
-                        <SearchX className="mx-auto mb-2 h-7 w-7 text-warning" />
-                        <p className="text-sm font-medium text-primary">
-                          3D model could not load
-                        </p>
-                        <p className="mt-1 text-xs leading-relaxed text-secondary">
-                          The written structure notes are still available in
-                          the navigator. Check your connection and try again.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setModelError(null);
-                            setModelReady(false);
-                            setModelMeshNames(null);
-                            setModelAttempt((attempt) => attempt + 1);
-                          }}
-                          className="mt-3 min-h-11 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary"
-                        >
-                          Retry model
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </>
               )}
             </div>
           ) : (
