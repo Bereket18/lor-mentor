@@ -1,25 +1,31 @@
 #!/usr/bin/env node
 /**
- * Build the Anatomy Lab heart model from BodyParts3D 4.0 source geometry.
+ * Build an Anatomy Lab model from BodyParts3D 4.0 source geometry.
  *
  * The source archives are NOT committed. Point this script at an extracted
  * archive (or a directory containing the selected FJ*.obj files):
  *
- *   node scripts/build-anatomy-model.mjs --source-dir "C:\path\to\partof_BP3D_4.0_obj_99"
+ *   node scripts/build-anatomy-model.mjs --system heart \
+ *     --source-dir "C:\path\to\partof_BP3D_4.0_obj_99"
  *
  * For a model that combines the PART-OF and IS-A trees, pass one labelled
  * source directory per tree so each file is read from the archive recorded in
  * the source map:
  *
- *   node scripts/build-anatomy-model.mjs \
+ *   node scripts/build-anatomy-model.mjs --system urinary \
  *     --source-dir "PART-OF=C:\path\to\partof_BP3D_4.0_obj_99" \
  *     --source-dir "IS-A=C:\path\to\isa_BP3D_4.0_obj_99"
  *
+ * --system selects the checked-in source map: anatomy-heart.source.json or
+ * anatomy-urinary.source.json. The map drives the output names, title, change
+ * log, text-only rows, and any orientation checks.
+ *
  * The script:
- *   - validates every source OBJ header against the checked-in manifest config
+ *   - validates every source OBJ header against the checked-in source map
  *   - verifies each file's SHA-256 when the source map records one
  *   - converts mm/Z-up geometry to metres/Y-up
- *   - merges source parts into one selectable glTF node per AnatomyStructure
+ *   - merges source parts into one selectable glTF node per mesh structure
+ *   - records the scale, centring offset, and optional left/right check
  *   - writes a versioned GLB plus a provenance manifest
  *
  * It intentionally writes an uncompressed GLB. The model is small enough for
@@ -39,33 +45,52 @@ import { fileURLToPath } from "node:url";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const webRoot = resolve(scriptDir, "..");
+const modelDir = join(webRoot, "public/models/anatomy");
 
-const configPath = join(scriptDir, "anatomy-heart.source.json");
-const defaultModelPath = join(webRoot, "public/models/anatomy/heart.v2.glb");
-const defaultManifestPath = join(
-  webRoot,
-  "public/models/anatomy/manifest.json",
-);
+const SYSTEMS = new Set(["heart", "urinary"]);
 
-const v2Changes = [
-  "Selected 52 source OBJ files from the PART-OF and IS-A trees: 42 PART-OF files and 10 IS-A files.",
-  "Merged each structure's source parts into one selectable mesh: 17 selectable nodes.",
-  "Moved the arch of the aorta out of the aorta node into a separate aortic_arch node, and added separate pulmonary_arteries and pulmonary_veins nodes.",
-  "Converted millimetres and the Z-up axis to metres and Y-up, centred the combined model, and recomputed vertex normals.",
-  "Exported one uncompressed GLB with stable mesh names. No source colours or textures are used; surface colours are ours.",
-  'Kept 9 structures as text-only entries because BodyParts3D 4.0 has no independent mesh for them. They show "No 3D model".',
-  "Wrote the teaching notes, quizzes, and interface copy for Lor Mentor. They are not copied from BodyParts3D or its documentation.",
-];
+function sourceMapPath(system) {
+  return join(scriptDir, `anatomy-${system}.source.json`);
+}
+
+function defaultOutput(system) {
+  return system === "urinary"
+    ? { model: "urinary.v1.glb", manifest: "urinary.v1.manifest.json" }
+    : { model: "heart.v2.glb", manifest: "manifest.json" };
+}
+
+function outputFileName(value, fallback, label) {
+  if (value === undefined) return fallback;
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    isAbsolute(value) ||
+    value.includes("/") ||
+    value.includes("\\") ||
+    value.includes("..")
+  ) {
+    throw new Error(
+      `${label} must be a plain file name inside public/models/anatomy`,
+    );
+  }
+  return value;
+}
 
 function parseArgs(argv) {
-  const args = { sourceDirs: [] };
+  const args = { sourceDirs: [], system: "heart" };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg === "--source-dir") args.sourceDirs.push(argv[++i]);
+    if (arg === "--system") args.system = argv[++i];
+    else if (arg === "--source-dir") args.sourceDirs.push(argv[++i]);
     else if (arg === "--out") args.out = argv[++i];
     else if (arg === "--manifest") args.manifest = argv[++i];
     else if (arg === "--help" || arg === "-h") args.help = true;
     else throw new Error(`Unknown argument: ${arg}`);
+  }
+  if (!SYSTEMS.has(args.system)) {
+    throw new Error(
+      `Unknown system "${args.system}". Expected one of: ${[...SYSTEMS].join(", ")}`,
+    );
   }
   if (args.sourceDirs.length === 0 && process.env.BODYPARTS3D_SOURCE_DIR) {
     args.sourceDirs.push(process.env.BODYPARTS3D_SOURCE_DIR);
@@ -75,9 +100,10 @@ function parseArgs(argv) {
 
 function usage() {
   return [
-    "Usage: node scripts/build-anatomy-model.mjs --source-dir <dir> [--source-dir <dir> ...]",
+    "Usage: node scripts/build-anatomy-model.mjs [--system heart|urinary] --source-dir <dir> [--source-dir <dir> ...]",
     "",
     "Options:",
+    "  --system <name>          Source map to build: heart (default) or urinary.",
     "  --source-dir <dir>       Extracted BodyParts3D 4.0 archive, or a",
     "                           directory containing the selected FJ*.obj files.",
     "                           Repeat for multiple archives. Prefix a directory",
@@ -277,6 +303,98 @@ function round(value) {
   return Math.round(value * 1e6) / 1e6;
 }
 
+function centroidX(positions) {
+  let sum = 0;
+  for (let i = 0; i < positions.length; i += 3) sum += positions[i];
+  return sum / (positions.length / 3);
+}
+
+/**
+ * Compare paired left/right structures in both the source frame and the
+ * centred output frame. The build fails if any pair is reversed, or if the
+ * source and output frames disagree about which X direction is patient left.
+ */
+function buildOrientationReport(structures, checks, viewerOrientation) {
+  if (!Array.isArray(checks) || checks.length === 0) return null;
+
+  const byMeshName = new Map(
+    structures.map((structure) => [structure.meshName, structure]),
+  );
+  const sourceCentroids = {};
+  const outputCentroids = {};
+  let sourceSign = null;
+  let outputSign = null;
+
+  for (const check of checks) {
+    const left = byMeshName.get(check.left);
+    const right = byMeshName.get(check.right);
+    if (!left || !right) {
+      throw new Error(
+        `Orientation check references unknown mesh "${!left ? check.left : check.right}"`,
+      );
+    }
+
+    const sourceDelta = left.sourceCentroidMm - right.sourceCentroidMm;
+    const outputDelta = centroidX(left.positions) - centroidX(right.positions);
+    if (sourceDelta === 0) {
+      throw new Error(
+        `Orientation check ${check.left}/${check.right} has identical source X centroids`,
+      );
+    }
+    if (outputDelta === 0) {
+      throw new Error(
+        `Orientation check ${check.left}/${check.right} has identical output X centroids`,
+      );
+    }
+
+    const pairSourceSign = Math.sign(sourceDelta);
+    const pairOutputSign = Math.sign(outputDelta);
+    if (sourceSign === null) sourceSign = pairSourceSign;
+    else if (sourceSign !== pairSourceSign) {
+      throw new Error(
+        `Orientation check ${check.left}/${check.right} disagrees with the other source pairs`,
+      );
+    }
+    if (outputSign === null) outputSign = pairOutputSign;
+    else if (outputSign !== pairOutputSign) {
+      throw new Error(
+        `Orientation check ${check.left}/${check.right} disagrees with the other output pairs`,
+      );
+    }
+
+    sourceCentroids[check.left] = round(left.sourceCentroidMm);
+    sourceCentroids[check.right] = round(right.sourceCentroidMm);
+    outputCentroids[check.left] = round(centroidX(left.positions));
+    outputCentroids[check.right] = round(centroidX(right.positions));
+  }
+
+  if (sourceSign !== outputSign) {
+    throw new Error(
+      "Left/right orientation changed between the source frame and the output GLB",
+    );
+  }
+
+  return {
+    sourceFrame: {
+      units: "millimetres",
+      upAxis: "Z",
+      patientLeftAxis: sourceSign > 0 ? "+X" : "-X",
+      centroidX: sourceCentroids,
+    },
+    outputFrame: {
+      units: "metres",
+      upAxis: "Y",
+      patientLeftAxis: outputSign > 0 ? "+X" : "-X",
+      centroidX: outputCentroids,
+    },
+    checks: checks.map((check) => ({
+      left: check.left,
+      right: check.right,
+    })),
+    viewer: viewerOrientation,
+  };
+}
+
 function hexToRgba(hex) {
   const value = hex.replace("#", "");
   if (!/^[0-9a-f]{6}$/i.test(value)) {
@@ -419,6 +537,13 @@ function buildGlb(structures, metadata, copyright) {
         layer: structure.layer,
         fma: structure.fma,
         sourceFiles: structure.files.map((file) => file.id),
+        ...(structure.laterality ? { laterality: structure.laterality } : {}),
+        ...(structure.sharedWith?.length
+          ? { sharedWith: structure.sharedWith }
+          : {}),
+        ...(structure.canonicalOwner
+          ? { canonicalOwner: structure.canonicalOwner }
+          : {}),
       },
     });
   }
@@ -485,8 +610,15 @@ function main() {
     return;
   }
 
-  const sourceIndexes = buildSourceIndexes(args.sourceDirs);
+  const configPath = sourceMapPath(args.system);
   const config = JSON.parse(readFileSync(configPath, "utf8"));
+  if (config.system !== args.system) {
+    throw new Error(
+      `Source map ${basename(configPath)} declares system "${config.system}", not "${args.system}"`,
+    );
+  }
+
+  const sourceIndexes = buildSourceIndexes(args.sourceDirs);
   const sources = Array.isArray(config.sources)
     ? config.sources
     : config.source
@@ -514,6 +646,8 @@ function main() {
     const mergedIndices = [];
     const fileManifest = [];
     const fma = new Set();
+    let sourceXSum = 0;
+    let sourceVertexCount = 0;
 
     for (const file of structure.files) {
       if (usedFiles.has(file.id)) {
@@ -548,6 +682,8 @@ function main() {
       const parsed = parseObj(text, file.id);
       const vertexOffset = mergedPositions.length / 3;
       for (let i = 0; i < parsed.vertices.length; i += 3) {
+        sourceXSum += parsed.vertices[i];
+        sourceVertexCount += 1;
         const [x, y, z] = transformPoint(
           parsed.vertices[i],
           parsed.vertices[i + 1],
@@ -588,6 +724,7 @@ function main() {
       indices,
       files: fileManifest,
       fma: [...fma],
+      sourceCentroidMm: sourceXSum / sourceVertexCount,
       triangleCount: indices.length / 3,
     });
 
@@ -631,9 +768,17 @@ function main() {
     0,
   );
 
+  const orientationReport = buildOrientationReport(
+    structures,
+    config.orientationChecks,
+    config.viewerOrientation,
+  );
+
   const primarySource = sources[0];
   const isV2 = Array.isArray(config.sources);
   const textOnly = config.textOnly ?? [];
+  const changes = config.changes ?? [];
+  const adaptations = config.adaptations ?? [];
   const license = {
     notice:
       "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International",
@@ -660,19 +805,66 @@ function main() {
   const copyright =
     "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International. A second licence statement (CC BY-SA 2.1 Japan) exists; see extras.license.";
 
+  // heart.v2's published transform object predates the centring fields. Keep
+  // that shape unchanged so a heart rebuild stays byte-identical; systems that
+  // opt in record the scale and offset used to produce the GLB.
+  const manifestTransform =
+    config.recordTransformDetails === true
+      ? {
+          ...config.transform,
+          scale: 0.001,
+          sourceCentreMm: [
+            round(center[0] * 1000),
+            round(-center[2] * 1000),
+            round(center[1] * 1000),
+          ],
+          offsetMetres: [round(center[0]), round(center[1]), round(center[2])],
+          offsetConvention: "bodyPosition = modelPosition + offsetMetres",
+        }
+      : config.transform;
+
   const metadata = {
-    title: "LOR Mentor heart anatomy model",
+    title: config.title ?? `LOR Mentor ${config.system} anatomy model`,
     dataset: primarySource.dataset ?? "BodyParts3D 4.0",
     ...(isV2 ? { sources } : { source: primarySource }),
-    transform: config.transform,
+    transform: manifestTransform,
     license,
+    ...(adaptations.length > 0 ? { adaptations } : {}),
   };
 
   const glb = buildGlb(structures, metadata, copyright);
-  const modelPath = args.out ? resolve(args.out) : defaultModelPath;
+  const fallbackOutput = defaultOutput(args.system);
+  const configuredOutput = config.output ?? {};
+  const modelPath = args.out
+    ? resolve(args.out)
+    : join(
+        modelDir,
+        outputFileName(
+          configuredOutput.model,
+          fallbackOutput.model,
+          "output.model",
+        ),
+      );
   const manifestPath = args.manifest
     ? resolve(args.manifest)
-    : defaultManifestPath;
+    : join(
+        modelDir,
+        outputFileName(
+          configuredOutput.manifest,
+          fallbackOutput.manifest,
+          "output.manifest",
+        ),
+      );
+
+  const sharedStructures = structures
+    .filter((structure) => structure.sharedWith?.length)
+    .map((structure) => ({
+      slug: structure.slug,
+      meshName: structure.meshName,
+      sharedWith: structure.sharedWith,
+      canonicalOwner: structure.canonicalOwner,
+      files: structure.files.map((file) => file.id),
+    }));
 
   const manifest = {
     schemaVersion: isV2 ? 2 : 1,
@@ -691,8 +883,11 @@ function main() {
         : {}),
     },
     ...(isV2 ? { sources } : { source: primarySource }),
-    transform: config.transform,
-    ...(isV2 ? { changes: v2Changes } : {}),
+    transform: manifestTransform,
+    ...(isV2 ? { changes } : {}),
+    ...(adaptations.length > 0 ? { adaptations } : {}),
+    ...(sharedStructures.length > 0 ? { sharedStructures } : {}),
+    ...(orientationReport ? { orientation: orientationReport } : {}),
     license,
     structures: structures.map((structure) => ({
       slug: structure.slug,
@@ -701,6 +896,13 @@ function main() {
       color: structure.color,
       triangles: structure.triangleCount,
       fma: structure.fma,
+      ...(structure.laterality ? { laterality: structure.laterality } : {}),
+      ...(structure.sharedWith?.length
+        ? { sharedWith: structure.sharedWith }
+        : {}),
+      ...(structure.canonicalOwner
+        ? { canonicalOwner: structure.canonicalOwner }
+        : {}),
       files: structure.files,
     })),
     ...(isV2 ? { textOnly } : {}),
@@ -709,6 +911,7 @@ function main() {
       uniqueSourceFiles: true,
       sourceHeadersVerified: true,
       ...(isV2 ? { sourceHashesVerified: true } : {}),
+      ...(orientationReport ? { orientationVerified: true } : {}),
       unrepresentedStructures:
         "deferred; see docs/anatomy/provenance/README.md",
     },
