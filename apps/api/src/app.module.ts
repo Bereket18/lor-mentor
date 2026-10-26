@@ -27,6 +27,7 @@ import { TutorModule } from './modules/tutor/tutor.module';
 import { ProgressModule } from './modules/progress/progress.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { AnatomyModule } from './modules/anatomy/anatomy.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { AuditModule } from './modules/audit/audit.module';
     ProgressModule,
     NotificationsModule,
     AuditModule,
+    AnatomyModule,
   ],
   controllers: [AppController],
   providers: [

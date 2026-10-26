@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import { Inter } from "next/font/google";
@@ -18,6 +18,12 @@ export const metadata: Metadata = {
   title: "Lor Mentor — AI Medical Learning",
   description:
     "Ethiopia's most advanced medical learning platform for Lorcan Medical College.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

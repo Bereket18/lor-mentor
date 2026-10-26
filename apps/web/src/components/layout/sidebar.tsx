@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, BookOpen, Bot, CreditCard, MessageSquare,
   BarChart3, User, Bell, LogOut, GraduationCap, Layers,
-  ChevronLeft, ChevronRight, ShieldAlert, Landmark,
+  ChevronLeft, ChevronRight, ShieldAlert, Landmark, HeartPulse,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -16,6 +16,7 @@ const studentNav = [
   { href: "/dashboard",     icon: LayoutDashboard, label: "Dashboard" },
   { href: "/courses",       icon: BookOpen,        label: "My Courses" },
   { href: "/ai-tutor",      icon: Bot,             label: "AI Tutor" },
+  { href: "/anatomy",       icon: HeartPulse,      label: "Anatomy Lab" },
   { href: "/flashcards",    icon: Layers,          label: "Flashcards" },
   { href: "/quiz",          icon: GraduationCap,   label: "Quizzes" },
   { href: "/forum",         icon: MessageSquare,   label: "Forum" },

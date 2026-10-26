@@ -12,16 +12,18 @@ import {
   GraduationCap,
   MessageSquare,
   BarChart3,
+  HeartPulse,
   User,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
-// Only 5 items fit on the mobile bottom nav, so each role gets the sections
-// they actually use. This used to be student-only for every role, which meant
-// admins/teachers tapped a link and got bounced straight back home.
+// Six compact student items fit on current phones; admins/teachers get the
+// sections they actually use. This used to be student-only for every role,
+// which meant admins/teachers tapped a link and got bounced straight back home.
 const studentNav = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Home" },
   { href: "/courses", icon: BookOpen, label: "Courses" },
+  { href: "/anatomy", icon: HeartPulse, label: "Anatomy" },
   { href: "/ai-tutor", icon: Bot, label: "AI" },
   { href: "/quiz", icon: GraduationCap, label: "Quiz" },
   { href: "/profile", icon: User, label: "Profile" },

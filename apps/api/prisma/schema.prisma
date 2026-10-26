@@ -563,6 +563,60 @@ model AuditLog {
   @@index([createdAt])
 }
 
+// ─── ANATOMY LAB ──────────────────────────────
+// A system is a 3D learning module (e.g. heart and circulation). Structure
+// content is stored separately so the viewer can load one system at a time and
+// so AI prompts can be grounded on the stored text for a single structure.
+model AnatomySystem {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  latinName   String?
+  description String
+  modelUrl    String?
+  isSample    Boolean  @default(false)
+  isPublished Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  structures AnatomyStructure[]
+
+  @@index([isPublished, sortOrder])
+}
+
+model AnatomyStructure {
+  id            String   @id @default(cuid())
+  systemId      String
+  slug          String
+  name          String
+  latinName     String?
+  summary       String
+  location      String?
+  function      String?
+  bloodSupply   String?
+  clinicalNotes String?
+  // Null for text-only structures that have teaching content but no
+  // independently selectable mesh in the shipped model.
+  meshName      String?
+  layer         String?
+  // Slugs of related structures within the same system. Stored as slugs so
+  // the seed stays readable and the API can resolve names in one pass.
+  relatedSlugs  String[] @default([])
+  // FMA concepts and textbook citations backing the teaching notes.
+  references    String[] @default([])
+  sortOrder     Int      @default(0)
+  isReviewed    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  system AnatomySystem @relation(fields: [systemId], references: [id], onDelete: Cascade)
+
+  @@unique([systemId, slug])
+  @@unique([systemId, meshName])
+  @@index([systemId, sortOrder])
+}
+
 // ─── FORUM REACTIONS & REPORTS ────────────────
 enum ReactionType {
   LIKE
