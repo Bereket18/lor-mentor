@@ -4,7 +4,8 @@
 
 Every selectable structure in an Anatomy Lab model must have a glTF node (and
 mesh) whose `name` exactly matches the structure's `meshName` in
-`apps/api/prisma/anatomy-heart.data.ts`.
+`apps/api/prisma/anatomy-heart.data.ts` or
+`apps/api/prisma/anatomy-urinary.data.ts`.
 
 - Use the seed spelling exactly, including snake_case. Do not use the
   human-readable `name`, slug, material name, or the FMA concept ID.
@@ -17,29 +18,50 @@ mesh) whose `name` exactly matches the structure's `meshName` in
   model and bump the model version. Do not reuse a versioned filename for
   different bytes.
 
-## Shipped asset
+## Shipped assets
 
-`heart.v1.glb` is the production heart model. It is generated from the
-BodyParts3D 4.0 source archive by a committed pipeline; the archive itself is
-not committed.
+| System | Live asset | Manifest | Status |
+| --- | --- | --- | --- |
+| Heart | `heart.v2.glb` | `manifest.json` (identical to `heart.v2.manifest.json`) | Live. `heart.v1.glb` is the verified rollback asset. |
+| Urinary | `urinary.v1.glb` | `urinary.v1.manifest.json` | Draft. Not imported by the seed; `isPublished` is `false`. |
+
+Both assets are generated from the BodyParts3D 4.0 source archives by the
+committed pipeline; the archives themselves are not committed.
 
 ```bash
-node scripts/build-anatomy-model.mjs --source-dir <path-to-extracted-obj-dir>
-npm run validate:anatomy-model --workspace=apps/web
+# Heart (live)
+node scripts/build-anatomy-model.mjs --system heart \
+  --source-dir "PART-OF=<extracted-partof-dir>" \
+  --source-dir "IS-A=<extracted-isa-dir>"
+
+# Urinary (draft)
+node scripts/build-anatomy-model.mjs --system urinary \
+  --source-dir "PART-OF=<extracted-partof-dir>" \
+  --source-dir "IS-A=<extracted-isa-dir>"
+
+# Validate either system
+node scripts/validate-anatomy-model.mjs --system heart
+node scripts/validate-anatomy-model.mjs --system urinary
 ```
 
-- `manifest.json` records source files, FMA concepts, triangle counts, and
-  SHA-256 digests for the GLB and every source OBJ.
+- `--system` selects the checked-in source map:
+  `apps/web/scripts/anatomy-heart.source.json` or
+  `apps/web/scripts/anatomy-urinary.source.json`.
+- Each manifest records source files, FMA concepts, triangle counts, shared
+  structures, orientation checks, and SHA-256 digests for the GLB and every
+  source OBJ.
 - `apps/api/src/modules/anatomy/anatomy-model.contract.spec.ts` verifies that
-  the seed and the asset cannot drift apart.
-- Provenance, licence, and deferred-structure records live in
-  `docs/anatomy/provenance/README.md`.
+  each seed fixture and its asset cannot drift apart.
+- Heart provenance and licence records live in
+  `docs/anatomy/provenance/README.md`. The urinary build record is
+  `docs/anatomy/provenance/urinary-v1-build.md`, and the second-system
+  readiness audit is `docs/anatomy/provenance/second-system-audit.md`.
 
 ## Deprecated placeholder
 
 `heart.glb` is the old low-poly placeholder. It exists only so environments
 that have not run the seed reconciliation keep loading something. New
-deployments must use `heart.v1.glb`. Delete the placeholder once every
+deployments must use `heart.v2.glb`. Delete the placeholder once every
 environment has run:
 
 ```bash

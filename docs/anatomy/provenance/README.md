@@ -1,25 +1,39 @@
-# Anatomy Lab — heart model provenance
+# Anatomy Lab — model provenance
 
-This directory records where the Anatomy Lab heart model came from, how it was
+This directory records where the Anatomy Lab models came from, how they were
 built, and what is still unresolved. The source archives are deliberately kept
 outside the repository.
 
-**Current local release state:** `heart.v2.glb` is the live release. `heart.v1.glb` is
-kept as the verified rollback asset. The API seed has 26 rows: 17 mesh structures
-and 9 text-only structures. The nullable-`meshName` migration and the text-only
-viewer treatment are applied. The v2 switch and the exact rollback procedure are
-recorded in [`v2-switch.md`](./v2-switch.md).
+**Current local state:** `heart.v2.glb` is the live heart release. `heart.v1.glb`
+is kept as the verified rollback asset. The heart API seed has 26 rows: 17 mesh
+structures and 9 text-only structures. The nullable-`meshName` migration and the
+text-only viewer treatment are applied. The v2 switch and the exact rollback
+procedure are recorded in [`v2-switch.md`](./v2-switch.md).
 
-- Live release asset: `apps/web/public/models/anatomy/heart.v2.glb`
-- Live provenance manifest: `apps/web/public/models/anatomy/manifest.json` (identical to `heart.v2.manifest.json`)
-- Rollback asset: `apps/web/public/models/anatomy/heart.v1.glb`
-- v2 provenance manifest: `apps/web/public/models/anatomy/heart.v2.manifest.json`
-- Source map (committed, sanitised): `apps/web/scripts/anatomy-heart.source.json`
-- Build script: `apps/web/scripts/build-anatomy-model.mjs`
-- Validator: `apps/web/scripts/validate-anatomy-model.mjs`
+`urinary.v1.glb` and `urinary.v1.manifest.json` are built as a draft: 10 mesh
+structures, 5 text-only structures, and 20,364 triangles. The urinary seed data
+is committed but is not imported by `seed-anatomy.ts`, no seed has been run, and
+`URINARY_SYSTEM.isPublished` remains `false`. See
+[`urinary-v1-build.md`](./urinary-v1-build.md) for the build record and
+[`second-system-audit.md`](./second-system-audit.md) for what must change before
+a second system can be published.
+
+- Live heart release asset: `apps/web/public/models/anatomy/heart.v2.glb`
+- Live heart provenance manifest: `apps/web/public/models/anatomy/manifest.json` (identical to `heart.v2.manifest.json`)
+- Heart rollback asset: `apps/web/public/models/anatomy/heart.v1.glb`
+- Heart v2 provenance manifest: `apps/web/public/models/anatomy/heart.v2.manifest.json`
+- Urinary draft asset: `apps/web/public/models/anatomy/urinary.v1.glb`
+- Urinary draft manifest: `apps/web/public/models/anatomy/urinary.v1.manifest.json`
+- Heart source map (committed, sanitised): `apps/web/scripts/anatomy-heart.source.json`
+- Urinary source map (committed, sanitised): `apps/web/scripts/anatomy-urinary.source.json`
+- Build script (both systems): `apps/web/scripts/build-anatomy-model.mjs`
+- Validator (both systems): `apps/web/scripts/validate-anatomy-model.mjs`
 - Contract test: `apps/api/src/modules/anatomy/anatomy-model.contract.spec.ts`
 - Phase 1 mapping: [`phase-1-source-mapping.md`](./phase-1-source-mapping.md)
 - Phase 2 build and change proposals: [`phase-2-build-and-proposals.md`](./phase-2-build-and-proposals.md)
+- Urinary mapping: [`urinary-mapping.md`](./urinary-mapping.md)
+- Urinary v1 build: [`urinary-v1-build.md`](./urinary-v1-build.md)
+- Second-system audit: [`second-system-audit.md`](./second-system-audit.md)
 - v2 switch and rollback: [`v2-switch.md`](./v2-switch.md)
 
 ## 1. Source dataset
@@ -144,11 +158,11 @@ different `Representation ID` and `Build-up logic` fields.
 The source archives are not committed. Extract them, or place the selected
 `FJ*.obj` files in a directory, then run the build.
 
-For the live v2 asset, pass one labelled directory per archive so each file is
-read from the archive recorded in the source map:
+For the live heart v2 asset, pass one labelled directory per archive so each
+file is read from the archive recorded in the source map:
 
 ```bash
-node apps/web/scripts/build-anatomy-model.mjs \
+node apps/web/scripts/build-anatomy-model.mjs --system heart \
   --source-dir "PART-OF=C:\path\to\partof_BP3D_4.0_obj_99" \
   --source-dir "IS-A=C:\path\to\isa_BP3D_4.0_obj_99"
 ```
@@ -157,26 +171,42 @@ That writes `heart.v2.glb` and updates `manifest.json` by default. To regenerate
 the separate v2 provenance manifest instead, add:
 
 ```bash
-node apps/web/scripts/build-anatomy-model.mjs \
+node apps/web/scripts/build-anatomy-model.mjs --system heart \
   --source-dir "PART-OF=C:\path\to\partof_BP3D_4.0_obj_99" \
   --source-dir "IS-A=C:\path\to\isa_BP3D_4.0_obj_99" \
   --out apps/web/public/models/anatomy/heart.v2.glb \
   --manifest apps/web/public/models/anatomy/heart.v2.manifest.json
 ```
 
-Validate the live v2 asset (the default):
+Build the urinary draft asset:
+
+```bash
+node apps/web/scripts/build-anatomy-model.mjs --system urinary \
+  --source-dir "PART-OF=C:\path\to\partof_BP3D_4.0_obj_99" \
+  --source-dir "IS-A=C:\path\to\isa_BP3D_4.0_obj_99"
+```
+
+Validate the live heart v2 asset (the default system):
 
 ```bash
 npm run validate:anatomy-model --workspace=apps/web
 ```
 
-The seed-to-model contract test also checks the preserved v1 rollback asset and
-its hash, and verifies that the live manifest is identical to the v2 provenance
-manifest.
+Validate either system explicitly:
 
-The build reads `apps/web/scripts/anatomy-heart.source.json`. That map is
-committed and sanitised; it records both source archives, all 52 file hashes, and
-the nine text-only rows.
+```bash
+node apps/web/scripts/validate-anatomy-model.mjs --system heart
+node apps/web/scripts/validate-anatomy-model.mjs --system urinary
+```
+
+The seed-to-model contract test also checks the preserved v1 rollback asset and
+its hash, verifies that the live manifest is identical to the v2 provenance
+manifest, and checks the urinary draft fixture against its GLB and manifest.
+
+The heart build reads `apps/web/scripts/anatomy-heart.source.json`. The urinary
+build reads `apps/web/scripts/anatomy-urinary.source.json`. Both maps are
+committed and sanitised; they record the source archives, every file hash, the
+text-only rows, and any shared structures.
 
 ## 5. Current asset checksums
 
@@ -229,19 +259,45 @@ on a device.
 
 - The pipeline is deterministic: the same source files and source map produce
   the same GLB bytes and SHA-256.
-- The source map records a SHA-256 for every one of the 52 files. The build
-  verifies each hash and fails on a mismatch.
-- GLB output is uncompressed. The live v2 asset is 1.91 MiB, small enough to
-  avoid a decoder dependency. Re-evaluate compression if the structure count
-  grows substantially.
-- The model ships with no textures and no external buffers.
+- The heart source map records a SHA-256 for every one of the 52 files; the
+  urinary source map records 12. Both builds verify each hash and fail on a
+  mismatch.
+- GLB output is uncompressed. The live heart v2 asset is 1.91 MiB and the
+  urinary draft is 0.44 MiB, small enough to avoid a decoder dependency.
+  Re-evaluate compression if the structure count grows substantially.
+- The models ship with no textures and no external buffers.
 - Browser caching is handled by the static host; the versioned filenames
-  (`heart.v1.glb`, `heart.v2.glb`) make cache busting explicit when the model
-  changes.
-- The live v2 asset is built from the same coordinate frame as v1. If either
-  archive is replaced, re-run the Phase 1 geometry comparison before rebuilding.
+  (`heart.v1.glb`, `heart.v2.glb`, `urinary.v1.glb`) make cache busting explicit
+  when a model changes.
+- The live heart v2 asset is built from the same coordinate frame as v1. If
+  either archive is replaced, re-run the Phase 1 geometry comparison before
+  rebuilding.
 
-## 9. Rollback and remaining work
+## 9. Urinary draft asset
+
+`urinary.v1.glb` is built and validated but not published. It uses the same
+millimetre/Z-up to metre/Y-up transform and centring convention as heart v2, and
+records the scale and offset in its manifest. The output frame keeps patient-left
+`+X`, and the build verifies four left/right pairs (kidneys, ureters, renal
+arteries, renal veins) in both the source and output frames.
+
+| Field | Value |
+| --- | ---: |
+| File | `urinary.v1.glb` |
+| Bytes | 465,208 |
+| MiB | 0.4436 |
+| Triangles | 20,364 |
+| Mesh structures | 10 |
+| Text-only structures | 5 |
+| Total structures | 15 |
+| SHA-256 | `e5d842eebda1a7f208058f563528b0296b88192419ddb412b9a270ff45f9b073` |
+
+The four renal vessels are marked as shared cardiovascular context in the
+manifest and in the GLB node extras. The five text-only renal rows have no GLB
+node. The full source-file table, transform values, orientation centroids, and
+verification results are in [`urinary-v1-build.md`](./urinary-v1-build.md).
+
+## 10. Rollback and remaining work
 
 The v2 switch is applied in this working tree. The exact code and database
 rollback procedure is in [`v2-switch.md`](./v2-switch.md). No schema migration or
@@ -258,6 +314,12 @@ The following work is still open:
 - the live v2 asset has not been tested on a physical low-end phone or a
   throttled connection;
 - no faculty member has reviewed the teaching text (`isReviewed` is still
-  `false` for every row).
+  `false` for every row);
+- the urinary seed is not wired into `seed-anatomy.ts`, and
+  `URINARY_SYSTEM.isPublished` remains `false`;
+- the viewer layer registry, library icon, and attribution page still assume a
+  single heart system; the required changes are recorded in
+  [`second-system-audit.md`](./second-system-audit.md);
+- the urinary teaching text is a draft and has not been reviewed by faculty.
 
 The switch has not been pushed or deployed from this working tree.
