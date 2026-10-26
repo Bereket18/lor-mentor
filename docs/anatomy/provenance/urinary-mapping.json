@@ -1,0 +1,1298 @@
+{
+  "schemaVersion": 1,
+  "phase": "urinary-mapping",
+  "system": "urinary",
+  "status": "proposed; awaiting mapping approval",
+  "analysisOnly": true,
+  "generatedAt": "2026-10-26",
+  "branch": "integration/anatomy-hardening",
+  "baseCommit": "aa277ae",
+  "sourceDirectory": "C:\\Users\\berek\\Desktop\\bp3d-source",
+  "sourceVerification": {
+    "verifiedAgainst": "docs/anatomy/provenance/phase-1-sources.json",
+    "allHashesMatch": true,
+    "archives": [
+      {
+        "tree": "PART-OF",
+        "fileName": "partof_BP3D_4.0_obj_99.zip",
+        "url": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_BP3D_4.0_obj_99.zip",
+        "bytes": 64888505,
+        "sha256": "9fbc713fffeee924a5a657d9813d84d7eb957bded63adb854931dd5e3eb61c97",
+        "extractedObjFiles": 1258
+      },
+      {
+        "tree": "IS-A",
+        "fileName": "isa_BP3D_4.0_obj_99.zip",
+        "url": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/isa_BP3D_4.0_obj_99.zip",
+        "bytes": 142903898,
+        "sha256": "40665852c49f218326590e204db91064a1ecfc3c6f8cbd7bbbcaac62c7cd409e",
+        "extractedObjFiles": 2234
+      }
+    ],
+    "supportingFiles": [
+      {
+        "fileName": "README_e.html",
+        "bytes": 19263,
+        "sha256": "f9a90b4d945ad0fe50db45c712e931aa54e52667187b30d7085b6cc394f40107"
+      },
+      {
+        "fileName": "isa_parts_list_e.txt",
+        "bytes": 128086,
+        "sha256": "ab7796deedd49205e77f3609a1cb8c53e2bbee14ecb5c9a6ca05227469780513"
+      },
+      {
+        "fileName": "partof_parts_list_e.txt",
+        "bytes": 59351,
+        "sha256": "9224080557053e6f1322f1e13ab27f0ecde0db19bb3b505f0631afad230eeebd"
+      },
+      {
+        "fileName": "partof_inclusion_relation_list.txt",
+        "bytes": 91241,
+        "sha256": "1b40738270931e3c1d955ce34e0fce0d8d10d8c5ad543463e40b4b4c0243007c"
+      },
+      {
+        "fileName": "isa_inclusion_relation_list.txt",
+        "bytes": 207664,
+        "sha256": "26e7d818e03a8c909fe09c561f38d0d513423c87681f9450a803bc38f5b07564"
+      },
+      {
+        "fileName": "isa_element_parts.txt",
+        "bytes": 1142159,
+        "sha256": "a3de74423f943b0d724ae8f59b3a817f87c423a544f8db98113b1980817cbeaf"
+      },
+      {
+        "fileName": "partof_element_parts.txt",
+        "bytes": 651179,
+        "sha256": "3f5f6df1028eb122b30de77c711597b6bb8e5541658e5985859fd228adbf88ea"
+      },
+      {
+        "fileName": "licence_page_2026-10-25.html",
+        "bytes": 14694,
+        "sha256": "cc8ecd3f09912424346dcc1a4e608b1ff4c29988f6304cf316e414440b1e18ad"
+      }
+    ],
+    "extractedDirectory": "C:\\Users\\berek\\Desktop\\bp3d-source\\extracted",
+    "extractedDataCommitted": false
+  },
+  "officialHierarchy": {
+    "partOf": [
+      {
+        "parent": "FMA20394",
+        "parentName": "human body",
+        "child": "FMA7159",
+        "childName": "urinary system"
+      },
+      {
+        "parent": "FMA7159",
+        "parentName": "urinary system",
+        "child": "FMA45659",
+        "childName": "lower urinary tract"
+      },
+      {
+        "parent": "FMA7159",
+        "parentName": "urinary system",
+        "child": "FMA71102",
+        "childName": "right upper urinary tract"
+      },
+      {
+        "parent": "FMA7159",
+        "parentName": "urinary system",
+        "child": "FMA71103",
+        "childName": "left upper urinary tract"
+      },
+      {
+        "parent": "FMA45659",
+        "parentName": "lower urinary tract",
+        "child": "FMA15900",
+        "childName": "urinary bladder"
+      },
+      {
+        "parent": "FMA45659",
+        "parentName": "lower urinary tract",
+        "child": "FMA19667",
+        "childName": "urethra"
+      },
+      {
+        "parent": "FMA71102",
+        "parentName": "right upper urinary tract",
+        "child": "FMA7204",
+        "childName": "right kidney"
+      },
+      {
+        "parent": "FMA71102",
+        "parentName": "right upper urinary tract",
+        "child": "FMA15571",
+        "childName": "right ureter"
+      },
+      {
+        "parent": "FMA71103",
+        "parentName": "left upper urinary tract",
+        "child": "FMA7205",
+        "childName": "left kidney"
+      },
+      {
+        "parent": "FMA71103",
+        "parentName": "left upper urinary tract",
+        "child": "FMA15572",
+        "childName": "left ureter"
+      }
+    ],
+    "isA": [
+      {
+        "parent": "FMA7203",
+        "parentName": "kidney",
+        "child": "FMA7204",
+        "childName": "right kidney"
+      },
+      {
+        "parent": "FMA7203",
+        "parentName": "kidney",
+        "child": "FMA7205",
+        "childName": "left kidney"
+      },
+      {
+        "parent": "FMA9704",
+        "parentName": "ureter",
+        "child": "FMA15571",
+        "childName": "right ureter"
+      },
+      {
+        "parent": "FMA9704",
+        "parentName": "ureter",
+        "child": "FMA15572",
+        "childName": "left ureter"
+      }
+    ],
+    "partOfCompoundConcepts": [
+      {
+        "concept": "FMA7159",
+        "name": "urinary system",
+        "representationId": "BP9805",
+        "elementFiles": ["FJ3144", "FJ3145", "FJ3146", "FJ3147", "FJ3148", "FJ3149"]
+      },
+      {
+        "concept": "FMA45659",
+        "name": "lower urinary tract",
+        "representationId": "BP9804",
+        "elementFiles": ["FJ3148", "FJ3149"]
+      },
+      {
+        "concept": "FMA71102",
+        "name": "right upper urinary tract",
+        "representationId": "BP10047",
+        "elementFiles": ["FJ3146", "FJ3147"]
+      },
+      {
+        "concept": "FMA71103",
+        "name": "left upper urinary tract",
+        "representationId": "BP9941",
+        "elementFiles": ["FJ3144", "FJ3145"]
+      }
+    ],
+    "isANote": "No system-level urinary hierarchy exists in the IS-A tree. Bladder and urethra are standalone organ concepts there.",
+    "conclusion": "The six organ files FJ3144-FJ3149 are the complete urinary mesh set in the PART-OF tree; the system and tract concepts add no unique mesh."
+  },
+  "endocrineExclusion": {
+    "system": {
+      "concept": "FMA9668",
+      "name": "endocrine system"
+    },
+    "glands": [
+      {
+        "concept": "FMA15629",
+        "name": "right adrenal gland",
+        "elementFile": "FJ3130",
+        "triangles": 2294
+      },
+      {
+        "concept": "FMA15630",
+        "name": "left adrenal gland",
+        "elementFile": "FJ3129",
+        "triangles": 3996
+      }
+    ],
+    "arteries": [
+      {
+        "concept": "FMA69265",
+        "name": "right inferior suprarenal artery",
+        "elementFile": "FJ3584",
+        "triangles": 754
+      },
+      {
+        "concept": "FMA69266",
+        "name": "left inferior suprarenal artery",
+        "elementFile": "FJ3467",
+        "triangles": 954
+      }
+    ],
+    "decision": "Excluded from the urinary model. The adrenal glands are endocrine organs; the inferior suprarenal arteries supply them."
+  },
+  "renalVesselSourcing": {
+    "status": "shared cardiovascular context",
+    "partOfArteryElementRows": {
+      "FMA14752": [
+        {"elementFile": "FJ2038", "concept": "FMA14752", "name": "right renal artery", "triangles": 206},
+        {"elementFile": "FJ3576", "concept": "FMA66363", "name": "trunk of right renal artery", "triangles": 282},
+        {"elementFile": "FJ3581", "concept": "FMA70492", "name": "ureteric segment of right renal artery", "triangles": 468},
+        {"elementFile": "FJ3582", "concept": "FMA70492", "name": "ureteric segment of right renal artery", "triangles": 606},
+        {"elementFile": "FJ3584", "concept": "FMA69265", "name": "right inferior suprarenal artery", "triangles": 754}
+      ],
+      "FMA14753": [
+        {"elementFile": "FJ2046", "concept": "FMA14753", "name": "left renal artery", "triangles": 288},
+        {"elementFile": "FJ3476", "concept": "FMA66364", "name": "trunk of left renal artery", "triangles": 258},
+        {"elementFile": "FJ3481", "concept": "FMA70493", "name": "ureteric segment of left renal artery", "triangles": 1296},
+        {"elementFile": "FJ3467", "concept": "FMA69266", "name": "left inferior suprarenal artery", "triangles": 954}
+      ]
+    },
+    "chosen": {
+      "arteries": [
+        {"elementFile": "FJ2038", "archive": "IS-A", "concept": "FMA14752", "name": "right renal artery", "triangles": 206},
+        {"elementFile": "FJ2046", "archive": "IS-A", "concept": "FMA14753", "name": "left renal artery", "triangles": 288}
+      ],
+      "veins": [
+        {"elementFile": "FJ3577", "archive": "IS-A", "concept": "FMA14335", "name": "right renal vein", "triangles": 332},
+        {"elementFile": "FJ3578", "archive": "IS-A", "concept": "FMA14335", "name": "right renal vein", "triangles": 4682},
+        {"elementFile": "FJ3477", "archive": "IS-A", "concept": "FMA14336", "name": "left renal vein", "triangles": 652},
+        {"elementFile": "FJ3478", "archive": "IS-A", "concept": "FMA14336", "name": "left renal vein", "triangles": 4260}
+      ]
+    },
+    "reason": "Using the PART-OF parent concept FMA14752/FMA14753 would include the inferior suprarenal arteries, which are endocrine branches. The IS-A single-file main arteries FJ2038/FJ2046 avoid that. The renal veins exist only in the IS-A tree.",
+    "officialCardiovascularPlacement": [
+      "PART-OF FMA7161 cardiovascular system -> FMA45623 systemic arterial system and FMA49894 systemic arterial tree -> FMA14752/FMA14753.",
+      "IS-A FMA66464 systemic artery -> FMA14751 renal artery -> FMA14752/FMA14753.",
+      "IS-A FMA78049 subdivision of inferior vena caval tree -> FMA14334 renal vein -> FMA14335/FMA14336."
+    ]
+  },
+  "candidates": [
+    {
+      "elementId": "FJ3147",
+      "archive": "PART-OF",
+      "alsoIn": "IS-A",
+      "conceptId": "FMA7204",
+      "officialName": "right kidney",
+      "objHeaderName": "Right kidney",
+      "representationId": "BP10046",
+      "buildUpLogic": "FMA 3.0 part_of",
+      "vertices": 1163,
+      "triangles": 2310,
+      "sha256": "e21e2ebd5224b1cbf8caabbf4fa788d894819a328a006dcdb2eb8aa6eee5875a",
+      "geometrySha256": "ce9cf805d9bdba668875f21b2437a6dd6506ce2038e48a114d1265ba9cc685e6",
+      "alsoInSha256": "0b75658b1af56974cc70f7f805784b40630debdfa76e196c51ee91422af99e8f",
+      "geometryMatchesAcrossTrees": true,
+      "boundsMm": {
+        "min": [-87.5754, -111.855, 966.812],
+        "max": [-30.4276, -64.7001, 1071.24]
+      },
+      "decision": "use",
+      "proposedStructure": "right-kidney",
+      "reason": "Atomic right-kidney mesh; the PART-OF row is the organ itself, not a parent compound."
+    },
+    {
+      "elementId": "FJ3145",
+      "archive": "PART-OF",
+      "alsoIn": "IS-A",
+      "conceptId": "FMA7205",
+      "officialName": "left kidney",
+      "objHeaderName": "Left kidney",
+      "representationId": "BP10234",
+      "buildUpLogic": "FMA 3.0 part_of",
+      "vertices": 1497,
+      "triangles": 2982,
+      "sha256": "b52066a987f767ad9e5c3092958bf5dd760d9f05f1497d1fc7f7ff11539bdfd2",
+      "geometrySha256": "e95b317b19c9f2e6687f780f66758a016ba215d35ebdb3aa02a83a4b4461f36e",
+      "alsoInSha256": "7d60d27da6d4d5d3e9fd78dde04a8401cb55d998a31f05cc9c8968955d83add9",
+      "geometryMatchesAcrossTrees": true,
+      "boundsMm": {
+        "min": [32.8399, -100.185, 984.494],
+        "max": [90.383, -59.5914, 1090.44]
+      },
+      "decision": "use",
+      "proposedStructure": "left-kidney",
+      "reason": "Atomic left-kidney mesh; the PART-OF row is the organ itself, not a parent compound."
+    },
+    {
+      "elementId": "FJ3146",
+      "archive": "PART-OF",
+      "alsoIn": "IS-A",
+      "conceptId": "FMA15571",
+      "officialName": "right ureter",
+      "objHeaderName": "Right ureter",
+      "representationId": "BP10049",
+      "buildUpLogic": "FMA 3.0 part_of",
+      "vertices": 1132,
+      "triangles": 1924,
+      "sha256": "780889608ce700962d98be95432f94d58ca121b240099adeb83d8278ca8a779d",
+      "geometrySha256": "1c2ca6c740d785b5a7b5f3fc83807e77c8fb363ca69fc559ff4f77804a24f6ce",
+      "alsoInSha256": "8946b5166a0565e2a293d1ff2d2414674134749e6177c82e68ce8743796cee7f",
+      "geometryMatchesAcrossTrees": true,
+      "boundsMm": {
+        "min": [-72.7935, -118.969, 811.203],
+        "max": [-9.39929, -60.3459, 1057]
+      },
+      "decision": "use",
+      "proposedStructure": "right-ureter",
+      "reason": "Atomic right-ureter mesh."
+    },
+    {
+      "elementId": "FJ3144",
+      "archive": "PART-OF",
+      "alsoIn": "IS-A",
+      "conceptId": "FMA15572",
+      "officialName": "left ureter",
+      "objHeaderName": "Left ureter",
+      "representationId": "BP9940",
+      "buildUpLogic": "FMA 3.0 part_of",
+      "vertices": 1125,
+      "triangles": 2062,
+      "sha256": "1235a492a66c738eceafaafa512def0ed82785741367a29835aae2fdb706d59a",
+      "geometrySha256": "68461777c61da9d8167e3034b5d302fd61681ba1eca6bfca84fcb10dce675594",
+      "alsoInSha256": "4a9bf3ad57ef2ea82c3f3cfb4f07efe3eb6feffe9d44cb8f0d178691f6489b04",
+      "geometryMatchesAcrossTrees": true,
+      "boundsMm": {
+        "min": [23.2688, -119.751, 818.039],
+        "max": [79.3766, -61.611, 1072.57]
+      },
+      "decision": "use",
+      "proposedStructure": "left-ureter",
+      "reason": "Atomic left-ureter mesh."
+    },
+    {
+      "elementId": "FJ3149",
+      "archive": "PART-OF",
+      "alsoIn": "IS-A",
+      "conceptId": "FMA15900",
+      "officialName": "urinary bladder",
+      "objHeaderName": "Urinary bladder",
+      "representationId": "BP9803",
+      "buildUpLogic": "FMA 3.0 part_of",
+      "vertices": 127,
+      "triangles": 226,
+      "sha256": "b49f40d01bf28550094a7d17901e33e7066039f3a0fb8cf44d79fff2472f9926",
+      "geometrySha256": "1a7991d223506b969227e0af9d7f5db5a1df9c97059acdc32a101a868d25c236",
+      "alsoInSha256": "d0940ffe991c3421964e44beb37ea258b47df797f099a1734169ae14d09426ed",
+      "geometryMatchesAcrossTrees": true,
+      "boundsMm": {
+        "min": [-34.1466, -128.24, 789.732],
+        "max": [32.6238, -56.5253, 829.989]
+      },
+      "decision": "use",
+      "proposedStructure": "urinary-bladder",
+      "reason": "Atomic urinary-bladder mesh; single midline structure."
+    },
+    {
+      "elementId": "FJ3148",
+      "archive": "PART-OF",
+      "alsoIn": "IS-A",
+      "conceptId": "FMA19667",
+      "officialName": "urethra",
+      "objHeaderName": "Urethra",
+      "representationId": "BP10143",
+      "buildUpLogic": "FMA 3.0 part_of",
+      "vertices": 358,
+      "triangles": 440,
+      "sha256": "9a973d2cfe578e9030f33763f34bf2056e3fe84aeb57a40dae3c2a5cb3a8feb2",
+      "geometrySha256": "032df12ac492d03f49f02eb6c03545367508682e72dfdd4d96bc6b43f414d160",
+      "alsoInSha256": "987ce1b01511f6ea323ba5a7a7438ba3df72d0cdc853985e08ca2965feb63c93",
+      "geometryMatchesAcrossTrees": true,
+      "boundsMm": {
+        "min": [-1.60824, -184.174, 708.569],
+        "max": [0.313633, -79.9527, 792.512]
+      },
+      "decision": "use",
+      "proposedStructure": "urethra",
+      "reason": "Atomic urethra mesh; single midline structure."
+    },
+    {
+      "elementId": "FJ2038",
+      "archive": "IS-A",
+      "alsoIn": "PART-OF",
+      "conceptId": "FMA14752",
+      "officialName": "right renal artery",
+      "objHeaderName": "Right renal artery",
+      "representationId": "BP7655",
+      "buildUpLogic": "FMA 3.0 is_a",
+      "vertices": 124,
+      "triangles": 206,
+      "sha256": "2bf3da140369524e15335694773718b4e83b254234bc3e8376a4708565276045",
+      "geometrySha256": "be5f18d76ee13c316f7b359a73b9a100a9eed2e3ff452b7a83e978669b82ea4c",
+      "alsoInSha256": "9224463ef0a139b1e97cff5a0b83f3e7e5d16a0247f6d929627c48fb862378f2",
+      "geometryMatchesAcrossTrees": true,
+      "boundsMm": {
+        "min": [-42.3441, -119.561, 1025.18],
+        "max": [12.7113, -97.2584, 1048.72]
+      },
+      "decision": "use",
+      "proposedStructure": "right-renal-artery",
+      "reason": "IS-A single-file main right renal artery; avoids the PART-OF parent concept that includes the inferior suprarenal branch."
+    },
+    {
+      "elementId": "FJ2046",
+      "archive": "IS-A",
+      "alsoIn": "PART-OF",
+      "conceptId": "FMA14753",
+      "officialName": "left renal artery",
+      "objHeaderName": "Left renal artery",
+      "representationId": "BP7672",
+      "buildUpLogic": "FMA 3.0 is_a",
+      "vertices": 166,
+      "triangles": 288,
+      "sha256": "b1a9ce8a37cd9c89fbf4c90a68a554184bf2919dbad391c552c0f4c8dd788845",
+      "geometrySha256": "2d0c60bbfd17f2f61d6a5f27a65c44c9faed60829f8a48ddb1d7d9e215ef2b1f",
+      "alsoInSha256": "d6d46221e140447706f7aa8cad5c78b41c9a8b93f309365530e2b59e4b6dd1c5",
+      "geometryMatchesAcrossTrees": true,
+      "boundsMm": {
+        "min": [3.6509, -120.307, 1036.55],
+        "max": [39.4612, -96.762, 1049.75]
+      },
+      "decision": "use",
+      "proposedStructure": "left-renal-artery",
+      "reason": "IS-A single-file main left renal artery; avoids the PART-OF parent concept that includes the inferior suprarenal branch."
+    },
+    {
+      "elementId": "FJ3577",
+      "archive": "IS-A",
+      "alsoIn": null,
+      "conceptId": "FMA14335",
+      "officialName": "right renal vein",
+      "objHeaderName": "Right renal vein",
+      "representationId": "BP10256",
+      "buildUpLogic": "FMA 3.0 is_a",
+      "vertices": 172,
+      "triangles": 332,
+      "sha256": "36125db169fc547f88860a3f8ea873742437d8be55b6f5f1a7f877219b759449",
+      "geometrySha256": "2227817aa451f487dd0d62bd2d8201f86f45a7da3ce399eb27a5db0b3e602fc8",
+      "alsoInSha256": null,
+      "geometryMatchesAcrossTrees": null,
+      "boundsMm": {
+        "min": [-31.3539, -117.223, 1021.09],
+        "max": [-8.98893, -92.2295, 1033.2]
+      },
+      "decision": "use",
+      "proposedStructure": "right-renal-vein",
+      "reason": "IS-A right renal vein part 1 of 2; the renal vein exists only in the IS-A tree."
+    },
+    {
+      "elementId": "FJ3578",
+      "archive": "IS-A",
+      "alsoIn": null,
+      "conceptId": "FMA14335",
+      "officialName": "right renal vein",
+      "objHeaderName": "Right renal vein",
+      "representationId": "BP10256",
+      "buildUpLogic": "FMA 3.0 is_a",
+      "vertices": 3865,
+      "triangles": 4682,
+      "sha256": "ccb15ddc46ef6b11ef62fa8dd6923b6fdeedb9b3371ab80513ff11a0fc120734",
+      "geometrySha256": "fd7cc2bfab88df1ae682e157b6908aa5c82ad86ccbc6f7b82cc30dbaf817ba35",
+      "alsoInSha256": null,
+      "geometryMatchesAcrossTrees": null,
+      "boundsMm": {
+        "min": [-73.3557, -101.468, 980.881],
+        "max": [-23.7453, -78.6571, 1058.26]
+      },
+      "decision": "use",
+      "proposedStructure": "right-renal-vein",
+      "reason": "IS-A right renal vein part 2 of 2; complementary geometry to FJ3577."
+    },
+    {
+      "elementId": "FJ3477",
+      "archive": "IS-A",
+      "alsoIn": null,
+      "conceptId": "FMA14336",
+      "officialName": "left renal vein",
+      "objHeaderName": "Left renal vein",
+      "representationId": "BP10330",
+      "buildUpLogic": "FMA 3.0 is_a",
+      "vertices": 334,
+      "triangles": 652,
+      "sha256": "3299a1375f6f86c5d523d7f3abd1bce371f13d0b4b586e53bf95600b6ed17adf",
+      "geometrySha256": "227ba88135322f333a79e045f20d627907d4b7920fe172a454064463aa9cab04",
+      "alsoInSha256": null,
+      "geometryMatchesAcrossTrees": null,
+      "boundsMm": {
+        "min": [-15.7686, -132.426, 1023.29],
+        "max": [31.6965, -89.5806, 1039.75]
+      },
+      "decision": "use",
+      "proposedStructure": "left-renal-vein",
+      "reason": "IS-A left renal vein part 1 of 2; the renal vein exists only in the IS-A tree."
+    },
+    {
+      "elementId": "FJ3478",
+      "archive": "IS-A",
+      "alsoIn": null,
+      "conceptId": "FMA14336",
+      "officialName": "left renal vein",
+      "objHeaderName": "Left renal vein",
+      "representationId": "BP10330",
+      "buildUpLogic": "FMA 3.0 is_a",
+      "vertices": 3657,
+      "triangles": 4260,
+      "sha256": "06a4b0b274aac5458aeb7ff33881f05afcd2a15e776ddfb9af59e61a06b4b2a1",
+      "geometrySha256": "4e8aa88e5b8f085cbfb44d369bd92a99c3a9f089a4c431dbb66b0e7981bf52ca",
+      "alsoInSha256": null,
+      "geometryMatchesAcrossTrees": null,
+      "boundsMm": {
+        "min": [24.5644, -97.3973, 997.588],
+        "max": [81.0475, -67.7073, 1074.6]
+      },
+      "decision": "use",
+      "proposedStructure": "left-renal-vein",
+      "reason": "IS-A left renal vein part 2 of 2; complementary geometry to FJ3477."
+    },
+    {
+      "elementId": "FJ3576",
+      "archive": "PART-OF",
+      "alsoIn": "IS-A",
+      "conceptId": "FMA66363",
+      "officialName": "trunk of right renal artery",
+      "objHeaderName": "Trunk of right renal artery",
+      "representationId": "BP10654",
+      "buildUpLogic": "FMA 3.0 part_of",
+      "vertices": 145,
+      "triangles": 282,
+      "sha256": "6991e362e8e203efc572aabf8a542b95574d850b6ff16518de7e51d970f4174e",
+      "geometrySha256": "4fce3955bf7000962d65161a8b94330a3b81458a47969a624816e6157d67a992",
+      "alsoInSha256": "d6271041a7aa0e18e88c8630eab8320d076047d6e264568301b16dc6752f5dea",
+      "geometryMatchesAcrossTrees": true,
+      "boundsMm": {
+        "min": [-40.4226, -120.149, 1027.22],
+        "max": [12.919, -98.1011, 1048.47]
+      },
+      "decision": "candidate-not-used",
+      "proposedStructure": null,
+      "reason": "Proximal trunk subsegment of the right renal artery; FJ2038 already represents the main artery. Including both would duplicate the proximal territory."
+    },
+    {
+      "elementId": "FJ3581",
+      "archive": "PART-OF",
+      "alsoIn": "IS-A",
+      "conceptId": "FMA70492",
+      "officialName": "ureteric segment of right renal artery",
+      "objHeaderName": "Ureteric segment of right renal artery",
+      "representationId": "BP10633",
+      "buildUpLogic": "FMA 3.0 part_of",
+      "vertices": 280,
+      "triangles": 468,
+      "sha256": "00896e3b9da9900822733640ae94ff19265665a67b44d845a93d614a2a729a77",
+      "geometrySha256": "19a4f09f30f5ad511ac3789cd710a6b8e5704e4dffc66a5d452741817b2f8001",
+      "alsoInSha256": "d4302364811871902decf8cb1975f043f7780736d9eec17334524abf935b2274",
+      "geometryMatchesAcrossTrees": true,
+      "boundsMm": {
+        "min": [-37.6813, -102.141, 989.695],
+        "max": [-24.1665, -98.1899, 1028.69]
+      },
+      "decision": "candidate-not-used",
+      "proposedStructure": null,
+      "reason": "Ureteric branch of the right renal artery; not a main renal vessel and would duplicate part of the parent territory."
+    },
+    {
+      "elementId": "FJ3582",
+      "archive": "PART-OF",
+      "alsoIn": "IS-A",
+      "conceptId": "FMA70492",
+      "officialName": "ureteric segment of right renal artery",
+      "objHeaderName": "Ureteric segment of right renal artery",
+      "representationId": "BP10633",
+      "buildUpLogic": "FMA 3.0 part_of",
+      "vertices": 365,
+      "triangles": 606,
+      "sha256": "e73ade72f7f868af514bab99ba626e98e496995fa55972ba9a4f310f3242bf1d",
+      "geometrySha256": "752387cab524800c1ff87de52fdf6436c65a89fccff035687c0062a6bfc6c89a",
+      "alsoInSha256": "d8e54545de3adad19315175c677c637150f1bdf34594b9e99bbe02b870c0d9a3",
+      "geometryMatchesAcrossTrees": true,
+      "boundsMm": {
+        "min": [-31.6373, -105.163, 982.487],
+        "max": [-25.1897, -92.2373, 1016.97]
+      },
+      "decision": "candidate-not-used",
+      "proposedStructure": null,
+      "reason": "Second ureteric branch of the right renal artery; not a main renal vessel."
+    },
+    {
+      "elementId": "FJ3584",
+      "archive": "PART-OF",
+      "alsoIn": "IS-A",
+      "conceptId": "FMA69265",
+      "officialName": "right inferior suprarenal artery",
+      "objHeaderName": "Right inferior suprarenal artery",
+      "representationId": "BP10416",
+      "buildUpLogic": "FMA 3.0 part_of",
+      "vertices": 606,
+      "triangles": 754,
+      "sha256": "445644cb2d0342f24978aed1743e32b2ece4100a9050eded56537263db07cc9f",
+      "geometrySha256": "7a9ffa78c7e8dfc35abe4e734fc0fd2c1a36ebf1d13a1aa6f01b2ea6407d950f",
+      "alsoInSha256": "d71a9a39bc150c49d6610911863ad69f6cc8e77ae67b2d7b086bbbfd295a6481",
+      "geometryMatchesAcrossTrees": true,
+      "boundsMm": {
+        "min": [-70.1148, -103.72, 1030.28],
+        "max": [-29.7697, -75.534, 1071.51]
+      },
+      "decision": "exclude",
+      "proposedStructure": null,
+      "reason": "Supplies the right adrenal gland; endocrine target, not urinary."
+    },
+    {
+      "elementId": "FJ3476",
+      "archive": "PART-OF",
+      "alsoIn": "IS-A",
+      "conceptId": "FMA66364",
+      "officialName": "trunk of left renal artery",
+      "objHeaderName": "Trunk of left renal artery",
+      "representationId": "BP10652",
+      "buildUpLogic": "FMA 3.0 part_of",
+      "vertices": 132,
+      "triangles": 258,
+      "sha256": "21dde47eb9f3d68e9fd321c88292940914868e67d70b53a0e09030ac194cc699",
+      "geometrySha256": "1e39bacad7020654d25c6bbd2d6d84761a9e2686d2c9aac10e46f81acd390028",
+      "alsoInSha256": "ef5ca7af52043a5cb3bb4a2c5e2c5568cae401339aa441f513138ff78ec88882",
+      "geometryMatchesAcrossTrees": true,
+      "boundsMm": {
+        "min": [3.75735, -120.232, 1036.84],
+        "max": [38.5442, -98.5425, 1049.71]
+      },
+      "decision": "candidate-not-used",
+      "proposedStructure": null,
+      "reason": "Proximal trunk subsegment of the left renal artery; FJ2046 already represents the main artery. Including both would duplicate the proximal territory."
+    },
+    {
+      "elementId": "FJ3481",
+      "archive": "PART-OF",
+      "alsoIn": "IS-A",
+      "conceptId": "FMA70493",
+      "officialName": "ureteric segment of left renal artery",
+      "objHeaderName": "Ureteric segment of left renal artery",
+      "representationId": "BP10647",
+      "buildUpLogic": "FMA 3.0 part_of",
+      "vertices": 868,
+      "triangles": 1296,
+      "sha256": "574b3b363b93b8a542259336d6fed632db907251a39e7b19332a7ee207f4de4a",
+      "geometrySha256": "57754b9e4134d786b68e85a53043057a4ea85d64b0d0215711f74e8ed4f050ee",
+      "alsoInSha256": "78cea8621b3af0eb51ec9335e6ccfb47f2196fadb22e77ee507753af9db27fd6",
+      "geometryMatchesAcrossTrees": true,
+      "boundsMm": {
+        "min": [26.5847, -110.232, 969.814],
+        "max": [38.3053, -91.6437, 1038.65]
+      },
+      "decision": "candidate-not-used",
+      "proposedStructure": null,
+      "reason": "Ureteric branch of the left renal artery; not a main renal vessel and would duplicate part of the parent territory."
+    },
+    {
+      "elementId": "FJ3467",
+      "archive": "PART-OF",
+      "alsoIn": "IS-A",
+      "conceptId": "FMA69266",
+      "officialName": "left inferior suprarenal artery",
+      "objHeaderName": "Left inferior suprarenal artery",
+      "representationId": "BP10402",
+      "buildUpLogic": "FMA 3.0 part_of",
+      "vertices": 810,
+      "triangles": 954,
+      "sha256": "5ffb5fe2556d31c2ea4778611ce4e2d89b78c10aaef302e3b51c111d430e7b23",
+      "geometrySha256": "3cd49cf49d1ae563cef2048903430c4e196f23fdedc870ef1b104befd983f831",
+      "alsoInSha256": "85a5b2dcc1361a94f1a92617ae04bf7b5c4d394a2aa5faee2a6a986a3fcdbeea",
+      "geometryMatchesAcrossTrees": true,
+      "boundsMm": {
+        "min": [22.1488, -106.526, 1040.2],
+        "max": [76.0255, -68.444, 1088.19]
+      },
+      "decision": "exclude",
+      "proposedStructure": null,
+      "reason": "Supplies the left adrenal gland; endocrine target, not urinary."
+    }
+  ],
+  "proposedModel": {
+    "meshStructures": 10,
+    "textOnlyStructures": 5,
+    "totalStructures": 15,
+    "sourceFiles": 12,
+    "vertices": 13720,
+    "triangles": 20364,
+    "structures": [
+      {
+        "slug": "right-kidney",
+        "name": "Right kidney",
+        "officialName": "right kidney",
+        "meshName": "right_kidney",
+        "layer": "kidneys",
+        "laterality": "right",
+        "status": "mesh",
+        "fma": ["FMA7204"],
+        "sourceFiles": [
+          {"elementId": "FJ3147", "archive": "PART-OF", "triangles": 2310}
+        ],
+        "vertices": 1163,
+        "triangles": 2310,
+        "sharedWith": [],
+        "canonicalOwner": "urinary",
+        "role": "native"
+      },
+      {
+        "slug": "left-kidney",
+        "name": "Left kidney",
+        "officialName": "left kidney",
+        "meshName": "left_kidney",
+        "layer": "kidneys",
+        "laterality": "left",
+        "status": "mesh",
+        "fma": ["FMA7205"],
+        "sourceFiles": [
+          {"elementId": "FJ3145", "archive": "PART-OF", "triangles": 2982}
+        ],
+        "vertices": 1497,
+        "triangles": 2982,
+        "sharedWith": [],
+        "canonicalOwner": "urinary",
+        "role": "native"
+      },
+      {
+        "slug": "right-ureter",
+        "name": "Right ureter",
+        "officialName": "right ureter",
+        "meshName": "right_ureter",
+        "layer": "ureters",
+        "laterality": "right",
+        "status": "mesh",
+        "fma": ["FMA15571"],
+        "sourceFiles": [
+          {"elementId": "FJ3146", "archive": "PART-OF", "triangles": 1924}
+        ],
+        "vertices": 1132,
+        "triangles": 1924,
+        "sharedWith": [],
+        "canonicalOwner": "urinary",
+        "role": "native"
+      },
+      {
+        "slug": "left-ureter",
+        "name": "Left ureter",
+        "officialName": "left ureter",
+        "meshName": "left_ureter",
+        "layer": "ureters",
+        "laterality": "left",
+        "status": "mesh",
+        "fma": ["FMA15572"],
+        "sourceFiles": [
+          {"elementId": "FJ3144", "archive": "PART-OF", "triangles": 2062}
+        ],
+        "vertices": 1125,
+        "triangles": 2062,
+        "sharedWith": [],
+        "canonicalOwner": "urinary",
+        "role": "native"
+      },
+      {
+        "slug": "urinary-bladder",
+        "name": "Urinary bladder",
+        "officialName": "urinary bladder",
+        "meshName": "urinary_bladder",
+        "layer": "bladder",
+        "laterality": "midline",
+        "status": "mesh",
+        "fma": ["FMA15900"],
+        "sourceFiles": [
+          {"elementId": "FJ3149", "archive": "PART-OF", "triangles": 226}
+        ],
+        "vertices": 127,
+        "triangles": 226,
+        "sharedWith": [],
+        "canonicalOwner": "urinary",
+        "role": "native"
+      },
+      {
+        "slug": "urethra",
+        "name": "Urethra",
+        "officialName": "urethra",
+        "meshName": "urethra",
+        "layer": "urethra",
+        "laterality": "midline",
+        "status": "mesh",
+        "fma": ["FMA19667"],
+        "sourceFiles": [
+          {"elementId": "FJ3148", "archive": "PART-OF", "triangles": 440}
+        ],
+        "vertices": 358,
+        "triangles": 440,
+        "sharedWith": [],
+        "canonicalOwner": "urinary",
+        "role": "native"
+      },
+      {
+        "slug": "right-renal-artery",
+        "name": "Right renal artery",
+        "officialName": "right renal artery",
+        "meshName": "right_renal_artery",
+        "layer": "renal-vessels",
+        "laterality": "right",
+        "status": "mesh",
+        "fma": ["FMA14752"],
+        "sourceFiles": [
+          {"elementId": "FJ2038", "archive": "IS-A", "triangles": 206}
+        ],
+        "vertices": 124,
+        "triangles": 206,
+        "sharedWith": ["cardiovascular"],
+        "canonicalOwner": "cardiovascular",
+        "role": "shared-context"
+      },
+      {
+        "slug": "left-renal-artery",
+        "name": "Left renal artery",
+        "officialName": "left renal artery",
+        "meshName": "left_renal_artery",
+        "layer": "renal-vessels",
+        "laterality": "left",
+        "status": "mesh",
+        "fma": ["FMA14753"],
+        "sourceFiles": [
+          {"elementId": "FJ2046", "archive": "IS-A", "triangles": 288}
+        ],
+        "vertices": 166,
+        "triangles": 288,
+        "sharedWith": ["cardiovascular"],
+        "canonicalOwner": "cardiovascular",
+        "role": "shared-context"
+      },
+      {
+        "slug": "right-renal-vein",
+        "name": "Right renal vein",
+        "officialName": "right renal vein",
+        "meshName": "right_renal_vein",
+        "layer": "renal-vessels",
+        "laterality": "right",
+        "status": "mesh",
+        "fma": ["FMA14335"],
+        "sourceFiles": [
+          {"elementId": "FJ3577", "archive": "IS-A", "triangles": 332},
+          {"elementId": "FJ3578", "archive": "IS-A", "triangles": 4682}
+        ],
+        "vertices": 4037,
+        "triangles": 5014,
+        "sharedWith": ["cardiovascular"],
+        "canonicalOwner": "cardiovascular",
+        "role": "shared-context"
+      },
+      {
+        "slug": "left-renal-vein",
+        "name": "Left renal vein",
+        "officialName": "left renal vein",
+        "meshName": "left_renal_vein",
+        "layer": "renal-vessels",
+        "laterality": "left",
+        "status": "mesh",
+        "fma": ["FMA14336"],
+        "sourceFiles": [
+          {"elementId": "FJ3477", "archive": "IS-A", "triangles": 652},
+          {"elementId": "FJ3478", "archive": "IS-A", "triangles": 4260}
+        ],
+        "vertices": 3991,
+        "triangles": 4912,
+        "sharedWith": ["cardiovascular"],
+        "canonicalOwner": "cardiovascular",
+        "role": "shared-context"
+      },
+      {
+        "slug": "renal-cortex",
+        "name": "Renal cortex",
+        "officialName": null,
+        "meshName": null,
+        "layer": "renal-parts",
+        "laterality": "bilateral",
+        "status": "text-only",
+        "fma": [],
+        "sourceFiles": [],
+        "vertices": 0,
+        "triangles": 0,
+        "sharedWith": [],
+        "canonicalOwner": "urinary",
+        "role": "text-only",
+        "reason": "No renal-cortex concept in either parts list or either inclusion-relation list; no independent mesh."
+      },
+      {
+        "slug": "renal-medulla",
+        "name": "Renal medulla",
+        "officialName": null,
+        "meshName": null,
+        "layer": "renal-parts",
+        "laterality": "bilateral",
+        "status": "text-only",
+        "fma": [],
+        "sourceFiles": [],
+        "vertices": 0,
+        "triangles": 0,
+        "sharedWith": [],
+        "canonicalOwner": "urinary",
+        "role": "text-only",
+        "reason": "No renal-medulla concept in either parts list or either inclusion-relation list; no independent mesh."
+      },
+      {
+        "slug": "renal-pyramids",
+        "name": "Renal pyramids",
+        "officialName": null,
+        "meshName": null,
+        "layer": "renal-parts",
+        "laterality": "bilateral",
+        "status": "text-only",
+        "fma": [],
+        "sourceFiles": [],
+        "vertices": 0,
+        "triangles": 0,
+        "sharedWith": [],
+        "canonicalOwner": "urinary",
+        "role": "text-only",
+        "reason": "No renal-pyramid concept in either parts list or either inclusion-relation list; no independent mesh."
+      },
+      {
+        "slug": "renal-calyces",
+        "name": "Renal calyces",
+        "officialName": null,
+        "meshName": null,
+        "layer": "renal-parts",
+        "laterality": "bilateral",
+        "status": "text-only",
+        "fma": [],
+        "sourceFiles": [],
+        "vertices": 0,
+        "triangles": 0,
+        "sharedWith": [],
+        "canonicalOwner": "urinary",
+        "role": "text-only",
+        "reason": "No renal-calyx or renal-calix concept in either parts list or either inclusion-relation list; no independent mesh."
+      },
+      {
+        "slug": "renal-pelvis",
+        "name": "Renal pelvis",
+        "officialName": null,
+        "meshName": null,
+        "layer": "renal-parts",
+        "laterality": "bilateral",
+        "status": "text-only",
+        "fma": [],
+        "sourceFiles": [],
+        "vertices": 0,
+        "triangles": 0,
+        "sharedWith": [],
+        "canonicalOwner": "urinary",
+        "role": "text-only",
+        "reason": "No renal-pelvis concept in either parts list or either inclusion-relation list; no independent mesh."
+      }
+    ]
+  },
+  "sharedFileOwnership": [
+    {
+      "files": ["FJ2038"],
+      "structure": "right renal artery",
+      "otherSystem": "cardiovascular",
+      "canonicalOwner": "cardiovascular",
+      "urinaryRole": "shared-context",
+      "evidence": [
+        "PART-OF element row for FJ2038 includes FMA7161 cardiovascular system.",
+        "PART-OF FMA49894 systemic arterial tree -> FMA14752 right renal artery.",
+        "IS-A FMA66464 systemic artery -> FMA14751 renal artery -> FMA14752."
+      ]
+    },
+    {
+      "files": ["FJ2046"],
+      "structure": "left renal artery",
+      "otherSystem": "cardiovascular",
+      "canonicalOwner": "cardiovascular",
+      "urinaryRole": "shared-context",
+      "evidence": [
+        "PART-OF element row for FJ2046 includes FMA7161 cardiovascular system.",
+        "PART-OF FMA49894 systemic arterial tree -> FMA14753 left renal artery.",
+        "IS-A FMA66464 systemic artery -> FMA14751 renal artery -> FMA14753."
+      ]
+    },
+    {
+      "files": ["FJ3577", "FJ3578"],
+      "structure": "right renal vein",
+      "otherSystem": "cardiovascular",
+      "canonicalOwner": "cardiovascular",
+      "urinaryRole": "shared-context",
+      "evidence": [
+        "IS-A FMA78049 subdivision of inferior vena caval tree -> FMA14334 renal vein -> FMA14335 right renal vein."
+      ]
+    },
+    {
+      "files": ["FJ3477", "FJ3478"],
+      "structure": "left renal vein",
+      "otherSystem": "cardiovascular",
+      "canonicalOwner": "cardiovascular",
+      "urinaryRole": "shared-context",
+      "evidence": [
+        "IS-A FMA78049 subdivision of inferior vena caval tree -> FMA14334 renal vein -> FMA14336 left renal vein."
+      ]
+    },
+    {
+      "files": ["FJ3147", "FJ3145", "FJ3146", "FJ3144", "FJ3149", "FJ3148"],
+      "structure": "kidneys, ureters, urinary bladder, urethra",
+      "otherSystem": null,
+      "canonicalOwner": "urinary",
+      "urinaryRole": "native",
+      "evidence": [
+        "PART-OF element rows for these files are FMA7159 urinary system, the relevant upper/lower tract concept, and FMA20394 human body only.",
+        "No other system-level concept appears in either element table for these six files."
+      ]
+    }
+  ],
+  "textOnlyRationale": {
+    "patternsSearched": [
+      "renal cortex",
+      "cortex of kidney",
+      "kidney cortex",
+      "renal medulla",
+      "medulla of kidney",
+      "kidney medulla",
+      "renal pyramid",
+      "pyramid of kidney",
+      "kidney pyramid",
+      "renal calyx",
+      "renal calix",
+      "calyx of kidney",
+      "calix of kidney",
+      "minor calyx",
+      "major calyx",
+      "calyces",
+      "calices",
+      "renal pelvis",
+      "pelvis of kidney",
+      "kidney pelvis",
+      "nephron",
+      "glomerulus",
+      "collecting duct",
+      "renal lobe",
+      "renal column",
+      "renal sinus",
+      "renal capsule"
+    ],
+    "patternsWithZeroHits": 27,
+    "additionalPatternsSearched": [
+      "trigone",
+      "detrusor",
+      "urethral sphincter",
+      "prostatic urethra",
+      "membranous urethra",
+      "spongy urethra",
+      "renal papilla",
+      "ureteropelvic junction",
+      "ureterovesical junction"
+    ],
+    "additionalPatternsWithZeroHits": 9,
+    "compoundConceptEvidence": [
+      {"concept": "FMA7203", "name": "kidney", "elementFiles": ["FJ3145", "FJ3147"]},
+      {"concept": "FMA9704", "name": "ureter", "elementFiles": ["FJ3144", "FJ3146"]},
+      {"concept": "FMA7159", "name": "urinary system", "elementFiles": ["FJ3144", "FJ3145", "FJ3146", "FJ3147", "FJ3148", "FJ3149"]},
+      {"concept": "FMA45659", "name": "lower urinary tract", "elementFiles": ["FJ3148", "FJ3149"]},
+      {"concept": "FMA71102", "name": "right upper urinary tract", "elementFiles": ["FJ3146", "FJ3147"]},
+      {"concept": "FMA71103", "name": "left upper urinary tract", "elementFiles": ["FJ3144", "FJ3145"]}
+    ],
+    "conclusion": "The five proposed renal parts have no FMA concept and no independent mesh. They are text-only or omitted; they must not be described as BodyParts3D-derived geometry."
+  },
+  "sizeEstimate": {
+    "status": "estimate; model not built",
+    "method": "Matches heart v2 binary layout: 24 bytes per vertex (POSITION + NORMAL, VEC3 float32) + 6 bytes per triangle (uint16 indices).",
+    "vertices": 13720,
+    "triangles": 20364,
+    "binaryBytes": 451464,
+    "glbContainerOverheadBytes": 28,
+    "jsonBytesRange": [12000, 20000],
+    "glbBytesRange": [463492, 471492],
+    "glbMiBRange": [0.442, 0.450],
+    "glbMBDecimalRange": [0.463, 0.471],
+    "heartV2": {
+      "bytes": 2003856,
+      "mib": 1.911,
+      "mbDecimal": 2.004,
+      "triangles": 102568
+    },
+    "comparison": {
+      "trianglePercentOfHeartV2": 19.9,
+      "bytePercentOfHeartV2Min": 23.1,
+      "bytePercentOfHeartV2Max": 23.5
+    },
+    "triangleBreakdown": {
+      "kidneys": 5292,
+      "ureters": 3986,
+      "bladderAndUrethra": 666,
+      "renalVessels": 10420,
+      "renalVeins": 9926
+    }
+  },
+  "transform": {
+    "officialReadme": {
+      "statesUnits": false,
+      "statesAxes": false,
+      "note": "README_e.html documents the OBJ format and 99% polygon reduction but does not state units or coordinate axes. Millimetres come from the OBJ header Bounds(mm); Z-up is the project's documented assumption."
+    },
+    "pipeline": {
+      "sourceUnits": "millimetres",
+      "sourceUpAxis": "Z",
+      "targetUnits": "metres",
+      "targetUpAxis": "Y",
+      "mapping": "x/1000, z/1000, -y/1000; then centre on the combined bounding box"
+    },
+    "heartV2": {
+      "appliedScale": 0.001,
+      "appliedOffsetM": [0.0114353, 1.133991, 0.11163145],
+      "sourceCentreMm": [11.4353, -111.63145, 1133.991],
+      "modelBoundsM": {
+        "min": [-0.070381, -0.183099, -0.061787],
+        "max": [0.070381, 0.183099, 0.061787]
+      },
+      "verifiedAgainstGlbAccessors": true
+    },
+    "proposedUrinary": {
+      "appliedScale": 0.001,
+      "appliedOffsetM": [0.0014038, 0.8995045, 0.12034965],
+      "sourceCentreMm": [1.4038, -120.34965, 899.5045],
+      "sourceBoundsMm": {
+        "min": [-87.5754, -184.174, 708.569],
+        "max": [90.383, -56.5253, 1090.44]
+      },
+      "transformedBoundsM": {
+        "min": [-0.0875754, 0.708569, 0.0565253],
+        "max": [0.090383, 1.09044, 0.184174]
+      },
+      "modelBoundsM": {
+        "min": [-0.0889792, -0.1909355, -0.06382435],
+        "max": [0.0889792, 0.1909355, 0.06382435]
+      },
+      "status": "preview; not applied"
+    },
+    "proposedManifestFields": {
+      "appliedScale": 0.001,
+      "appliedOffset": "metres; transformed source-frame centre subtracted from every vertex",
+      "offsetConvention": "bodyPosition = modelPosition + appliedOffset",
+      "sourceBoundsMm": "combined source bounds before transform",
+      "transformedBoundsM": "combined bounds after scale and axis swap, before centring",
+      "modelBoundsM": "final GLB accessor bounds after centring",
+      "bodyFrame": {
+        "units": "metres",
+        "upAxis": "Y",
+        "mapping": "x/1000, z/1000, -y/1000"
+      }
+    }
+  },
+  "seedFields": {
+    "structureFields": [
+      "slug",
+      "name",
+      "latinName",
+      "summary",
+      "location",
+      "function",
+      "bloodSupply",
+      "clinicalNotes",
+      "meshName",
+      "layer",
+      "relatedSlugs",
+      "references"
+    ],
+    "seedAdds": ["systemId", "sortOrder", "isReviewed"],
+    "systemFields": [
+      "slug",
+      "name",
+      "latinName",
+      "description",
+      "modelUrl",
+      "isSample",
+      "isPublished",
+      "sortOrder"
+    ],
+    "constraints": [
+      "AnatomySystem.slug is unique.",
+      "AnatomyStructure is unique on [systemId, slug].",
+      "AnatomyStructure is unique on [systemId, meshName].",
+      "PostgreSQL permits multiple null meshName values, so text-only rows are compatible with the mesh-name constraint."
+    ],
+    "notes": [
+      "meshName is null for text-only rows.",
+      "isReviewed is false on create.",
+      "--reconcile refreshes references, sortOrder, and relatedSlugs but never overwrites summaries, notes, names, or isReviewed."
+    ]
+  },
+  "facultyReviewTemplate": {
+    "status": "blank; no teaching text written",
+    "perRowFields": [
+      "summary",
+      "location",
+      "function",
+      "bloodSupply",
+      "clinicalNotes",
+      "references",
+      "reviewer",
+      "reviewDate",
+      "decision",
+      "comments"
+    ],
+    "decisionValues": ["approved", "approved-with-edits", "rejected"],
+    "notes": [
+      "Faculty must supply original teaching text and references for each row.",
+      "For the ten mesh rows, references should cite the FMA concept and the textbook used for the notes.",
+      "For the five text-only renal parts, references must be textbook-only because no FMA concept exists.",
+      "isReviewed stays false until each row is signed off."
+    ]
+  },
+  "verification": {
+    "archiveHashesMatchPhase1Sources": true,
+    "smallFileHashesMatchPhase1Sources": true,
+    "candidateFilesChecked": 19,
+    "conceptIdPresentInPartsList": 19,
+    "officialNameMatchesCaseInsensitive": 19,
+    "atomicElementRowPresent": 19,
+    "licenceHeaderPresent": 19,
+    "triangleFacesOnly": 19,
+    "sharedTreeFiles": 15,
+    "sharedTreeGeometryIdentical": 15,
+    "renalVeinFilesIsaOnly": 4,
+    "textOnlyRegexPatternsSearched": 12,
+    "textOnlySearchStringsSearched": 27,
+    "textOnlyPatternHits": 0,
+    "additionalPatternsSearched": 9,
+    "additionalPatternHits": 0,
+    "notes": [
+      "The official parts list prints lowercase English names; the OBJ headers capitalise the first letter. All 19 names match case-insensitively.",
+      "For the 15 files present in both trees, the non-comment geometry SHA-256 is identical; the whole-file SHA-256 differs only because the header records a different representation ID and build-up logic.",
+      "All 19 candidate files use triangle faces only and contain no negative indices."
+    ]
+  },
+  "risks": [
+    "Renal vessels are not urinary organs. They are included as shared cardiovascular context at the task's request; a one-system-per-structure policy would need an explicit shared-structure rule.",
+    "The five text-only renal parts have no FMA concept and cannot be described as BodyParts3D-derived; omitting them is a valid alternative.",
+    "Left/right split doubles rows but gives independent selection and matches the source. Bladder and urethra are single midline rows.",
+    "Renal veins are 9,926 of 20,364 triangles (48.7% of the model); there is no separate extraparenchymal venous concept, so reducing them would require a new modelling decision.",
+    "The unused renal-artery trunk and ureteric segments add 2,910 triangles if included later and would duplicate part of the main artery territory.",
+    "Adrenal glands FJ3129/FJ3130 and inferior suprarenal arteries FJ3584/FJ3467 are excluded; they belong to an endocrine or cardiovascular model.",
+    "The official tables print lowercase names while the OBJ headers capitalise the first letter; the source-map validator must compare case-insensitively or store the exact expected form.",
+    "The official README does not state units or axes. Millimetres come from Bounds(mm); Z-up is the project's existing pipeline assumption. Cross-system placement depends on that convention remaining consistent.",
+    "The licence ambiguity is inherited from the heart work: the current licence page says CC BY 4.0 while the source OBJ headers say CC BY-SA 2.1 Japan. The adapted model should keep the stricter attribution.",
+    "The size figure is an estimate; actual GLB size may differ because of normals, index width, JSON size, and alignment.",
+    "No teaching text exists yet; isReviewed must stay false until faculty sign-off."
+  ],
+  "openQuestions": [
+    "Approve the renal vessels as shared cardiovascular context, with cardiovascular as canonical owner?",
+    "Approve the five text-only renal parts despite having no FMA concept, or omit them?",
+    "Approve the left/right split for kidneys, ureters, renal arteries, and renal veins?",
+    "Approve the proposed manifest transform fields and the preview offset?"
+  ],
+  "approval": {
+    "status": "awaiting approval",
+    "requested": [
+      "10 mesh structures + 5 text-only structures = 15 total.",
+      "Left/right split for kidneys, ureters, renal arteries, and renal veins.",
+      "Bladder and urethra as single midline structures.",
+      "Renal vessels included as shared cardiovascular context, with cardiovascular as canonical owner.",
+      "The five text-only renal parts, despite having no FMA concept.",
+      "The proposed manifest transform fields and the preview offset.",
+      "The next phase: source map, model build, seed, UI, and teaching text."
+    ],
+    "notAuthorisedYet": [
+      "seed",
+      "database write",
+      "model build",
+      "UI change",
+      "teaching text"
+    ]
+  }
+}
