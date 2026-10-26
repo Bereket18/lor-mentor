@@ -40,6 +40,15 @@ export function isAllowed(pathname: string, role?: string): boolean {
   if (pathname.startsWith("/teacher")) return role === "TEACHER";
   if (pathname.startsWith("/forum")) return role === "STUDENT" || role === "TEACHER";
   if (pathname === "/profile" || pathname.startsWith("/notifications")) return true;
+  // Anatomy is a shared learning resource: students use it for study, while
+  // teachers and admins need it to review and prepare material.
+  if (pathname === "/anatomy" || pathname.startsWith("/anatomy/")) {
+    return (
+      role === "STUDENT" ||
+      role === "TEACHER" ||
+      (!!role && (ADMIN_ROLES as readonly string[]).includes(role))
+    );
+  }
   const isStudentRoute = STUDENT_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"));
   if (isStudentRoute) return role === "STUDENT";
   return true;

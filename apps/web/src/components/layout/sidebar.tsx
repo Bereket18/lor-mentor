@@ -31,6 +31,7 @@ const adminNav = [
   { href: "/admin/banks",      icon: Landmark,        label: "Payment banks" },
   { href: "/admin/plans",      icon: CreditCard,      label: "Plans" },
   { href: "/admin/courses",    icon: BookOpen,        label: "Courses" },
+  { href: "/anatomy",          icon: HeartPulse,      label: "Anatomy Lab" },
   { href: "/admin/moderation", icon: ShieldAlert,     label: "Moderation" },
   { href: "/admin/audit",      icon: BarChart3,       label: "Audit Logs" },
 ];
@@ -38,6 +39,7 @@ const adminNav = [
 const teacherNav = [
   { href: "/teacher",           icon: LayoutDashboard, label: "Dashboard" },
   { href: "/teacher/courses",   icon: BookOpen,        label: "My Courses" },
+  { href: "/anatomy",           icon: HeartPulse,      label: "Anatomy Lab" },
   { href: "/forum",             icon: MessageSquare,   label: "Forum" },
   { href: "/teacher/analytics", icon: BarChart3,       label: "Analytics" },
 ];

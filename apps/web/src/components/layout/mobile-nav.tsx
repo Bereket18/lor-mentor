@@ -34,12 +34,14 @@ const adminNav = [
   { href: "/admin/users", icon: Users, label: "Users" },
   { href: "/admin/payments", icon: CreditCard, label: "Payments" },
   { href: "/admin/courses", icon: BookOpen, label: "Courses" },
+  { href: "/anatomy", icon: HeartPulse, label: "Anatomy" },
   { href: "/admin/plans", icon: Layers, label: "Plans" },
 ];
 
 const teacherNav = [
   { href: "/teacher", icon: LayoutDashboard, label: "Home" },
   { href: "/teacher/courses", icon: BookOpen, label: "Courses" },
+  { href: "/anatomy", icon: HeartPulse, label: "Anatomy" },
   { href: "/forum", icon: MessageSquare, label: "Forum" },
   { href: "/teacher/analytics", icon: BarChart3, label: "Analytics" },
   { href: "/profile", icon: User, label: "Profile" },

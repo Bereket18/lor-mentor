@@ -37,6 +37,7 @@ export const config = {
     "/dashboard/:path*",
     "/courses/:path*",
     "/ai-tutor/:path*",
+    "/anatomy/:path*",
     "/flashcards/:path*",
     "/quiz/:path*",
     "/progress/:path*",
