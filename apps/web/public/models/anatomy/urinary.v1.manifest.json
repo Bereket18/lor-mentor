@@ -1,0 +1,483 @@
+{
+  "schemaVersion": 2,
+  "system": "urinary",
+  "model": {
+    "file": "urinary.v1.glb",
+    "bytes": 465208,
+    "sha256": "e5d842eebda1a7f208058f563528b0296b88192419ddb412b9a270ff45f9b073",
+    "triangles": 20364,
+    "structures": 10,
+    "textOnlyStructures": 5,
+    "totalStructures": 15
+  },
+  "sources": [
+    {
+      "tree": "PART-OF",
+      "dataset": "BodyParts3D 4.0",
+      "polygonReduction": "99%",
+      "archive": "partof_BP3D_4.0_obj_99.zip",
+      "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_BP3D_4.0_obj_99.zip",
+      "archiveBytes": 64888505,
+      "archiveEtag": "\"3de1eb9-4dd48e9fe8d00\"",
+      "archiveLastModified": "Wed, 22 May 2013 06:45:40 GMT",
+      "archiveSha256": "9fbc713fffeee924a5a657d9813d84d7eb957bded63adb854931dd5e3eb61c97",
+      "extractedObjFiles": 1258,
+      "usedFor": "v1 urinary build: 6 files across 6 native urinary structures (kidneys, ureters, bladder, urethra).",
+      "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "licenseUpdated": "2025-02-27",
+      "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
+      "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
+    },
+    {
+      "tree": "IS-A",
+      "dataset": "BodyParts3D 4.0",
+      "polygonReduction": "99%",
+      "archive": "isa_BP3D_4.0_obj_99.zip",
+      "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/isa_BP3D_4.0_obj_99.zip",
+      "archiveBytes": 142903898,
+      "archiveEtag": "\"8848a5a-4dd48ec9df000\"",
+      "archiveLastModified": "Wed, 22 May 2013 06:46:24 GMT",
+      "archiveSha256": "40665852c49f218326590e204db91064a1ecfc3c6f8cbd7bbbcaac62c7cd409e",
+      "extractedObjFiles": 2234,
+      "usedFor": "v1 urinary build: 6 files across 4 shared renal-vessel structures (left/right renal artery and vein).",
+      "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "licenseUpdated": "2025-02-27",
+      "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
+      "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
+    }
+  ],
+  "transform": {
+    "sourceUnits": "millimetres",
+    "sourceUpAxis": "Z",
+    "targetUnits": "metres",
+    "targetUpAxis": "Y",
+    "mapping": "x/1000, z/1000, -y/1000; then centre on the combined bounding box",
+    "scale": 0.001,
+    "sourceCentreMm": [
+      1.403801,
+      -120.349651,
+      899.504513
+    ],
+    "offsetMetres": [
+      0.001404,
+      0.899505,
+      0.12035
+    ],
+    "offsetConvention": "bodyPosition = modelPosition + offsetMetres"
+  },
+  "changes": [
+    "Selected 12 source OBJ files from the PART-OF and IS-A trees: 6 PART-OF files and 6 IS-A files.",
+    "Merged each structure's source parts into one selectable mesh: 10 selectable nodes.",
+    "Included the four renal vessels (left and right renal artery and vein) as shared cardiovascular context; cardiovascular remains the canonical owner.",
+    "Converted millimetres and the Z-up axis to metres and Y-up, centred the combined model, and recomputed vertex normals.",
+    "Exported one uncompressed GLB with stable mesh names. No source colours or textures are used; surface colours are ours.",
+    "Kept 5 structures as text-only entries because BodyParts3D 4.0 has no independent mesh for them."
+  ],
+  "adaptations": [
+    "Combined six PART-OF urinary-organ element files and six IS-A renal-vessel element files into ten selectable nodes.",
+    "Marked the four renal vessels as sharedWith: cardiovascular, with cardiovascular as canonicalOwner, so a future whole-body view can avoid drawing them twice.",
+    "Applied the same millimetre-to-metre and Z-up-to-Y-up transform as heart.v2.glb, then centred on the combined urinary bounding box.",
+    "Recomputed vertex normals after merging. No source colours or textures are used; surface colours are chosen for Lor Mentor.",
+    "Kept five renal parts text-only because BodyParts3D 4.0 has no independent mesh for them.",
+    "Checked left/right orientation in both the source frame and the output GLB."
+  ],
+  "sharedStructures": [
+    {
+      "slug": "right-renal-artery",
+      "meshName": "right_renal_artery",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ2038"
+      ]
+    },
+    {
+      "slug": "left-renal-artery",
+      "meshName": "left_renal_artery",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ2046"
+      ]
+    },
+    {
+      "slug": "right-renal-vein",
+      "meshName": "right_renal_vein",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ3577",
+        "FJ3578"
+      ]
+    },
+    {
+      "slug": "left-renal-vein",
+      "meshName": "left_renal_vein",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ3477",
+        "FJ3478"
+      ]
+    }
+  ],
+  "orientation": {
+    "sourceFrame": {
+      "units": "millimetres",
+      "upAxis": "Z",
+      "patientLeftAxis": "+X",
+      "centroidX": {
+        "left_kidney": 57.709698,
+        "right_kidney": -53.009168,
+        "left_ureter": 52.994489,
+        "right_ureter": -46.822028,
+        "left_renal_artery": 20.8355,
+        "right_renal_artery": -15.799521,
+        "left_renal_vein": 56.875695,
+        "right_renal_vein": -52.458757
+      }
+    },
+    "outputFrame": {
+      "units": "metres",
+      "upAxis": "Y",
+      "patientLeftAxis": "+X",
+      "centroidX": {
+        "left_kidney": 0.056306,
+        "right_kidney": -0.054413,
+        "left_ureter": 0.051591,
+        "right_ureter": -0.048226,
+        "left_renal_artery": 0.019432,
+        "right_renal_artery": -0.017203,
+        "left_renal_vein": 0.055472,
+        "right_renal_vein": -0.053863
+      }
+    },
+    "checks": [
+      {
+        "left": "left_kidney",
+        "right": "right_kidney"
+      },
+      {
+        "left": "left_ureter",
+        "right": "right_ureter"
+      },
+      {
+        "left": "left_renal_artery",
+        "right": "right_renal_artery"
+      },
+      {
+        "left": "left_renal_vein",
+        "right": "right_renal_vein"
+      }
+    ],
+    "viewer": "Camera looks from +Z toward the origin; patient left is +X (the viewer's right). The viewer renders no on-screen orientation marker."
+  },
+  "license": {
+    "notice": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International",
+    "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+    "statements": [
+      {
+        "source": "BodyParts3D licence page (last updated 2025-02-27) and README_e.html",
+        "statement": "The license for this database is specified in the Creative Commons Attribution 4.0 International."
+      },
+      {
+        "source": "Header comment in all 3,492 distributed BodyParts3D 4.0 OBJ files",
+        "statement": "The license for this database is specified in the Creative Commons Attribution-Share Alike 2.1 Japan."
+      }
+    ],
+    "status": "Which licence applies is being clarified with the Database Center for Life Science (DBCLS).",
+    "adaptedModelTerms": "The adapted model file is offered under the same terms as the stricter statement, CC BY-SA 2.1 Japan."
+  },
+  "structures": [
+    {
+      "slug": "right-kidney",
+      "meshName": "right_kidney",
+      "layer": "kidneys",
+      "color": "#a85f6b",
+      "triangles": 2310,
+      "fma": [
+        "FMA7204"
+      ],
+      "laterality": "right",
+      "files": [
+        {
+          "id": "FJ3147",
+          "archive": "PART-OF",
+          "concept": "FMA7204",
+          "name": "Right kidney",
+          "sha256": "e21e2ebd5224b1cbf8caabbf4fa788d894819a328a006dcdb2eb8aa6eee5875a",
+          "triangles": 2310
+        }
+      ]
+    },
+    {
+      "slug": "left-kidney",
+      "meshName": "left_kidney",
+      "layer": "kidneys",
+      "color": "#b56b76",
+      "triangles": 2982,
+      "fma": [
+        "FMA7205"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ3145",
+          "archive": "PART-OF",
+          "concept": "FMA7205",
+          "name": "Left kidney",
+          "sha256": "b52066a987f767ad9e5c3092958bf5dd760d9f05f1497d1fc7f7ff11539bdfd2",
+          "triangles": 2982
+        }
+      ]
+    },
+    {
+      "slug": "right-ureter",
+      "meshName": "right_ureter",
+      "layer": "ureters",
+      "color": "#d8a25e",
+      "triangles": 1924,
+      "fma": [
+        "FMA15571"
+      ],
+      "laterality": "right",
+      "files": [
+        {
+          "id": "FJ3146",
+          "archive": "PART-OF",
+          "concept": "FMA15571",
+          "name": "Right ureter",
+          "sha256": "780889608ce700962d98be95432f94d58ca121b240099adeb83d8278ca8a779d",
+          "triangles": 1924
+        }
+      ]
+    },
+    {
+      "slug": "left-ureter",
+      "meshName": "left_ureter",
+      "layer": "ureters",
+      "color": "#e0ad6a",
+      "triangles": 2062,
+      "fma": [
+        "FMA15572"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ3144",
+          "archive": "PART-OF",
+          "concept": "FMA15572",
+          "name": "Left ureter",
+          "sha256": "1235a492a66c738eceafaafa512def0ed82785741367a29835aae2fdb706d59a",
+          "triangles": 2062
+        }
+      ]
+    },
+    {
+      "slug": "urinary-bladder",
+      "meshName": "urinary_bladder",
+      "layer": "bladder",
+      "color": "#e3c878",
+      "triangles": 226,
+      "fma": [
+        "FMA15900"
+      ],
+      "laterality": "midline",
+      "files": [
+        {
+          "id": "FJ3149",
+          "archive": "PART-OF",
+          "concept": "FMA15900",
+          "name": "Urinary bladder",
+          "sha256": "b49f40d01bf28550094a7d17901e33e7066039f3a0fb8cf44d79fff2472f9926",
+          "triangles": 226
+        }
+      ]
+    },
+    {
+      "slug": "urethra",
+      "meshName": "urethra",
+      "layer": "urethra",
+      "color": "#c9a227",
+      "triangles": 440,
+      "fma": [
+        "FMA19667"
+      ],
+      "laterality": "midline",
+      "files": [
+        {
+          "id": "FJ3148",
+          "archive": "PART-OF",
+          "concept": "FMA19667",
+          "name": "Urethra",
+          "sha256": "9a973d2cfe578e9030f33763f34bf2056e3fe84aeb57a40dae3c2a5cb3a8feb2",
+          "triangles": 440
+        }
+      ]
+    },
+    {
+      "slug": "right-renal-artery",
+      "meshName": "right_renal_artery",
+      "layer": "renal-vessels",
+      "color": "#b34a45",
+      "triangles": 206,
+      "fma": [
+        "FMA14752"
+      ],
+      "laterality": "right",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ2038",
+          "archive": "IS-A",
+          "concept": "FMA14752",
+          "name": "Right renal artery",
+          "sha256": "2bf3da140369524e15335694773718b4e83b254234bc3e8376a4708565276045",
+          "triangles": 206
+        }
+      ]
+    },
+    {
+      "slug": "left-renal-artery",
+      "meshName": "left_renal_artery",
+      "layer": "renal-vessels",
+      "color": "#b34a45",
+      "triangles": 288,
+      "fma": [
+        "FMA14753"
+      ],
+      "laterality": "left",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ2046",
+          "archive": "IS-A",
+          "concept": "FMA14753",
+          "name": "Left renal artery",
+          "sha256": "b1a9ce8a37cd9c89fbf4c90a68a554184bf2919dbad391c552c0f4c8dd788845",
+          "triangles": 288
+        }
+      ]
+    },
+    {
+      "slug": "right-renal-vein",
+      "meshName": "right_renal_vein",
+      "layer": "renal-vessels",
+      "color": "#5f7fa6",
+      "triangles": 5014,
+      "fma": [
+        "FMA14335"
+      ],
+      "laterality": "right",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ3577",
+          "archive": "IS-A",
+          "concept": "FMA14335",
+          "name": "Right renal vein",
+          "sha256": "36125db169fc547f88860a3f8ea873742437d8be55b6f5f1a7f877219b759449",
+          "triangles": 332
+        },
+        {
+          "id": "FJ3578",
+          "archive": "IS-A",
+          "concept": "FMA14335",
+          "name": "Right renal vein",
+          "sha256": "ccb15ddc46ef6b11ef62fa8dd6923b6fdeedb9b3371ab80513ff11a0fc120734",
+          "triangles": 4682
+        }
+      ]
+    },
+    {
+      "slug": "left-renal-vein",
+      "meshName": "left_renal_vein",
+      "layer": "renal-vessels",
+      "color": "#5f7fa6",
+      "triangles": 4912,
+      "fma": [
+        "FMA14336"
+      ],
+      "laterality": "left",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ3477",
+          "archive": "IS-A",
+          "concept": "FMA14336",
+          "name": "Left renal vein",
+          "sha256": "3299a1375f6f86c5d523d7f3abd1bce371f13d0b4b586e53bf95600b6ed17adf",
+          "triangles": 652
+        },
+        {
+          "id": "FJ3478",
+          "archive": "IS-A",
+          "concept": "FMA14336",
+          "name": "Left renal vein",
+          "sha256": "06a4b0b274aac5458aeb7ff33881f05afcd2a15e776ddfb9af59e61a06b4b2a1",
+          "triangles": 4260
+        }
+      ]
+    }
+  ],
+  "textOnly": [
+    {
+      "slug": "renal-cortex",
+      "layer": "renal-parts",
+      "laterality": "bilateral",
+      "reason": "No renal-cortex concept in either parts list or either inclusion-relation list; no independent mesh."
+    },
+    {
+      "slug": "renal-medulla-and-pyramids",
+      "layer": "renal-parts",
+      "laterality": "bilateral",
+      "reason": "No renal-medulla or renal-pyramid concept in either parts list or either inclusion-relation list; no independent mesh."
+    },
+    {
+      "slug": "renal-papillae",
+      "layer": "renal-parts",
+      "laterality": "bilateral",
+      "reason": "No renal-papilla concept in either parts list or either inclusion-relation list; no independent mesh."
+    },
+    {
+      "slug": "renal-calyces",
+      "layer": "renal-parts",
+      "laterality": "bilateral",
+      "reason": "No renal-calyx or renal-calix concept in either parts list or either inclusion-relation list; no independent mesh."
+    },
+    {
+      "slug": "renal-pelvis",
+      "layer": "renal-parts",
+      "laterality": "bilateral",
+      "reason": "No renal-pelvis concept in either parts list or either inclusion-relation list; no independent mesh."
+    }
+  ],
+  "checks": {
+    "uniqueMeshNames": true,
+    "uniqueSourceFiles": true,
+    "sourceHeadersVerified": true,
+    "sourceHashesVerified": true,
+    "orientationVerified": true,
+    "unrepresentedStructures": "deferred; see docs/anatomy/provenance/README.md"
+  }
+}
