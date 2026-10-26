@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "phase": "urinary-mapping",
   "system": "urinary",
-  "status": "proposed; awaiting mapping approval",
+  "status": "owner structure decisions applied; remaining approvals pending",
   "analysisOnly": true,
   "generatedAt": "2026-10-26",
   "branch": "integration/anatomy-hardening",
@@ -910,8 +910,8 @@
         "reason": "No renal-cortex concept in either parts list or either inclusion-relation list; no independent mesh."
       },
       {
-        "slug": "renal-medulla",
-        "name": "Renal medulla",
+        "slug": "renal-medulla-and-pyramids",
+        "name": "Renal medulla and pyramids",
         "officialName": null,
         "meshName": null,
         "layer": "renal-parts",
@@ -924,11 +924,11 @@
         "sharedWith": [],
         "canonicalOwner": "urinary",
         "role": "text-only",
-        "reason": "No renal-medulla concept in either parts list or either inclusion-relation list; no independent mesh."
+        "reason": "No renal-medulla or renal-pyramid concept in either parts list or either inclusion-relation list; no independent mesh."
       },
       {
-        "slug": "renal-pyramids",
-        "name": "Renal pyramids",
+        "slug": "renal-papillae",
+        "name": "Renal papillae",
         "officialName": null,
         "meshName": null,
         "layer": "renal-parts",
@@ -941,7 +941,7 @@
         "sharedWith": [],
         "canonicalOwner": "urinary",
         "role": "text-only",
-        "reason": "No renal-pyramid concept in either parts list or either inclusion-relation list; no independent mesh."
+        "reason": "No renal-papilla concept in either parts list or either inclusion-relation list; no independent mesh."
       },
       {
         "slug": "renal-calyces",
@@ -1087,7 +1087,7 @@
       {"concept": "FMA71102", "name": "right upper urinary tract", "elementFiles": ["FJ3146", "FJ3147"]},
       {"concept": "FMA71103", "name": "left upper urinary tract", "elementFiles": ["FJ3144", "FJ3145"]}
     ],
-    "conclusion": "The five proposed renal parts have no FMA concept and no independent mesh. They are text-only or omitted; they must not be described as BodyParts3D-derived geometry."
+    "conclusion": "The five text-only rows (renal cortex, renal medulla and pyramids, renal papillae, renal calyces, renal pelvis) have no FMA concept and no independent mesh. They are text-only by owner decision; they must not be described as BodyParts3D-derived geometry."
   },
   "sizeEstimate": {
     "status": "estimate; model not built",
@@ -1213,7 +1213,7 @@
     ]
   },
   "facultyReviewTemplate": {
-    "status": "blank; no teaching text written",
+    "status": "blank review decisions; unverified AI teaching-text draft exists in docs/anatomy/drafts/urinary-teaching-draft.md",
     "perRowFields": [
       "summary",
       "location",
@@ -1228,9 +1228,9 @@
     ],
     "decisionValues": ["approved", "approved-with-edits", "rejected"],
     "notes": [
-      "Faculty must supply original teaching text and references for each row.",
-      "For the ten mesh rows, references should cite the FMA concept and the textbook used for the notes.",
-      "For the five text-only renal parts, references must be textbook-only because no FMA concept exists.",
+      "Faculty must review or replace the draft teaching text for each row.",
+      "For the ten mesh rows, references contain the matching FMA concept identifier.",
+      "For the five text-only renal parts, references contain only the no-mesh statement because no FMA concept exists.",
       "isReviewed stays false until each row is signed off."
     ]
   },
@@ -1259,7 +1259,7 @@
   },
   "risks": [
     "Renal vessels are not urinary organs. They are included as shared cardiovascular context at the task's request; a one-system-per-structure policy would need an explicit shared-structure rule.",
-    "The five text-only renal parts have no FMA concept and cannot be described as BodyParts3D-derived; omitting them is a valid alternative.",
+    "The five text-only renal parts have no FMA concept and cannot be described as BodyParts3D-derived; they remain text-only by owner decision.",
     "Left/right split doubles rows but gives independent selection and matches the source. Bladder and urethra are single midline rows.",
     "Renal veins are 9,926 of 20,364 triangles (48.7% of the model); there is no separate extraparenchymal venous concept, so reducing them would require a new modelling decision.",
     "The unused renal-artery trunk and ureteric segments add 2,910 triangles if included later and would duplicate part of the main artery territory.",
@@ -1268,31 +1268,34 @@
     "The official README does not state units or axes. Millimetres come from Bounds(mm); Z-up is the project's existing pipeline assumption. Cross-system placement depends on that convention remaining consistent.",
     "The licence ambiguity is inherited from the heart work: the current licence page says CC BY 4.0 while the source OBJ headers say CC BY-SA 2.1 Japan. The adapted model should keep the stricter attribution.",
     "The size figure is an estimate; actual GLB size may differ because of normals, index width, JSON size, and alignment.",
-    "No teaching text exists yet; isReviewed must stay false until faculty sign-off."
+    "The AI teaching-text draft exists but is unverified; isReviewed must stay false until faculty sign-off."
   ],
   "openQuestions": [
     "Approve the renal vessels as shared cardiovascular context, with cardiovascular as canonical owner?",
-    "Approve the five text-only renal parts despite having no FMA concept, or omit them?",
     "Approve the left/right split for kidneys, ureters, renal arteries, and renal veins?",
     "Approve the proposed manifest transform fields and the preview offset?"
   ],
   "approval": {
-    "status": "awaiting approval",
-    "requested": [
+    "status": "owner structure decisions applied; remaining approvals pending",
+    "applied": [
       "10 mesh structures + 5 text-only structures = 15 total.",
+      "Renal medulla and renal pyramids merged into renal-medulla-and-pyramids.",
+      "Renal papillae added as a text-only structure.",
+      "Urinary seed references use only FMA identifiers that match this mapping; the textbook line is removed.",
+      "Renal-vessel bloodSupply follows the committed heart vessel wall-supply convention."
+    ],
+    "remaining": [
       "Left/right split for kidneys, ureters, renal arteries, and renal veins.",
       "Bladder and urethra as single midline structures.",
       "Renal vessels included as shared cardiovascular context, with cardiovascular as canonical owner.",
-      "The five text-only renal parts, despite having no FMA concept.",
       "The proposed manifest transform fields and the preview offset.",
-      "The next phase: source map, model build, seed, UI, and teaching text."
+      "The next phase: source map, model build, seed, UI, and faculty review of the teaching-text draft."
     ],
     "notAuthorisedYet": [
       "seed",
       "database write",
       "model build",
-      "UI change",
-      "teaching text"
+      "UI change"
     ]
   }
 }

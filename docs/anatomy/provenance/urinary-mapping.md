@@ -1,10 +1,14 @@
 # Urinary system source mapping (BodyParts3D 4.0)
 
-**Status: proposed, awaiting approval. Analysis only.** This document maps the
-urinary system from the verified BodyParts3D 4.0 archives. No seed, database
-write, model build, UI change, or teaching text was produced.
+**Status: owner structure decisions applied; remaining approvals pending.
+Analysis only.** This document maps the urinary system from the verified
+BodyParts3D 4.0 archives. The 2026-10-27 owner decisions merged the renal
+medulla and pyramids and added the renal papillae as a text-only row. Teaching
+text remains an unverified AI draft. No seed, database write, model build, or
+UI change was produced.
 
 - Date: 2026-10-26
+- Updated: 2026-10-27
 - Branch: `integration/anatomy-hardening`
 - Base commit: `aa277ae`
 - Source directory: `C:\Users\berek\Desktop\bp3d-source` (outside the repository)
@@ -200,15 +204,15 @@ merge is a union of complementary venous geometry.
 | Slug | Seed display name | `meshName` | Layer | Laterality | FMA | Status |
 | --- | --- | --- | --- | --- | --- | --- |
 | `renal-cortex` | Renal cortex | `null` | `renal-parts` | bilateral | none | text-only |
-| `renal-medulla` | Renal medulla | `null` | `renal-parts` | bilateral | none | text-only |
-| `renal-pyramids` | Renal pyramids | `null` | `renal-parts` | bilateral | none | text-only |
+| `renal-medulla-and-pyramids` | Renal medulla and pyramids | `null` | `renal-parts` | bilateral | none | text-only |
+| `renal-papillae` | Renal papillae | `null` | `renal-parts` | bilateral | none | text-only |
 | `renal-calyces` | Renal calyces | `null` | `renal-parts` | bilateral | none | text-only |
 | `renal-pelvis` | Renal pelvis | `null` | `renal-parts` | bilateral | none | text-only |
 
-These five are **not** BodyParts3D concepts. They are proposed as teaching-only
-rows because the urinary task asks for them if present. They have no independent
-mesh and no FMA ID. If faculty prefer a strictly source-backed system, they can
-be omitted; the ten mesh structures remain complete without them.
+These five are **not** BodyParts3D concepts. They are teaching-only rows because
+the urinary task asks for them if present. They have no independent mesh and no
+FMA ID. They remain text-only by owner decision; the ten mesh structures remain
+complete without them.
 
 ## 7. Shared-file ownership
 
@@ -260,8 +264,8 @@ The compound-concept element rows confirm there is no hidden mesh:
 | `FMA71103` left upper urinary tract | `FJ3144`, `FJ3145` |
 
 Therefore the five renal parts cannot be given a mesh or an FMA reference. They
-are text-only or omitted; they must not be described as BodyParts3D-derived
-geometry.
+are text-only by owner decision; they must not be described as
+BodyParts3D-derived geometry.
 
 ## 9. Size estimate
 
@@ -405,8 +409,8 @@ constraint.
 
 ### 11.2 Review index
 
-No teaching text has been written. The review fields for every row below are
-intentionally blank for faculty input.
+The unverified AI teaching-text draft is stored separately. The review fields
+for every row below are intentionally blank for faculty input.
 
 | # | Slug | Name | Mesh | Layer | Laterality | FMA | Triangles | Review |
 | ---: | --- | --- | --- | --- | --- | --- | ---: | --- |
@@ -421,8 +425,8 @@ intentionally blank for faculty input.
 | 9 | `right-renal-vein` | Right renal vein | `right_renal_vein` | `renal-vessels` | right | `FMA14335` | 5,014 | pending |
 | 10 | `left-renal-vein` | Left renal vein | `left_renal_vein` | `renal-vessels` | left | `FMA14336` | 4,912 | pending |
 | 11 | `renal-cortex` | Renal cortex | `null` | `renal-parts` | bilateral | none | — | pending |
-| 12 | `renal-medulla` | Renal medulla | `null` | `renal-parts` | bilateral | none | — | pending |
-| 13 | `renal-pyramids` | Renal pyramids | `null` | `renal-parts` | bilateral | none | — | pending |
+| 12 | `renal-medulla-and-pyramids` | Renal medulla and pyramids | `null` | `renal-parts` | bilateral | none | — | pending |
+| 13 | `renal-papillae` | Renal papillae | `null` | `renal-parts` | bilateral | none | — | pending |
 | 14 | `renal-calyces` | Renal calyces | `null` | `renal-parts` | bilateral | none | — | pending |
 | 15 | `renal-pelvis` | Renal pelvis | `null` | `renal-parts` | bilateral | none | — | pending |
 
@@ -443,10 +447,10 @@ Repeat this block for each of the 15 rows. Fields are blank by design.
 | Decision (`approved` / `approved-with-edits` / `rejected`) | |
 | Comments | |
 
-For the ten mesh rows, `references` should cite the FMA concept and the textbook
-used for the notes. For the five text-only renal parts, there is no FMA concept,
-so references must be textbook-only and the notes must make clear that no
-independent BodyParts3D mesh exists.
+For the ten mesh rows, `references` contain the FMA concept identifier that
+matches this mapping. For the five text-only renal parts, there is no FMA
+concept, so `references` contain only the no-mesh statement and the notes must
+make clear that no independent BodyParts3D mesh exists.
 
 ## 12. Risks and open questions
 
@@ -455,7 +459,7 @@ independent BodyParts3D mesh exists.
    per structure, this needs an explicit shared-structure policy.
 2. **Five text-only renal parts have no FMA concept.** They can be taught, but
    they cannot be described as BodyParts3D-derived and cannot carry an FMA
-   reference. Omitting them is a valid alternative.
+   reference. They remain text-only by owner decision.
 3. **Left/right split doubles rows.** It gives independent selection and matches
    the source, but a merged kidney/ureter row would be simpler. The bladder and
    urethra are already single midline rows.
@@ -482,22 +486,32 @@ independent BodyParts3D mesh exists.
 10. **The size figure is an estimate.** The actual GLB may differ because of
     normal generation, index width, JSON size, and alignment. Build and validate
     before publishing any size claim.
-11. **No teaching text exists yet.** `isReviewed` must stay false until a faculty
-    member signs each row off. The seed's create-only and reconcile behaviour
-    already protects reviewed content.
+11. **Teaching text is an unverified AI draft.** `isReviewed` must stay false
+    until a faculty member signs each row off. The seed's create-only and
+    reconcile behaviour already protects reviewed content.
 
-## 13. Approval requested
+## 13. Approval status
 
-Please approve or amend:
+Owner decisions applied on 2026-10-27:
 
-- [ ] 10 mesh structures + 5 text-only structures = 15 total.
+- [x] 10 mesh structures + 5 text-only structures = 15 total.
+- [x] Merge the renal medulla and renal pyramids into
+      `renal-medulla-and-pyramids`.
+- [x] Add `renal-papillae` as a text-only structure.
+- [x] Urinary seed references use only FMA identifiers that match this mapping;
+      the textbook line is removed.
+- [x] Renal-vessel `bloodSupply` follows the committed heart vessel wall-supply
+      convention.
+
+Still pending:
+
 - [ ] Left/right split for kidneys, ureters, renal arteries, and renal veins.
 - [ ] Bladder and urethra as single midline structures.
 - [ ] Renal vessels included as shared cardiovascular context, with
       cardiovascular as canonical owner.
-- [ ] The five text-only renal parts, despite having no FMA concept.
 - [ ] The proposed manifest transform fields and the preview offset.
-- [ ] The next phase: source map, model build, seed, UI, and teaching text.
+- [ ] The next phase: source map, model build, seed, UI, and faculty review of
+      the teaching-text draft.
 
-Until approval, no seed, database write, model build, UI change, or teaching text
-will be produced.
+Until the remaining items are approved, no seed, database write, model build, or
+UI change will be produced.
