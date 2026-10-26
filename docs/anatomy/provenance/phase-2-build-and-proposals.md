@@ -133,6 +133,9 @@ or database write was performed. No viewer or UI file was changed.
 
 ## 3. Licence wording proposal (not applied)
 
+> **Superseded:** The licence wording committed in `37a00e2` is the current
+> wording. The proposal below is retained for history and must not be applied.
+
 The v2 candidate currently carries the same interim licence block as v1: the
 required credit, the licence URL, and a status saying commercial clearance is
 pending written clarification of the CC BY-SA 2.1 Japan headers. The wording
