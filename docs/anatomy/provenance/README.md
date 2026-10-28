@@ -11,12 +11,11 @@ text-only viewer treatment are applied. The v2 switch and the exact rollback
 procedure are recorded in [`v2-switch.md`](./v2-switch.md).
 
 `urinary.v1.glb` and `urinary.v1.manifest.json` are built as a draft: 10 mesh
-structures, 5 text-only structures, and 20,364 triangles. The urinary seed data
-is committed but is not imported by `seed-anatomy.ts`, no seed has been run, and
-`URINARY_SYSTEM.isPublished` remains `false`. See
-[`urinary-v1-build.md`](./urinary-v1-build.md) for the build record and
-[`second-system-audit.md`](./second-system-audit.md) for what must change before
-a second system can be published.
+structures, 5 text-only structures, and 20,364 triangles. The urinary seed is
+registered in `anatomy-registry.ts` and imported by `seed-anatomy.ts`; it remains
+unpublished (`URINARY_SYSTEM.isPublished` is `false`) and no urinary row is marked
+reviewed. See [`urinary-v1-build.md`](./urinary-v1-build.md) for the build record
+and [`second-system-audit.md`](./second-system-audit.md) for the readiness audit.
 
 - Live heart release asset: `apps/web/public/models/anatomy/heart.v2.glb`
 - Live heart provenance manifest: `apps/web/public/models/anatomy/manifest.json` (identical to `heart.v2.manifest.json`)
@@ -24,6 +23,9 @@ a second system can be published.
 - Heart v2 provenance manifest: `apps/web/public/models/anatomy/heart.v2.manifest.json`
 - Urinary draft asset: `apps/web/public/models/anatomy/urinary.v1.glb`
 - Urinary draft manifest: `apps/web/public/models/anatomy/urinary.v1.manifest.json`
+- Attribution index: `/attribution/anatomy`
+- Heart attribution detail: `/attribution/anatomy/heart`
+- Urinary attribution detail: `/attribution/anatomy/urinary`
 - Heart source map (committed, sanitised): `apps/web/scripts/anatomy-heart.source.json`
 - Urinary source map (committed, sanitised): `apps/web/scripts/anatomy-urinary.source.json`
 - Build script (both systems): `apps/web/scripts/build-anatomy-model.mjs`
@@ -315,11 +317,12 @@ The following work is still open:
   throttled connection;
 - no faculty member has reviewed the teaching text (`isReviewed` is still
   `false` for every row);
-- the urinary seed is not wired into `seed-anatomy.ts`, and
-  `URINARY_SYSTEM.isPublished` remains `false`;
-- the viewer layer registry, library icon, and attribution page still assume a
-  single heart system; the required changes are recorded in
-  [`second-system-audit.md`](./second-system-audit.md);
+- the urinary content remains a draft: it is seeded in local databases but
+  `URINARY_SYSTEM.isPublished` is still `false`, and publishing it requires an
+  explicit product and faculty-review decision;
+- `npm run anatomy:review --workspace=apps/api` can record a sign-off or
+  revocation, but it has not been run with `--confirm`; no review has been
+  applied to either system;
 - the urinary teaching text is a draft and has not been reviewed by faculty.
 
 The switch has not been pushed or deployed from this working tree.

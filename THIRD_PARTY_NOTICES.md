@@ -7,16 +7,16 @@ the required notices. It is not a substitute for the full licence texts.
 
 ### BodyParts3D 4.0
 
-The Anatomy Lab heart model is derived from BodyParts3D 4.0, distributed by the
-Database Center for Life Science (DBCLS), Japan.
+The Anatomy Lab heart and urinary models are derived from BodyParts3D 4.0,
+distributed by the Database Center for Life Science (DBCLS), Japan.
 
 Required credit:
 
 > BodyParts3D, © The Database Center for Life Science licensed under CC
 > Attribution 4.0 International
 
-- Dataset: BodyParts3D 4.0, PART-OF tree, 99% polygon reduction
-  (`partof_BP3D_4.0_obj_99.zip`).
+- Dataset: BodyParts3D 4.0, PART-OF and IS-A trees, 99% polygon reduction
+  (`partof_BP3D_4.0_obj_99.zip` and `isa_BP3D_4.0_obj_99.zip`).
 - Source: <https://dbarchive.biosciencedbc.jp/en/bodyparts3d/>
 - Licence page (last updated 27 February 2025):
   <https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html>
@@ -34,9 +34,11 @@ https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html
 
 Modifications: selected a subset of source meshes, merged each structure's
 parts into one selectable mesh, converted millimetres/Z-up coordinates to
-metres/Y-up, centred the combined model, recomputed normals, and exported a
-single GLB. Surface colours are original to Lor Mentor. No source textures are
-used. The downloaded archive is not redistributed; only the derived model and
+metres/Y-up, centred each combined model, recomputed normals, and exported a
+single GLB per system. The heart model uses PART-OF and IS-A source files. The
+urinary model uses PART-OF for the urinary organs and IS-A for four shared renal
+vessels. Surface colours are original to Lor Mentor. No source textures are
+used. The downloaded archives are not redistributed; only the derived models and
 the provenance records are committed.
 
 ### Foundational Model of Anatomy (FMA)
@@ -73,8 +75,10 @@ include this file and the licence texts for the dependencies you ship.
 
 Teaching notes, quizzes and interface text are LOR Mentor content and are
 pending faculty review. They are not part of the BodyParts3D dataset. They cite
-standard anatomy textbooks where relevant. See the attribution page at
-`/attribution/anatomy` and `apps/api/prisma/anatomy-heart.data.ts`.
+standard anatomy textbooks where relevant. See the attribution pages at
+`/attribution/anatomy` and the two seed files
+`apps/api/prisma/anatomy-heart.data.ts` and
+`apps/api/prisma/anatomy-urinary.data.ts`.
 
 ## Questions
 
