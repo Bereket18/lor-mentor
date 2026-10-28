@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { UserThrottlerGuard } from '../../common/guards/user-throttler.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AnatomyService } from './anatomy.service';
@@ -16,7 +18,7 @@ import type { RequestUser } from '../../common/types/request-user';
 // the detail route so sample systems can stay open to unsubscribed students
 // without weakening normal systems.
 @Controller('anatomy')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, UserThrottlerGuard)
 @Roles('STUDENT', 'TEACHER')
 export class AnatomyController {
   constructor(private readonly service: AnatomyService) {}
@@ -37,6 +39,9 @@ export class AnatomyController {
   }
 
   // POST /api/v1/anatomy/systems/:slug/structures/:structureSlug/explain
+  // Each call hits the paid Gemini API, so cap it per account (the
+  // UserThrottlerGuard runs after JwtAuthGuard has populated req.user).
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post('systems/:slug/structures/:structureSlug/explain')
   explainStructure(
     @Param() params: AnatomyStructureParamsDto,
@@ -52,6 +57,8 @@ export class AnatomyController {
   }
 
   // POST /api/v1/anatomy/systems/:slug/structures/:structureSlug/quiz
+  // Same per-user cap as the explanation endpoint: both call the paid model.
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post('systems/:slug/structures/:structureSlug/quiz')
   generateQuiz(
     @Param() params: AnatomyStructureParamsDto,
