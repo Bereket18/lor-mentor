@@ -8,6 +8,12 @@ import type { RequestUser } from '../../common/types/request-user';
 
 const student = { id: 'student-1', role: 'STUDENT' } as unknown as RequestUser;
 
+const staffRoles = ['TEACHER', 'ADMIN', 'SUPER_ADMIN'] as const;
+
+function staff(role: (typeof staffRoles)[number]): RequestUser {
+  return { id: `${role.toLowerCase()}-1`, role } as unknown as RequestUser;
+}
+
 const aorta = {
   id: 'structure-1',
   systemId: 'system-1',
@@ -70,12 +76,13 @@ describe('AnatomyService', () => {
         description: 'Sample description',
         modelUrl: '/models/anatomy/heart.v2.glb',
         isSample: true,
+        isPublished: true,
         sortOrder: 1,
         _count: { structures: 26 },
       },
     ]);
 
-    await expect(service.listSystems()).resolves.toEqual([
+    await expect(service.listSystems(student)).resolves.toEqual([
       {
         id: 'system-1',
         slug: 'heart',
@@ -84,6 +91,7 @@ describe('AnatomyService', () => {
         description: 'Sample description',
         modelUrl: '/models/anatomy/heart.v2.glb',
         isSample: true,
+        isPublished: true,
         sortOrder: 1,
         structureCount: 26,
       },
@@ -92,6 +100,37 @@ describe('AnatomyService', () => {
       expect.objectContaining({ where: { isPublished: true } }),
     );
   });
+
+  it.each(staffRoles)(
+    'lists published and unpublished systems for %s',
+    async (role) => {
+      findSystems.mockResolvedValue([
+        {
+          id: 'system-2',
+          slug: 'urinary',
+          name: 'Urinary system',
+          latinName: 'Systema urinarium',
+          description: 'Draft description',
+          modelUrl: '/models/anatomy/urinary.v1.glb',
+          isSample: false,
+          isPublished: false,
+          sortOrder: 2,
+          _count: { structures: 15 },
+        },
+      ]);
+
+      await expect(service.listSystems(staff(role))).resolves.toEqual([
+        expect.objectContaining({
+          slug: 'urinary',
+          isPublished: false,
+          structureCount: 15,
+        }),
+      ]);
+      expect(findSystems).toHaveBeenCalledWith(
+        expect.objectContaining({ where: {} }),
+      );
+    },
+  );
 
   it('throws NotFound for a missing or unpublished system without loading structures', async () => {
     findSystem.mockResolvedValue(null);
@@ -111,6 +150,33 @@ describe('AnatomyService', () => {
     expect(ensureActiveForStudent).not.toHaveBeenCalled();
     expect(findStructures).not.toHaveBeenCalled();
   });
+
+  it.each(staffRoles)(
+    'allows %s to open an unpublished system for preview',
+    async (role) => {
+      findSystem.mockResolvedValue({
+        id: 'system-2',
+        slug: 'urinary',
+        name: 'Urinary system',
+        isPublished: false,
+        isSample: false,
+      });
+      findStructures.mockResolvedValue([]);
+      ensureActiveForStudent.mockResolvedValue(undefined);
+
+      await expect(
+        service.getSystem(staff(role), 'urinary'),
+      ).resolves.toMatchObject({
+        slug: 'urinary',
+        isPublished: false,
+        structureCount: 0,
+      });
+      expect(ensureActiveForStudent).toHaveBeenCalledWith(
+        `${role.toLowerCase()}-1`,
+        role,
+      );
+    },
+  );
 
   it('allows a sample system without a subscription check', async () => {
     findSystem.mockResolvedValue({

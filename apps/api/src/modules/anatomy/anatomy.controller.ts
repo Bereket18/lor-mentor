@@ -18,8 +18,8 @@ export class AnatomyController {
 
   // GET /api/v1/anatomy/systems
   @Get('systems')
-  listSystems() {
-    return this.service.listSystems();
+  listSystems(@CurrentUser() user: RequestUser) {
+    return this.service.listSystems(user);
   }
 
   // GET /api/v1/anatomy/systems/:slug

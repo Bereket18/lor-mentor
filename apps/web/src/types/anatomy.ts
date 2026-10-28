@@ -6,6 +6,7 @@ export interface AnatomySystemSummary {
   description: string;
   modelUrl: string | null;
   isSample: boolean;
+  isPublished: boolean;
   sortOrder: number;
   structureCount: number;
 }

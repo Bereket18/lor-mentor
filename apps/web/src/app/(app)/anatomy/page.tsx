@@ -6,14 +6,27 @@ import {
   AlertCircle,
   ArrowRight,
   Boxes,
+  Droplets,
   ExternalLink,
   HeartPulse,
   Rotate3d,
   ScanSearch,
   Sparkles,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import api from "@/lib/api";
 import type { AnatomySystemSummary } from "@/types/anatomy";
+
+// One icon per system, keyed by slug. New systems get a neutral fallback
+// instead of inheriting the heart icon.
+const SYSTEM_ICONS: Record<string, LucideIcon> = {
+  heart: HeartPulse,
+  urinary: Droplets,
+};
+
+function systemIcon(slug: string): LucideIcon {
+  return SYSTEM_ICONS[slug] ?? Boxes;
+}
 
 const labSteps = [
   {
@@ -72,7 +85,7 @@ export default function AnatomyPage() {
       <header>
         <div className="flex items-start gap-3">
           <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border border-accent/20 bg-accent/10 text-accent">
-            <HeartPulse className="h-5 w-5" aria-hidden />
+            <Boxes className="h-5 w-5" aria-hidden />
           </div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-accent">
@@ -91,6 +104,12 @@ export default function AnatomyPage() {
           <p className="mt-2 text-xs text-muted">
             {systems.length} {systems.length === 1 ? "system" : "systems"} ·{" "}
             {totalStructures} structures · 3D models from BodyParts3D
+          </p>
+        )}
+        {!loading && !error && systems.some((system) => !system.isPublished) && (
+          <p className="mt-2 text-xs text-warning">
+            Staff preview: draft systems are visible to teaching and admin staff
+            only.
           </p>
         )}
       </header>
@@ -165,7 +184,9 @@ export default function AnatomyPage() {
               </div>
             ) : (
               <ul className="space-y-3">
-                {systems.map((system) => (
+                {systems.map((system) => {
+                  const SystemIcon = systemIcon(system.slug);
+                  return (
                   <li key={system.id}>
                     <Link
                       href={`/anatomy/${system.slug}`}
@@ -173,7 +194,7 @@ export default function AnatomyPage() {
                     >
                       <div className="flex items-start gap-4">
                         <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent transition-colors group-hover:bg-accent/15">
-                          <HeartPulse className="h-5 w-5" aria-hidden />
+                          <SystemIcon className="h-5 w-5" aria-hidden />
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -194,6 +215,11 @@ export default function AnatomyPage() {
                             >
                               {system.isSample ? "Free preview" : "Subscriber"}
                             </span>
+                            {!system.isPublished && (
+                              <span className="rounded-full border border-warning/20 bg-warning/10 px-2.5 py-0.5 text-xs font-medium text-warning">
+                                Draft
+                              </span>
+                            )}
                           </div>
 
                           <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-secondary">
@@ -217,7 +243,8 @@ export default function AnatomyPage() {
                       </div>
                     </Link>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
           </div>

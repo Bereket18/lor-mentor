@@ -21,6 +21,14 @@ interface AnatomyStructureNotes {
   clinicalNotes: string | null;
 }
 
+// Teaching and admin staff can preview unpublished systems. Students must
+// never see them, even if the system is a free sample.
+const STAFF_PREVIEW_ROLES = new Set(['TEACHER', 'ADMIN', 'SUPER_ADMIN']);
+
+function canPreviewUnpublished(user: RequestUser): boolean {
+  return STAFF_PREVIEW_ROLES.has(user.role);
+}
+
 @Injectable()
 export class AnatomyService {
   constructor(
@@ -30,9 +38,11 @@ export class AnatomyService {
   ) {}
 
   // The picker only needs metadata, never the protected structure text.
-  async listSystems() {
+  // Students only receive published systems; staff also receive drafts so they
+  // can preview work before an explicit publish decision.
+  async listSystems(user: RequestUser) {
     const systems = await this.prisma.anatomySystem.findMany({
-      where: { isPublished: true },
+      where: canPreviewUnpublished(user) ? {} : { isPublished: true },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
       select: {
         id: true,
@@ -42,6 +52,7 @@ export class AnatomyService {
         description: true,
         modelUrl: true,
         isSample: true,
+        isPublished: true,
         sortOrder: true,
         _count: { select: { structures: true } },
       },
@@ -63,7 +74,7 @@ export class AnatomyService {
       where: { slug },
     });
 
-    if (!system || !system.isPublished) {
+    if (!system || (!system.isPublished && !canPreviewUnpublished(user))) {
       throw new NotFoundException('Anatomy system not found');
     }
 

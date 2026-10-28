@@ -373,6 +373,11 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
               <span className="rounded-full border border-accent/20 bg-accent/10 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-accent">
                 {system.isSample ? "Free preview" : "Subscriber"}
               </span>
+              {!system.isPublished && (
+                <span className="rounded-full border border-warning/20 bg-warning/10 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-warning">
+                  Draft
+                </span>
+              )}
             </div>
             <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
               {system.latinName && <span>{system.latinName}</span>}
@@ -389,7 +394,7 @@ export function AnatomyViewer({ slug }: AnatomyViewerProps) {
             Drag to rotate · Scroll to zoom · Click a structure
           </p>
           <Link
-            href="/attribution/anatomy"
+            href={`/attribution/anatomy/${system.slug}`}
             className={`inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 py-2 text-xs font-medium text-secondary transition-colors hover:border-border-accent hover:text-primary ${ANATOMY_FOCUS_RING}`}
           >
             <ExternalLink className="h-3.5 w-3.5" />
