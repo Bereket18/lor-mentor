@@ -131,6 +131,27 @@ for the backend. Verify (wait a few minutes): `dig +short lormentor.com api.lorm
 > keep the public out during testing with a password (Section 5), not by delaying
 > DNS.
 
+### 2.1 Cookie domain and trusted proxy (split-host deployments)
+
+The web app is served from `lormentor.com` and the API from
+`api.lormentor.com`. The web edge guard (`apps/web/src/proxy.ts`) and the
+`/api/proxy` route read auth cookies on the **web host**, so the API must set a
+shared parent-domain cookie:
+
+```env
+COOKIE_DOMAIN=.lormentor.com
+TRUST_PROXY=1
+```
+
+- `COOKIE_DOMAIN` is optional for a single-host deployment, but **required** for
+  `api.<domain>` + `<domain>`. Use the parent domain (leading dot is accepted).
+  Without it, login can succeed at the API while every protected web page
+  redirects to `/login`.
+- `TRUST_PROXY` is the number of reverse-proxy hops Express should trust when
+  reading `X-Forwarded-For`. The standard nginx setup is one hop (`1`, also the
+  production default when blank). If Cloudflare is in front of nginx, use `2`.
+  Never use `true`; a hop count prevents clients from spoofing their address.
+
 ---
 
 # SECTION 3 — Deploy the application
@@ -159,6 +180,9 @@ Fill in, at minimum:
 - `WEB_PUBLIC_URL=https://lormentor.com`, `API_PUBLIC_URL=https://api.lormentor.com`,
   `APP_URL`, `API_URL`, `CORS_ORIGIN=https://lormentor.com`,
   `NEXT_PUBLIC_API_URL=https://api.lormentor.com`
+- `COOKIE_DOMAIN=.lormentor.com` (required for the web/API split; see 2.1)
+- `TRUST_PROXY=1` (one nginx hop; use `2` behind Cloudflare; blank defaults to 1
+  in production)
 - `POSTGRES_PASSWORD=` (a strong password) and mirror it inside `DATABASE_URL`
 - `GEMINI_API_KEY=` (from Google AI Studio)
 - SMTP_* → **Section 4**
@@ -191,12 +215,74 @@ docker compose -f docker-compose.prod.yml ps
 docker compose -f docker-compose.prod.yml logs -f api      # Ctrl-C to stop watching
 ```
 
-### 3.4 Seed the initial data (once)
+### 3.4 Apply migrations and seed the initial data (once)
+
+The API container entrypoint runs `prisma migrate deploy` before the server
+starts. Confirm the result and that the schema is current:
 ```bash
-docker compose -f docker-compose.prod.yml exec api npx ts-node prisma/seed.ts
+docker compose -f docker-compose.prod.yml --env-file .env.production \
+  exec api npx prisma migrate status
+# expected: "Database schema is up to date!"
 ```
-*Why:* creates the subscription plans, departments/years, and the first admin user
-the app needs to function.
+Migrations are forward-only in production. Never run `prisma migrate dev`,
+`prisma migrate reset`, or `prisma db push` against production; restore a backup
+instead if a deploy must be reversed (see "Rollback" below).
+
+Seed the subscription plans, departments/years, and first admin user:
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.production \
+  exec api npx ts-node prisma/seed.ts
+```
+
+Then reconcile the Anatomy Lab registry (heart + urinary):
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.production \
+  exec api npm run db:seed:anatomy -- --reconcile
+# Or limit the run to one system:
+#   ... -- --reconcile --system heart
+#   ... -- --reconcile --system urinary
+```
+`--reconcile` refreshes system metadata and derived citation, sort-order, and
+related-structure fields. It never overwrites `name`, `latinName`, `summary`,
+`location`, `function`, `bloodSupply`, `clinicalNotes`, `meshName`, or
+`isReviewed`. `--prune-stale` is destructive: take a database backup, read the
+printed plan, and only then run it; the script refuses to delete
+faculty-reviewed rows.
+
+### 3.4.1 Anatomy model checks (CI or a Node checkout)
+
+Run both validators before every deploy that touches an Anatomy Lab asset. CI
+runs them on `main`, `integration/**`, and `feature/**`; you can run them from a
+local checkout with Node 20+:
+
+```bash
+cd apps/web
+node scripts/validate-anatomy-model.mjs --system heart
+node scripts/validate-anatomy-model.mjs --system urinary
+```
+
+They verify the GLB structure, manifest hashes, source provenance, and the
+immutable-filename rule; the API test suite covers the seed-to-model contract.
+Shipped models must be named
+`<name>.vN.glb`; `published-models.json` pins each shipped SHA-256, so changing
+bytes under an existing filename fails validation. Publish a new version and
+register it instead. Nginx gives only versioned `.vN.glb` files the one-year
+immutable cache header.
+
+Faculty sign-off is separate from model validation. Review the draft system,
+then run the review script with an explicit confirmation before publishing:
+
+```bash
+# Dry run first (no --confirm): prints the review plan without writing.
+docker compose -f docker-compose.prod.yml --env-file .env.production \
+  exec api npm run anatomy:review -- --system urinary \
+    --reviewer "Dr Example" --date 2026-10-28
+
+# Apply after the faculty member signs off.
+docker compose -f docker-compose.prod.yml --env-file .env.production \
+  exec api npm run anatomy:review -- --system urinary \
+    --reviewer "Dr Example" --date 2026-10-28 --confirm
+```
 
 ### 3.5 Quick local check (before Nginx)
 ```bash
@@ -235,6 +321,37 @@ All containers use `restart: unless-stopped`, and Docker starts on boot, so the
 whole stack comes back automatically after a reboot. Nginx and fail2ban are systemd
 services and also auto-start. Test it: `sudo reboot`, wait a minute, reconnect, and
 check `docker compose ps`.
+
+### 3.9 First-boot hardening checklist
+
+Run once after the stack is up, before opening the site to users:
+
+- [ ] `.env.production` is complete and `npm run check:env -- .env.production`
+      passes (run from a Node 20+ checkout).
+- [ ] `TRUST_PROXY` matches the real topology (`1` for nginx only, `2` behind
+      Cloudflare). Confirm API logs/rate-limit keys show the client address, not
+      `127.0.0.1`.
+- [ ] `COOKIE_DOMAIN` is the shared parent domain. Log in on the web host, confirm
+      the browser stores the auth cookies for that domain, and confirm
+      `/api/proxy/*` calls are authenticated.
+- [ ] `npx prisma migrate status` reports "Database schema is up to date!" and no
+      failed migrations.
+- [ ] `prisma/seed.ts` ran; the first admin can log in.
+- [ ] `db:seed:anatomy -- --reconcile` ran. Heart is published; urinary remains
+      an unpublished draft until faculty review and `anatomy:review --confirm`.
+- [ ] Both anatomy model validators pass in CI (or locally), and
+      `published-models.json` contains the current versioned filenames/hashes.
+- [ ] `sudo nginx -t` passes; security headers are present; all HSTS lines are
+      still commented until HTTPS is verified, then uncomment them together.
+- [ ] `/api/v1/health` and `/api/v1/health/ready` return 200; the web app returns
+      200; login, refresh, and logout work.
+- [ ] Docker images were built from the deployed commit
+      (`docker compose -f docker-compose.prod.yml build api web`), and containers
+      are healthy.
+- [ ] `npm audit --omit=dev` was reviewed for high/critical findings; fixes are
+      planned deliberately, not applied blind to production.
+- [ ] Nightly backups are scheduled and a restore has been rehearsed; record the
+      last good commit and backup filename for rollback.
 
 ---
 
@@ -403,17 +520,62 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d --bui
 Docker rebuilds only what changed and swaps containers; migrations auto-apply.
 
 **Rollback** if a deploy misbehaves:
+
+1. Record the failing commit and the last known-good commit.
+2. Check out the previous commit and rebuild:
 ```bash
 cd /opt/lor-mentor
 git log --oneline -5            # find the previous good commit
 git checkout <previous-commit>
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
 ```
-**Restore the database** from a backup if needed:
+3. Confirm health and migrations:
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.production \
+  exec api npx prisma migrate status
+```
+Migrations are forward-only. If the previous code cannot run against the
+already-applied schema, restore the pre-deploy database backup instead of
+editing migration files or running `migrate dev`/`migrate reset`/`db push`.
+
+**Restore the database** from a backup if needed (stop writers first, and take a
+fresh backup of the current state before overwriting it):
 ```bash
 gunzip -c /var/backups/lor-mentor/<file>.sql.gz | \
   docker compose -f docker-compose.prod.yml exec -T postgres psql -U lor -d lor_mentor
 ```
+
+**Roll back an Anatomy model** without touching the database schema: restore the
+previous versioned `modelUrl` in the registry data (for example
+`/models/anatomy/heart.v1.glb`), rebuild, and reconcile that system:
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.production \
+  exec api npm run db:seed:anatomy -- --reconcile --system heart
+```
+Never overwrite the old `.vN.glb` file; it is the rollback asset and is covered
+by the immutable cache and the published-hash registry.
+
+## Secret rotation checklist
+
+Rotate on a schedule and immediately after any suspected exposure. Update
+`.env.production` (never commit it), then restart the affected service and verify
+health/login. Rotating the JWT secrets invalidates all existing sessions.
+
+| Secret | What it protects | After rotating |
+|---|---|---|
+| `JWT_ACCESS_SECRET` | access-token signatures | restart API; users re-login |
+| `JWT_REFRESH_SECRET` | refresh-token signatures | restart API; users re-login |
+| `POSTGRES_PASSWORD` + `DATABASE_URL` | database credentials | update both together; restart API/Postgres; verify readiness |
+| `SMTP_PASS` | verification/reset/payment email | restart API; send a test email |
+| `GEMINI_API_KEY` | paid AI calls | restart API; test tutor + anatomy AI |
+| `CHAPA_SECRET_KEY` | Chapa API calls | restart API; run one test payment |
+| `CHAPA_WEBHOOK_SECRET` | webhook HMAC verification | restart API; send a signed test webhook |
+| `RECEIPT_VERIFIER_TOKEN` | API ↔ receipt-verifier auth | update both services together; restart both |
+| `SUPER_ADMIN_PASSWORD` | one-time seed admin | change the password in the app; do not re-seed |
+| `SENTRY_DSN` (if used) | error reporting | restart API; confirm events arrive |
+
+`COOKIE_DOMAIN` and `TRUST_PROXY` are configuration, not secrets; changing them
+requires an API restart and a login/cookie check.
 
 ---
 
