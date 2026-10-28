@@ -17,7 +17,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -27,6 +27,9 @@ const modelDir = resolve(scriptDir, "../public/models/anatomy");
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_TRIANGLES = 150_000;
 const SYSTEMS = new Set(["heart", "urinary"]);
+const PUBLISHED_MODELS_FILE = "published-models.json";
+// Immutable-cache-safe name: <stem>.v<positive integer>.glb
+const VERSIONED_GLB_PATTERN = /^[a-z0-9][a-z0-9-]*\.v[1-9][0-9]*\.glb$/;
 
 const failures = [];
 
@@ -72,9 +75,10 @@ function parseArgs(argv) {
 
 function usage() {
   return [
-    "Usage: node scripts/validate-anatomy-model.mjs [--system heart|urinary] [--glb <path>] [--manifest <path>]",
+    "Usage: node scripts/validate-anatomy-model.mjs [--system heart|urinary] [--glb <name>.vN.glb] [--manifest <path>]",
     "",
     "Defaults to the live heart v2 asset. --system urinary checks urinary.v1.",
+    "Any --glb filename must be versioned as <name>.vN.glb (N >= 1).",
   ].join("\n");
 }
 
@@ -228,9 +232,14 @@ function main() {
     `Manifest system "${manifest.system}" does not match --system ${args.system}`,
   );
   check(manifest.model, "Manifest is missing model metadata");
+  const glbName = basename(args.glb);
   check(
-    manifest.model?.file === basename(args.glb),
-    `Manifest model file ${manifest.model?.file} does not match ${basename(args.glb)}`,
+    manifest.model?.file === glbName,
+    `Manifest model file ${manifest.model?.file} does not match ${glbName}`,
+  );
+  check(
+    VERSIONED_GLB_PATTERN.test(glbName),
+    `Model filename "${glbName}" must be versioned as <name>.vN.glb (N >= 1); unversioned files cannot be cached immutably`,
   );
   check(
     manifest.model?.bytes === glb.byteLength,
@@ -246,6 +255,60 @@ function main() {
     manifest.model?.sha256 === digest,
     `Manifest SHA-256 does not match the GLB (${digest})`,
   );
+
+  // Immutable-cache enforcement. The registry pins the bytes of every shipped
+  // filename, so changing an existing file in place is a validation failure:
+  // publish a new .vN filename and register it instead.
+  const publishedPath = join(modelDir, PUBLISHED_MODELS_FILE);
+  let published = {};
+  if (!existsSync(publishedPath)) {
+    failures.push(`Missing release registry: ${publishedPath}`);
+  } else {
+    try {
+      const parsed = JSON.parse(readFileSync(publishedPath, "utf8"));
+      if (
+        parsed !== null &&
+        typeof parsed === "object" &&
+        !Array.isArray(parsed)
+      ) {
+        published = parsed;
+      } else {
+        failures.push(
+          `${PUBLISHED_MODELS_FILE} must contain a filename -> SHA-256 object`,
+        );
+      }
+    } catch (error) {
+      failures.push(
+        `${PUBLISHED_MODELS_FILE} is not valid JSON: ${error.message}`,
+      );
+    }
+  }
+
+  // Scan the shipped directory, not just the file passed on the command line:
+  // a new .vN.glb that nobody validated must still be registered before CI
+  // can pass.
+  for (const shippedName of readdirSync(modelDir)) {
+    if (!VERSIONED_GLB_PATTERN.test(shippedName)) continue;
+    check(
+      typeof published[shippedName] === "string",
+      `Model ${shippedName} is not recorded in ${PUBLISHED_MODELS_FILE}; register its SHA-256 before shipping a new version`,
+    );
+  }
+
+  const pinnedDigest = published[glbName];
+  const isShippedAsset = dirname(resolve(args.glb)) === modelDir;
+  if (isShippedAsset) {
+    check(
+      typeof pinnedDigest === "string",
+      `Model ${glbName} is not recorded in ${PUBLISHED_MODELS_FILE}; register its SHA-256 before shipping a new version`,
+    );
+  }
+  if (typeof pinnedDigest === "string") {
+    check(
+      pinnedDigest === digest,
+      `Published model ${glbName} is pinned to SHA-256 ${pinnedDigest}, but this file is ${digest}. Bump the filename to a new .vN version instead of overwriting a shipped asset.`,
+    );
+  }
 
   check(json.asset?.version === "2.0", "GLB asset version must be 2.0");
   check(

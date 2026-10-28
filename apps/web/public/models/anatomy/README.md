@@ -28,6 +28,27 @@ mesh) whose `name` exactly matches the structure's `meshName` in
 Both assets are generated from the BodyParts3D 4.0 source archives by the
 committed pipeline; the archives themselves are not committed.
 
+## Immutable filenames and caching
+
+Every shipped GLB must be named `<name>.v<N>.glb`, where `N` is a positive
+integer (for example `heart.v2.glb` or `urinary.v1.glb`). This is not cosmetic:
+nginx gives only files matching that shape a one-year
+`Cache-Control: public, max-age=31536000, immutable` header.
+
+- **Any byte change requires a new filename.** Re-exporting, fixing a mesh,
+  changing metadata, or even re-saving an unchanged model can change the bytes.
+  Publish it as `heart.v3.glb` (or the next unused version) and add a matching
+  manifest; never overwrite `heart.v2.glb`.
+- `published-models.json` is the release registry. It pins the SHA-256 of every
+  immutable asset. `validate-anatomy-model.mjs` fails if a shipped filename's
+  bytes no longer match its pinned hash, or if a new file in this directory has
+  not been registered yet.
+- Unversioned files (`heart.glb`, manifests, thumbnails) are not covered by the
+  immutable cache rule. `heart.glb` is only the deprecated placeholder.
+- To publish a new version: build to the new versioned filename, update its
+  manifest, add the filename + SHA-256 to `published-models.json`, run both
+  validators, then deploy.
+
 ## Seeding
 
 The anatomy seed reads `apps/api/prisma/anatomy-registry.ts`, which currently
