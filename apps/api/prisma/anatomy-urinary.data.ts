@@ -14,11 +14,22 @@
  * - The four renal-vessel rows use the committed heart vessel wall-supply
  *   convention instead of the draft placeholder.
  *
- * This module is seed data only. It is not imported by seed-anatomy.ts and
- * no seed has been run.
+ * This module is seed data only. The anatomy seed registry imports it; the
+ * urinary system stays unpublished until an explicit publish decision.
  */
 
 import type { AnatomyStructureSeed } from './anatomy-heart.data';
+
+// Teaching order for the urinary layer filters. The seed uses this to assign
+// sortOrder so the viewer can derive layer order from structure data alone.
+export const URINARY_LAYER_ORDER = [
+  'kidneys',
+  'renal-parts',
+  'renal-vessels',
+  'ureters',
+  'bladder',
+  'urethra',
+] as const;
 
 export const URINARY_SYSTEM = {
   slug: 'urinary',

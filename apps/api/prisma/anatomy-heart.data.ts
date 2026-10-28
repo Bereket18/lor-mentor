@@ -33,6 +33,18 @@ export interface AnatomyStructureSeed {
   references: string[];
 }
 
+// Teaching order for the heart layer filters. The seed uses this to assign
+// sortOrder so the viewer can derive layer order from structure data alone.
+export const HEART_LAYER_ORDER = [
+  'chambers',
+  'valves',
+  'great-vessels',
+  'coronary-circulation',
+  'septum',
+  'wall-layers',
+  'conduction',
+] as const;
+
 export const HEART_SYSTEM = {
   slug: 'heart',
   name: 'Heart and circulation',

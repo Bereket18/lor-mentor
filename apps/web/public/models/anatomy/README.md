@@ -23,10 +23,29 @@ mesh) whose `name` exactly matches the structure's `meshName` in
 | System | Live asset | Manifest | Status |
 | --- | --- | --- | --- |
 | Heart | `heart.v2.glb` | `manifest.json` (identical to `heart.v2.manifest.json`) | Live. `heart.v1.glb` is the verified rollback asset. |
-| Urinary | `urinary.v1.glb` | `urinary.v1.manifest.json` | Draft. Not imported by the seed; `isPublished` is `false`. |
+| Urinary | `urinary.v1.glb` | `urinary.v1.manifest.json` | Draft. Registered in `seed-anatomy.ts`; `isPublished` is `false`. |
 
 Both assets are generated from the BodyParts3D 4.0 source archives by the
 committed pipeline; the archives themselves are not committed.
+
+## Seeding
+
+The anatomy seed reads `apps/api/prisma/anatomy-registry.ts`, which currently
+registers `heart` and `urinary`. The default is create-only for every registered
+system. `--system` limits a run to one system:
+
+```bash
+npm run db:seed:anatomy --workspace=apps/api
+npm run db:seed:anatomy --workspace=apps/api -- --system urinary
+npm run db:seed:anatomy --workspace=apps/api -- --reconcile --system heart
+npm run db:seed:anatomy --workspace=apps/api -- --reconcile --prune-stale
+```
+
+The script prints the full plan before writing. `--reconcile` refreshes system
+metadata and the derived citation, sort-order, and related-structure fields. It
+never overwrites `name`, `latinName`, `summary`, `location`, `function`,
+`bloodSupply`, `clinicalNotes`, `meshName`, or `isReviewed`. `--prune-stale`
+refuses to delete faculty-reviewed rows.
 
 ```bash
 # Heart (live)
