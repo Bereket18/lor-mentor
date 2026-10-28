@@ -1,10 +1,14 @@
 name: CI
 
+# This is the only CI configuration in the repository. The `origin` remote is
+# GitLab, but there is no .gitlab-ci.yml; the `github-old` remote is GitHub and
+# this workflow is the pipeline that actually exists. Do not assume GitLab CI
+# until a .gitlab-ci.yml is added deliberately.
 on:
   push:
-    branches: [main]
+    branches: ["main", "integration/**", "feature/**"]
   pull_request:
-    branches: [main]
+    branches: ["main", "integration/**", "feature/**"]
 
 # Cancel superseded runs on the same ref to save minutes.
 concurrency:
@@ -37,6 +41,16 @@ jobs:
       - name: API tests
         working-directory: apps/api
         run: npx jest --ci
+
+      - name: API e2e tests
+        working-directory: apps/api
+        run: npm run test:e2e
+
+      - name: Anatomy model validators
+        working-directory: apps/web
+        run: |
+          node scripts/validate-anatomy-model.mjs --system heart
+          node scripts/validate-anatomy-model.mjs --system urinary
 
       # Report-only for now: there is pre-existing lint debt (react-hooks
       # rules) unrelated to CI. Build + tests below are the hard gates; tighten
