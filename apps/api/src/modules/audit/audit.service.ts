@@ -33,6 +33,31 @@ function parseDate(value?: string): Date | null {
 export class AuditService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Write an audit record for work that happens outside an HTTP request, such
+   * as the faculty anatomy review script. HTTP writes still go through
+   * AuditInterceptor or a domain service.
+   */
+  async record(entry: {
+    action: string;
+    actorId?: string | null;
+    entityType?: string | null;
+    entityId?: string | null;
+    ipAddress?: string | null;
+    meta?: Prisma.InputJsonValue;
+  }) {
+    return this.prisma.auditLog.create({
+      data: {
+        action: entry.action,
+        actorId: entry.actorId ?? null,
+        entityType: entry.entityType ?? null,
+        entityId: entry.entityId ?? null,
+        ipAddress: entry.ipAddress ?? null,
+        meta: entry.meta,
+      },
+    });
+  }
+
   async findAll(query: AuditQueryDto = {}) {
     const take = clampInteger(query.take, DEFAULT_TAKE, 1, MAX_TAKE);
     const skip = Math.max(
