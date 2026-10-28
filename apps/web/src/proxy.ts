@@ -15,6 +15,12 @@ import { isProtectedPath } from "@/lib/route-access";
  * an expired access_token with a valid refresh_token is still a logged-in user
  * (the axios interceptor silently refreshes). Route list is centralized in
  * lib/route-access.ts so proxy + layout cannot drift.
+ *
+ * IMPORTANT: this guard reads cookies on the WEB host. When the API is served
+ * from api.<domain> and the web app from <domain>, the API must set
+ * COOKIE_DOMAIN to the shared parent domain (for example .example.com);
+ * otherwise the browser never sends the auth cookies to this host and every
+ * protected page redirects to /login. /api/proxy has the same requirement.
  */
 
 export function proxy(req: NextRequest) {

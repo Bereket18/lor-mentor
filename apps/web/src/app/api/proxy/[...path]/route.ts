@@ -10,6 +10,12 @@ import { type NextRequest, NextResponse } from "next/server";
  * Example:
  *   GET /api/proxy/materials/abc123/file
  *   → GET http://localhost:4000/api/v1/materials/abc123/file  (with cookies)
+ *
+ * IMPORTANT: the browser sends this request to the WEB host, so the auth
+ * cookies must be readable here. For api.<domain> + <domain> deployments the
+ * API must set COOKIE_DOMAIN to the shared parent domain (for example
+ * .example.com); otherwise this route forwards no auth cookie and the API
+ * returns 401. See apps/web/src/proxy.ts for the edge-guard equivalent.
  */
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";

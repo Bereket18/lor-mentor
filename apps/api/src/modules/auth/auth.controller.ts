@@ -19,11 +19,17 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 
 function cookieOptions(config: ConfigService) {
+  const domain = config.get<string>('COOKIE_DOMAIN')?.trim();
   return {
     httpOnly: true,
     secure: config.get<string>('NODE_ENV') === 'production',
     sameSite: 'lax' as const,
     path: '/',
+    // Optional shared parent domain. The web edge guard (apps/web/src/proxy.ts)
+    // and /api/proxy read cookies on the WEB host, so when the API lives on
+    // api.<domain> and the web app on <domain>, both must use the same
+    // parent-domain cookie (for example COOKIE_DOMAIN=.example.com).
+    ...(domain ? { domain } : {}),
   };
 }
 
