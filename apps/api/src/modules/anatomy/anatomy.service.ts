@@ -21,9 +21,10 @@ interface AnatomyStructureNotes {
   clinicalNotes: string | null;
 }
 
-// Teaching and admin staff can preview unpublished systems. Students must
-// never see them, even if the system is a free sample.
-const STAFF_PREVIEW_ROLES = new Set(['TEACHER', 'ADMIN', 'SUPER_ADMIN']);
+// Only teachers need to preview unpublished systems. Students must never see
+// them, even if the system is a free sample, and the Anatomy Lab is not part of
+// the admin surface.
+const STAFF_PREVIEW_ROLES = new Set(['TEACHER']);
 
 function canPreviewUnpublished(user: RequestUser): boolean {
   return STAFF_PREVIEW_ROLES.has(user.role);
@@ -38,8 +39,8 @@ export class AnatomyService {
   ) {}
 
   // The picker only needs metadata, never the protected structure text.
-  // Students only receive published systems; staff also receive drafts so they
-  // can preview work before an explicit publish decision.
+  // Students only receive published systems; teachers also receive drafts so
+  // they can preview work before an explicit publish decision.
   async listSystems(user: RequestUser) {
     const systems = await this.prisma.anatomySystem.findMany({
       where: canPreviewUnpublished(user) ? {} : { isPublished: true },

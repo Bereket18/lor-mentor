@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { AnatomyService } from './anatomy.service';
 import { AnatomyStructureParamsDto } from './dto/anatomy-structure-params.dto';
 import { ExplainStructureDto } from './dto/explain-structure.dto';
@@ -8,11 +10,14 @@ import { GetSystemParamsDto } from './dto/get-system-params.dto';
 
 import type { RequestUser } from '../../common/types/request-user';
 
-// Every anatomy route requires a logged-in user. The subscription check is
-// intentionally done inside the service on the detail route so sample systems
-// can stay open to unsubscribed students without weakening normal systems.
+// The Anatomy Lab is a learning surface for students and teachers. Admin
+// accounts do not need it, so keep them out of both published and draft
+// content. The subscription check is intentionally done inside the service on
+// the detail route so sample systems can stay open to unsubscribed students
+// without weakening normal systems.
 @Controller('anatomy')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('STUDENT', 'TEACHER')
 export class AnatomyController {
   constructor(private readonly service: AnatomyService) {}
 

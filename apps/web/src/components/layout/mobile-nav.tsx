@@ -34,7 +34,6 @@ const adminNav = [
   { href: "/admin/users", icon: Users, label: "Users" },
   { href: "/admin/payments", icon: CreditCard, label: "Payments" },
   { href: "/admin/courses", icon: BookOpen, label: "Courses" },
-  { href: "/anatomy", icon: HeartPulse, label: "Anatomy" },
   { href: "/admin/plans", icon: Layers, label: "Plans" },
 ];
 

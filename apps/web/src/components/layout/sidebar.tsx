@@ -31,7 +31,6 @@ const adminNav = [
   { href: "/admin/banks",      icon: Landmark,        label: "Payment banks" },
   { href: "/admin/plans",      icon: CreditCard,      label: "Plans" },
   { href: "/admin/courses",    icon: BookOpen,        label: "Courses" },
-  { href: "/anatomy",          icon: HeartPulse,      label: "Anatomy Lab" },
   { href: "/admin/moderation", icon: ShieldAlert,     label: "Moderation" },
   { href: "/admin/audit",      icon: BarChart3,       label: "Audit Logs" },
 ];

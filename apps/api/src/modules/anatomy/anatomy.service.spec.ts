@@ -8,9 +8,10 @@ import type { RequestUser } from '../../common/types/request-user';
 
 const student = { id: 'student-1', role: 'STUDENT' } as unknown as RequestUser;
 
-const staffRoles = ['TEACHER', 'ADMIN', 'SUPER_ADMIN'] as const;
+const previewRoles = ['TEACHER'] as const;
+const nonPreviewRoles = ['ADMIN', 'SUPER_ADMIN'] as const;
 
-function staff(role: (typeof staffRoles)[number]): RequestUser {
+function userWithRole(role: string): RequestUser {
   return { id: `${role.toLowerCase()}-1`, role } as unknown as RequestUser;
 }
 
@@ -101,7 +102,7 @@ describe('AnatomyService', () => {
     );
   });
 
-  it.each(staffRoles)(
+  it.each(previewRoles)(
     'lists published and unpublished systems for %s',
     async (role) => {
       findSystems.mockResolvedValue([
@@ -119,7 +120,7 @@ describe('AnatomyService', () => {
         },
       ]);
 
-      await expect(service.listSystems(staff(role))).resolves.toEqual([
+      await expect(service.listSystems(userWithRole(role))).resolves.toEqual([
         expect.objectContaining({
           slug: 'urinary',
           isPublished: false,
@@ -151,7 +152,29 @@ describe('AnatomyService', () => {
     expect(findStructures).not.toHaveBeenCalled();
   });
 
-  it.each(staffRoles)(
+  it.each(nonPreviewRoles)(
+    'treats %s as a non-preview role for unpublished systems',
+    async (role) => {
+      findSystems.mockResolvedValue([]);
+      await service.listSystems(userWithRole(role));
+      expect(findSystems).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { isPublished: true } }),
+      );
+
+      findSystem.mockResolvedValue({
+        id: 'system-2',
+        slug: 'urinary',
+        isPublished: false,
+        isSample: true,
+      });
+      await expect(
+        service.getSystem(userWithRole(role), 'urinary'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(findStructures).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(previewRoles)(
     'allows %s to open an unpublished system for preview',
     async (role) => {
       findSystem.mockResolvedValue({
@@ -165,7 +188,7 @@ describe('AnatomyService', () => {
       ensureActiveForStudent.mockResolvedValue(undefined);
 
       await expect(
-        service.getSystem(staff(role), 'urinary'),
+        service.getSystem(userWithRole(role), 'urinary'),
       ).resolves.toMatchObject({
         slug: 'urinary',
         isPublished: false,

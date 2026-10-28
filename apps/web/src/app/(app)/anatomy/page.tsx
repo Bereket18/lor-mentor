@@ -108,8 +108,7 @@ export default function AnatomyPage() {
         )}
         {!loading && !error && systems.some((system) => !system.isPublished) && (
           <p className="mt-2 text-xs text-warning">
-            Staff preview: draft systems are visible to teaching and admin staff
-            only.
+            Teacher preview: draft systems are visible to teachers only.
           </p>
         )}
       </header>
