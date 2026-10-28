@@ -1,1 +1,9 @@
 *.sql text eol=lf
+
+# These three migrations were applied to the existing database with CRLF
+# bytes. Prisma hashes migration.sql exactly as it appears on disk, so force
+# CRLF on checkout; the working-tree SHA-256 then matches the checksum already
+# recorded in _prisma_migrations. The blobs stay LF-normalized in git.
+apps/api/prisma/migrations/20260611063236_init/migration.sql text eol=crlf
+apps/api/prisma/migrations/20260618104412_add_department_year_to_user/migration.sql text eol=crlf
+apps/api/prisma/migrations/20260701120000_add_bank_receipt_verification/migration.sql text eol=crlf
