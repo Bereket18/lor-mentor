@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import * as Sentry from '@sentry/node';
 import { AppModule } from './app.module';
+import { applyTrustProxy } from './config/trust-proxy';
 
 async function bootstrap() {
   // ── Sentry error tracking ─────────────────────
@@ -20,6 +21,13 @@ async function bootstrap() {
   // rawBody: true preserves the unparsed request body (req.rawBody) so the
   // Chapa webhook can verify its HMAC-SHA256 signature against exact bytes.
   const app = await NestFactory.create(AppModule, { rawBody: true });
+
+  // ── Trusted reverse proxy ─────────────────────
+  // The API sits behind nginx (and optionally Cloudflare). Trust only the
+  // configured number of hops so req.ip is the real client address instead of
+  // the proxy's loopback address. TRUST_PROXY defaults to 1 in production and
+  // 0 elsewhere; env validation rejects anything that is not a hop count.
+  applyTrustProxy(app);
 
   // ── Security headers ──────────────────────────
   // helmet adds HTTP headers that protect against

@@ -169,6 +169,47 @@ describe('validateEnv', () => {
     expect(validateEnv({ ...config })).toEqual(config);
   });
 
+  it('accepts an explicit trust-proxy hop count and shared cookie domain', () => {
+    const config = {
+      ...secureProductionConfig,
+      TRUST_PROXY: '2',
+      COOKIE_DOMAIN: '.example.com',
+    };
+
+    expect(validateEnv({ ...config })).toEqual(config);
+  });
+
+  it.each(['one', '-1', '1.5', 'true', '1,2'])(
+    'rejects a non-integer TRUST_PROXY value (%s)',
+    (trustProxy) => {
+      expect(() =>
+        validateEnv({
+          ...secureProductionConfig,
+          TRUST_PROXY: trustProxy,
+        }),
+      ).toThrow(
+        /TRUST_PROXY must be a non-negative integer \(number of proxy hops\)/,
+      );
+    },
+  );
+
+  it.each([
+    'https://example.com',
+    'example.com/path',
+    'example.com:3000',
+    '*.example.com',
+    'example..com',
+    'example.com.',
+    'not a domain',
+  ])('rejects a malformed COOKIE_DOMAIN value (%s)', (cookieDomain) => {
+    expect(() =>
+      validateEnv({
+        ...secureProductionConfig,
+        COOKIE_DOMAIN: cookieDomain,
+      }),
+    ).toThrow(/COOKIE_DOMAIN must be a bare hostname/);
+  });
+
   it('validates the optional receipt-verifier timeout range', () => {
     expect(() =>
       validateEnv({

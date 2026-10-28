@@ -1,3 +1,5 @@
+import { resolveTrustProxy } from './trust-proxy';
+
 /**
  * Fail-fast environment validation. Runs once at boot via ConfigModule.
  *
@@ -21,6 +23,16 @@ function looksLikePlaceholder(value: unknown): boolean {
   );
 }
 
+// A bare DNS hostname, optionally prefixed with the RFC 6265 dot form. This
+// rejects schemes, ports, paths, wildcards, whitespace, and malformed labels
+// before the value can reach res.cookie()/res.clearCookie().
+const COOKIE_DOMAIN_PATTERN =
+  /^\.?(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*$/i;
+
+function isValidCookieDomain(value: unknown): boolean {
+  return typeof value === 'string' && COOKIE_DOMAIN_PATTERN.test(value);
+}
+
 export function validateEnv(
   config: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -32,6 +44,33 @@ export function validateEnv(
     const value = config[key];
     if (typeof value !== 'string' || value.length === 0) {
       errors.push(`${key} is required`);
+    }
+  }
+
+  // Express must trust exactly the proxies we operate, otherwise req.ip is the
+  // proxy's loopback address and per-IP throttling/audit logs are wrong.
+  try {
+    resolveTrustProxy(config.TRUST_PROXY, config.NODE_ENV);
+  } catch (error) {
+    errors.push(
+      error instanceof Error
+        ? error.message
+        : 'TRUST_PROXY must be a non-negative integer (number of proxy hops)',
+    );
+  }
+
+  // Optional shared cookie domain for api.<domain> + <domain> deployments.
+  // Both res.cookie() and res.clearCookie() use the same options, so a bad
+  // value here would make sessions impossible to set or clear reliably.
+  if (
+    config.COOKIE_DOMAIN !== undefined &&
+    config.COOKIE_DOMAIN !== null &&
+    config.COOKIE_DOMAIN !== ''
+  ) {
+    if (!isValidCookieDomain(config.COOKIE_DOMAIN)) {
+      errors.push(
+        'COOKIE_DOMAIN must be a bare hostname such as example.com or .example.com (no scheme, port, path, or wildcard)',
+      );
     }
   }
 
