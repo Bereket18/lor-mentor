@@ -9,6 +9,7 @@ import { App } from 'supertest/types';
 import { AppController } from './../src/app.controller';
 import { AllExceptionsFilter } from './../src/common/filters/all-exceptions.filter';
 import { JwtAuthGuard } from './../src/common/guards/jwt-auth.guard';
+import { RedisHealthService } from './../src/common/redis/redis-health.service';
 import { PrismaService } from './../src/prisma/prisma.service';
 
 describe('Application contract (e2e)', () => {
@@ -22,6 +23,12 @@ describe('Application contract (e2e)', () => {
           provide: PrismaService,
           useValue: {
             $queryRaw: jest.fn().mockResolvedValue([{ '?column?': 1 }]),
+          },
+        },
+        {
+          provide: RedisHealthService,
+          useValue: {
+            ping: jest.fn().mockResolvedValue(true),
           },
         },
       ],
@@ -65,7 +72,7 @@ describe('Application contract (e2e)', () => {
     await request(app.getHttpServer())
       .get('/api/v1/health/ready')
       .expect(200)
-      .expect({ status: 'ready', database: 'up' });
+      .expect({ status: 'ready', database: 'up', redis: 'up' });
   });
 
   it('GET /api/v1/me rejects unauthenticated requests', async () => {
