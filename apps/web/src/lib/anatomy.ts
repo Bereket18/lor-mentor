@@ -1,61 +1,62 @@
 import type { AnatomyStructure } from "@/types/anatomy";
 
 /**
- * Display order for the heart model layers. New layers fall back to the end of
- * the list so adding one never hides a structure from the UI.
+ * Turn a layer slug into a readable label. Labels come from the data (the
+ * layer slug) rather than a heart-only table, so a new system needs no viewer
+ * code change.
  */
-export const LAYER_ORDER = [
-  "chambers",
-  "valves",
-  "great-vessels",
-  "coronary-circulation",
-] as const;
-
-export const LAYER_LABELS: Record<string, string> = {
-  chambers: "Chambers",
-  valves: "Valves",
-  "great-vessels": "Great vessels",
-  "coronary-circulation": "Coronary circulation",
-};
-
 export function layerLabel(layer: string | null): string {
   if (!layer) return "Other structures";
-  return (
-    LAYER_LABELS[layer] ??
-    layer
-      .split("-")
-      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-      .join(" ")
-  );
+  return layer
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
+/**
+ * Order the layers present in a system by the first structure that uses each
+ * one. The API returns structures in teaching order (sortOrder), so the layer
+ * filters follow that order. Unknown layers are included and never hidden.
+ */
 export function orderedLayers(structures: AnatomyStructure[]): string[] {
-  const present = new Set(
-    structures
-      .map((structure) => structure.layer)
-      .filter((layer): layer is string => layer !== null),
-  );
-  const ordered = LAYER_ORDER.filter((layer) => present.has(layer));
-  const extra = Array.from(present)
-    .filter((layer) => !(LAYER_ORDER as readonly string[]).includes(layer))
-    .sort();
-  return [...ordered, ...extra];
+  const firstOrder = new Map<string, number>();
+
+  for (const structure of structures) {
+    if (structure.layer === null) continue;
+    const order = Number.isFinite(structure.sortOrder)
+      ? structure.sortOrder
+      : Number.MAX_SAFE_INTEGER;
+    const current = firstOrder.get(structure.layer);
+    if (current === undefined || order < current) {
+      firstOrder.set(structure.layer, order);
+    }
+  }
+
+  return [...firstOrder.entries()]
+    .sort(
+      ([aLayer, aOrder], [bLayer, bOrder]) =>
+        aOrder - bOrder || aLayer.localeCompare(bLayer),
+    )
+    .map(([layer]) => layer);
 }
 
 export function matchesStructureQuery(
   structure: AnatomyStructure,
   query: string,
 ): boolean {
-  const value = query.trim().toLowerCase();
-  if (!value) return true;
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
 
   return [
     structure.name,
-    structure.latinName,
+    structure.latinName ?? "",
     structure.summary,
-    structure.layer,
+    structure.layer ?? "",
     layerLabel(structure.layer),
-  ].some((field) => field?.toLowerCase().includes(value));
+  ]
+    .join(" ")
+    .toLowerCase()
+    .includes(needle);
 }
 
 /**

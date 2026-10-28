@@ -98,6 +98,10 @@
   --teal-dim: rgba(20, 184, 166, 0.12);
   --teal-glow: rgba(20, 184, 166, 0.25);
 
+  /* -- Anatomy selection highlight ------------------------------ */
+  /* 10.59:1 against --bg-base (#060B14). */
+  --anatomy-highlight: #2DD4BF;
+
   /* -- AI feature color ----------------------------------------- */
   --ai-primary: #A78BFA;
   --ai-secondary: #7C3AED;
@@ -143,6 +147,8 @@
   --teal-hover:     #14B8A6;
   --teal-dim:       rgba(13, 148, 136, 0.10);
   --teal-glow:      rgba(13, 148, 136, 0.22);
+  /* 4.92:1 against --bg-base (#EEF4F4). */
+  --anatomy-highlight: #0F766E;
   --ai-primary:     #7C3AED;
   --ai-dim:         rgba(124, 58, 237, 0.08);
   --ai-glow:        rgba(124, 58, 237, 0.18);

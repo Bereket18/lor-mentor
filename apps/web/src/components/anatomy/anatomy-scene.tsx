@@ -1,6 +1,15 @@
 "use client";
 
-import { Component, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Component,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import type { ReactNode } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
@@ -38,6 +47,37 @@ interface OrbitControlsLike {
 }
 
 const BASE_DAMPING_FACTOR = 0.08;
+const DEFAULT_HIGHLIGHT_COLOR = "#2DD4BF";
+
+function readHighlightColor(): string {
+  if (typeof window === "undefined") return DEFAULT_HIGHLIGHT_COLOR;
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue("--anatomy-highlight")
+    .trim();
+  return value || DEFAULT_HIGHLIGHT_COLOR;
+}
+
+// next-themes applies data-theme in an effect, so subscribe to the attribute
+// rather than reading the CSS token during the theme-change render. The
+// observer fires after the attribute is applied and getComputedStyle then
+// returns the token for the new theme.
+function subscribeToTheme(onStoreChange: () => void): () => void {
+  if (typeof window === "undefined") return () => undefined;
+  const observer = new MutationObserver(onStoreChange);
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["data-theme"],
+  });
+  return () => observer.disconnect();
+}
+
+function getHighlightColorSnapshot(): string {
+  return readHighlightColor();
+}
+
+function getServerHighlightColorSnapshot(): string {
+  return DEFAULT_HIGHLIGHT_COLOR;
+}
 
 const instantInterpolate = () => 1;
 
@@ -453,9 +493,10 @@ function CameraFocus({
 }
 
 /**
- * Fade the teal emissive highlight in/out without touching every mesh on every
- * frame. Only the materials belonging to the outgoing and incoming selection
- * are animated, and the loop stops as soon as the fade settles.
+ * Fade the theme-token emissive highlight in/out without touching every mesh on
+ * every frame, and draw an outline around the selected mesh. Only the materials
+ * belonging to the outgoing and incoming selection are animated, and the loop
+ * stops as soon as the fade settles.
  */
 function SelectionHighlight({
   model,
@@ -467,6 +508,11 @@ function SelectionHighlight({
   reducedMotion: boolean;
 }) {
   const invalidate = useThree((state) => state.invalidate);
+  const highlightColor = useSyncExternalStore(
+    subscribeToTheme,
+    getHighlightColorSnapshot,
+    getServerHighlightColorSnapshot,
+  );
   const transition = useRef<{
     items: HighlightTransition[];
     progress: number;
@@ -477,6 +523,47 @@ function SelectionHighlight({
     previousMaterials.current = [];
     transition.current = null;
   }, [model]);
+
+  // Outline the selected geometry with the same theme token. LineSegments are
+  // children of each mesh, so they inherit its transform without a second copy
+  // of the geometry in world space.
+  useEffect(() => {
+    const target = selectedMeshName
+      ? model.getObjectByName(selectedMeshName)
+      : null;
+    if (!target) return;
+
+    const outlines: THREE.LineSegments[] = [];
+    target.traverse((child) => {
+      if (!(child instanceof THREE.Mesh)) return;
+      const geometry = new THREE.EdgesGeometry(child.geometry, 28);
+      const material = new THREE.LineBasicMaterial({
+        color: highlightColor,
+        transparent: true,
+        opacity: 0.9,
+        depthWrite: false,
+      });
+      const outline = new THREE.LineSegments<
+        THREE.EdgesGeometry,
+        THREE.LineBasicMaterial
+      >(geometry, material);
+      outline.renderOrder = 10;
+      outline.userData.anatomyOutline = true;
+      child.add(outline);
+      outlines.push(outline);
+    });
+
+    invalidate();
+
+    return () => {
+      for (const outline of outlines) {
+        outline.removeFromParent();
+        outline.geometry.dispose();
+        (outline.material as THREE.LineBasicMaterial).dispose();
+      }
+      invalidate();
+    };
+  }, [model, selectedMeshName, highlightColor, invalidate]);
 
   useEffect(() => {
     const target = selectedMeshName
@@ -502,7 +589,7 @@ function SelectionHighlight({
     }
 
     for (const material of nextMaterials) {
-      material.emissive.set("#2dd4bf");
+      material.emissive.set(highlightColor);
       items.push({
         material,
         from: material.emissiveIntensity,
@@ -532,7 +619,7 @@ function SelectionHighlight({
 
     transition.current = { items, progress: 0 };
     invalidate();
-  }, [model, selectedMeshName, invalidate, reducedMotion]);
+  }, [model, selectedMeshName, highlightColor, invalidate, reducedMotion]);
 
   useFrame((_, delta) => {
     const current = transition.current;
