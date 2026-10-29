@@ -169,6 +169,29 @@ describe('validateEnv', () => {
     expect(validateEnv({ ...config })).toEqual(config);
   });
 
+  it.each([
+    '*',
+    'https://*.example.com',
+    'https://app.example.com,*',
+    'https://app.example.com, https://*.example.com',
+  ])('rejects wildcard CORS origins (%s)', (corsOrigin) => {
+    expect(() =>
+      validateEnv({
+        ...secureProductionConfig,
+        CORS_ORIGIN: corsOrigin,
+      }),
+    ).toThrow(/CORS_ORIGIN must list exact origins; wildcards are not allowed/);
+  });
+
+  it('accepts an explicit comma-separated CORS allowlist', () => {
+    const config = {
+      ...secureProductionConfig,
+      CORS_ORIGIN: 'https://app.example.com,https://admin.example.com',
+    };
+
+    expect(validateEnv({ ...config })).toEqual(config);
+  });
+
   it('accepts an explicit trust-proxy hop count and shared cookie domain', () => {
     const config = {
       ...secureProductionConfig,

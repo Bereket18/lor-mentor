@@ -74,6 +74,21 @@ export function validateEnv(
     }
   }
 
+  // CORS is credentialed (cookies), so a wildcard is never safe: browsers
+  // reject `Access-Control-Allow-Origin: *` with credentials, and reflecting
+  // arbitrary origins would let any site drive authenticated requests.
+  // Require an explicit comma-separated allowlist in every environment.
+  if (typeof config.CORS_ORIGIN === 'string') {
+    const corsOrigins = config.CORS_ORIGIN.split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean);
+    if (corsOrigins.some((origin) => origin.includes('*'))) {
+      errors.push(
+        'CORS_ORIGIN must list exact origins; wildcards are not allowed',
+      );
+    }
+  }
+
   // In production, refuse weak/placeholder JWT secrets outright.
   if (isProd) {
     if (

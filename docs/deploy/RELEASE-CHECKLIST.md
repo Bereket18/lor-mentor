@@ -83,8 +83,9 @@ Fill this in before touching the server:
       gateway fails validation.
 - [ ] Run the preflight **with `--strict`**:
       `npm run check:env -- .env.production --strict`.
-      `CORS_ORIGIN` must be the exact web origin; the preflight currently does
-      **not** reject `CORS_ORIGIN=*`, so check it by eye.
+      `CORS_ORIGIN` must be an exact comma-separated allowlist; wildcards such
+      as `*` and `https://*.example.com` are rejected. The same wildcard check
+      runs at API boot in `env.validation.ts`.
 - [ ] Validate Compose interpolation:
       `docker compose -f docker-compose.prod.yml --env-file .env.production config --quiet`.
 

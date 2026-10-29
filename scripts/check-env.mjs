@@ -63,7 +63,7 @@ const required = [
   'API_PUBLIC_URL',
   'WEB_PUBLIC_URL',
   'CORS_ORIGIN',
-  'RECEIPT_VERIFIER_TOKEN',
+  'NEXT_PUBLIC_API_URL',
   'REDIS_HOST',
   'REDIS_PORT',
 ];
@@ -84,6 +84,66 @@ if (failMode && !['closed', 'open'].includes(failMode.toLowerCase())) {
   errors.push('REDIS_FAIL_MODE must be "closed" (default) or "open"');
 }
 
+const corsOrigins = (entries.get('CORS_ORIGIN') ?? '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+if (corsOrigins.some((origin) => origin.includes('*'))) {
+  errors.push('CORS_ORIGIN must list exact origins; wildcards are not allowed');
+}
+
+const trustProxy = entries.get('TRUST_PROXY') ?? '';
+if (trustProxy && !/^\d+$/.test(trustProxy)) {
+  errors.push('TRUST_PROXY must be a non-negative integer (number of proxy hops)');
+}
+
+const cookieDomain = entries.get('COOKIE_DOMAIN') ?? '';
+if (
+  cookieDomain &&
+  !/^\.?(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*$/i.test(
+    cookieDomain,
+  )
+) {
+  errors.push(
+    'COOKIE_DOMAIN must be a bare hostname such as example.com or .example.com (no scheme, port, path, or wildcard)',
+  );
+}
+
+const verifierUrl = entries.get('RECEIPT_VERIFIER_URL') ?? '';
+const verifierToken = entries.get('RECEIPT_VERIFIER_TOKEN') ?? '';
+if (verifierUrl && !verifierToken) {
+  errors.push(
+    'Missing "RECEIPT_VERIFIER_TOKEN" because RECEIPT_VERIFIER_URL is set',
+  );
+}
+
+const verifierTimeout = entries.get('RECEIPT_VERIFIER_TIMEOUT_MS') ?? '';
+if (verifierTimeout) {
+  const timeoutMs = Number(verifierTimeout);
+  if (
+    !Number.isInteger(timeoutMs) ||
+    timeoutMs < 5_000 ||
+    timeoutMs > 120_000
+  ) {
+    errors.push(
+      'RECEIPT_VERIFIER_TIMEOUT_MS must be an integer between 5000 and 120000',
+    );
+  }
+}
+
+const bankAccounts = (entries.get('COMPANY_BANK_ACCOUNTS') ?? '')
+  .split(',')
+  .map((account) => account.trim())
+  .filter(Boolean);
+if (
+  bankAccounts.length > 0 &&
+  bankAccounts.some((account) => account.replace(/\D/g, '').length < 8)
+) {
+  errors.push(
+    'Each COMPANY_BANK_ACCOUNTS entry must contain at least 8 digits',
+  );
+}
+
 if (strict) {
   const isPlaceholder = (value) =>
     !value ||
@@ -94,6 +154,10 @@ if (strict) {
   for (const key of required) {
     const value = entries.get(key) ?? '';
     if (isPlaceholder(value)) errors.push(`"${key}" is empty or a placeholder`);
+  }
+
+  if (verifierUrl && verifierToken && isPlaceholder(verifierToken)) {
+    errors.push('"RECEIPT_VERIFIER_TOKEN" is a placeholder');
   }
 
   if (/change[_-]?me/i.test(entries.get('DATABASE_URL') ?? '')) {
@@ -112,7 +176,12 @@ if (strict) {
     errors.push('JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must differ');
   }
 
-  for (const key of ['API_PUBLIC_URL', 'WEB_PUBLIC_URL', 'CORS_ORIGIN']) {
+  for (const key of [
+    'API_PUBLIC_URL',
+    'WEB_PUBLIC_URL',
+    'CORS_ORIGIN',
+    'NEXT_PUBLIC_API_URL',
+  ]) {
     if (/localhost|127\.0\.0\.1/i.test(entries.get(key) ?? '')) {
       errors.push(`"${key}" must not point at localhost in production`);
     }

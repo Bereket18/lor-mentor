@@ -16,7 +16,7 @@ random unprinted passwords and are deleted with a 401 check.
 | --- | --- | --- |
 | 1 | Merge `main`; GitLab CI + templates, notice, changelog; secret scan | **Done** |
 | 2A | Dependency security upgrades (Prisma / API / web) | **Done** |
-| 2B | Config gaps (wildcard CORS, `check-env.mjs` parity, `API_URL`) | Not started |
+| 2B | Config gaps (wildcard CORS, `check-env.mjs` parity, `API_URL`) | **Done** |
 | 2C | Docker / nginx review without a daemon; nginx test script | Partly done (CI job + `test-nginx-config.sh` added; conf review pending) |
 | 2D | `/anatomy` for ADMIN/SUPER_ADMIN; run existing Playwright specs; checklist | Not started |
 | 3 | Faculty review + edit tool | Not started |
@@ -151,6 +151,33 @@ Gates run on the final tree:
 
 Commits: `5a4d333` (Prisma), `697ac23` (API), web upgrade + 413 filter fix on
 `chore/dependency-security-upgrade` (merged back with `--no-ff`).
+
+## Phase 2B — environment validation parity
+
+Done:
+
+- `env.validation.ts` rejects any `CORS_ORIGIN` containing `*`, including `*`,
+  `https://*.example.com`, and wildcard entries in a comma-separated list.
+  Credentialed CORS must always be an explicit allowlist.
+- `scripts/check-env.mjs` now mirrors the API checks:
+  - rejects wildcard CORS origins;
+  - validates optional `TRUST_PROXY` as a non-negative integer;
+  - validates optional `COOKIE_DOMAIN` as a bare hostname;
+  - requires `NEXT_PUBLIC_API_URL` (the web build arg) and rejects localhost
+    values under `--strict`;
+  - makes `RECEIPT_VERIFIER_TOKEN` conditional on `RECEIPT_VERIFIER_URL`
+    instead of always required;
+  - validates `RECEIPT_VERIFIER_TIMEOUT_MS` and
+    `COMPANY_BANK_ACCOUNTS` the same way as the API.
+- `.env.production.example`, `apps/api/.env.example`, and
+  `docs/deploy/RELEASE-CHECKLIST.md` now state that wildcards are rejected.
+- Tests: `config/env.validation.spec.ts` **33/33** pass, including four
+  wildcard variants and a valid comma-separated allowlist. Full API suite:
+  **25 suites, 287/287 tests**. `npm run build:api` passes.
+- Preflight fixtures: valid strict config passes; wildcard CORS, bad
+  `TRUST_PROXY`, bad `COOKIE_DOMAIN`, missing verifier token, out-of-range
+  verifier timeout, and localhost `NEXT_PUBLIC_API_URL` all fail with the
+  expected message. A disabled verifier with a blank token passes.
 
 ## Phase 5 detail — left/right on-screen check (report-only, done)
 
