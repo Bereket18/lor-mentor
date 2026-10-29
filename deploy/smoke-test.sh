@@ -8,12 +8,18 @@
 #
 # Usage:
 #   deploy/smoke-test.sh https://api.lormentor.com https://lormentor.com
-#          $1 = API base URL          $2 = web origin (for the CORS check)
+#          $1 = API base URL          $2 = web origin (CORS + web pages)
+#
+# Local Next dev server (no nginx in front, so no immutable model header):
+#   SMOKE_STRICT_CACHE=0 deploy/smoke-test.sh http://127.0.0.1:4000 http://localhost:3000
 set -uo pipefail
 
 API="${1:-http://127.0.0.1:4000}"
 ORIGIN="${2:-http://localhost:3000}"
+API="${API%/}"
+ORIGIN="${ORIGIN%/}"
 BASE="$API/api/v1"
+STRICT_CACHE="${SMOKE_STRICT_CACHE:-1}"
 pass=0; fail=0
 
 ok()   { echo "  ✅ $1"; pass=$((pass+1)); }
@@ -74,6 +80,43 @@ for _ in 1 2 3 4 5 6 7; do
   [ "$(code "$BASE/auth/login" POST '{"email":"rl@example.com","password":"x"}')" = 429 ] && rl=1 && break
 done
 [ "$rl" = 1 ] && ok "429 after burst" || bad "no 429 seen (throttler off?)"
+
+echo "9) Anatomy Lab (web + API)"
+# Health is already covered in §1; these checks cover the public anatomy surface.
+[ "$(code "$BASE/anatomy/systems")" = 401 ] && ok "unauthenticated anatomy systems → 401" || bad "anatomy systems not 401 when unauthenticated"
+
+# The GLB is served by the web origin (Next public/ or nginx), not the API.
+model_headers="$(curl -sS -D - -o /dev/null "$ORIGIN/models/anatomy/heart.v2.glb" 2>/dev/null || true)"
+model_status="$(printf '%s' "$model_headers" | awk 'NR==1 {print $2}')"
+[ "$model_status" = 200 ] && ok "heart.v2.glb → 200" || bad "heart.v2.glb not 200 ($model_status)"
+printf '%s' "$model_headers" | grep -qi '^content-type: model/gltf-binary' \
+  && ok "heart.v2.glb content-type model/gltf-binary" \
+  || bad "heart.v2.glb wrong or missing content-type"
+if printf '%s' "$model_headers" | grep -qi '^cache-control:.*max-age=31536000' \
+  && printf '%s' "$model_headers" | grep -qi '^cache-control:.*immutable'; then
+  ok "heart.v2.glb immutable long cache header"
+elif [ "$STRICT_CACHE" = 1 ]; then
+  bad "heart.v2.glb missing immutable cache header (is nginx in front?)"
+else
+  echo "  ⏭  model cache header skipped (SMOKE_STRICT_CACHE=0; dev server)"
+fi
+
+attr_body="$(mktemp)"
+trap 'rm -f "$attr_body"' EXIT
+attr_status="$(curl -sS -L -o "$attr_body" -w '%{http_code}' "$ORIGIN/attribution/anatomy" 2>/dev/null || true)"
+[ "$attr_status" = 200 ] && ok "attribution page → 200" || bad "attribution page not 200 ($attr_status)"
+if grep -q 'BodyParts3D' "$attr_body" \
+  && grep -q 'Database Center for Life Science' "$attr_body" \
+  && grep -q 'CC Attribution 4.0 International' "$attr_body"; then
+  ok "attribution page contains the BodyParts3D credit line"
+else
+  bad "attribution page missing the BodyParts3D credit line"
+fi
+
+# The unauthenticated web home intentionally redirects to /login; follow it so
+# the check proves the final page renders rather than asserting the redirect.
+home_status="$(curl -sS -L -o /dev/null -w '%{http_code}' "$ORIGIN/" 2>/dev/null || true)"
+[ "$home_status" = 200 ] && ok "web home → 200 (after auth redirect)" || bad "web home not 200 ($home_status)"
 
 echo
 echo "──────────────────────────────"
