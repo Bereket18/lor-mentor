@@ -195,3 +195,33 @@ npm audit --omit=dev --json --workspace=apps/web
   dependency issue; production must set an exact origin by hand.
 - `@nestjs/platform-express@11.2.8` alone does **not** fix `multer`; the root
   override is mandatory. Verify with `npm ls multer` after install.
+
+## After the upgrade (2026-10-30)
+
+The branch used the newest fixed version that was at least seven days old at
+install time. The requested/used differences are recorded in
+`docs/PROGRESS.md`; the final direct versions are `next@16.4.3`,
+`axios@1.20.0`, `postcss@8.5.31`, `zod@4.6.7`, `@nestjs/platform-express@11.2.7`,
+`nodemailer@10.2.0`, `multer@2.5.0`, `body-parser@2.4.0`, `proxy-addr@2.0.8`,
+`sharp@0.35.5`, `nanoid@3.3.20`, and the Prisma stack at `7.10.1`.
+
+Per-workspace audits after `npm ci`:
+
+| Workspace | Before | After | Remaining entries |
+| --- | ---: | ---: | --- |
+| `apps/api` | 17 | **4** (1 moderate, 3 high) | `baseline-browser-mapping`, `brace-expansion`, `browserslist`, `fast-uri` — all transitive build-chain |
+| `apps/web` | 18 | **9** (1 critical, 6 high, 2 moderate) | `tar`/`@mapbox/node-pre-gyp` (optional, uninstalled `canvas` chain), `postcss` 8.5.15 under Tailwind tooling, `postcss-selector-parser`, `follow-redirects`, `brace-expansion`, `browserslist`, `fast-uri`, `baseline-browser-mapping` |
+
+All direct advisories from the must-fix table are cleared. The remaining
+`postcss` high is a second, transitive copy (`8.5.15`) under
+`@tailwindcss/postcss`/`autoprefixer`/`tailwindcss`; the direct dependency and
+Next's bundled copy are fixed. The `tar` critical is lockfile-only because
+`canvas` and `@mapbox/node-pre-gyp` are not installed, and the parent requires
+`tar@^6.1.11`, so a forced major override would be invalid. These are
+build/optional surfaces, not runtime request handlers; follow up by removing
+the unused `canvas` optional dependency and refreshing the Tailwind toolchain
+when its next patch window allows.
+
+Gate results are in `docs/PROGRESS.md`. The only code change beyond dependency
+manifests/lockfile is the narrow `AllExceptionsFilter` mapping for body-parser's
+`entity.too.large` error, so oversized JSON returns 413 instead of 500.

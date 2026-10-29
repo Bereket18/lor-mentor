@@ -15,7 +15,7 @@ random unprinted passwords and are deleted with a 401 check.
 | Phase | Scope | Status |
 | --- | --- | --- |
 | 1 | Merge `main`; GitLab CI + templates, notice, changelog; secret scan | **Done** |
-| 2A | Dependency security upgrades (Prisma / API / web) | Not started |
+| 2A | Dependency security upgrades (Prisma / API / web) | **Done** |
 | 2B | Config gaps (wildcard CORS, `check-env.mjs` parity, `API_URL`) | Not started |
 | 2C | Docker / nginx review without a daemon; nginx test script | Partly done (CI job + `test-nginx-config.sh` added; conf review pending) |
 | 2D | `/anatomy` for ADMIN/SUPER_ADMIN; run existing Playwright specs; checklist | Not started |
@@ -76,6 +76,82 @@ Not run in Phase 1:
 
 Commits: `6a228cb` (ci), `9154863` (gitattributes), `0f862b3` (docs).
 
+## Phase 2A — dependency security upgrades
+
+Target versions were verified with `npm view` before installing. Five requested
+targets were under seven days old at check time, so the newest older fixed
+version was used instead:
+
+| Package | Requested | Used | Reason |
+| --- | --- | --- | --- |
+| `next` | 16.4.3 | **16.4.3** | Initially chose 16.4.2 while 16.4.3 was 6.3 days old. A duplicate root/web Next copy broke type-check; by the time both copies were aligned, 16.4.3 had crossed seven days. Single copy now installed. |
+| `axios` | 1.21.0 | **1.20.0** | 1.21.0 was 2.5 days old; 1.20.0 is older and outside the advisory range. |
+| `postcss` | 8.5.32 | **8.5.31** | 8.5.32 was 3.0 days old; 8.5.31 is older and outside the advisory range. |
+| `@nestjs/platform-express` | 11.2.8 | **11.2.7** | 11.2.8 was 6.3 days old; 11.2.7 was already installed and audit-clean. |
+| `nodemailer` | 10.3.0 | **10.2.0** | 10.3.0 was 0.6 days old; 10.2.0 is older and outside the advisory range. |
+
+Other versions: `zod@4.6.7`, `sharp@0.35.5`, `nanoid@3.3.20`,
+`multer@2.5.0`, `body-parser@2.4.0`, `proxy-addr@2.0.8`, and the Prisma stack
+at `7.10.1`. Root overrides now cover `multer`, `body-parser`, `proxy-addr`,
+`sharp`, and `nanoid`.
+
+**Process deviation to report:** the allowed `chore/dependency-security-upgrade`
+branch was not created before the Prisma and API upgrades. Those two commits
+(`5a4d333`, `697ac23`) landed directly on `integration/anatomy-hardening`.
+The web upgrade was done on `chore/dependency-security-upgrade`, created from
+integration HEAD, and merged back with `--no-ff` after its gates passed. No
+history was rewritten.
+
+Gates run on the final tree:
+
+- `npm ci`: exit 0, 1771 packages. This npm skipped Prisma/bcrypt postinstall
+  scripts, so `npx prisma generate` was run explicitly; `bcrypt` loads normally.
+- `npx prisma validate`, `npx prisma generate`, `npx prisma migrate status`:
+  pass; schema valid, 16 migrations, database up to date.
+- `npm run build:api`: pass.
+- `npm test --workspace=apps/api`: 25 suites, **282/282 tests** pass. The known
+  `config/trust-proxy.spec.ts` 5000 ms flake appeared once under parallel load,
+  passed 9/9 in isolation, and the full rerun passed.
+- `npm run test:e2e --workspace=apps/api`: 1 suite, **3/3** pass.
+- `npm run build:web`: pass with Next 16.4.3; all routes generated and Proxy
+  (Middleware) present.
+- Heart validator: 17 mesh + 9 text-only, 102,568 triangles, 1.91 MB.
+  Urinary validator: 10 mesh + 5 text-only, 20,364 triangles, 0.44 MB.
+- Anatomy reconcile against the local DB: heart 26 rows, urinary 15 rows;
+  protected-text SHA-256 unchanged (`f7373f05…384b`, `caf4e073…257b6`);
+  flags unchanged (heart published/sample, urinary draft).
+- Nested `$transaction`: inner rollback handled, outer transaction continues,
+  counts 2/2.
+- Smoke (`SMOKE_STRICT_CACHE=0`): **PASS: 18 FAIL: 0**.
+- Targeted middleware checks: malformed JSON → 400; oversized JSON → **413**
+  after a narrow fix to `AllExceptionsFilter` (body-parser raises a plain Error,
+  which previously became a generic 500). `trust-proxy.spec.ts` covers forwarded
+  client rate-limit keys and spoofed-header rejection.
+- Nodemailer 10 `jsonTransport` test: message built successfully; no real email
+  sent.
+- Playwright as temporary STUDENT and TEACHER: login, `/anatomy`, `/anatomy/heart`
+  with real `heart.v2.glb` (200, `model/gltf-binary`), visible canvas, no model
+  error, reload stays authenticated. Forcing access-cookie expiry produced a
+  200 `/auth/refresh` and a retried 200 `/anatomy/systems`. STUDENT saw no draft
+  urinary system; TEACHER did. Both temp users deleted, both logins → 401.
+- Web lint: 5 pre-existing `react-hooks/set-state-in-effect` errors in untouched
+  files (`(app)/layout.tsx`, `admin-login`, `login`, `register`, `topbar`);
+  no changed source file is implicated. CI lint is report-only.
+- `npm audit signatures`: 1769 verified, 522 attestations.
+- Per-workspace `npm audit --omit=dev` after the upgrade: API **4** (1 moderate,
+  3 high) and web **9** (1 critical, 6 high, 2 moderate), all transitive
+  build/optional chains. Direct advisories for `next`, `axios`, `zod`, `multer`,
+  `nodemailer`, `body-parser`, `proxy-addr`, `sharp`, `nanoid`, `postcss`,
+  Prisma, and Nest are cleared. The remaining `tar` critical is the optional,
+  uninstalled `canvas → @mapbox/node-pre-gyp` lockfile path already accepted in
+  `docs/audit/DEPENDENCY-UPGRADE-TRIAGE.md`; the remaining high/moderate entries
+  are build-chain packages.
+- `npm dedupe` timed out after 15 minutes without changing the tree; the
+  single-Next alignment was achieved with a clean `npm install` instead.
+
+Commits: `5a4d333` (Prisma), `697ac23` (API), web upgrade + 413 filter fix on
+`chore/dependency-security-upgrade` (merged back with `--no-ff`).
+
 ## Phase 5 detail — left/right on-screen check (report-only, done)
 
 - GLB centroids confirm patient-left = +X for every pair: heart
@@ -97,8 +173,11 @@ Commits: `6a228cb` (ci), `9154863` (gitattributes), `0f862b3` (docs).
 
 - `LICENSE.md` and `SECURITY.md` are skipped until the user supplies a real
   copyright holder and security email.
-- Dependency upgrades will be done directly on `integration/anatomy-hardening`
-  in three commits (Prisma stack; API; web), per Phase 2A.
+- Dependency upgrades were split into three commits (Prisma stack; API; web).
+  The Prisma and API commits landed directly on
+  `integration/anatomy-hardening` before the dedicated branch was created — a
+  process deviation recorded above. The web commit was merged back with
+  `--no-ff`.
 - The API server must be started from `apps/api` (`node dist/src/main.js`) so
   `ConfigModule` loads `apps/api/.env`; starting it from the repo root loads the
   root `.env` and hits an empty database (login → 500).
@@ -114,5 +193,6 @@ Commits: `6a228cb` (ci), `9154863` (gitattributes), `0f862b3` (docs).
 
 ## Next up
 
-Phase 2A (dependency upgrades), starting with the `npm view`/publish-date check
-for every target version, then the Prisma stack commit and its gates.
+Phase 2B (wildcard CORS / `check-env.mjs` parity), then Phase 2C Docker/nginx
+review, Phase 2D admin/e2e/checklist, Phase 3 faculty review tool, Phase 4
+remaining anatomy systems, and Phase 5 README/final report.

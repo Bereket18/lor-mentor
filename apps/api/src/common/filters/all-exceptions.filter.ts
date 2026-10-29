@@ -56,16 +56,33 @@ export class AllExceptionsFilter implements ExceptionFilter {
         });
       }
     } else if (exception instanceof Error) {
-      // Unexpected server-side failure: log everything, expose nothing.
-      this.logger.error(
-        `Unhandled ${exception.name}: ${exception.message}`,
-        exception.stack,
-      );
-      // Always report unhandled exceptions to Sentry.
-      Sentry.captureException(exception, {
-        tags: { path: req.url },
-        extra: { method: req.method, body: req.body },
-      });
+      // body-parser raises plain Error objects (not HttpException) for an
+      // oversized request body. Preserve its 413 instead of reporting a 500.
+      const bodyParserError = exception as Error & {
+        type?: string;
+        status?: number;
+        statusCode?: number;
+      };
+      const parserStatus = bodyParserError.statusCode ?? bodyParserError.status;
+      if (
+        bodyParserError.type === 'entity.too.large' ||
+        parserStatus === HttpStatus.PAYLOAD_TOO_LARGE
+      ) {
+        status = HttpStatus.PAYLOAD_TOO_LARGE;
+        message = 'Request body is too large';
+        error = 'PayloadTooLarge';
+      } else {
+        // Unexpected server-side failure: log everything, expose nothing.
+        this.logger.error(
+          `Unhandled ${exception.name}: ${exception.message}`,
+          exception.stack,
+        );
+        // Always report unhandled exceptions to Sentry.
+        Sentry.captureException(exception, {
+          tags: { path: req.url },
+          extra: { method: req.method, body: req.body },
+        });
+      }
     }
 
     res.status(status).json({
