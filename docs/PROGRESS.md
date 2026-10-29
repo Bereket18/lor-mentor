@@ -17,7 +17,7 @@ random unprinted passwords and are deleted with a 401 check.
 | 1 | Merge `main`; GitLab CI + templates, notice, changelog; secret scan | **Done** |
 | 2A | Dependency security upgrades (Prisma / API / web) | **Done** |
 | 2B | Config gaps (wildcard CORS, `check-env.mjs` parity, `API_URL`) | **Done** |
-| 2C | Docker / nginx review without a daemon; nginx test script | Partly done (CI job + `test-nginx-config.sh` added; conf review pending) |
+| 2C | Docker / nginx review without a daemon; nginx test script | **Done** (static review; image builds and `nginx -t` NOT RUN) |
 | 2D | `/anatomy` for ADMIN/SUPER_ADMIN; run existing Playwright specs; checklist | Not started |
 | 3 | Faculty review + edit tool | Not started |
 | 4 | Build remaining systems (respiratory … body surface) | Not started |
@@ -179,6 +179,44 @@ Done:
   verifier timeout, and localhost `NEXT_PUBLIC_API_URL` all fail with the
   expected message. A disabled verifier with a blank token passes.
 
+## Phase 2C — Docker and nginx review
+
+Static review only; the Docker daemon on this machine cannot start, so no image
+was built and no container was run. Findings:
+
+- `apps/api/Dockerfile` builds from the monorepo root, installs the full
+  workspace tree, builds Nest, and intentionally keeps devDependencies in the
+  runtime image because the entrypoint runs `npx prisma migrate deploy` before
+  starting the API. The entrypoint uses `set -e`, so a failed migration stops
+  startup. OpenSSL is installed for Prisma.
+- `apps/web/Dockerfile` builds Next standalone output and requires
+  `NEXT_PUBLIC_API_URL` as a **build** arg; changing it only at runtime would
+  not change the inlined client bundle.
+- `services/receipt-verifier/Dockerfile` installs Chromium and chromedriver for
+  the BOA extractor and runs one uvicorn worker.
+- `docker-compose.prod.yml` publishes only web/api, and only on `127.0.0.1`.
+  Postgres and Redis stay on the internal network. API startup waits for
+  healthy Postgres, Redis, and verifier; uploads use a named volume.
+- `.dockerignore` excludes `.env*` (except the examples), `node_modules`,
+  build output, uploads, VCS metadata, and docs.
+- **Fixed:** both nginx configs capped request bodies at `12m`, below the API's
+  `25 MB` materials upload limit. The web and API locations in production and
+  staging now use `30m`, leaving room for multipart framing while Multer still
+  enforces 25 MB (materials) and 10 MB (receipts).
+- `bash -n deploy/nginx/test-nginx-config.sh` passes. The helper prints a notice
+  and exits 0 when nginx is absent, as it is here.
+- `docker compose -f docker-compose.prod.yml --env-file .env.production.example
+  config --no-env-resolution --quiet` exits 0. Plain `config` fails only because
+  the real `.env.production` is intentionally absent; it was not created or read.
+
+NOT RUN in this phase:
+
+- `docker version` reaches the client but fails to connect to
+  `npipe:////./pipe/dockerDesktopLinuxEngine`; the Docker daemon is unavailable.
+  Consequently `docker build`, `docker compose up`, container health checks, and
+  `nginx -t` inside the official image were **not run**.
+- nginx is not installed locally, so local `nginx -t` was **not run**.
+
 ## Phase 5 detail — left/right on-screen check (report-only, done)
 
 - GLB centroids confirm patient-left = +X for every pair: heart
@@ -220,6 +258,5 @@ Done:
 
 ## Next up
 
-Phase 2B (wildcard CORS / `check-env.mjs` parity), then Phase 2C Docker/nginx
-review, Phase 2D admin/e2e/checklist, Phase 3 faculty review tool, Phase 4
-remaining anatomy systems, and Phase 5 README/final report.
+Phase 2D admin/e2e/checklist, Phase 3 faculty review tool, Phase 4 remaining
+anatomy systems, and Phase 5 README/final report.

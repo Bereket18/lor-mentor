@@ -88,6 +88,12 @@ Fill this in before touching the server:
       runs at API boot in `env.validation.ts`.
 - [ ] Validate Compose interpolation:
       `docker compose -f docker-compose.prod.yml --env-file .env.production config --quiet`.
+      If the daemon is unavailable, the file can still be checked with
+      `--no-env-resolution` against `.env.production.example`; that does not
+      validate the real secrets file.
+- [ ] Confirm both nginx configs allow the API's largest upload:
+      `client_max_body_size 30m` in the web and API locations (materials are
+      capped at 25 MB by Multer; receipts at 10 MB).
 
 ## 4. Back up, build, start, and migrate
 
@@ -160,6 +166,9 @@ Fill this in before touching the server:
       `sudo rm -f /etc/nginx/sites-enabled/default`.
 - [ ] Replace `lormentor.com` with the real domain in the vhost if different.
 - [ ] Syntax check and reload: `sudo nginx -t && sudo systemctl reload nginx`.
+      On a machine without nginx, `bash deploy/nginx/test-nginx-config.sh`
+      syntax-checks both configs in the CI nginx image; local runs skip with a
+      notice, which is not a pass.
 - [ ] Issue certificates:
       `sudo certbot --nginx -d lormentor.com -d www.lormentor.com -d api.lormentor.com`
       (choose redirect-to-HTTPS).
