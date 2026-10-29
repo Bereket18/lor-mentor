@@ -1,5 +1,10 @@
 *.sql text eol=lf
 
+# Shell scripts must keep LF so they run unchanged in Linux CI, Docker, and
+# Git Bash on Windows. Without this a Windows checkout with core.autocrlf=true
+# rewrites them to CRLF and the smoke test fails with stray \r errors.
+*.sh text eol=lf
+
 # These three migrations were applied to the existing database with CRLF
 # bytes. Prisma hashes migration.sql exactly as it appears on disk, so force
 # CRLF on checkout; the working-tree SHA-256 then matches the checksum already
