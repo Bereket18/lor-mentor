@@ -1,9 +1,9 @@
 name: CI
 
-# This is the only CI configuration in the repository. The `origin` remote is
-# GitLab, but there is no .gitlab-ci.yml; the `github-old` remote is GitHub and
-# this workflow is the pipeline that actually exists. Do not assume GitLab CI
-# until a .gitlab-ci.yml is added deliberately.
+# The `origin` remote is GitLab and now has .gitlab-ci.yml, which ports this
+# workflow and adds Docker / nginx / dependency-audit jobs. This GitHub
+# workflow remains for the `github-old` remote. Keep the two in sync whenever
+# the test matrix changes.
 on:
   push:
     branches: ["main", "integration/**", "feature/**"]

@@ -1,0 +1,241 @@
+# GitLab CI for LOR Mentor.
+#
+# The `origin` remote is GitLab; `github-old` is GitHub and keeps
+# .github/workflows/ci.yml. This file is the port of that workflow plus the
+# Docker / nginx / dependency-audit jobs that GitHub Actions never had.
+#
+# Rules of this file:
+#   * Runs on merge requests and the default branch only.
+#   * No deploy jobs.
+#   * No secrets. Every credential below is a throwaway value for the
+#     ephemeral CI Postgres service, not a real one.
+#   * Hard gates: install, API build, API unit + e2e tests, both anatomy model
+#     validators, web build, verifier tests.
+#   * Report-only (allow_failure: true) until they have been proven green on
+#     main: web lint, npm audit, Docker image builds, compose config, nginx
+#     syntax, Trivy.
+#
+# Keep the test matrix in sync with .github/workflows/ci.yml.
+
+include:
+  - template: Jobs/SAST.gitlab-ci.yml
+  - template: Jobs/Secret-Detection.gitlab-ci.yml
+
+stages:
+  - test
+  - build
+  - docker
+  - security
+
+# Restrict the whole pipeline (including the included templates) to merge
+# requests and the default branch, so feature-branch pushes do not spin up a
+# second, duplicate pipeline.
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+default:
+  interruptible: true
+
+variables:
+  NPM_CONFIG_FUND: "false"
+  NPM_CONFIG_AUDIT: "false"
+  NEXT_TELEMETRY_DISABLED: "1"
+  # Throwaway credentials for the ephemeral CI Postgres service. Not secrets:
+  # the service lives only for the duration of one job.
+  POSTGRES_USER: lor_ci
+  POSTGRES_PASSWORD: lor_ci_password
+  POSTGRES_DB: lor_mentor_ci
+  DATABASE_URL: postgresql://lor_ci:lor_ci_password@postgres:5432/lor_mentor_ci
+
+# ── Shared Node setup ──────────────────────────────────────────────
+# `npm ci` is used instead of caching node_modules so every job is
+# reproducible from the lockfile. The .npm cache makes it fast.
+.node:
+  image: node:24
+  cache:
+    key:
+      files:
+        - package-lock.json
+    paths:
+      - .npm/
+  before_script:
+    - node --version
+    - npm --version
+    - npm ci --cache .npm --prefer-offline
+
+# ── API ────────────────────────────────────────────────────────────
+api:build:
+  extends: .node
+  stage: build
+  script:
+    - (cd apps/api && npx prisma generate)
+    - npm run build:api
+
+api:test:
+  extends: .node
+  stage: test
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+    - name: redis:7-alpine
+      alias: redis
+  variables:
+    REDIS_HOST: redis
+    REDIS_PORT: "6379"
+  script:
+    # Prove the committed migrations apply cleanly to a fresh database, then
+    # run the unit suite. The suite mocks Prisma/Redis, but the services are
+    # here so the migration step is a real end-to-end check of the schema.
+    - (cd apps/api && npx prisma generate && npx prisma migrate deploy)
+    - (cd apps/api && npx jest --ci)
+
+api:e2e:
+  extends: .node
+  stage: test
+  script:
+    - (cd apps/api && npx prisma generate)
+    - (cd apps/api && npm run test:e2e)
+
+# ── Anatomy model validators ───────────────────────────────────────
+anatomy:validators:
+  extends: .node
+  stage: test
+  script:
+    - (cd apps/web && node scripts/validate-anatomy-model.mjs --system heart)
+    - (cd apps/web && node scripts/validate-anatomy-model.mjs --system urinary)
+
+# ── Web ────────────────────────────────────────────────────────────
+# Report-only for now: there is pre-existing lint debt (react-hooks rules)
+# unrelated to this pipeline. Build + tests are the hard gates. Tighten this
+# to a blocking step once the existing warnings/errors are paid down.
+web:lint:
+  extends: .node
+  stage: test
+  allow_failure: true
+  script:
+    - (cd apps/web && npx eslint .)
+
+web:build:
+  extends: .node
+  stage: build
+  variables:
+    NEXT_PUBLIC_API_URL: https://api.example.com
+  script:
+    - npm run build:web
+
+# ── Receipt verifier (Python) ──────────────────────────────────────
+# normalize.py, cbe_links.py, and their tests are stdlib-only, so no pip
+# install is needed here. main.py's heavy deps are validated by the Docker
+# build below.
+verifier:test:
+  stage: test
+  image: python:3.12-slim
+  script:
+    - cd services/receipt-verifier
+    - python -m py_compile normalize.py cbe_links.py main.py
+    - python test_normalize.py
+    - python test_cbe_links.py
+    - python test_security.py
+
+# ── Dependency audit (report-only) ─────────────────────────────────
+audit:npm:
+  extends: .node
+  stage: security
+  allow_failure: true
+  script:
+    - |
+      status=0
+      npm audit --omit=dev --audit-level=high --workspace=apps/api || status=1
+      npm audit --omit=dev --audit-level=high --workspace=apps/web || status=1
+      exit $status
+
+# ── Docker builds (image only, never pushed) ───────────────────────
+# Report-only until the images have built green on main. `docker:dind` gives a
+# throwaway daemon; nothing is pushed to a registry.
+.docker:
+  image: docker:27
+  services:
+    - docker:27-dind
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+    DOCKER_TLS_VERIFY: "1"
+    DOCKER_CERT_PATH: "/certs/client"
+  before_script:
+    - docker info
+
+docker-build-api:
+  extends: .docker
+  stage: docker
+  allow_failure: true
+  script:
+    - docker build -f apps/api/Dockerfile -t lor-mentor-api:ci .
+
+docker-build-web:
+  extends: .docker
+  stage: docker
+  allow_failure: true
+  script:
+    - docker build
+      --build-arg NEXT_PUBLIC_API_URL=https://api.example.com
+      -f apps/web/Dockerfile -t lor-mentor-web:ci .
+
+docker-build-verifier:
+  extends: .docker
+  stage: docker
+  allow_failure: true
+  script:
+    - docker build -f services/receipt-verifier/Dockerfile -t lor-mentor-verifier:ci .
+
+# Validate both compose files against a throwaway env. `docker compose config`
+# is client-side and does not need a running daemon, but it does need the
+# compose plugin, which the CLI image does not bundle.
+compose-config:
+  stage: docker
+  image: docker:27
+  allow_failure: true
+  before_script:
+    - apk add --no-cache docker-cli-compose
+  script:
+    - cp .env.production.example /tmp/ci-prod.env
+    - cp .env.production.example /tmp/ci-staging.env
+    - docker compose -f docker-compose.prod.yml --env-file /tmp/ci-prod.env config > /dev/null
+    - docker compose -f docker-compose.prod.yml -f docker-compose.staging.yml --env-file /tmp/ci-staging.env config > /dev/null
+
+# ── nginx syntax (official image, empty entrypoint) ────────────────
+# test-nginx-config.sh copies the conf, substitutes the domain placeholders
+# with example.test, mints throwaway self-signed certs, wraps the conf in a
+# minimal nginx.conf and runs `nginx -t -c`. Report-only until proven on main.
+nginx-syntax:
+  stage: docker
+  image: nginx:1.27-alpine
+  allow_failure: true
+  entrypoint: [""]
+  before_script:
+    - apk add --no-cache bash openssl
+  script:
+    - bash deploy/nginx/test-nginx-config.sh
+
+# ── Trivy (report-only) ────────────────────────────────────────────
+# Scans the built API image for HIGH/CRITICAL vulnerabilities. --exit-code 0
+# keeps it report-only; allow_failure is a second safety net.
+trivy:
+  stage: security
+  image: docker:27
+  allow_failure: true
+  services:
+    - docker:27-dind
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+    DOCKER_TLS_VERIFY: "1"
+    DOCKER_CERT_PATH: "/certs/client"
+  before_script:
+    - apk add --no-cache curl
+    - curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+  script:
+    - docker build -f apps/api/Dockerfile -t lor-mentor-api:ci .
+    - docker save lor-mentor-api:ci -o /tmp/api.tar
+    - trivy image --input /tmp/api.tar --severity HIGH,CRITICAL --exit-code 0
