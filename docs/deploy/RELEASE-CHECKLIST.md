@@ -88,17 +88,37 @@ Fill this in before touching the server:
 - [ ] Validate Compose interpolation:
       `docker compose -f docker-compose.prod.yml --env-file .env.production config --quiet`.
 
-## 4. Build, start, and migrate
+## 4. Back up, build, start, and migrate
 
+- [ ] **Pre-deploy backup (before any schema or code change).** On a first
+      deploy the database is empty, so this is a no-op; on every later deploy
+      this is mandatory. Stop writers first if you can:
+      ```bash
+      /opt/lor-mentor/deploy/backup/pg-backup.sh
+      ls -lh /var/backups/lor-mentor/   # record the filename in the release ticket
+      ```
+      If the stack is not running yet, dump directly from the Postgres
+      container/volume instead and record that filename.
 - [ ] Build and start the stack:
       `docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build`.
+- [ ] Confirm migrations were applied. The API entrypoint
+      (`apps/api/docker-entrypoint.sh`) runs
+      `npx prisma migrate deploy` before the server starts, and
+      `migrate deploy` is the only production-safe migrate command here; never
+      run `migrate dev`, `migrate reset`, or `db push` against production. Watch
+      the startup lines and then verify:
+      ```bash
+      docker compose -f docker-compose.prod.yml logs --tail=100 api   # expect "prisma migrate deploy" with no error
+      docker compose -f docker-compose.prod.yml --env-file .env.production \
+        exec api npx prisma migrate status                            # -> Database schema is up to date!
+      ```
+      To re-apply explicitly idempotently:
+      `docker compose -f docker-compose.prod.yml --env-file .env.production exec api npx prisma migrate deploy`.
+- [ ] **Post-deploy backup (after migrate + seed, before the smoke gate).** The
+      schema and seed are now in their release state:
+      `/opt/lor-mentor/deploy/backup/pg-backup.sh`.
 - [ ] All five services are healthy:
       `docker compose -f docker-compose.prod.yml ps`.
-- [ ] API logs show no migration/startup errors:
-      `docker compose -f docker-compose.prod.yml logs --tail=100 api`.
-- [ ] Migrations are current:
-      `docker compose -f docker-compose.prod.yml --env-file .env.production exec api npx prisma migrate status`
-      → `Database schema is up to date!`.
 - [ ] Local health checks:
       `curl -fsS http://127.0.0.1:4000/api/v1/health`
       `curl -fsS http://127.0.0.1:4000/api/v1/health/ready`
@@ -108,21 +128,25 @@ Fill this in before touching the server:
 
 - [ ] Seed plans, departments/years, and the first admin **once**:
       `docker compose -f docker-compose.prod.yml --env-file .env.production exec api npm run db:seed`.
-- [ ] Seed/reconcile **heart only** (urinary stays an unpublished draft):
+- [ ] Seed/reconcile **heart only**. Always pass `--system heart`; running
+      the anatomy seed without `--system` inserts every registered system,
+      including urinary. Urinary must **never be created** in production until
+      faculty review and `anatomy:review --confirm`:
       ```bash
       docker compose -f docker-compose.prod.yml --env-file .env.production \
         exec api npm run db:seed:anatomy -- --reconcile --system heart
       ```
-- [ ] Verify the published flags read-only:
+- [ ] Verify the published flags and that no urinary row exists:
       ```bash
       docker compose -f docker-compose.prod.yml --env-file .env.production \
         exec -T postgres sh -c \
         'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
         "SELECT slug, \"isPublished\", \"isSample\", \"modelUrl\" FROM \"AnatomySystem\" ORDER BY slug;"'
       ```
-      Expected: `heart | t | t | /models/anatomy/heart.v2.glb`; `urinary`
-      (if present) `f | f | /models/anatomy/urinary.v1.glb`. Do not publish
-      urinary until faculty review and `anatomy:review --confirm`.
+      Expected: exactly one row — `heart | t | t | /models/anatomy/heart.v2.glb`.
+      If a `urinary | f | f | ...` row appears, the wrong seed command was used;
+      keep it unpublished and record the incident (do not delete anatomy rows
+      ad hoc in production).
 - [ ] Confirm the versioned model is served locally:
       `curl -fsSI http://127.0.0.1:3000/models/anatomy/heart.v2.glb`
       → `200`, `content-type: model/gltf-binary`.
@@ -154,9 +178,14 @@ Fill this in before touching the server:
       ```bash
       bash deploy/smoke-test.sh https://api.lormentor.com https://lormentor.com
       ```
-      Expected: `PASS: 18 FAIL: 0`, exit `0`. The model cache assertion is
-      strict by default because production has Nginx in front. For a local
-      Next dev server only, use `SMOKE_STRICT_CACHE=0`.
+      Expected: exit `0` and `FAIL: 0`. Over HTTPS with the strict cache
+      assertion, the passing count is **20** (2 health + 3 headers + 1 TLS +
+      2 auth + 1 validation + 1 enumeration + 2 CORS + 1 rate-limit + 7
+      anatomy). A local Next dev server behind no nginx cannot satisfy the
+      immutable model header: run it as
+      `SMOKE_STRICT_CACHE=0 bash deploy/smoke-test.sh http://127.0.0.1:4000 http://localhost:3000`,
+      which reports **18** passing (the cache check is skipped) and must still
+      show `FAIL: 0`.
 - [ ] Manual journey on the real domain: register → verify email → login →
       logout → forgot password → protected route redirect.
 - [ ] Anatomy Lab: heart loads, urinary is absent/unpublished, attribution page
@@ -210,14 +239,22 @@ Fill this in before touching the server:
 
 ## 10. Owner-only gates (cannot be closed by an automated check)
 
-- [ ] **DBCLS licence:** obtain written clarification of whether BodyParts3D
-      geometry is CC BY 4.0 or the legacy CC BY-SA 2.1 Japan. Commercial release
-      remains blocked until this is resolved; do not change licence wording
-      before the written answer.
+- [ ] **DBCLS licence:** email DBCLS (the BodyParts3D maintainer, contact
+      published on the dataset licence page) asking for written confirmation of
+      whether the geometry is CC BY 4.0 or the legacy CC BY-SA 2.1 Japan for a
+      commercial medical-education product. Record the ticket/reference and the
+      reply. Commercial release remains blocked until this is resolved; do not
+      change licence wording before the written answer.
 - [ ] **Secret rotation (S-2):** rotate every secret that was ever committed,
-      shared, or used in staging; update `.env.production`, restart the affected
-      services, and re-test login/email/payments. Rotating JWT secrets logs
-      every user out.
+      shared, or used in staging. At minimum, by variable name:
+      `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `RECEIPT_VERIFIER_TOKEN`,
+      `POSTGRES_PASSWORD` (and the `DATABASE_URL` password), `SMTP_PASS`,
+      `SUPER_ADMIN_PASSWORD`, `GEMINI_API_KEY`, `CHAPA_SECRET_KEY`,
+      `CHAPA_WEBHOOK_SECRET`. Update `.env.production`, restart the affected
+      containers, and re-test. Note that rotating `JWT_ACCESS_SECRET` /
+      `JWT_REFRESH_SECRET` logs every user out, and rotating
+      `RECEIPT_VERIFIER_TOKEN` must be done on both the API and verifier
+      together.
 - [ ] **Resend / email (F-8):** domain verified (SPF, DKIM, DMARC), `SMTP_FROM`
       uses the verified domain (not `@resend.dev`), and a real non-owner
       registration + password reset arrive in the inbox.
