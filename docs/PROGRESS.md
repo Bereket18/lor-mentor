@@ -18,7 +18,7 @@ random unprinted passwords and are deleted with a 401 check.
 | 2A | Dependency security upgrades (Prisma / API / web) | **Done** |
 | 2B | Config gaps (wildcard CORS, `check-env.mjs` parity, `API_URL`) | **Done** |
 | 2C | Docker / nginx review without a daemon; nginx test script | **Done** (static review; image builds and `nginx -t` NOT RUN) |
-| 2D | `/anatomy` for ADMIN/SUPER_ADMIN; run existing Playwright specs; checklist | Not started |
+| 2D | `/anatomy` for ADMIN/SUPER_ADMIN; run existing Playwright specs; checklist | **Done** |
 | 3 | Faculty review + edit tool | Not started |
 | 4 | Build remaining systems (respiratory … body surface) | Not started |
 | 5 | Left/right proof, README, final report | Left/right proof done (report-only); README + final report pending |
@@ -217,6 +217,45 @@ NOT RUN in this phase:
   `nginx -t` inside the official image were **not run**.
 - nginx is not installed locally, so local `nginx -t` was **not run**.
 
+## Phase 2D — admin anatomy gate, Playwright, checklist
+
+API role check with temporary, verified ADMIN and SUPER_ADMIN accounts (random
+passwords never printed):
+
+| Role | login | list systems | heart detail | explain | quiz |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ADMIN` | 200 | **403** | **403** | **403** | **403** |
+| `SUPER_ADMIN` | 200 | **403** | **403** | **403** | **403** |
+
+Both temporary users were deleted and both logins returned **401** afterwards.
+The class-level `@Roles('STUDENT', 'TEACHER')` guard on `AnatomyController`
+covers all four routes, including the AI endpoints, so no paid Gemini call is
+made for an admin request.
+
+Web alignment:
+
+- `apps/web/src/lib/route-access.ts` previously let ADMIN/SUPER_ADMIN through
+  the client `/anatomy` gate while the API rejected every data request. It now
+  allows only STUDENT/TEACHER and sends admins to `/admin`.
+- `apps/web/e2e/auth.spec.ts` gained an opt-in regression test: a super admin
+  who visits `/anatomy` must land on `/admin`. The existing sign-in test was
+  refactored to share the login helper.
+- Targeted ESLint on the changed web files: exit 0. `npm run build:web`: pass.
+
+Playwright:
+
+- Default suite: **17 tests, 15 passed, 2 skipped** (the two auth tests are
+  opt-in because they need a seeded super admin). Exit 0.
+- With a temporary super admin: both auth tests pass, including the new
+  `/anatomy` → `/admin` redirect. Temp user deleted; login → **401**.
+- One earlier opt-in run hit the API's 5/minute login throttle because several
+  temporary-account runs happened back-to-back. After the 60-second window
+  cleared, the run passed 2/2; this is the intended brute-force protection, not
+  a product failure.
+
+`docs/deploy/RELEASE-CHECKLIST.md` now records the admin anatomy check, the
+Playwright result, and the pre-existing web-lint caveat.
+
 ## Phase 5 detail — left/right on-screen check (report-only, done)
 
 - GLB centroids confirm patient-left = +X for every pair: heart
@@ -258,5 +297,5 @@ NOT RUN in this phase:
 
 ## Next up
 
-Phase 2D admin/e2e/checklist, Phase 3 faculty review tool, Phase 4 remaining
-anatomy systems, and Phase 5 README/final report.
+Phase 3 faculty review tool, Phase 4 remaining anatomy systems, and Phase 5
+README/final report.

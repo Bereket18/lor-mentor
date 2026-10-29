@@ -27,7 +27,14 @@ Fill this in before touching the server:
 - [ ] API build passes: `npm run build:api`.
 - [ ] Web build passes: `npm run build:web`.
 - [ ] API tests pass: `npm test --workspace=apps/api`.
-- [ ] Web lint passes: `npm run lint --workspace=apps/web`.
+- [ ] Web lint: `npm run lint --workspace=apps/web`. CI currently treats this as
+      report-only; there are five pre-existing
+      `react-hooks/set-state-in-effect` errors in untouched auth/layout files.
+      Run targeted lint on any changed file and require exit 0.
+- [ ] Playwright: `npm run e2e --workspace=apps/web` → **15 passed, 2 skipped**
+      (the opt-in auth tests). With a temporary super admin in
+      `E2E_ADMIN_EMAIL`/`E2E_ADMIN_PASSWORD` and `E2E_RUN_AUTH=1`, both auth
+      tests must pass.
 - [ ] Both anatomy validators pass:
       `cd apps/web && node scripts/validate-anatomy-model.mjs --system heart`
       and `... --system urinary`.
@@ -200,6 +207,9 @@ Fill this in before touching the server:
       logout → forgot password → protected route redirect.
 - [ ] Anatomy Lab: heart loads, urinary is absent/unpublished, attribution page
       shows the BodyParts3D credit line.
+- [ ] Anatomy role gate: STUDENT and TEACHER can open `/anatomy`; ADMIN and
+      SUPER_ADMIN get **403** from `/api/v1/anatomy/systems` (and the detail/AI
+      routes) and are redirected to `/admin` by the web app.
 - [ ] Payments: bank-transfer reference/upload → admin review → approval → PDF
       receipt. If Chapa is live, one real payment settles.
 - [ ] Admin sees the payment and can approve it; no 5xx in `docker compose logs`.
