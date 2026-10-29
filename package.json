@@ -23,5 +23,10 @@
   "devDependencies": {
     "@next/bundle-analyzer": "^16.2.11",
     "concurrently": "^10.0.3"
+  },
+  "overrides": {
+    "multer": "2.5.0",
+    "body-parser": "2.4.0",
+    "proxy-addr": "2.0.8"
   }
 }
