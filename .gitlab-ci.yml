@@ -16,6 +16,11 @@
 #     syntax, Trivy.
 #
 # Keep the test matrix in sync with .github/workflows/ci.yml.
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_PIPELINE_SOURCE == "web"
 
 include:
   - template: Jobs/SAST.gitlab-ci.yml
@@ -126,12 +131,15 @@ web:build:
     - npm run build:web
 
 # ── Receipt verifier (Python) ──────────────────────────────────────
-# normalize.py, cbe_links.py, and their tests are stdlib-only, so no pip
-# install is needed here. main.py's heavy deps are validated by the Docker
-# build below.
-verifier:test:
+# test_security.py imports main.py, which pulls fastapi, pydantic and
+# ethiobank-receipts (the latter also brings requests). Install the service's
+# own requirements rather than hand-picking packages, so a dependency added for
+# the service is automatically covered by this job.
+verifiertest:
   stage: test
   image: python:3.12-slim
+  before_script:
+    - pip install -r services/receipt-verifier/requirements.txt
   script:
     - cd services/receipt-verifier
     - python -m py_compile normalize.py cbe_links.py main.py
@@ -210,9 +218,9 @@ compose-config:
 # minimal nginx.conf and runs `nginx -t -c`. Report-only until proven on main.
 nginx-syntax:
   stage: docker
-  image: nginx:1.27-alpine
-  allow_failure: true
-  entrypoint: [""]
+  image:
+    name: nginx:1.27-alpine
+    entrypoint: [""]
   before_script:
     - apk add --no-cache bash openssl
   script:
