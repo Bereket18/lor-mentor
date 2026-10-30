@@ -22,6 +22,56 @@ random unprinted passwords and are deleted with a 401 check.
 | 3 | Faculty review + edit tool | **Partly done: offline packet only, in-app tool NOT built** |
 | 4 | Build remaining systems (respiratory … body surface) | **Not started (not blocked)** |
 | 5 | Left/right proof, README, final report | **Done** (left/right proof, README `8e929fe`, final report below) |
+| S1 | Read-only anatomy text integrity check | **Done** (mismatches reported, none fixed) |
+
+## Step 1 — anatomy text integrity (read-only)
+
+Run on `integration/anatomy-hardening` at `a25e8df`; database
+`lor_mentor` on `127.0.0.1:5432`. No database writes were made.
+
+- Rows: heart **26** (`isPublished=true`, `isSample=true`), urinary **15**
+  (`isPublished=false`, `isSample=false`), `isReviewed=true` rows: **0**.
+- Method: per-row SHA-256 over
+  `JSON.stringify([summary, location, function, bloodSupply, clinicalNotes])`,
+  preserving `null`. Aggregate values below use the stated method only.
+
+| Comparison | Shared rows | Match | Mismatch |
+| --- | ---: | ---: | ---: |
+| DB heart vs newest backup `anatomy-backup-2026-10-25T17-25-47-227Z.json` | 14 | **14** | 0 |
+| DB heart vs `7e4c284:apps/api/prisma/seed-anatomy.ts` | 26 | 22 | 4 |
+| DB heart vs current `anatomy-heart.data.ts` | 26 | **26** | 0 |
+| DB urinary vs `anatomy-urinary.data.ts` | 15 | **15** | 0 |
+
+The four heart rows that differ from `7e4c284` are `tricuspid-valve`,
+`pulmonary-valve`, `mitral-valve`, and `aortic-valve`. They match the current
+heart data file, so the difference is a later teaching-text update, not a
+current DB mismatch. The 12 heart rows absent from the 14-row backup are
+`interventricular-septum`, `pulmonary-arteries`, `pulmonary-veins`,
+`aortic-arch`, `pericardium`, `endocardium`, `myocardium`, `epicardium`,
+`sinoatrial-node`, `atrioventricular-node`, `bundle-of-his`, and
+`purkinje-fibers`; all 12 match `7e4c284`. Of the 14 backup rows, 10 match
+`7e4c284` and the four valves do not, so “12 restored” is only accurate if it
+means the 12 non-backup rows. Nothing was changed.
+
+### Historical hash attribution
+
+- **`ea8a7bba6d262c7f…e9fa` — verified.** It is the aggregate SHA-256 of
+  `JSON.stringify(protectedBefore.rows)`, where each row is
+  `{id, slug, hash}` and `hash` is the **7-field** per-row hash
+  `[name, latinName, summary, location, function, bloodSupply, clinicalNotes]`.
+  All 14 protected-before row hashes match that 7-field method.
+- **f7373f05…384b — method not recorded, not reproducible.** It appears only
+  in commit `a3d08b5` (`docs/PROGRESS.md`) as a “protected-text SHA-256”; no
+  script, artifact, or method definition for it exists in the repository. It
+  did not match the 5-field array, 7-field array, 5-field object, 7-field
+  object, full-row, raw/CRLF/BOM file-byte, or tested aggregate variants.
+- **`d2bb966f…` — no local source.** It occurs nowhere in the repository
+  history except the saved `docs/anatomy/RUN-SPEC.md` prompt. It is not in the
+  backup, seed, data files, or DB recomputation, so its method cannot be
+  verified from local evidence.
+- The adjacent `caf4e073…257b6` value in the same `a3d08b5` line is likewise
+  unreproducible from the current tree. These two values are therefore
+  reported as unattributed rather than assigned an invented method.
 
 ## Phase 1 — merge + GitLab files
 
