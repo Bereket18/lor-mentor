@@ -27,6 +27,7 @@ export default function AdminLoginPage() {
   // phone falls back to the browser's native form submit and puts the
   // credentials in the URL as a GET query string.
   const [mounted, setMounted] = useState(false);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setMounted(true), []);
 
   const {
@@ -93,9 +94,16 @@ export default function AdminLoginPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit(onSubmit)} method="post" className="space-y-4">
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          method="post"
+          className="space-y-4"
+        >
           <div>
-            <label htmlFor="admin-email" className="block text-xs font-medium text-secondary mb-2 tracking-wide">
+            <label
+              htmlFor="admin-email"
+              className="block text-xs font-medium text-secondary mb-2 tracking-wide"
+            >
               EMAIL ADDRESS
             </label>
             <input
@@ -110,12 +118,17 @@ export default function AdminLoginPage() {
                 focus:ring-accent/20 transition-all"
             />
             {errors.email && (
-              <p className="text-error text-xs mt-1.5">{errors.email.message}</p>
+              <p className="text-error text-xs mt-1.5">
+                {errors.email.message}
+              </p>
             )}
           </div>
 
           <div>
-            <label htmlFor="admin-password" className="block text-xs font-medium text-secondary mb-2 tracking-wide">
+            <label
+              htmlFor="admin-password"
+              className="block text-xs font-medium text-secondary mb-2 tracking-wide"
+            >
               PASSWORD
             </label>
             <div className="relative">
