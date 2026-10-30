@@ -19,8 +19,8 @@ random unprinted passwords and are deleted with a 401 check.
 | 2B | Config gaps (wildcard CORS, `check-env.mjs` parity, `API_URL`) | **Done** |
 | 2C | Docker / nginx review without a daemon; nginx test script | **Done** (static review; image builds and `nginx -t` NOT RUN) |
 | 2D | `/anatomy` for ADMIN/SUPER_ADMIN; run existing Playwright specs; checklist | **Done** |
-| 3 | Faculty review + edit tool | **Done** (packet export/validation + existing sign-off) |
-| 4 | Build remaining systems (respiratory … body surface) | **Blocked** — no licensed source assets/mappings/text for any system beyond heart and urinary |
+| 3 | Faculty review + edit tool | **Partly done: offline packet only, in-app tool NOT built** |
+| 4 | Build remaining systems (respiratory … body surface) | **Not started (not blocked)** |
 | 5 | Left/right proof, README, final report | **Done** (left/right proof, README `8e929fe`, final report below) |
 
 ## Phase 1 — merge + GitLab files
