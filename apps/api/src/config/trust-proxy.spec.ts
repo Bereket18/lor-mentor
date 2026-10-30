@@ -6,6 +6,10 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { applyTrustProxy, resolveTrustProxy } from './trust-proxy';
 
+// This suite starts a Nest app and makes real HTTP requests. The default 5s
+// timeout is too tight when Jest runs the full API suite on a loaded worker.
+jest.setTimeout(15_000);
+
 @Controller('rate-limit-probe')
 class RateLimitProbeController {
   @Get()
