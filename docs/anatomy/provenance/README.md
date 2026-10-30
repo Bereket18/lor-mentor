@@ -320,9 +320,12 @@ The following work is still open:
 - the urinary content remains a draft: it is seeded in local databases but
   `URINARY_SYSTEM.isPublished` is still `false`, and publishing it requires an
   explicit product and faculty-review decision;
-- `npm run anatomy:review --workspace=apps/api` can record a sign-off or
-  revocation, but it has not been run with `--confirm`; no review has been
-  applied to either system;
+- `npm run anatomy:review --workspace=apps/api` can export a read-only faculty
+  packet (`--export`), validate a completed packet (`--validate`), and record a
+  sign-off or revocation (`--confirm` / `--revoke`). The export and validation
+  paths never change teaching text, `isReviewed`, or `isPublished`. The
+  sign-off has not been run with `--confirm`; no review has been applied to
+  either system;
 - the urinary teaching text is a draft and has not been reviewed by faculty.
 
 The switch has not been pushed or deployed from this working tree.

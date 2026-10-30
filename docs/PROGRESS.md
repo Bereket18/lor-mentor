@@ -19,9 +19,9 @@ random unprinted passwords and are deleted with a 401 check.
 | 2B | Config gaps (wildcard CORS, `check-env.mjs` parity, `API_URL`) | **Done** |
 | 2C | Docker / nginx review without a daemon; nginx test script | **Done** (static review; image builds and `nginx -t` NOT RUN) |
 | 2D | `/anatomy` for ADMIN/SUPER_ADMIN; run existing Playwright specs; checklist | **Done** |
-| 3 | Faculty review + edit tool | Not started |
-| 4 | Build remaining systems (respiratory … body surface) | Not started |
-| 5 | Left/right proof, README, final report | Left/right proof done (report-only); README + final report pending |
+| 3 | Faculty review + edit tool | **Done** (packet export/validation + existing sign-off) |
+| 4 | Build remaining systems (respiratory … body surface) | **Blocked** — no licensed source assets/mappings/text for any system beyond heart and urinary |
+| 5 | Left/right proof, README, final report | Left/right proof done; README + final report pending |
 
 ## Phase 1 — merge + GitLab files
 
@@ -256,6 +256,62 @@ Playwright:
 `docs/deploy/RELEASE-CHECKLIST.md` now records the admin anatomy check, the
 Playwright result, and the pre-existing web-lint caveat.
 
+## Phase 3 — faculty review packet and sign-off
+
+The existing `apps/api/prisma/review-anatomy.ts` sign-off script was extended
+instead of adding a second workflow:
+
+- `--export <file>` writes a read-only faculty packet. `.json` produces a
+  machine-readable packet with one blank decision per structure; any other
+  extension produces a Markdown packet for reading. Each structure records a
+  SHA-256 over its current teaching text.
+- `--validate <file>` checks that the packet matches the current system, every
+  structure has an allowed decision (`approved`, `approved-with-edits`, or
+  `rejected`), rejected rows have comments, a reviewer and date are present, and
+  the teaching-text hashes still match. A stale packet is rejected.
+- `--export` and `--validate` are read-only. They refuse to run with `--confirm`
+  or `--revoke`, and never change teaching text, `isReviewed`, or `isPublished`.
+- The existing `--confirm` sign-off and `--revoke` paths are unchanged. No
+  sign-off was applied.
+
+Verification against the local dev database:
+
+- Heart JSON export: 26 structures, 26 decisions, 0 reviewed, 35,428 bytes.
+  Markdown export: 29,686 bytes. System remains `isPublished=true`,
+  `isSample=true`.
+- Incomplete packet: rejected with missing reviewer/date/decisions.
+- Filled packet (temporary test values, not written to the DB): **validation
+  passed** for 26 structures.
+- `--export --confirm`: rejected as intended.
+- Database after the checks: heart 26 structures published/sample, urinary 15
+  structures draft, **0 reviewed rows**. No teaching text was edited.
+- `npx tsc --noEmit -p tsconfig.json`: pass. `npm run build:api`: pass.
+
+Docs updated: `docs/deploy/GO-LIVE.md` §3.4.1,
+`docs/deploy/RELEASE-CHECKLIST.md` §5, and
+`docs/anatomy/provenance/README.md` §10.
+
+## Phase 4 — remaining anatomy systems (blocked)
+
+No system beyond heart and urinary can be built safely from this repository:
+
+- `ANATOMY_SEED_REGISTRY` contains only `heart` and `urinary`.
+- The repository contains no source archives, source maps, GLB candidates,
+  manifests, or faculty-approved text for respiratory, nervous, alimentary,
+  musculoskeletal, cardiovascular vessels, endocrine, deep fascial, genital, or
+  integumentary releases.
+- The whole-body plan requires mapping approval, text/licence approval, a
+  versioned build, validation, contract coverage, faculty review, and release
+  approval for each system. Those inputs are not present, and inventing anatomy
+  text or mesh data is explicitly out of scope.
+- Existing validators and contract tests still cover the two registered systems
+  and pass. No placeholder systems were added.
+
+This is a blocking dependency, not a test failure. The next safe step is the
+respiratory mapping proposal described in `docs/anatomy/whole-body-plan.md`,
+followed by text/licence review and a candidate build. Do not seed or publish a
+system until those gates are recorded.
+
 ## Phase 5 detail — left/right on-screen check (report-only, done)
 
 - GLB centroids confirm patient-left = +X for every pair: heart
@@ -297,5 +353,5 @@ Playwright result, and the pre-existing web-lint caveat.
 
 ## Next up
 
-Phase 3 faculty review tool, Phase 4 remaining anatomy systems, and Phase 5
-README/final report.
+Phase 5 README and final report. Phase 4 remains blocked on licensed assets,
+source maps, and faculty-approved text for systems beyond heart and urinary.

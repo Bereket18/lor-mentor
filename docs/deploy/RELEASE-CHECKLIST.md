@@ -150,6 +150,10 @@ Fill this in before touching the server:
       docker compose -f docker-compose.prod.yml --env-file .env.production \
         exec api npm run db:seed:anatomy -- --reconcile --system heart
       ```
+- [ ] Before any `anatomy:review --confirm`, export and validate a read-only
+      faculty packet for that system (see `GO-LIVE.md` §3.4.1). `--export` and
+      `--validate` must not change teaching text, `isReviewed`, or
+      `isPublished`; `--confirm` remains the separate sign-off step.
 - [ ] Verify the published flags and that no urinary row exists:
       ```bash
       docker compose -f docker-compose.prod.yml --env-file .env.production \

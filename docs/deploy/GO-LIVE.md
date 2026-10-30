@@ -269,8 +269,36 @@ bytes under an existing filename fails validation. Publish a new version and
 register it instead. Nginx gives only versioned `.vN.glb` files the one-year
 immutable cache header.
 
-Faculty sign-off is separate from model validation. Review the draft system,
-then run the review script with an explicit confirmation before publishing:
+Faculty sign-off is separate from model validation. First export a read-only
+review packet. The JSON packet has one blank decision per structure and records
+a SHA-256 of the current teaching text, so a stale packet cannot be signed off:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.production \
+  exec api npm run anatomy:review -- --system urinary \
+    --export /tmp/urinary-review.json
+docker compose -f docker-compose.prod.yml --env-file .env.production \
+  cp api:/tmp/urinary-review.json ./urinary-review.json
+# A Markdown copy is also available with --export urinary-review.md.
+```
+
+The faculty reviewer fills in `review.reviewer`, `review.reviewDate`, and each
+`review.decisions.<slug>` (`approved`, `approved-with-edits`, or `rejected`;
+rejections need a comment). Validate the completed file and copy it back into
+the API container:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.production \
+  cp ./urinary-review.json api:/tmp/urinary-review.json
+docker compose -f docker-compose.prod.yml --env-file .env.production \
+  exec api npm run anatomy:review -- --system urinary \
+    --validate /tmp/urinary-review.json
+```
+
+`--export` and `--validate` are read-only: they never change teaching text,
+`isReviewed`, or `isPublished`, and they refuse to run with `--confirm` or
+`--revoke`. Review the packet, then run the sign-off with an explicit
+confirmation before publishing:
 
 ```bash
 # Dry run first (no --confirm): prints the review plan without writing.
