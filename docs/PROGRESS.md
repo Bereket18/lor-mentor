@@ -21,7 +21,7 @@ random unprinted passwords and are deleted with a 401 check.
 | 2D | `/anatomy` for ADMIN/SUPER_ADMIN; run existing Playwright specs; checklist | **Done** |
 | 3 | Faculty review + edit tool | **Done** (packet export/validation + existing sign-off) |
 | 4 | Build remaining systems (respiratory … body surface) | **Blocked** — no licensed source assets/mappings/text for any system beyond heart and urinary |
-| 5 | Left/right proof, README, final report | Left/right proof done; README + final report pending |
+| 5 | Left/right proof, README, final report | **Done** (left/right proof, README `8e929fe`, final report below) |
 
 ## Phase 1 — merge + GitLab files
 
@@ -329,6 +329,110 @@ system until those gates are recorded.
   teal centroid is also polluted by the scene point light. The authoritative
   check is the GLB centroid analysis above.
 
+## Final verification - 2026-10-30
+
+All commands were run locally on `integration/anatomy-hardening`. No push,
+rebase, reset, force, migration, publish, or teaching-text edit was performed.
+
+| Gate | Result |
+| --- | --- |
+| API unit | 25 suites, **287/287** tests pass |
+| API e2e | 1 suite, **3/3** tests pass |
+| Web build | Next.js 16.4.3, compiled successfully, **39/39** static pages |
+| Heart model validator | pass - 17 mesh + 9 text-only, 102,568 triangles, 1.91 MB |
+| Urinary model validator | pass - 10 mesh + 5 text-only, 20,364 triangles, 0.44 MB |
+| Smoke (Git Bash, `SMOKE_STRICT_CACHE=0`) | **PASS: 18, FAIL: 0** |
+| Playwright default (Phase 2D/5) | 15 passed, 2 skipped (auth tests opt-in) |
+| Playwright auth opt-in (Phase 2D) | 2/2 passed after the rate-limit window |
+| Phase 3 `tsc --noEmit` + API build | pass |
+| Review packet export/validate | heart 26 structures; incomplete rejected; completed validated; read-only |
+| Database flags after all checks | heart published/sample 26; urinary draft 15; **0 reviewed rows** |
+
+The final API unit run first hit the known `trust-proxy.spec.ts` 5-second
+timeout once under parallel load. The spec now sets a 15-second per-suite
+timeout (`bb88864`); it passes 9/9 in isolation and the full suite passes
+287/287. No assertion or application behavior changed.
+
+The smoke test must be run with Git Bash, not the WSL `bash` on `PATH`: WSL
+cannot reach the Windows-hosted `127.0.0.1`/`localhost` ports and reports
+`000`. With `C:\Program Files\Git\bin\bash.exe` the suite passes 18/0.
+
+## Final report
+
+### Delivered
+
+- **Part A - dependency security upgrades.** Prisma stack 7.10.1, Nest
+  platform-express/multer/nodemailer/body-parser/proxy-addr upgrades, and web
+  package upgrades (Next 16.4.3, axios 1.20.0, postcss 8.5.31). Direct
+  advisories were cleared without `npm audit fix` or `--force`.
+- **Part B - configuration hardening.** Wildcard CORS is rejected; deployment
+  preflight (`scripts/check-env.mjs`) matches runtime validation for
+  `TRUST_PROXY`, `COOKIE_DOMAIN`, `NEXT_PUBLIC_API_URL`, verifier token/timeout,
+  and bank accounts.
+- **Part C - deployment review.** All Dockerfiles, Compose files, and nginx
+  configurations were reviewed statically. Nginx body limits were raised from
+  `12m` to `30m` to match the API's 25 MB materials cap.
+- **Part D - access control and release checks.** ADMIN/SUPER_ADMIN now receive
+  API `403` and the web redirects them to `/admin`; STUDENT/TEACHER retain
+  access. The release checklist and Playwright coverage were updated.
+- **Phase 3 - faculty review.** `anatomy:review` now exports a read-only JSON or
+  Markdown packet and validates a completed packet against current teaching-text
+  hashes. Sign-off remains a separate `--confirm` step. No review was applied.
+- **Phase 5 - left/right proof and README.** GLB centroids confirm patient-left
+  is `+X` with no swap; the README now documents setup, checks, anatomy safety,
+  deployment, and the review workflow.
+
+### Verified
+
+The re-run gates above pass. The Playwright rows are the latest recorded runs
+from Phase 2D/5; the README-only change does not affect them. The database still
+contains only the heart sample (26 structures, published/sample) and the
+urinary draft (15 structures), with zero `isReviewed` rows. The heart
+protected-text hash and the published flags are unchanged.
+
+### Not verified / blocked
+
+- **Phase 4 (remaining anatomy systems) is blocked.** The repository has no
+  licensed source archives, source maps, GLB candidates, manifests, or
+  faculty-approved text for respiratory, nervous, alimentary, musculoskeletal,
+  cardiovascular vessels, endocrine, deep fascial, genital, or integumentary
+  releases. No placeholder systems were added.
+- **Docker image builds and container health checks were not run.** The Docker
+  daemon was unavailable at
+  `npipe:////./pipe/dockerDesktopLinuxEngine`; only static review and
+  `compose config` with the example environment were possible.
+- **`nginx -t` was not run.** Nginx is not installed on this host; the configs
+  received static review and the helper script passed `bash -n`.
+- **Production strict smoke (20 checks) was not run.** It requires nginx/TLS;
+  the local run reports 18 passing with 0 failures and skips the immutable-cache
+  check.
+- **`LICENSE.md` and `SECURITY.md` remain skipped.** The copyright holder and
+  security contact are still bracketed placeholders.
+- **Residual audit findings remain** in transitive/optional build-chain
+  packages: API 4 (1 moderate, 3 high), web 9 (1 critical, 6 high, 2 moderate).
+  They are documented in `docs/audit/DEPENDENCY-UPGRADE-TRIAGE.md`; no direct
+  advisory remains.
+- **Process deviation:** the Prisma and API upgrade commits landed directly on
+  `integration/anatomy-hardening` before the dedicated upgrade branch existed.
+  The web upgrade was merged back with `git merge --no-ff`.
+
+### Release recommendation
+
+This branch is ready for local review and a controlled staging deployment, not
+production sign-off. Before production:
+
+1. Supply licensed source assets/mappings and faculty-approved text for each
+   remaining system, then run the Phase 4 build/validation/review gates per
+   system.
+2. Complete a faculty review packet and explicit sign-off for each system; keep
+   `isPublished` false until approval.
+3. Resolve the DBCLS licence question and fill `LICENSE.md` and `SECURITY.md`
+   with real owner values.
+4. Run Docker image builds, container health checks, and `nginx -t` on a host
+   with those tools.
+5. Re-run the strict 20-check smoke over HTTPS and the opt-in Playwright auth
+   tests with temporary accounts; delete the accounts and verify `401`.
+
 ## Decisions
 
 - `LICENSE.md` and `SECURITY.md` are skipped until the user supplies a real
@@ -353,5 +457,8 @@ system until those gates are recorded.
 
 ## Next up
 
-Phase 5 README and final report. Phase 4 remains blocked on licensed assets,
-source maps, and faculty-approved text for systems beyond heart and urinary.
+The hardening branch is complete for the work that can be done locally. The next
+release step is a staging deployment with the Docker/nginx gates, followed by
+Phase 4 only when licensed assets, source maps, and faculty-approved text are
+available. Phase 4 remains blocked; no system beyond heart and urinary is
+registered.
