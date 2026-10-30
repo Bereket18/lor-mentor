@@ -23,6 +23,7 @@ random unprinted passwords and are deleted with a 401 check.
 | 4 | Build remaining systems (respiratory … body surface) | **Not started (not blocked)** |
 | 5 | Left/right proof, README, final report | **Done** (left/right proof, README `8e929fe`, final report below) |
 | S1 | Read-only anatomy text integrity check | **Done** (mismatches reported, none fixed) |
+| S2 | npm audit critical/high inventory | **Done** (read-only; no dependency changes) |
 
 ## Step 1 — anatomy text integrity (read-only)
 
@@ -72,6 +73,43 @@ means the 12 non-backup rows. Nothing was changed.
 - The adjacent `caf4e073…257b6` value in the same `a3d08b5` line is likewise
   unreproducible from the current tree. These two values are therefore
   reported as unattributed rather than assigned an invented method.
+
+## Step 2 — npm audit critical/high inventory (read-only)
+
+Commands: `npm audit --json --workspace=apps/api` and
+`npm audit --json --workspace=apps/web`. No dependency was changed; `npm audit
+fix` and `--force` were not run.
+
+Totals from the audit metadata: API **14** (4 high, 1 critical, 1 moderate,
+8 low); web **19** (12 high, 1 critical, 5 moderate, 1 low). The tables below
+list every critical/high package, including meta-findings that are flagged only
+through a vulnerable dependency.
+
+| WS | Package | Sev. | Type | Advisory IDs (critical/high) | Dependency path | Runtime reachable? |
+| --- | --- | --- | --- | --- | --- | --- |
+| API | `brace-expansion` | high | transitive | GHSA-mh99-v99m-4gvg, GHSA-rgw5-rvv9-x895, GHSA-qhr7-859c-m2p7, GHSA-6j4f-fj2g-mc7p | `api -> ts-jest -> jest -> @jest/core -> jest-config -> glob -> minimatch -> brace-expansion` | **No** — Jest/test tooling; absent from `npm ls --omit=dev`; no source import. |
+| API | `browserslist` | high | transitive | GHSA-c83g-rgw3-j3cx, GHSA-73wf-gq98-2v4g | `web -> shadcn -> @babel/... -> browserslist` (hoisted; audit also attributes it to API) | **No** — web dev/build tooling; no API runtime path. |
+| API | `fast-uri` | high | transitive | GHSA-7p8r-x3mc-p8w7, GHSA-5jgf-p345-68v8, GHSA-f65p-4m7j-42xc, GHSA-fph4-wmhf-6fwf, GHSA-jqff-g426-hqxp, GHSA-qw65-cvwx-89v3 | `api -> @nestjs/cli -> @angular-devkit/core -> ajv -> fast-uri` | **No** — Nest CLI dev tooling; no `ajv`/`fast-uri` import in `apps/api/src`. |
+| API | `handlebars` | critical | transitive | GHSA-8r5x-fm3f-whwj, GHSA-p8wg-vrv2-v86f | `api -> ts-jest -> handlebars` | **No** — test tooling; absent from production tree. |
+| API | `js-yaml` | high | transitive | GHSA-5p4m-2wfm-xmqj, GHSA-2883-xcg3-v3hh | `api -> ts-jest -> jest -> @jest/core -> @jest/transform -> babel-plugin-istanbul -> @istanbuljs/load-nyc-config -> js-yaml` | **No** — test/coverage tooling. |
+| web | `@mapbox/node-pre-gyp` | high | transitive | via `tar` (no own advisory) | lockfile/optional chain only; `npm ls` finds no installed copy | **No** — not present in `node_modules`; no runtime code. |
+| web | `@modelcontextprotocol/sdk` | high | transitive | GHSA-6qxp-vccf-f47h, GHSA-22jm-h49p-29qw, GHSA-46jr-4wx8-v453, GHSA-f897-62hf-6gxq | `web -> shadcn -> @modelcontextprotocol/sdk` | **No** — `shadcn` dev CLI. |
+| web | `brace-expansion` | high | transitive | GHSA-mh99-v99m-4gvg, GHSA-rgw5-rvv9-x895, GHSA-qhr7-859c-m2p7, GHSA-6j4f-fj2g-mc7p | `web -> shadcn -> ts-morph -> @ts-morph/common -> minimatch -> brace-expansion` | **No** — dev CLI. |
+| web | `browserslist` | high | transitive | GHSA-c83g-rgw3-j3cx, GHSA-73wf-gq98-2v4g | `web -> shadcn -> @babel/... -> browserslist` | **No** — build-time only; no `src` import. |
+| web | `fast-uri` | high | transitive | GHSA-7p8r-x3mc-p8w7, GHSA-5jgf-p345-68v8, GHSA-f65p-4m7j-42xc, GHSA-fph4-wmhf-6fwf, GHSA-jqff-g426-hqxp, GHSA-qw65-cvwx-89v3 | `api -> @nestjs/cli -> @angular-devkit/core -> ajv -> fast-uri` (hoisted; audit also attributes it to web) | **No** — API dev CLI, not web runtime. |
+| web | `follow-redirects` | high | transitive | GHSA-q3jh-wrc6-jgq8, GHSA-8r9p-f939-6h3c | `web -> axios -> follow-redirects` | **Unknown** — axios is used by client components (`lib/api.ts`, `anatomy-ai-panel.tsx`, `anatomy-viewer.tsx`); the browser adapter does not use `follow-redirects`; no server-side axios import was found, so only a Node-side axios path could reach it. |
+| web | `ip-address` | high | transitive | GHSA-mwp4-54f8-5fhr | `web -> shadcn -> @modelcontextprotocol/sdk -> express-rate-limit -> ip-address` | **No** — dev CLI. |
+| web | `js-yaml` | high | transitive | GHSA-5p4m-2wfm-xmqj, GHSA-2883-xcg3-v3hh | `web -> eslint-config-next -> typescript-eslint -> ... -> js-yaml` | **No** — lint dev tooling. |
+| web | `postcss` | high | transitive | GHSA-r28c-9q8g-f849 | `web -> tailwindcss -> postcss` (also direct and Next nested copies) | **No** — CSS build-time; no `src` import. |
+| web | `shadcn` | high | direct | via `deepmerge`, `zod` (no own advisory) | `web -> shadcn` | **No** — dev CLI; not in production tree. |
+| web | `tar` | critical | transitive | GHSA-34x7-hfp2-rc4v, GHSA-8qq5-rm4j-mr97, GHSA-83g3-92jg-28cx, GHSA-qffp-2rhf-9h96, GHSA-9ppj-qmqm-q256, GHSA-r6q2-hw4h-h46w, GHSA-23hp-3jrh-7fpw, GHSA-8x88-c5mf-7j5w, GHSA-r292-9mhp-454m | `web -> @mapbox/node-pre-gyp -> tar` (lockfile/optional only) | **No** — not installed; `npm ls tar --workspace=apps/web` is empty. |
+| web | `undici` | high | transitive | GHSA-4cwx-7wf7-3272, GHSA-rfgv-xxqx-mfg5, GHSA-w293-vg96-wgc3, GHSA-xjj6-f33q-929c, GHSA-4w7w-5xrc-9h26, GHSA-2m5v-pch6-74hx, GHSA-qrxm-fqhp-jwvm | `web -> shadcn -> undici` | **No** — dev CLI. |
+| web | `zod` | high | transitive | GHSA-mrhx-c7xc-m3w5 | `web -> shadcn -> zod@3.25.76` (nested); production `zod@4.6.7` is above the `<4.6.6` advisory range | **No** — vulnerable copy is dev-only; production copy is patched. |
+
+No critical/high finding is confirmed reachable in the running API or web
+request path. The only unresolved reachability is `follow-redirects` through a
+possible server-side axios call; the source search found client-side axios use
+only. No dependency was upgraded or removed.
 
 ## Phase 1 — merge + GitLab files
 
