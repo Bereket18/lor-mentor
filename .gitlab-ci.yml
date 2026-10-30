@@ -137,6 +137,8 @@ web:build:
 verifier:test:
   stage: test
   image: python:3.12-slim
+  before_script:
+    - pip install requests
   script:
     - cd services/receipt-verifier
     - python -m py_compile normalize.py cbe_links.py main.py
