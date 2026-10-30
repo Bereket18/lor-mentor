@@ -134,11 +134,11 @@ web:build:
 # normalize.py, cbe_links.py, and their tests are stdlib-only, so no pip
 # install is needed here. main.py's heavy deps are validated by the Docker
 # build below.
-verifier:test:
+verifiertest:
   stage: test
   image: python:3.12-slim
   before_script:
-    - pip install requests
+    - pip install requests fastapi uvicorn
   script:
     - cd services/receipt-verifier
     - python -m py_compile normalize.py cbe_links.py main.py
