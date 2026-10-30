@@ -24,7 +24,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   // The mobile drawer re-uses the full desktop sidebar. Close it whenever
   // the route changes (including tapping the item for the current page).
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+  // The directive goes on the setState call below, not on the effect: the rule
+  // reports the call itself, so an outer directive is flagged as unused.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMobileMenuOpen(false);

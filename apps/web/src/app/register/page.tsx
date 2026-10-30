@@ -140,6 +140,7 @@ export default function RegisterPage() {
   // phone falls back to the browser's native form submit and puts the
   // credentials in the URL as a GET query string.
   const [mounted, setMounted] = useState(false);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setMounted(true), []);
   const [departments,  setDepartments]  = useState<Department[]>([]);
   const [years,        setYears]        = useState<AcademicYear[]>([]);

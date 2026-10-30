@@ -195,7 +195,10 @@ docker-build-verifier:
   stage: docker
   allow_failure: true
   script:
-    - docker build -f services/receipt-verifier/Dockerfile -t lor-mentor-verifier:ci .
+    # The context must be the service directory, not the repo root: this
+    # Dockerfile does `COPY requirements.txt .` and `COPY . .`, matching the
+    # `context: ./services/receipt-verifier` that docker-compose.prod.yml uses.
+    - docker build -f services/receipt-verifier/Dockerfile -t lor-mentor-verifier:ci services/receipt-verifier
 
 # Validate both compose files against a throwaway env. `docker compose config`
 # is client-side and does not need a running daemon, but it does need the
@@ -207,6 +210,11 @@ compose-config:
   before_script:
     - apk add --no-cache docker-cli-compose
   script:
+    # Two separate mechanisms need a file here. --env-file feeds the ${VAR}
+    # substitution, while the `env_file: .env.production` directive inside the
+    # compose file is resolved relative to that file's own directory. The /tmp
+    # copies alone leave the directive unsatisfied, so seed the real path too.
+    - cp .env.production.example .env.production
     - cp .env.production.example /tmp/ci-prod.env
     - cp .env.production.example /tmp/ci-staging.env
     - docker compose -f docker-compose.prod.yml --env-file /tmp/ci-prod.env config > /dev/null
