@@ -90,6 +90,7 @@ export class AnatomyService {
     const systemStructures = await this.prisma.anatomyStructure.findMany({
       where: { systemId: system.id },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      include: { reviewedBy: { select: { fullName: true } } },
     });
 
     // Related structures are stored as slugs so the seed stays readable and
@@ -98,8 +99,10 @@ export class AnatomyService {
     const bySlug = new Map(
       systemStructures.map((structure) => [structure.slug, structure]),
     );
-    const structures = systemStructures.map((structure) => ({
+    const structures = systemStructures.map(({ reviewedBy, ...structure }) => ({
       ...structure,
+      // Expose only the reviewer's display name, never their email or id.
+      reviewedByName: reviewedBy?.fullName ?? null,
       related: structure.relatedSlugs.flatMap((relatedSlug) => {
         const related = bySlug.get(relatedSlug);
         return related ? [{ slug: related.slug, name: related.name }] : [];

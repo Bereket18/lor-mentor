@@ -34,6 +34,29 @@ function focusTreeItem(tree: HTMLElement | null, key: string) {
   });
 }
 
+function reviewDateLabel(value: string | null): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function reviewBadgeText(selected: AnatomyStructure): string {
+  if (!selected.isReviewed) return "Pending faculty review";
+  const date = reviewDateLabel(selected.reviewedAt);
+  if (selected.reviewedByName && date) {
+    return `Faculty reviewed by ${selected.reviewedByName} on ${date}`;
+  }
+  if (selected.reviewedByName) {
+    return `Faculty reviewed by ${selected.reviewedByName}`;
+  }
+  return date ? `Faculty reviewed on ${date}` : "Faculty reviewed";
+}
+
 interface AnatomyDetailPanelProps {
   system: AnatomySystemDetail;
   selected: AnatomyStructure | null;
@@ -501,14 +524,22 @@ export function AnatomyDetailPanel({
                 {layerLabel(selected.layer)}
               </span>
               {selected.isReviewed ? (
-                <span className="inline-flex items-center gap-1 rounded-full border border-success/20 bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
-                  <ShieldCheck className="h-3 w-3" />
-                  Faculty reviewed
+                <span
+                  data-testid="anatomy-review-badge"
+                  data-state="reviewed"
+                  className="inline-flex items-center gap-1 rounded-full border border-success/20 bg-success/10 px-2.5 py-1 text-xs font-medium text-success"
+                >
+                  <ShieldCheck className="h-3 w-3 flex-shrink-0" aria-hidden />
+                  {reviewBadgeText(selected)}
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 rounded-full border border-warning/20 bg-warning/10 px-2.5 py-1 text-xs font-medium text-warning">
-                  <ShieldAlert className="h-3 w-3" />
-                  Pending review
+                <span
+                  data-testid="anatomy-review-badge"
+                  data-state="pending"
+                  className="inline-flex items-center gap-1 rounded-full border border-warning/20 bg-warning/10 px-2.5 py-1 text-xs font-medium text-warning"
+                >
+                  <ShieldAlert className="h-3 w-3 flex-shrink-0" aria-hidden />
+                  Pending faculty review
                 </span>
               )}
             </div>

@@ -239,6 +239,145 @@ returned **401**.
 
 Commit: `2492ae4` (`feat(anatomy): build eight new systems as unpublished drafts`).
 
+## Step 4 — faculty review and edit tool (local)
+
+Started from `626a3f3`. Local-only; no push, no new branch, no
+`prisma migrate dev/reset`, and no `db push`.
+
+### Schema migration (SQL shown before applying)
+
+Pre-migration JSON backup (users without password hashes/tokens, systems,
+structures): `C:\Users\berek\Desktop\lor-backups\anatomy-pre-step4-2026-10-31T03-57-00-945Z.json`
+(SHA-256 `36bc45be04d354b96a47d0e7e950168670ed849a5538b84ba3c81d8f4cf9db82`;
+18 users, 18 systems, 270 structures). The backup script refused to run unless
+`DATABASE_URL` resolved to local `localhost:5432/lor_mentor`.
+
+```sql
+ALTER TABLE "User"
+ADD COLUMN "isAnatomyReviewer" BOOLEAN NOT NULL DEFAULT false;
+
+ALTER TABLE "AnatomyStructure"
+ADD COLUMN "reviewedAt" TIMESTAMP(3),
+ADD COLUMN "reviewedById" TEXT;
+
+CREATE TABLE "AnatomyStructureRevision" (
+    "id" TEXT NOT NULL,
+    "structureId" TEXT NOT NULL,
+    "editorId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "previous" JSONB NOT NULL,
+    "new" JSONB NOT NULL,
+    "note" TEXT,
+    CONSTRAINT "AnatomyStructureRevision_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX "AnatomyStructure_reviewedById_idx"
+ON "AnatomyStructure"("reviewedById");
+
+CREATE INDEX "AnatomyStructureRevision_structureId_createdAt_idx"
+ON "AnatomyStructureRevision"("structureId", "createdAt");
+
+CREATE INDEX "AnatomyStructureRevision_editorId_idx"
+ON "AnatomyStructureRevision"("editorId");
+
+ALTER TABLE "AnatomyStructure"
+ADD CONSTRAINT "AnatomyStructure_reviewedById_fkey"
+FOREIGN KEY ("reviewedById") REFERENCES "User"("id")
+ON DELETE SET NULL ON UPDATE CASCADE;
+
+ALTER TABLE "AnatomyStructureRevision"
+ADD CONSTRAINT "AnatomyStructureRevision_structureId_fkey"
+FOREIGN KEY ("structureId") REFERENCES "AnatomyStructure"("id")
+ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE "AnatomyStructureRevision"
+ADD CONSTRAINT "AnatomyStructureRevision_editorId_fkey"
+FOREIGN KEY ("editorId") REFERENCES "User"("id")
+ON DELETE CASCADE ON UPDATE CASCADE;
+```
+
+Applied with `npx prisma migrate deploy` against the local `lor_mentor`
+database only, followed by `npx prisma generate`.
+
+### Implementation and verification results
+
+Implemented:
+
+- `User.isAnatomyReviewer` plus `AnatomyReviewerGuard`. The review controller
+  uses JWT → `Roles('TEACHER')` → reviewer flag → per-user write throttle, so
+  STUDENT, ADMIN, and SUPER_ADMIN are rejected at the role gate even if the
+  flag is set by hand.
+- `AnatomyStructureRevision` and `reviewedAt`/`reviewedById`; one immutable
+  revision per save in the same transaction. Editing a reviewed row clears
+  approval and both review fields. A no-op save leaves approval intact.
+- Protected endpoints under `/api/v1/anatomy/review`: systems with computed
+  Empty/Draft/Pending review/Reviewed counts, system structures, edit, review
+  one structure, review a whole system in one transaction, revoke, and
+  revision history. Action POSTs return **200**, not 201.
+- DTO validation: trimming, plain-text rejection of `<`/`>`, field/reference
+  limits, existing same-system `relatedSlugs`, no self-reference, and
+  optimistic `updatedAt` checks with **409** on a stale write.
+- `/anatomy/review` reviewer workspace: reviewer-only link, progress counts,
+  structure status chips, split view reusing the existing anatomy scene,
+  editor with counters, save/save-and-review, revision restore, revision
+  history, unsaved-changes guard, and 409 reload state. Student/teacher detail
+  panels show the reviewed/pending badge.
+- `apps/api/prisma/anatomy-reviewer.ts` CLI (`anatomy:reviewer`): dry run by
+  default, `--confirm` to write, TEACHER-only grants, audit entry.
+- Playwright fixture scaffolding (`apps/api/prisma/_step4-fixtures.ts`) creates
+  a disposable published sample system, two structures, and temporary
+  STUDENT/TEACHER/ADMIN/SUPER_ADMIN users with random passwords stored only in
+  a mode-0600 temp file. Cleanup removes fixture audit rows, the system, and
+  users.
+
+Verification run on the local dev database:
+
+- `npx tsc --noEmit` in `apps/api` and `apps/web`: pass.
+- `npm run build --workspace=apps/api`: pass.
+- `npm run build --workspace=apps/web`: pass; `/anatomy/review` is present in
+  the route list.
+- `npm test --workspace=apps/api -- --runInBand`: **29 suites, 386/386 tests
+  pass**. The Step 4 controller/service/guard/DTO specs account for 32 of
+  those tests.
+- Targeted ESLint on every changed Step 4 API/web file, including the fixture
+  and Playwright spec: pass.
+- Playwright (`E2E_RUN_ANATOMY_REVIEW=1 npm run e2e --workspace=apps/web --
+  e2e/anatomy-review.spec.ts --workers=1 --reporter=line,json`):
+  **5/5 passed in 13.2 s**. Report:
+  `C:\Users\berek\AppData\Local\Temp\opencode\anatomy-step4-playwright.json`.
+  The five tests covered: reviewer edit → revision → history → mark reviewed →
+  whole-system review → HTML rejection → reset-on-edit → live 409 → re-review →
+  revoke → re-review; student reviewed badge and hidden reviewer link/API 403;
+  non-reviewer teacher hidden link, restricted page, and API 403; ADMIN and
+  SUPER_ADMIN 403 on read and write endpoints.
+- A UI bug found by the first Playwright run was fixed: the review viewport's
+  `h-full` made the structure card overflow under the editor form at 1280 px.
+  The viewport now uses a bounded `clamp(320px, 42vh, 480px)` height.
+- Fixture cleanup: removed 7 fixture audit rows, 1 fixture system, and 5
+  temporary users. All five deleted-user logins returned **401**. The database
+  returned to **18 systems / 270 structures / 0 reviewed**, with 0 fixture
+  systems and 0 fixture users. All **41** heart/urinary rows match the
+  pre-Step-4 backup on the 5-field text hash; heart remains
+  published/sample and urinary remains an unpublished draft.
+- Reviewer CLI verification on temporary TEACHER and ADMIN users: grant dry
+  run left the flag false; `--grant --confirm` set it true; revoke dry run left
+  it true; `--revoke --confirm` set it false; an ADMIN grant was refused with
+  exit 1 and no flag change. Both temporary users were deleted and both logins
+  returned **401**. No password was printed.
+
+Not run:
+
+- No real teaching text was edited, approved, or published; every review
+  action ran on disposable fixtures.
+- No manual visual review beyond the Playwright assertions, no keyboard-only
+  walkthrough, and no separate 320 px viewport measurement. Controls use
+  44 px minimum heights and the shared focus ring, but those accessibility
+  checks are not claimed as measured.
+- No production database, publish script, or remote environment was used.
+- The Step 3 protected aggregate `039549a0…` was not recomputed because its
+  exact one-off hashing method is not stored in the repository; the direct
+  41/41 row comparison above was used instead.
+
 ## Phase 1 — merge + GitLab files
 
 Done:

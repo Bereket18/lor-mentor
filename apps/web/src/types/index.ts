@@ -9,6 +9,7 @@ export interface User {
   avatarPath: string | null;
   isActive: boolean;
   isEmailVerified: boolean;
+  isAnatomyReviewer: boolean;
   createdAt: string;
 }
 

@@ -223,6 +223,7 @@ describe('AnatomyService', () => {
     expect(findStructures).toHaveBeenCalledWith({
       where: { systemId: 'system-1' },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      include: { reviewedBy: { select: { fullName: true } } },
     });
   });
 

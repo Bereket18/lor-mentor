@@ -45,6 +45,7 @@ export class UsersService {
         avatarPath: true,
         isActive: true,
         isEmailVerified: true,
+        isAnatomyReviewer: true,
         createdAt: true,
       },
     });
