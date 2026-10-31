@@ -19,9 +19,9 @@ random unprinted passwords and are deleted with a 401 check.
 | 2B | Config gaps (wildcard CORS, `check-env.mjs` parity, `API_URL`) | **Done** |
 | 2C | Docker / nginx review without a daemon; nginx test script | **Done** (static review; image builds and `nginx -t` NOT RUN) |
 | 2D | `/anatomy` for ADMIN/SUPER_ADMIN; run existing Playwright specs; checklist | **Done** |
-| 3 | Faculty review + edit tool | **Partly done: offline packet only, in-app tool NOT built** |
+| 3 | Faculty review + edit tool | **Done (local): offline packet + in-app review tool; real teaching content still unreviewed** |
 | 4 | Build remaining systems (respiratory … body surface) | **Done (local build; 16 unpublished drafts, owner review and teaching text pending)** |
-| 5 | Left/right proof, README, final report | **Done** (left/right proof, README `8e929fe`, final report below) |
+| 5 | Left/right proof, README, final report | **Done** (left/right proof, README `8e929fe`; see the Step 6 final report) |
 | S1 | Read-only anatomy text integrity check | **Done** (mismatches reported, none fixed) |
 | S2 | npm audit critical/high inventory | **Done** (read-only; no dependency changes) |
 
@@ -407,6 +407,125 @@ Not run:
 - `README.md` and the untracked `THIRD_PARTY_LICENSES.md` still describe the
   pre-step state ("no LICENSE file"); they were not edited in this step to
   avoid rewriting unrelated licence content.
+
+## Step 6 — final report
+
+Local-only run on `integration/anatomy-hardening`, HEAD `ab5fc88` before this
+report. Nothing was pushed, rebased, reset, forced, or published. No production
+database or environment was touched. The status column describes the local
+scope assigned to this run; work that needs faculty, legal, owner, or production
+action is listed under **Not run / not done** rather than counted as complete.
+
+### Step status
+
+| Step | Scope | Status | Commit(s) |
+| --- | --- | --- | --- |
+| 0 | Save the run specification; correct the status table | **Done** | `3a006cb`, `a25e8df` |
+| 1 | Read-only heart/urinary text integrity check and hash attribution | **Done** — mismatches and unresolved hashes reported, nothing fixed | `bc07379` |
+| 2 | Read-only npm audit critical/high inventory | **Done** — no dependency changed | `b03aeb9` |
+| 3 | Build eight systems as unpublished drafts | **Done (local build)** — owner mapping review, teaching text, and publication not done | `2492ae4`, `626a3f3` |
+| 4 | In-app faculty review and edit tool | **Done (local tool and verification)** — no real teaching text reviewed | `8e32177` |
+| 5 | Optional licence and security files | **Done** — no legal review | `ab5fc88` |
+| 6 | Final report | **Done** — this section | this commit |
+
+### Commands run and real results
+
+| Step | Command / check | Result |
+| --- | --- | --- |
+| 1 | Read-only SHA-256 comparison over `[summary, location, function, bloodSupply, clinicalNotes]` | Heart 26 / urinary 15; heart 14/14 vs newest backup, 22/26 vs `7e4c284`, 26/26 vs current heart data; urinary 15/15 vs `anatomy-urinary.data.ts`; the four valve differences were explained; no writes |
+| 2 | `npm audit --json --workspace=apps/api`; same for `apps/web` | API 14 findings (4 high, 1 critical, 1 moderate, 8 low); web 19 (12 high, 1 critical, 5 moderate, 1 low); no critical/high finding confirmed reachable in the running request path; no `npm audit fix`, no `--force`, no dependency change |
+| 3 | `node scripts/generate-anatomy-systems.mjs --check` | Pass; official system totals reproduced; generated files deterministic |
+| 3 | `npm run validate:anatomy-model --workspace=apps/web` | 16/16 GLBs pass |
+| 3 | `npm run check:anatomy-orientation --workspace=apps/web` | 42 pairs across 4 GLBs pass |
+| 3 | `npm test --workspace=apps/api -- --runInBand` | 25 suites, **354/354** tests pass |
+| 3 | API build; web `tsc --noEmit`; web build | All pass; 55/55 pages generated |
+| 3 | Step 3 Playwright as a temporary TEACHER | 1/1 pass in 4.2 min; 18 systems opened; all 42 left/right pairs selected; no console or page errors; temporary user deleted, login **401** |
+| 3 | Final database check | 18 systems, 270 structures, 0 reviewed, 229 empty-text; 16 GLBs total 27,226,984 bytes and 1,329,552 triangles; largest 3,590,876 bytes / 139,164 triangles |
+| 4 | JSON backup, then `npx prisma migrate deploy`; `npx prisma generate` | Backup `anatomy-pre-step4-2026-10-31T03-57-00-945Z.json` (SHA-256 `36bc45be…9db82`, 18 users / 18 systems / 270 structures); migration `20261031120000_add_anatomy_faculty_review` applied to local `lor_mentor` only; generate pass |
+| 4 | `npx tsc --noEmit` in `apps/api` and `apps/web` | Pass |
+| 4 | API build; web build | Pass; `/anatomy/review` present in the route list |
+| 4 | `npm test --workspace=apps/api -- --runInBand` | 29 suites, **386/386** tests pass; 32 Step 4 tests |
+| 4 | Targeted ESLint on all changed Step 4 files | Pass |
+| 4 | Playwright review suite: `E2E_RUN_ANATOMY_REVIEW=1 npm run e2e --workspace=apps/web -- e2e/anatomy-review.spec.ts --workers=1 --reporter=line,json` | **5/5 passed in 13.2 s**; report `C:\Users\berek\AppData\Local\Temp\opencode\anatomy-step4-playwright.json`; covered edit/revision/history/review/system review/HTML rejection/reset/409/re-review/revoke and STUDENT/TEACHER/ADMIN/SUPER_ADMIN access |
+| 4 | Fixture cleanup and post-cleanup verification | Removed 7 fixture audit rows, 1 fixture system, 5 temporary users; all five deleted-user logins **401**; database returned to **18 systems / 270 structures / 0 reviewed**, 0 fixture systems/users; 41/41 heart+urinary rows match the pre-Step-4 backup on the five-field hash; heart remains published/sample and urinary remains a draft |
+| 4 | Reviewer CLI on temporary TEACHER and ADMIN users | Grant dry run left flag false; `--grant --confirm` set true; revoke dry run left true; `--revoke --confirm` set false; ADMIN grant refused with exit 1 and no flag change; both users deleted, both logins **401**; no password printed |
+| 5 | Add `LICENSE`; update `SECURITY.md` contact | Proprietary "All rights reserved" notice for **Bereket Adamsseged**; placeholder replaced with **bereketadamsseged@gmail.com**; third-party wording unchanged; commit `ab5fc88` |
+| 6 | Documentation update and local commit | This report and the corrected status table; no code change in this step |
+
+### Not run / not done
+
+- **No real teaching text was edited, approved, or published.** Every Step 4
+  edit/review/revoke action ran on disposable fixtures. The database still has
+  **0 reviewed rows**.
+- **No publication.** No `--confirm` publish run, no `isPublished=true` change,
+  and no system beyond the existing heart sample is published. All 16 new
+  modules (the eight new systems) remain unpublished drafts with empty teaching
+  text.
+- **Owner/faculty mapping review is still pending.** All 16 generated mapping
+  documents still contain `mapping not yet owner-reviewed`; the publish script
+  refuses to publish while that marker is present.
+- **No manual visual/3D review, keyboard-only walkthrough, or separate 320 px
+  viewport measurement.** Playwright assertions and the 44 px control minimum
+  are the only evidence; they are not a measured accessibility audit.
+- **No GPU performance verdict.** Step 3 frame timings came from headless
+  Chromium software rendering (median 33.3–66.7 ms, p95 up to 400 ms).
+- **No production or staging use.** The migration was applied only to the local
+  `lor_mentor` database after a JSON backup. No production backup/restore,
+  migration, Docker image build, `nginx -t`, HTTPS strict smoke, or deployment
+  was run.
+- **No push.** The branch and all commits remain local.
+- **No legal review.** The proprietary `LICENSE` records the repository's
+  existing all-rights-reserved default; no lawyer reviewed it. The
+  BodyParts3D/DBCLS licence question remains open. `README.md` and the untracked
+  `THIRD_PARTY_LICENSES.md` still say there is no `LICENSE` file.
+- **No dependency remediation.** No `npm audit fix` or `--force` was run;
+  residual audit findings remain.
+- **Historical hashes are not all attributable.** `d2bb966f…`, `f7373f05…`, and
+  `caf4e073…` remain unresolved because no reproducing method or local source
+  exists. The Step 3 aggregate `039549a0…` was not independently recomputed
+  because its one-off method is not stored; the direct 41/41 row comparison
+  against the pre-Step-4 backup was used instead.
+
+### Remaining risks
+
+1. **Teaching content and release gate.** The 16 new modules (eight systems) are
+   structurally built but have no teaching text, no owner-reviewed mappings, and
+   no faculty sign-off. Publishing them now would expose empty or unreviewed
+   content; the publish gate correctly blocks this.
+2. **Licensing.** The DBCLS/BodyParts3D terms and attribution obligations still
+   need an owner decision. The new proprietary notice has not had legal review,
+   and the third-party notices are not fully reconciled with it.
+3. **Dependency exposure.** Residual advisories remain in build/test and
+   transitive packages (API 4: 1 moderate, 3 high; web 9: 1 critical, 6 high,
+   2 moderate). None was confirmed reachable at runtime, but `follow-redirects`
+   reachability through a possible server-side axios path is still **unknown**.
+4. **Production migration and deployment.** Migration
+   `20261031120000_add_anatomy_faculty_review` has run only on the local
+   database. Production backup/restore, migration, container builds, nginx
+   validation, and HTTPS smoke tests remain unexecuted; a production rollout
+   would need its own backup and rollback check.
+5. **Review-tool assurance.** Automated coverage is strong, but review/revoke
+   audit entries are written best-effort (`AuditService.record`); revisions are
+   the durable history. There was no sustained load, soak, or multi-reviewer
+   concurrency test beyond the optimistic-`updatedAt` 409 case and the per-user
+   write throttle.
+6. **Accessibility and device performance.** Keyboard-only use, 320 px layout,
+   screen-reader behaviour, and low-end GPU performance were not measured. The
+   101,691-triangle body-surface modules are the most likely device-risk case.
+7. **Repository handover.** The branch is local only. Unrelated pre-existing
+   modifications and untracked deployment/audit documents remain in the working
+   tree, and the three `docs/audit/*.md` files are intentionally untracked. A
+   future operator must not mistake them for this run's output.
+
+### Release recommendation
+
+This branch is suitable for local review and a controlled staging deployment,
+not production sign-off. Before production: complete owner mapping review and
+faculty-approved text for each system, resolve the DBCLS licence question,
+obtain legal review of the proprietary notice, run the production migration and
+backup/restore rehearsal, build and test the containers, run `nginx -t` and the
+strict HTTPS smoke suite, and re-run the review Playwright suite with temporary
+accounts before deleting them and verifying **401**.
 
 ## Phase 1 — merge + GitLab files
 
