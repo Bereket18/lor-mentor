@@ -378,6 +378,36 @@ Not run:
   exact one-off hashing method is not stored in the repository; the direct
   41/41 row comparison above was used instead.
 
+Commit: `8e32177` (`feat(anatomy): add in-app faculty review and revision history`).
+
+## Step 5 — optional licence and security files (local)
+
+The supplied values were present, so the optional files were created:
+
+- Copyright holder: **Bereket Adamsseged**.
+- Security email: **bereketadamsseged@gmail.com**.
+
+Actions:
+
+- Created `LICENSE` with a proprietary "All rights reserved" notice for the
+  supplied holder. The project had no licence file before this step; the
+  repository already declared `UNLICENSED` in both package manifests. The
+  notice points third-party components and content at their own terms.
+- Updated the existing `SECURITY.md` reporting section in place, replacing the
+  `<security-contact@your-domain>` placeholder with the supplied email. The
+  rest of the document was left intact.
+- Did **not** change the BodyParts3D/CC BY-SA attribution, the model notices,
+  or any third-party licence wording.
+
+Not run:
+
+- No legal review of the proprietary notice was performed; it records the
+  repository's existing all-rights-reserved default rather than choosing an
+  open-source licence.
+- `README.md` and the untracked `THIRD_PARTY_LICENSES.md` still describe the
+  pre-step state ("no LICENSE file"); they were not edited in this step to
+  avoid rewriting unrelated licence content.
+
 ## Phase 1 — merge + GitLab files
 
 Done:
