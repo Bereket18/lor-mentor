@@ -1,0 +1,355 @@
+{
+  "schemaVersion": 2,
+  "system": "male-reproductive",
+  "model": {
+    "file": "male-reproductive.v1.glb",
+    "bytes": 122508,
+    "sha256": "3ec61a9b6b9432424becbd06caff03545754c2eb9a93bc705217585177bb206e",
+    "triangles": 5130,
+    "structures": 10,
+    "textOnlyStructures": 0,
+    "totalStructures": 10
+  },
+  "sources": [
+    {
+      "tree": "PART-OF",
+      "dataset": "BodyParts3D 4.0",
+      "polygonReduction": "99%",
+      "archive": "partof_BP3D_4.0_obj_99.zip",
+      "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_BP3D_4.0_obj_99.zip",
+      "archiveBytes": 64888505,
+      "archiveEtag": "\"3de1eb9-4dd48e9fe8d00\"",
+      "archiveLastModified": "Wed, 22 May 2013 06:45:40 GMT",
+      "archiveSha256": "9fbc713fffeee924a5a657d9813d84d7eb957bded63adb854931dd5e3eb61c97",
+      "extractedObjFiles": 1258,
+      "usedFor": "male-reproductive v1 build: 1 PART-OF source files.",
+      "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "licenseUpdated": "2025-02-27",
+      "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
+      "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
+    },
+    {
+      "tree": "IS-A",
+      "dataset": "BodyParts3D 4.0",
+      "polygonReduction": "99%",
+      "archive": "isa_BP3D_4.0_obj_99.zip",
+      "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/isa_BP3D_4.0_obj_99.zip",
+      "archiveBytes": 142903898,
+      "archiveEtag": "\"8848a5a-4dd48ec9df000\"",
+      "archiveLastModified": "Wed, 22 May 2013 06:46:24 GMT",
+      "archiveSha256": "40665852c49f218326590e204db91064a1ecfc3c6f8cbd7bbbcaac62c7cd409e",
+      "extractedObjFiles": 2234,
+      "usedFor": "male-reproductive v1 build: 9 IS-A source files.",
+      "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "licenseUpdated": "2025-02-27",
+      "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
+      "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
+    }
+  ],
+  "transform": {
+    "sourceUnits": "millimetres",
+    "sourceUpAxis": "Z",
+    "targetUnits": "metres",
+    "targetUpAxis": "Y",
+    "mapping": "x/1000, z/1000, -y/1000; then centre on the combined bounding box",
+    "scale": 0.001,
+    "sourceCentreMm": [
+      -0.654899,
+      -127.865804,
+      754.034996
+    ],
+    "offsetMetres": [
+      -0.000655,
+      0.754035,
+      0.127866
+    ],
+    "offsetConvention": "bodyPosition = modelPosition + offsetMetres"
+  },
+  "changes": [
+    "Selected 10 source OBJ files from the official BodyParts3D 4.0 tables.",
+    "Merged each structure's source parts into one selectable mesh: 10 selectable nodes.",
+    "Converted millimetres and the Z-up axis to metres and Y-up, centred the combined model, and recomputed vertex normals.",
+    "Exported one uncompressed GLB with stable mesh names. No source colours or textures are used; surface colours are ours.",
+    "No teaching text is stored in the model or seed; the module is unpublished pending faculty review."
+  ],
+  "adaptations": [
+    "Grouped source files by the OBJ header Concept ID and English name so each named structure is one selectable node.",
+    "Large FMA systems are split into independently seeded modules because the viewer supports one GLB per system and each GLB must stay below the release budget."
+  ],
+  "orientation": {
+    "sourceFrame": {
+      "units": "millimetres",
+      "upAxis": "Z",
+      "patientLeftAxis": "+X",
+      "centroidX": {
+        "left_testis": 17.455426,
+        "right_testis": -20.57728,
+        "left_epididymis": 18.931009,
+        "right_epididymis": -21.206577,
+        "left_seminal_vesicle": 17.124913,
+        "right_seminal_vesicle": -19.406482
+      }
+    },
+    "outputFrame": {
+      "units": "metres",
+      "upAxis": "Y",
+      "patientLeftAxis": "+X",
+      "centroidX": {
+        "left_testis": 0.01811,
+        "right_testis": -0.019922,
+        "left_epididymis": 0.019586,
+        "right_epididymis": -0.020552,
+        "left_seminal_vesicle": 0.01778,
+        "right_seminal_vesicle": -0.018752
+      }
+    },
+    "checks": [
+      {
+        "left": "left_testis",
+        "right": "right_testis"
+      },
+      {
+        "left": "left_epididymis",
+        "right": "right_epididymis"
+      },
+      {
+        "left": "left_seminal_vesicle",
+        "right": "right_seminal_vesicle"
+      }
+    ],
+    "viewer": "Camera looks from +Z toward the origin; patient left is +X (the viewer's right). The viewer renders no on-screen orientation marker."
+  },
+  "license": {
+    "notice": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International",
+    "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+    "statements": [
+      {
+        "source": "BodyParts3D licence page (last updated 2025-02-27) and README_e.html",
+        "statement": "The license for this database is specified in the Creative Commons Attribution 4.0 International."
+      },
+      {
+        "source": "Header comment in all 3,492 distributed BodyParts3D 4.0 OBJ files",
+        "statement": "The license for this database is specified in the Creative Commons Attribution-Share Alike 2.1 Japan."
+      }
+    ],
+    "status": "Which licence applies is being clarified with the Database Center for Life Science (DBCLS).",
+    "adaptedModelTerms": "The adapted model file is offered under the same terms as the stricter statement, CC BY-SA 2.1 Japan."
+  },
+  "structures": [
+    {
+      "slug": "right-testis",
+      "meshName": "right_testis",
+      "layer": "testis",
+      "color": "#c96b6b",
+      "triangles": 212,
+      "fma": [
+        "FMA7211"
+      ],
+      "laterality": "right",
+      "files": [
+        {
+          "id": "FJ3142",
+          "archive": "IS-A",
+          "concept": "FMA7211",
+          "name": "Right testis",
+          "sha256": "1dc84c4d16139902662f08c97bc2581cb698cf8411855bcca5474e154f4ad86e",
+          "triangles": 212
+        }
+      ]
+    },
+    {
+      "slug": "left-testis",
+      "meshName": "left_testis",
+      "layer": "testis",
+      "color": "#c96b6b",
+      "triangles": 210,
+      "fma": [
+        "FMA7212"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ3138",
+          "archive": "IS-A",
+          "concept": "FMA7212",
+          "name": "Left testis",
+          "sha256": "bb9e548f7059fb21370b8c9612ce10fe70aa9b96945c1faea33d7cc9ed113639",
+          "triangles": 210
+        }
+      ]
+    },
+    {
+      "slug": "left-epididymis",
+      "meshName": "left_epididymis",
+      "layer": "epididymis",
+      "color": "#b95757",
+      "triangles": 238,
+      "fma": [
+        "FMA18257"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ3136",
+          "archive": "IS-A",
+          "concept": "FMA18257",
+          "name": "Left epididymis",
+          "sha256": "b593e1536bdf93f9c9115207e979d94df238d088e08509b2e2751d8d4ebcd52a",
+          "triangles": 238
+        }
+      ]
+    },
+    {
+      "slug": "right-epididymis",
+      "meshName": "right_epididymis",
+      "layer": "epididymis",
+      "color": "#b95757",
+      "triangles": 76,
+      "fma": [
+        "FMA18256"
+      ],
+      "laterality": "right",
+      "files": [
+        {
+          "id": "FJ3141",
+          "archive": "IS-A",
+          "concept": "FMA18256",
+          "name": "Right epididymis",
+          "sha256": "23469ccd7ac340ef3f4184fb850c7658420e9f7f294d91331f10cb3187824bf5",
+          "triangles": 76
+        }
+      ]
+    },
+    {
+      "slug": "left-seminal-vesicle",
+      "meshName": "left_seminal_vesicle",
+      "layer": "seminal-vesicle",
+      "color": "#d08a5f",
+      "triangles": 370,
+      "fma": [
+        "FMA19388"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ3137",
+          "archive": "IS-A",
+          "concept": "FMA19388",
+          "name": "Left seminal vesicle",
+          "sha256": "e14aff1615aec623f98d769cb60894fb0e859ae0a0e0967a7b5757909afc50eb",
+          "triangles": 370
+        }
+      ]
+    },
+    {
+      "slug": "right-seminal-vesicle",
+      "meshName": "right_seminal_vesicle",
+      "layer": "seminal-vesicle",
+      "color": "#d08a5f",
+      "triangles": 360,
+      "fma": [
+        "FMA19387"
+      ],
+      "laterality": "right",
+      "files": [
+        {
+          "id": "FJ3143",
+          "archive": "IS-A",
+          "concept": "FMA19387",
+          "name": "Right seminal vesicle",
+          "sha256": "183e4a11e0a75a76dcdaf33f46afb7f5f30430c5e0b1ff19237be1ebef7e72ba",
+          "triangles": 360
+        }
+      ]
+    },
+    {
+      "slug": "prostate",
+      "meshName": "prostate",
+      "layer": "prostate",
+      "color": "#c79a52",
+      "triangles": 442,
+      "fma": [
+        "FMA9600"
+      ],
+      "files": [
+        {
+          "id": "FJ3139",
+          "archive": "PART-OF",
+          "concept": "FMA9600",
+          "name": "Prostate",
+          "sha256": "f20448e74cf6b6096248361bc4f618c1d7f4c1acac77f785abc43e40835b13cb",
+          "triangles": 442
+        }
+      ]
+    },
+    {
+      "slug": "glans-penis",
+      "meshName": "glans_penis",
+      "layer": "penis",
+      "color": "#8fae6b",
+      "triangles": 1374,
+      "fma": [
+        "FMA18247"
+      ],
+      "files": [
+        {
+          "id": "FJ3134",
+          "archive": "IS-A",
+          "concept": "FMA18247",
+          "name": "Glans penis",
+          "sha256": "30e1b727121b6f105f9156af132171f9a79bdd3588567148572479ad6c2a1efe",
+          "triangles": 1374
+        }
+      ]
+    },
+    {
+      "slug": "corpus-cavernosum-of-penis",
+      "meshName": "corpus_cavernosum_of_penis",
+      "layer": "penis",
+      "color": "#8fae6b",
+      "triangles": 1272,
+      "fma": [
+        "FMA19618"
+      ],
+      "files": [
+        {
+          "id": "FJ3132",
+          "archive": "IS-A",
+          "concept": "FMA19618",
+          "name": "Corpus cavernosum of penis",
+          "sha256": "81a9ef903f013d7f5eed82bdb6740709cfc19c04b7f5ad41595ac6e46327557f",
+          "triangles": 1272
+        }
+      ]
+    },
+    {
+      "slug": "corpus-spongiosum-of-penis",
+      "meshName": "corpus_spongiosum_of_penis",
+      "layer": "penis",
+      "color": "#8fae6b",
+      "triangles": 576,
+      "fma": [
+        "FMA19617"
+      ],
+      "files": [
+        {
+          "id": "FJ3133",
+          "archive": "IS-A",
+          "concept": "FMA19617",
+          "name": "Corpus spongiosum of penis",
+          "sha256": "e90e440d57d2e6b0b85c622650c46bafe34c0886a6eed898062b914b5df1f14e",
+          "triangles": 576
+        }
+      ]
+    }
+  ],
+  "textOnly": [],
+  "checks": {
+    "uniqueMeshNames": true,
+    "uniqueSourceFiles": true,
+    "sourceHeadersVerified": true,
+    "sourceHashesVerified": true,
+    "orientationVerified": true,
+    "unrepresentedStructures": "deferred; see docs/anatomy/provenance/README.md"
+  }
+}

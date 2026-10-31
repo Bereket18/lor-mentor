@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GeminiService } from '../ai/gemini.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
@@ -176,6 +180,22 @@ export class AnatomyService {
 
     if (!structure) {
       throw new NotFoundException('Anatomy structure not found');
+    }
+
+    // The Step 3 systems are seeded with empty teaching text until faculty
+    // review. Do not spend Gemini quota or invent notes from the structure
+    // name: refuse both AI tools for a row that has no verified text.
+    const hasTeachingText = [
+      structure.summary,
+      structure.location,
+      structure.function,
+      structure.bloodSupply,
+      structure.clinicalNotes,
+    ].some((value) => typeof value === 'string' && value.trim().length > 0);
+    if (!hasTeachingText) {
+      throw new ConflictException(
+        'Teaching notes are not available for this structure yet.',
+      );
     }
 
     return { system, structure };

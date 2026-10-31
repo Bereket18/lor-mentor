@@ -23,6 +23,7 @@ import {
   URINARY_SYSTEM,
   validateUrinarySeed,
 } from './anatomy-urinary.data';
+import { GENERATED_ANATOMY_SEED_REGISTRY } from './anatomy-generated.registry';
 
 import type { AnatomyStructureSeed } from './anatomy-heart.data';
 
@@ -57,6 +58,7 @@ export const ANATOMY_SEED_REGISTRY: readonly AnatomySeedEntry[] = [
     layerOrder: URINARY_LAYER_ORDER,
     validate: validateUrinarySeed,
   },
+  ...GENERATED_ANATOMY_SEED_REGISTRY,
 ];
 
 export const ANATOMY_SYSTEM_SLUGS = ANATOMY_SEED_REGISTRY.map(

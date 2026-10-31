@@ -1,4 +1,8 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { GeminiService } from '../ai/gemini.service';
 import type { SubscriptionsService } from '../subscriptions/subscriptions.service';
@@ -384,6 +388,60 @@ describe('AnatomyService', () => {
     expect(generateAnatomyQuiz).toHaveBeenCalledWith(
       expect.objectContaining({ structureName: 'Aorta' }),
     );
+  });
+
+  it('refuses AI explain for a row with empty teaching text', async () => {
+    findSystem.mockResolvedValue({
+      id: 'system-3',
+      slug: 'respiratory',
+      name: 'Respiratory system',
+      isPublished: true,
+      isSample: false,
+    });
+    findStructure.mockResolvedValue({
+      ...aorta,
+      id: 'structure-empty',
+      slug: 'trachea',
+      name: 'Trachea',
+      summary: '',
+      location: '',
+      function: '',
+      bloodSupply: '',
+      clinicalNotes: '',
+    });
+    ensureActiveForStudent.mockResolvedValue(undefined);
+
+    await expect(
+      service.explainStructure(student, 'respiratory', 'trachea', {}),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(explainAnatomyStructure).not.toHaveBeenCalled();
+  });
+
+  it('refuses AI quiz generation for a row with empty teaching text', async () => {
+    findSystem.mockResolvedValue({
+      id: 'system-3',
+      slug: 'respiratory',
+      name: 'Respiratory system',
+      isPublished: true,
+      isSample: false,
+    });
+    findStructure.mockResolvedValue({
+      ...aorta,
+      id: 'structure-empty',
+      slug: 'trachea',
+      name: 'Trachea',
+      summary: '',
+      location: '',
+      function: '',
+      bloodSupply: '',
+      clinicalNotes: '',
+    });
+    ensureActiveForStudent.mockResolvedValue(undefined);
+
+    await expect(
+      service.generateStructureQuiz(student, 'respiratory', 'trachea'),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(generateAnatomyQuiz).not.toHaveBeenCalled();
   });
 
   it('throws NotFound when the structure does not exist', async () => {

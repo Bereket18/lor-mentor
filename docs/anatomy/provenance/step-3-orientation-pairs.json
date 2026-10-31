@@ -1,0 +1,590 @@
+[
+  {
+    "left": {
+      "module": "nervous-left",
+      "slug": "white-matter-of-left-cerebral-hemisphere",
+      "meshName": "white_matter_of_left_cerebral_hemisphere",
+      "sourceCentroidX": 27.03446597736481
+    },
+    "right": {
+      "module": "nervous-right",
+      "slug": "white-matter-of-right-cerebral-hemisphere",
+      "meshName": "white_matter_of_right_cerebral_hemisphere",
+      "sourceCentroidX": -28.262576753823684
+    }
+  },
+  {
+    "left": {
+      "module": "nervous-left",
+      "slug": "left-internal-capsule",
+      "meshName": "left_internal_capsule",
+      "sourceCentroidX": 19.57123528372091
+    },
+    "right": {
+      "module": "nervous-right",
+      "slug": "right-internal-capsule",
+      "meshName": "right_internal_capsule",
+      "sourceCentroidX": -20.811027775297656
+    }
+  },
+  {
+    "left": {
+      "module": "nervous-left",
+      "slug": "left-superior-frontal-gyrus",
+      "meshName": "left_superior_frontal_gyrus",
+      "sourceCentroidX": 12.278190257379322
+    },
+    "right": {
+      "module": "nervous-right",
+      "slug": "right-superior-frontal-gyrus",
+      "meshName": "right_superior_frontal_gyrus",
+      "sourceCentroidX": -13.439940967038973
+    }
+  },
+  {
+    "left": {
+      "module": "nervous-left",
+      "slug": "left-superior-parietal-lobule",
+      "meshName": "left_superior_parietal_lobule",
+      "sourceCentroidX": 15.582816742533794
+    },
+    "right": {
+      "module": "nervous-right",
+      "slug": "right-superior-parietal-lobule",
+      "meshName": "right_superior_parietal_lobule",
+      "sourceCentroidX": -16.791320811477956
+    }
+  },
+  {
+    "left": {
+      "module": "nervous-left",
+      "slug": "left-occipital-lobe",
+      "meshName": "left_occipital_lobe",
+      "sourceCentroidX": 17.544823913317632
+    },
+    "right": {
+      "module": "nervous-right",
+      "slug": "right-occipital-lobe",
+      "meshName": "right_occipital_lobe",
+      "sourceCentroidX": -19.71276072761906
+    }
+  },
+  {
+    "left": {
+      "module": "nervous-left",
+      "slug": "left-precentral-gyrus",
+      "meshName": "left_precentral_gyrus",
+      "sourceCentroidX": 32.300647970034206
+    },
+    "right": {
+      "module": "nervous-right",
+      "slug": "right-precentral-gyrus",
+      "meshName": "right_precentral_gyrus",
+      "sourceCentroidX": -33.127607858942085
+    }
+  },
+  {
+    "left": {
+      "module": "nervous-left",
+      "slug": "left-postcentral-gyrus",
+      "meshName": "left_postcentral_gyrus",
+      "sourceCentroidX": 33.961524983275915
+    },
+    "right": {
+      "module": "nervous-right",
+      "slug": "right-postcentral-gyrus",
+      "meshName": "right_postcentral_gyrus",
+      "sourceCentroidX": -34.86552718826403
+    }
+  },
+  {
+    "left": {
+      "module": "nervous-left",
+      "slug": "left-angular-gyrus",
+      "meshName": "left_angular_gyrus",
+      "sourceCentroidX": 41.285482763671816
+    },
+    "right": {
+      "module": "nervous-right",
+      "slug": "right-angular-gyrus",
+      "meshName": "right_angular_gyrus",
+      "sourceCentroidX": -42.94869529750471
+    }
+  },
+  {
+    "left": {
+      "module": "nervous-left",
+      "slug": "left-middle-frontal-gyrus",
+      "meshName": "left_middle_frontal_gyrus",
+      "sourceCentroidX": 29.763130613279294
+    },
+    "right": {
+      "module": "nervous-right",
+      "slug": "right-middle-frontal-gyrus",
+      "meshName": "right_middle_frontal_gyrus",
+      "sourceCentroidX": -31.26688688775516
+    }
+  },
+  {
+    "left": {
+      "module": "nervous-left",
+      "slug": "left-inferior-frontal-gyrus",
+      "meshName": "left_inferior_frontal_gyrus",
+      "sourceCentroidX": 41.69956460819924
+    },
+    "right": {
+      "module": "nervous-right",
+      "slug": "right-inferior-frontal-gyrus",
+      "meshName": "right_inferior_frontal_gyrus",
+      "sourceCentroidX": -42.97352448132779
+    }
+  },
+  {
+    "left": {
+      "module": "nervous-left",
+      "slug": "left-inferior-temporal-gyrus",
+      "meshName": "left_inferior_temporal_gyrus",
+      "sourceCentroidX": 41.61851074380162
+    },
+    "right": {
+      "module": "nervous-right",
+      "slug": "right-inferior-temporal-gyrus",
+      "meshName": "right_inferior_temporal_gyrus",
+      "sourceCentroidX": -42.77763962732916
+    }
+  },
+  {
+    "left": {
+      "module": "nervous-left",
+      "slug": "left-middle-temporal-gyrus",
+      "meshName": "left_middle_temporal_gyrus",
+      "sourceCentroidX": 51.279942735602134
+    },
+    "right": {
+      "module": "nervous-right",
+      "slug": "right-middle-temporal-gyrus",
+      "meshName": "right_middle_temporal_gyrus",
+      "sourceCentroidX": -51.656688035828466
+    }
+  },
+  {
+    "left": {
+      "module": "nervous-left",
+      "slug": "left-insula",
+      "meshName": "left_insula",
+      "sourceCentroidX": 36.18432912000001
+    },
+    "right": {
+      "module": "nervous-right",
+      "slug": "right-insula",
+      "meshName": "right_insula",
+      "sourceCentroidX": -37.41768929421091
+    }
+  },
+  {
+    "left": {
+      "module": "nervous-left",
+      "slug": "left-cingulate-gyrus",
+      "meshName": "left_cingulate_gyrus",
+      "sourceCentroidX": 8.540857194285719
+    },
+    "right": {
+      "module": "nervous-right",
+      "slug": "right-cingulate-gyrus",
+      "meshName": "right_cingulate_gyrus",
+      "sourceCentroidX": -9.641834330827079
+    }
+  },
+  {
+    "left": {
+      "module": "nervous-left",
+      "slug": "left-supramarginal-gyrus",
+      "meshName": "left_supramarginal_gyrus",
+      "sourceCentroidX": 48.70304814814815
+    },
+    "right": {
+      "module": "nervous-right",
+      "slug": "right-supramarginal-gyrus",
+      "meshName": "right_supramarginal_gyrus",
+      "sourceCentroidX": -49.445471125730954
+    }
+  },
+  {
+    "left": {
+      "module": "nervous-left",
+      "slug": "left-fusiform-gyrus",
+      "meshName": "left_fusiform_gyrus",
+      "sourceCentroidX": 27.757612082853832
+    },
+    "right": {
+      "module": "nervous-right",
+      "slug": "right-fusiform-gyrus",
+      "meshName": "right_fusiform_gyrus",
+      "sourceCentroidX": -29.214676347634803
+    }
+  },
+  {
+    "left": {
+      "module": "nervous-left",
+      "slug": "left-hippocampus",
+      "meshName": "left_hippocampus",
+      "sourceCentroidX": 26.714972560975617
+    },
+    "right": {
+      "module": "nervous-right",
+      "slug": "right-hippocampus",
+      "meshName": "right_hippocampus",
+      "sourceCentroidX": -27.946779417475717
+    }
+  },
+  {
+    "left": {
+      "module": "nervous-left",
+      "slug": "left-parahippocampal-gyrus",
+      "meshName": "left_parahippocampal_gyrus",
+      "sourceCentroidX": 19.098510022988496
+    },
+    "right": {
+      "module": "nervous-right",
+      "slug": "right-parahippocampal-gyrus",
+      "meshName": "right_parahippocampal_gyrus",
+      "sourceCentroidX": -20.202311618257273
+    }
+  },
+  {
+    "left": {
+      "module": "nervous-left",
+      "slug": "left-superior-colliculus",
+      "meshName": "left_superior_colliculus",
+      "sourceCentroidX": 3.556782625806451
+    },
+    "right": {
+      "module": "nervous-right",
+      "slug": "right-superior-colliculus",
+      "meshName": "right_superior_colliculus",
+      "sourceCentroidX": -4.713134571428575
+    }
+  },
+  {
+    "left": {
+      "module": "nervous-left",
+      "slug": "left-inferior-colliculus",
+      "meshName": "left_inferior_colliculus",
+      "sourceCentroidX": 3.661033130864197
+    },
+    "right": {
+      "module": "nervous-right",
+      "slug": "right-inferior-colliculus",
+      "meshName": "right_inferior_colliculus",
+      "sourceCentroidX": -5.109145182692306
+    }
+  },
+  {
+    "left": {
+      "module": "nervous-left",
+      "slug": "left-lateral-ventricle",
+      "meshName": "left_lateral_ventricle",
+      "sourceCentroidX": 16.348657048596696
+    },
+    "right": {
+      "module": "nervous-right",
+      "slug": "right-lateral-ventricle",
+      "meshName": "right_lateral_ventricle",
+      "sourceCentroidX": -17.89819943047389
+    }
+  },
+  {
+    "left": {
+      "module": "sensory-eye-left",
+      "slug": "left-sclera",
+      "meshName": "left_sclera",
+      "sourceCentroidX": 29.191032043981775
+    },
+    "right": {
+      "module": "sensory-eye-right",
+      "slug": "right-sclera",
+      "meshName": "right_sclera",
+      "sourceCentroidX": -30.350309858128327
+    }
+  },
+  {
+    "left": {
+      "module": "sensory-eye-left",
+      "slug": "left-choroid",
+      "meshName": "left_choroid",
+      "sourceCentroidX": 29.337062607563322
+    },
+    "right": {
+      "module": "sensory-eye-right",
+      "slug": "right-choroid",
+      "meshName": "right_choroid",
+      "sourceCentroidX": -30.476595562742464
+    }
+  },
+  {
+    "left": {
+      "module": "sensory-eye-left",
+      "slug": "suspensory-ligament-of-left-lens",
+      "meshName": "suspensory_ligament_of_left_lens",
+      "sourceCentroidX": 30.176881111813042
+    },
+    "right": {
+      "module": "sensory-eye-right",
+      "slug": "suspensory-ligament-of-right-lens",
+      "meshName": "suspensory_ligament_of_right_lens",
+      "sourceCentroidX": -31.38445788606725
+    }
+  },
+  {
+    "left": {
+      "module": "sensory-eye-left",
+      "slug": "left-vitreous-body",
+      "meshName": "left_vitreous_body",
+      "sourceCentroidX": 29.45224413892912
+    },
+    "right": {
+      "module": "sensory-eye-right",
+      "slug": "right-vitreous-body",
+      "meshName": "right_vitreous_body",
+      "sourceCentroidX": -30.745158666666654
+    }
+  },
+  {
+    "left": {
+      "module": "sensory-eye-left",
+      "slug": "left-cornea",
+      "meshName": "left_cornea",
+      "sourceCentroidX": 29.574387960339987
+    },
+    "right": {
+      "module": "sensory-eye-right",
+      "slug": "right-cornea",
+      "meshName": "right_cornea",
+      "sourceCentroidX": -29.80650262051131
+    }
+  },
+  {
+    "left": {
+      "module": "sensory-eye-left",
+      "slug": "left-iris",
+      "meshName": "left_iris",
+      "sourceCentroidX": 29.839766841491862
+    },
+    "right": {
+      "module": "sensory-eye-right",
+      "slug": "right-iris",
+      "meshName": "right_iris",
+      "sourceCentroidX": -31.107874798154597
+    }
+  },
+  {
+    "left": {
+      "module": "sensory-eye-left",
+      "slug": "left-lens",
+      "meshName": "left_lens",
+      "sourceCentroidX": 29.543087950310557
+    },
+    "right": {
+      "module": "sensory-eye-right",
+      "slug": "right-lens",
+      "meshName": "right_lens",
+      "sourceCentroidX": -31.02947927590506
+    }
+  },
+  {
+    "left": {
+      "module": "sensory-eye-left",
+      "slug": "left-levator-palpebrae-superioris",
+      "meshName": "left_levator_palpebrae_superioris",
+      "sourceCentroidX": 27.719408967275786
+    },
+    "right": {
+      "module": "sensory-eye-right",
+      "slug": "right-levator-palpebrae-superioris",
+      "meshName": "right_levator_palpebrae_superioris",
+      "sourceCentroidX": -29.005896124031015
+    }
+  },
+  {
+    "left": {
+      "module": "sensory-eye-left",
+      "slug": "left-superior-oblique",
+      "meshName": "left_superior_oblique",
+      "sourceCentroidX": 23.400045295055854
+    },
+    "right": {
+      "module": "sensory-eye-right",
+      "slug": "right-superior-oblique",
+      "meshName": "right_superior_oblique",
+      "sourceCentroidX": -23.63630347593582
+    }
+  },
+  {
+    "left": {
+      "module": "sensory-eye-left",
+      "slug": "left-inferior-rectus",
+      "meshName": "left_inferior_rectus",
+      "sourceCentroidX": 23.3076092572659
+    },
+    "right": {
+      "module": "sensory-eye-right",
+      "slug": "right-inferior-rectus",
+      "meshName": "right_inferior_rectus",
+      "sourceCentroidX": -24.702194003241438
+    }
+  },
+  {
+    "left": {
+      "module": "sensory-eye-left",
+      "slug": "left-lateral-rectus",
+      "meshName": "left_lateral_rectus",
+      "sourceCentroidX": 35.969279197707756
+    },
+    "right": {
+      "module": "sensory-eye-right",
+      "slug": "right-lateral-rectus",
+      "meshName": "right_lateral_rectus",
+      "sourceCentroidX": -37.10286545454542
+    }
+  },
+  {
+    "left": {
+      "module": "sensory-eye-left",
+      "slug": "left-superior-rectus",
+      "meshName": "left_superior_rectus",
+      "sourceCentroidX": 26.044225081859864
+    },
+    "right": {
+      "module": "sensory-eye-right",
+      "slug": "right-superior-rectus",
+      "meshName": "right_superior_rectus",
+      "sourceCentroidX": -27.319422389033907
+    }
+  },
+  {
+    "left": {
+      "module": "sensory-eye-left",
+      "slug": "left-medial-rectus",
+      "meshName": "left_medial_rectus",
+      "sourceCentroidX": 16.344423872875108
+    },
+    "right": {
+      "module": "sensory-eye-right",
+      "slug": "right-medial-rectus",
+      "meshName": "right_medial_rectus",
+      "sourceCentroidX": -17.767458953574057
+    }
+  },
+  {
+    "left": {
+      "module": "sensory-eye-left",
+      "slug": "left-inferior-oblique",
+      "meshName": "left_inferior_oblique",
+      "sourceCentroidX": 31.66036746096965
+    },
+    "right": {
+      "module": "sensory-eye-right",
+      "slug": "right-inferior-oblique",
+      "meshName": "right_inferior_oblique",
+      "sourceCentroidX": -33.328609830781616
+    }
+  },
+  {
+    "left": {
+      "module": "sensory-eye-left",
+      "slug": "left-lacrimal-gland",
+      "meshName": "left_lacrimal_gland",
+      "sourceCentroidX": 39.76113765227019
+    },
+    "right": {
+      "module": "sensory-eye-right",
+      "slug": "right-lacrimal-gland",
+      "meshName": "right_lacrimal_gland",
+      "sourceCentroidX": -41.17644934782612
+    }
+  },
+  {
+    "left": {
+      "module": "sensory-eye-left",
+      "slug": "left-lacrimal-canaliculus",
+      "meshName": "left_lacrimal_canaliculus",
+      "sourceCentroidX": 16.443960646900276
+    },
+    "right": {
+      "module": "sensory-eye-right",
+      "slug": "right-lacrimal-canaliculus",
+      "meshName": "right_lacrimal_canaliculus",
+      "sourceCentroidX": -17.595658035714298
+    }
+  },
+  {
+    "left": {
+      "module": "sensory-eye-left",
+      "slug": "left-nasolacrimal-duct",
+      "meshName": "left_nasolacrimal_duct",
+      "sourceCentroidX": 13.853592070484584
+    },
+    "right": {
+      "module": "sensory-eye-right",
+      "slug": "right-nasolacrimal-duct",
+      "meshName": "right_nasolacrimal_duct",
+      "sourceCentroidX": -14.95440044052864
+    }
+  },
+  {
+    "left": {
+      "module": "sensory-eye-left",
+      "slug": "left-lacrimal-sac",
+      "meshName": "left_lacrimal_sac",
+      "sourceCentroidX": 14.33572590673575
+    },
+    "right": {
+      "module": "sensory-eye-right",
+      "slug": "right-lacrimal-sac",
+      "meshName": "right_lacrimal_sac",
+      "sourceCentroidX": -15.588569587628863
+    }
+  },
+  {
+    "left": {
+      "module": "sensory-eye-left",
+      "slug": "left-lacrimal-lake",
+      "meshName": "left_lacrimal_lake",
+      "sourceCentroidX": 18.06072777777779
+    },
+    "right": {
+      "module": "sensory-eye-right",
+      "slug": "right-lacrimal-lake",
+      "meshName": "right_lacrimal_lake",
+      "sourceCentroidX": -19.306282539682535
+    }
+  },
+  {
+    "left": {
+      "module": "sensory-eye-left",
+      "slug": "tarsal-plate-of-left-upper-eyelid",
+      "meshName": "tarsal_plate_of_left_upper_eyelid",
+      "sourceCentroidX": 31.28171056149733
+    },
+    "right": {
+      "module": "sensory-eye-right",
+      "slug": "tarsal-plate-of-right-upper-eyelid",
+      "meshName": "tarsal_plate_of_right_upper_eyelid",
+      "sourceCentroidX": -32.40408013422822
+    }
+  },
+  {
+    "left": {
+      "module": "sensory-eye-left",
+      "slug": "tarsal-plate-of-left-lower-eyelid",
+      "meshName": "tarsal_plate_of_left_lower_eyelid",
+      "sourceCentroidX": 31.34445847619048
+    },
+    "right": {
+      "module": "sensory-eye-right",
+      "slug": "tarsal-plate-of-right-lower-eyelid",
+      "meshName": "tarsal_plate_of_right_lower_eyelid",
+      "sourceCentroidX": -32.309103059273404
+    }
+  }
+]

@@ -1,0 +1,281 @@
+{
+  "version": 2,
+  "system": "digestive-upper",
+  "title": "LOR Mentor digestive system - upper tract anatomy model",
+  "output": {
+    "model": "digestive-upper.v1.glb",
+    "manifest": "digestive-upper.v1.manifest.json"
+  },
+  "sources": [
+    {
+      "tree": "PART-OF",
+      "dataset": "BodyParts3D 4.0",
+      "polygonReduction": "99%",
+      "archive": "partof_BP3D_4.0_obj_99.zip",
+      "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_BP3D_4.0_obj_99.zip",
+      "archiveBytes": 64888505,
+      "archiveEtag": "\"3de1eb9-4dd48e9fe8d00\"",
+      "archiveLastModified": "Wed, 22 May 2013 06:45:40 GMT",
+      "archiveSha256": "9fbc713fffeee924a5a657d9813d84d7eb957bded63adb854931dd5e3eb61c97",
+      "extractedObjFiles": 1258,
+      "usedFor": "digestive-upper v1 build: 12 PART-OF source files.",
+      "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "licenseUpdated": "2025-02-27",
+      "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
+      "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
+    },
+    {
+      "tree": "IS-A",
+      "dataset": "BodyParts3D 4.0",
+      "polygonReduction": "99%",
+      "archive": "isa_BP3D_4.0_obj_99.zip",
+      "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/isa_BP3D_4.0_obj_99.zip",
+      "archiveBytes": 142903898,
+      "archiveEtag": "\"8848a5a-4dd48ec9df000\"",
+      "archiveLastModified": "Wed, 22 May 2013 06:46:24 GMT",
+      "archiveSha256": "40665852c49f218326590e204db91064a1ecfc3c6f8cbd7bbbcaac62c7cd409e",
+      "extractedObjFiles": 2234,
+      "usedFor": "digestive-upper v1 build: no IS-A files used.",
+      "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "licenseUpdated": "2025-02-27",
+      "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
+      "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
+    }
+  ],
+  "transform": {
+    "sourceUnits": "millimetres",
+    "sourceUpAxis": "Z",
+    "targetUnits": "metres",
+    "targetUpAxis": "Y",
+    "mapping": "x/1000, z/1000, -y/1000; then centre on the combined bounding box"
+  },
+  "viewerOrientation": "Camera looks from +Z toward the origin; patient left is +X (the viewer's right). The viewer renders no on-screen orientation marker.",
+  "recordTransformDetails": true,
+  "changes": [
+    "Selected 12 source OBJ files from the official BodyParts3D 4.0 tables.",
+    "Merged each structure's source parts into one selectable mesh: 12 selectable nodes.",
+    "Converted millimetres and the Z-up axis to metres and Y-up, centred the combined model, and recomputed vertex normals.",
+    "Exported one uncompressed GLB with stable mesh names. No source colours or textures are used; surface colours are ours.",
+    "No teaching text is stored in the model or seed; the module is unpublished pending faculty review."
+  ],
+  "adaptations": [
+    "Grouped source files by the OBJ header Concept ID and English name so each named structure is one selectable node.",
+    "Large FMA systems are split into independently seeded modules because the viewer supports one GLB per system and each GLB must stay below the release budget."
+  ],
+  "orientationChecks": [
+    {
+      "left": "left_tensor_veli_palatini",
+      "right": "right_tensor_veli_palatini"
+    },
+    {
+      "left": "left_levator_veli_palatini",
+      "right": "right_levator_veli_palatini"
+    },
+    {
+      "left": "left_submandibular_gland",
+      "right": "right_submandibular_gland"
+    }
+  ],
+  "structures": [
+    {
+      "slug": "left-tensor-veli-palatini",
+      "meshName": "left_tensor_veli_palatini",
+      "layer": "mouth",
+      "color": "#c96b6b",
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ2748",
+          "archive": "PART-OF",
+          "concept": "FMA46732",
+          "name": "Left tensor veli palatini",
+          "sha256": "1830ed67886b299e793238f6dec88887f700dd61b492c997457210f7d3720888",
+          "triangles": 13872
+        }
+      ]
+    },
+    {
+      "slug": "right-tensor-veli-palatini",
+      "meshName": "right_tensor_veli_palatini",
+      "layer": "mouth",
+      "color": "#c96b6b",
+      "laterality": "right",
+      "files": [
+        {
+          "id": "FJ2760",
+          "archive": "PART-OF",
+          "concept": "FMA46731",
+          "name": "Right tensor veli palatini",
+          "sha256": "eccc5865549c4481cd3e0806af02ec3060ebb4ea64d44e2da56b6f36941a55c6",
+          "triangles": 13872
+        }
+      ]
+    },
+    {
+      "slug": "left-levator-veli-palatini",
+      "meshName": "left_levator_veli_palatini",
+      "layer": "mouth",
+      "color": "#c96b6b",
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ2741",
+          "archive": "PART-OF",
+          "concept": "FMA46729",
+          "name": "Left levator veli palatini",
+          "sha256": "37c612f11729f532df2fccf48e2283aba4d4419a595cf13a8925ff5988486054",
+          "triangles": 12318
+        }
+      ]
+    },
+    {
+      "slug": "right-levator-veli-palatini",
+      "meshName": "right_levator_veli_palatini",
+      "layer": "mouth",
+      "color": "#c96b6b",
+      "laterality": "right",
+      "files": [
+        {
+          "id": "FJ2753",
+          "archive": "PART-OF",
+          "concept": "FMA46728",
+          "name": "Right levator veli palatini",
+          "sha256": "fe9588e64aa4450043b98931514b10daf697ab80b9a2c162e1f7795b2e66be34",
+          "triangles": 12312
+        }
+      ]
+    },
+    {
+      "slug": "gingiva-of-lower-jaw",
+      "meshName": "gingiva_of_lower_jaw",
+      "layer": "mouth",
+      "color": "#c96b6b",
+      "files": [
+        {
+          "id": "FJ1253",
+          "archive": "PART-OF",
+          "concept": "FMA59764",
+          "name": "Gingiva of lower jaw",
+          "sha256": "a826f6bb73bf578a461ec49354660dcf2af4cb1ec870a8c0a24ed2ebfa7aa69c",
+          "triangles": 1918
+        }
+      ]
+    },
+    {
+      "slug": "gingiva-of-upper-jaw",
+      "meshName": "gingiva_of_upper_jaw",
+      "layer": "mouth",
+      "color": "#c96b6b",
+      "files": [
+        {
+          "id": "FJ1252",
+          "archive": "PART-OF",
+          "concept": "FMA59763",
+          "name": "Gingiva of upper jaw",
+          "sha256": "1c25044d612eb73b3892149c29cf1a258484965c74e9500b927f2168b40c8f82",
+          "triangles": 1848
+        }
+      ]
+    },
+    {
+      "slug": "uvular-muscle",
+      "meshName": "uvular_muscle",
+      "layer": "mouth",
+      "color": "#c96b6b",
+      "files": [
+        {
+          "id": "FJ2762",
+          "archive": "PART-OF",
+          "concept": "FMA46733",
+          "name": "Uvular muscle",
+          "sha256": "f69d49b71dfa523f43e0a6420eb811e82e023aba21a1a0c3642db99fa99d6ce3",
+          "triangles": 1632
+        }
+      ]
+    },
+    {
+      "slug": "tongue",
+      "meshName": "tongue",
+      "layer": "mouth",
+      "color": "#c96b6b",
+      "files": [
+        {
+          "id": "FJ2761",
+          "archive": "PART-OF",
+          "concept": "FMA54640",
+          "name": "Tongue",
+          "sha256": "3fc57baf4e987abd5eb764d8b87ef320c0cc2fcfbd6f0bcf934a09f03565436c",
+          "triangles": 524
+        }
+      ]
+    },
+    {
+      "slug": "left-submandibular-gland",
+      "meshName": "left_submandibular_gland",
+      "layer": "mouth",
+      "color": "#c96b6b",
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ2766",
+          "archive": "PART-OF",
+          "concept": "FMA59803",
+          "name": "Left submandibular gland",
+          "sha256": "c3058fca629d6b1dbbe5c480c600b1368d3a2f203c1f62009ab4ccd6c63524d3",
+          "triangles": 228
+        }
+      ]
+    },
+    {
+      "slug": "right-submandibular-gland",
+      "meshName": "right_submandibular_gland",
+      "layer": "mouth",
+      "color": "#c96b6b",
+      "laterality": "right",
+      "files": [
+        {
+          "id": "FJ2768",
+          "archive": "PART-OF",
+          "concept": "FMA59802",
+          "name": "Right submandibular gland",
+          "sha256": "d2902b4ddcb747d0ff76f1be2a4089e2c82b9afacca1f14610e4df361a0126f2",
+          "triangles": 228
+        }
+      ]
+    },
+    {
+      "slug": "esophagus",
+      "meshName": "esophagus",
+      "layer": "esophagus",
+      "color": "#b95757",
+      "files": [
+        {
+          "id": "FJ2563",
+          "archive": "PART-OF",
+          "concept": "FMA7131",
+          "name": "Esophagus",
+          "sha256": "0bc2935e13650b9a5ea143dee97767e2dba0589eae92f0df4e01f3e2fce3c4b0",
+          "triangles": 578
+        }
+      ]
+    },
+    {
+      "slug": "stomach",
+      "meshName": "stomach",
+      "layer": "stomach",
+      "color": "#d08a5f",
+      "files": [
+        {
+          "id": "FJ2564",
+          "archive": "PART-OF",
+          "concept": "FMA7148",
+          "name": "Stomach",
+          "sha256": "cb78c3f2214fd21a16fa6c9f2389b9aa874e9d3ce624c42b34d4563c31554c67",
+          "triangles": 1810
+        }
+      ]
+    }
+  ],
+  "textOnly": [],
+  "totalTriangles": 61140
+}

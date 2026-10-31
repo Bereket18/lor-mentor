@@ -1,0 +1,309 @@
+{
+  "version": 2,
+  "system": "nervous-central",
+  "title": "LOR Mentor nervous system - central midline structures anatomy model",
+  "output": {
+    "model": "nervous-central.v1.glb",
+    "manifest": "nervous-central.v1.manifest.json"
+  },
+  "sources": [
+    {
+      "tree": "PART-OF",
+      "dataset": "BodyParts3D 4.0",
+      "polygonReduction": "99%",
+      "archive": "partof_BP3D_4.0_obj_99.zip",
+      "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_BP3D_4.0_obj_99.zip",
+      "archiveBytes": 64888505,
+      "archiveEtag": "\"3de1eb9-4dd48e9fe8d00\"",
+      "archiveLastModified": "Wed, 22 May 2013 06:45:40 GMT",
+      "archiveSha256": "9fbc713fffeee924a5a657d9813d84d7eb957bded63adb854931dd5e3eb61c97",
+      "extractedObjFiles": 1258,
+      "usedFor": "nervous-central v1 build: 18 PART-OF source files.",
+      "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "licenseUpdated": "2025-02-27",
+      "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
+      "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
+    },
+    {
+      "tree": "IS-A",
+      "dataset": "BodyParts3D 4.0",
+      "polygonReduction": "99%",
+      "archive": "isa_BP3D_4.0_obj_99.zip",
+      "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/isa_BP3D_4.0_obj_99.zip",
+      "archiveBytes": 142903898,
+      "archiveEtag": "\"8848a5a-4dd48ec9df000\"",
+      "archiveLastModified": "Wed, 22 May 2013 06:46:24 GMT",
+      "archiveSha256": "40665852c49f218326590e204db91064a1ecfc3c6f8cbd7bbbcaac62c7cd409e",
+      "extractedObjFiles": 2234,
+      "usedFor": "nervous-central v1 build: no IS-A files used.",
+      "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "licenseUpdated": "2025-02-27",
+      "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
+      "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
+    }
+  ],
+  "transform": {
+    "sourceUnits": "millimetres",
+    "sourceUpAxis": "Z",
+    "targetUnits": "metres",
+    "targetUpAxis": "Y",
+    "mapping": "x/1000, z/1000, -y/1000; then centre on the combined bounding box"
+  },
+  "viewerOrientation": "Camera looks from +Z toward the origin; patient left is +X (the viewer's right). The viewer renders no on-screen orientation marker.",
+  "recordTransformDetails": true,
+  "changes": [
+    "Selected 18 source OBJ files from the official BodyParts3D 4.0 tables.",
+    "Merged each structure's source parts into one selectable mesh: 12 selectable nodes.",
+    "Converted millimetres and the Z-up axis to metres and Y-up, centred the combined model, and recomputed vertex normals.",
+    "Exported one uncompressed GLB with stable mesh names. No source colours or textures are used; surface colours are ours.",
+    "No teaching text is stored in the model or seed; the module is unpublished pending faculty review."
+  ],
+  "adaptations": [
+    "Grouped source files by the OBJ header Concept ID and English name so each named structure is one selectable node.",
+    "Large FMA systems are split into independently seeded modules because the viewer supports one GLB per system and each GLB must stay below the release budget."
+  ],
+  "structures": [
+    {
+      "slug": "cerebellum",
+      "meshName": "cerebellum",
+      "layer": "cerebellum",
+      "color": "#b95757",
+      "files": [
+        {
+          "id": "FJ1781",
+          "archive": "PART-OF",
+          "concept": "FMA67944",
+          "name": "Cerebellum",
+          "sha256": "6f66f4912c7519ea6a018324ef4f6d46eb266350574d05a905afeb2c88c575ed",
+          "triangles": 23818
+        },
+        {
+          "id": "FJ1830",
+          "archive": "PART-OF",
+          "concept": "FMA67944",
+          "name": "Cerebellum",
+          "sha256": "d35574d86994e5e49e0e1ee41174a927c666735d7eb7b9cbdae2a709ae4a0bb9",
+          "triangles": 23882
+        }
+      ]
+    },
+    {
+      "slug": "pons",
+      "meshName": "pons",
+      "layer": "brainstem",
+      "color": "#d08a5f",
+      "files": [
+        {
+          "id": "FJ1775",
+          "archive": "PART-OF",
+          "concept": "FMA67943",
+          "name": "Pons",
+          "sha256": "caecdd922b67fa47e0219e2e7ae05e3efd986a2c869cf57b77ded1c615d1bfc9",
+          "triangles": 10304
+        },
+        {
+          "id": "FJ1822",
+          "archive": "PART-OF",
+          "concept": "FMA67943",
+          "name": "Pons",
+          "sha256": "bbe90f2e0a971bdbde65b9da78b3dff921ed92d2de4bfb81b9629b920d41d7de",
+          "triangles": 10346
+        }
+      ]
+    },
+    {
+      "slug": "midbrain",
+      "meshName": "midbrain",
+      "layer": "brainstem",
+      "color": "#d08a5f",
+      "files": [
+        {
+          "id": "FJ1770",
+          "archive": "PART-OF",
+          "concept": "FMA61993",
+          "name": "Midbrain",
+          "sha256": "727a267ac80375fd0769bf92067d88adac02aa80220a3099cd530b32ddd88a5b",
+          "triangles": 6468
+        },
+        {
+          "id": "FJ1817",
+          "archive": "PART-OF",
+          "concept": "FMA61993",
+          "name": "Midbrain",
+          "sha256": "b05b314182e27a015072a39847bd750a7c0899962d7d6357541cedf1358f05db",
+          "triangles": 6440
+        }
+      ]
+    },
+    {
+      "slug": "medulla-oblongata",
+      "meshName": "medulla_oblongata",
+      "layer": "brainstem",
+      "color": "#d08a5f",
+      "files": [
+        {
+          "id": "FJ1769",
+          "archive": "PART-OF",
+          "concept": "FMA62004",
+          "name": "Medulla oblongata",
+          "sha256": "ab318e2ca0b27656d06edb4a3d3315669c70d7625989a3573fa66a0e586c6afc",
+          "triangles": 6036
+        },
+        {
+          "id": "FJ1831",
+          "archive": "PART-OF",
+          "concept": "FMA62004",
+          "name": "Medulla oblongata",
+          "sha256": "dccbbe50f38efa0e95660b6b99ffe1e16a2baf37a29e0200d697446f5299c476",
+          "triangles": 6060
+        }
+      ]
+    },
+    {
+      "slug": "fourth-ventricle",
+      "meshName": "fourth_ventricle",
+      "layer": "ventricles",
+      "color": "#c79a52",
+      "files": [
+        {
+          "id": "FJ1731",
+          "archive": "PART-OF",
+          "concept": "FMA78469",
+          "name": "Fourth ventricle",
+          "sha256": "b56e1cd574977821f5331174a31a830ec6a477e2c6c3f32667f7e46a6716eae8",
+          "triangles": 6940
+        }
+      ]
+    },
+    {
+      "slug": "third-ventricle",
+      "meshName": "third_ventricle",
+      "layer": "ventricles",
+      "color": "#c79a52",
+      "files": [
+        {
+          "id": "FJ1730",
+          "archive": "PART-OF",
+          "concept": "FMA78454",
+          "name": "Third ventricle",
+          "sha256": "7acd4a30d13b409221aea7267ae302ef7c100162a6185d891c91843ec876dd79",
+          "triangles": 3870
+        }
+      ]
+    },
+    {
+      "slug": "central-canal-of-spinal-cord",
+      "meshName": "central_canal_of_spinal_cord",
+      "layer": "ventricles",
+      "color": "#c79a52",
+      "files": [
+        {
+          "id": "FJ1737",
+          "archive": "PART-OF",
+          "concept": "FMA78497",
+          "name": "Central canal of spinal cord",
+          "sha256": "c86dd74640e7c820eda28783944a90998045ff42a131a7a1456a64fdff0e6471",
+          "triangles": 728
+        }
+      ]
+    },
+    {
+      "slug": "cerebral-aqueduct",
+      "meshName": "cerebral_aqueduct",
+      "layer": "ventricles",
+      "color": "#c79a52",
+      "files": [
+        {
+          "id": "FJ1738",
+          "archive": "PART-OF",
+          "concept": "FMA78467",
+          "name": "Cerebral aqueduct",
+          "sha256": "089159be9815563e0645e5a28e7302fbc0bc842af760ac886bf3d0542f34a8f3",
+          "triangles": 518
+        }
+      ]
+    },
+    {
+      "slug": "hypothalamus",
+      "meshName": "hypothalamus",
+      "layer": "deep-structures",
+      "color": "#8fae6b",
+      "files": [
+        {
+          "id": "FJ1760",
+          "archive": "PART-OF",
+          "concept": "FMA62008",
+          "name": "Hypothalamus",
+          "sha256": "cc6db16b990c3fa607ef64f6c0482fd05cb986213d011da9641ccf50182af897",
+          "triangles": 2050
+        },
+        {
+          "id": "FJ1808",
+          "archive": "PART-OF",
+          "concept": "FMA62008",
+          "name": "Hypothalamus",
+          "sha256": "9e6fe3664aa909ce2d26683de807b627b076a1e68906f4bf4ffc59cf984e4bc4",
+          "triangles": 2028
+        }
+      ]
+    },
+    {
+      "slug": "tuber-cinereum",
+      "meshName": "tuber_cinereum",
+      "layer": "deep-structures",
+      "color": "#8fae6b",
+      "files": [
+        {
+          "id": "FJ1780",
+          "archive": "PART-OF",
+          "concept": "FMA62327",
+          "name": "Tuber cinereum",
+          "sha256": "dc2212c4c0c7c9e00375a7bcb24014938f45e15b068df36f6247df0cdb301881",
+          "triangles": 804
+        },
+        {
+          "id": "FJ1828",
+          "archive": "PART-OF",
+          "concept": "FMA62327",
+          "name": "Tuber cinereum",
+          "sha256": "14f9e2dbd68f455314424315b049df5a1a84c248d4c56895b8f8ab426cc40a66",
+          "triangles": 802
+        }
+      ]
+    },
+    {
+      "slug": "pineal-body",
+      "meshName": "pineal_body",
+      "layer": "deep-structures",
+      "color": "#8fae6b",
+      "files": [
+        {
+          "id": "FJ1795",
+          "archive": "PART-OF",
+          "concept": "FMA62033",
+          "name": "Pineal body",
+          "sha256": "e3f5a0e1d1ebdf8a97329d1e71904f18d70e40038f89eb1990eb8a1f086dfc36",
+          "triangles": 580
+        }
+      ]
+    },
+    {
+      "slug": "habenula",
+      "meshName": "habenula",
+      "layer": "deep-structures",
+      "color": "#8fae6b",
+      "files": [
+        {
+          "id": "FJ1743",
+          "archive": "PART-OF",
+          "concept": "FMA62032",
+          "name": "Habenula",
+          "sha256": "e2c529932bb78ebae41cbc82496dcfe512f15455b6d806783e019444d10b2eae",
+          "triangles": 384
+        }
+      ]
+    }
+  ],
+  "textOnly": [],
+  "totalTriangles": 112058
+}

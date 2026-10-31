@@ -22,10 +22,7 @@ import { ANATOMY_FOCUS_RING } from "@/components/anatomy/anatomy-focus";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { layerLabel, matchesStructureQuery } from "@/lib/anatomy";
-import type {
-  AnatomyStructure,
-  AnatomySystemDetail,
-} from "@/types/anatomy";
+import type { AnatomyStructure, AnatomySystemDetail } from "@/types/anatomy";
 
 function focusTreeItem(tree: HTMLElement | null, key: string) {
   requestAnimationFrame(() => {
@@ -87,6 +84,16 @@ function TextOnlyBadge({ testId }: { testId?: string }) {
   );
 }
 
+function hasTeachingNotes(structure: AnatomyStructure): boolean {
+  return [
+    structure.summary,
+    structure.location,
+    structure.function,
+    structure.bloodSupply,
+    structure.clinicalNotes,
+  ].some((value) => typeof value === "string" && value.trim().length > 0);
+}
+
 export function AnatomyDetailPanel({
   system,
   selected,
@@ -115,6 +122,7 @@ export function AnatomyDetailPanel({
     (structure) => structure.meshName !== null,
   ).length;
   const textOnlyCount = system.structures.length - meshCount;
+  const selectedHasNotes = selected ? hasTeachingNotes(selected) : false;
 
   const grouped = new Map<string, AnatomyStructure[]>();
   for (const structure of filtered) {
@@ -218,8 +226,7 @@ export function AnatomyDetailPanel({
     const currentIndex = Math.max(
       0,
       items.findIndex(
-        (item) =>
-          item.dataset.treeKey === (focusedKey ?? effectiveActiveKey),
+        (item) => item.dataset.treeKey === (focusedKey ?? effectiveActiveKey),
       ),
     );
     const currentItem = items[currentIndex];
@@ -398,10 +405,7 @@ export function AnatomyDetailPanel({
         >
           Search structures
         </label>
-        <div
-          className="relative mt-1.5"
-          onBlur={handleSearchBlur}
-        >
+        <div className="relative mt-1.5" onBlur={handleSearchBlur}>
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
           <input
             ref={searchInputRef}
@@ -515,38 +519,51 @@ export function AnatomyDetailPanel({
               </p>
             )}
 
-            <p className="mt-3 text-sm leading-relaxed text-secondary">
-              {selected.summary}
-            </p>
+            {selectedHasNotes ? (
+              <>
+                <p className="mt-3 text-sm leading-relaxed text-secondary">
+                  {selected.summary}
+                </p>
 
-            <div className="mt-5 space-y-4">
-              <InfoRow
-                icon={MapPin}
-                label="Location"
-                value={selected.location}
-              />
-              <InfoRow
-                icon={Activity}
-                label="Function"
-                value={selected.function}
-              />
-              <InfoRow
-                icon={Droplets}
-                label="Blood supply"
-                value={selected.bloodSupply}
-              />
-            </div>
-
-            {selected.clinicalNotes && (
-              <div className="mt-5 rounded-xl border border-warning/20 bg-warning/5 p-4">
-                <div className="flex items-center gap-2">
-                  <Stethoscope className="h-4 w-4 text-warning" />
-                  <p className="text-xs font-semibold text-primary">
-                    Clinical note
-                  </p>
+                <div className="mt-5 space-y-4">
+                  <InfoRow
+                    icon={MapPin}
+                    label="Location"
+                    value={selected.location}
+                  />
+                  <InfoRow
+                    icon={Activity}
+                    label="Function"
+                    value={selected.function}
+                  />
+                  <InfoRow
+                    icon={Droplets}
+                    label="Blood supply"
+                    value={selected.bloodSupply}
+                  />
                 </div>
-                <p className="mt-2 text-xs leading-relaxed text-secondary">
-                  {selected.clinicalNotes}
+
+                {selected.clinicalNotes && (
+                  <div className="mt-5 rounded-xl border border-warning/20 bg-warning/5 p-4">
+                    <div className="flex items-center gap-2">
+                      <Stethoscope className="h-4 w-4 text-warning" />
+                      <p className="text-xs font-semibold text-primary">
+                        Clinical note
+                      </p>
+                    </div>
+                    <p className="mt-2 text-xs leading-relaxed text-secondary">
+                      {selected.clinicalNotes}
+                    </p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="mt-4 rounded-xl border border-border bg-elevated p-4">
+                <p className="text-sm font-medium text-primary">
+                  Notes coming soon
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-secondary">
+                  Teaching notes for this structure are awaiting faculty review.
                 </p>
               </div>
             )}
@@ -604,7 +621,9 @@ export function AnatomyDetailPanel({
               </div>
             )}
 
-            <AnatomyAiPanel systemSlug={system.slug} structure={selected} />
+            {selectedHasNotes && (
+              <AnatomyAiPanel systemSlug={system.slug} structure={selected} />
+            )}
           </div>
         ) : (
           <div>

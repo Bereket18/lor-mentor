@@ -1,5 +1,21 @@
 {
   "heart.v1.glb": "e7723082d617b7d9198210200c7c4e82a052e699cec5cdc2faf6c652fc6f0db0",
   "heart.v2.glb": "b1fac8e02842b40b9cd123e3e896d868254d07b63ed3bc856977d511b879541d",
-  "urinary.v1.glb": "e5d842eebda1a7f208058f563528b0296b88192419ddb412b9a270ff45f9b073"
+  "urinary.v1.glb": "e5d842eebda1a7f208058f563528b0296b88192419ddb412b9a270ff45f9b073",
+  "respiratory.v1.glb": "4140a4c3f8460b66fbeb3ed28e59cd9876d47a147a307954272618fedbba709c",
+  "digestive-upper.v1.glb": "19f94e30fd02e09d8775a9ee76526a7cdcbfc4053e7abb4317a5a3ce793fff12",
+  "digestive-lower.v1.glb": "bb9988de55c80dacb046d61d1e396fdc46904aaffe4efa3b67b0fe60d59c60df",
+  "digestive-liver.v1.glb": "77626455badea23311dded28971401f19a1542041a3621a0bf6edea32bd3c23c",
+  "digestive-hepatobiliary.v1.glb": "6249f6ba0256a8ccbcdb9341b2cb855b52be9ab2d5c69b1fe847241391d02f96",
+  "nervous-left.v1.glb": "ec8962caf5b73aac3c577cd332b985d9d08580b4fb55e676eb4cc9d51989e44a",
+  "nervous-right.v1.glb": "f3b2310a825c33d29bfcd9149721ba0517699d7dfd46d927fd708892d93e53b0",
+  "nervous-central.v1.glb": "6d9ab37f9cfd4e39e9ef2e6bc6b8d049d0bfb3f5b4316335c01f4fc9d59e83fa",
+  "sensory-eye-right.v1.glb": "fc5ee82a478c710d090d29f35dce6003546261c2e74801d743105a3e8d64e273",
+  "sensory-eye-left.v1.glb": "96e13e8b71bfecfac1dad6b9e9b827db23fc6db0c6c5f9c5eb721d1f2b9af596",
+  "sensory-ear.v1.glb": "3a4a625dcfc06522e44aaefb572191f4614d7bd3acf50fd313dfd43a26d066b6",
+  "endocrine.v1.glb": "fca1937e101228fa8949855549067cad97334bd5ba4218a7ce8697af35bb2af7",
+  "lymphatic.v1.glb": "bc5aa5df3248dcb10fbd7c294bc2f193102ea201c6f6c86419be5735c91d7af2",
+  "male-reproductive.v1.glb": "3ec61a9b6b9432424becbd06caff03545754c2eb9a93bc705217585177bb206e",
+  "body-surface-upper.v1.glb": "fd5de9990647d9fa362589fe759f3c14736cf8f4610ef0385bca1afcf0a7831f",
+  "body-surface-lower.v1.glb": "727810e045201550c3fabe81d40e338a817b4a69bbd778bfc9a45ac8512f5da6"
 }

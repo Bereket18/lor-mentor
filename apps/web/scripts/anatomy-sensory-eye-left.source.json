@@ -1,0 +1,479 @@
+{
+  "version": 2,
+  "system": "sensory-eye-left",
+  "title": "LOR Mentor sensory system - left eye anatomy model",
+  "output": {
+    "model": "sensory-eye-left.v1.glb",
+    "manifest": "sensory-eye-left.v1.manifest.json"
+  },
+  "sources": [
+    {
+      "tree": "PART-OF",
+      "dataset": "BodyParts3D 4.0",
+      "polygonReduction": "99%",
+      "archive": "partof_BP3D_4.0_obj_99.zip",
+      "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_BP3D_4.0_obj_99.zip",
+      "archiveBytes": 64888505,
+      "archiveEtag": "\"3de1eb9-4dd48e9fe8d00\"",
+      "archiveLastModified": "Wed, 22 May 2013 06:45:40 GMT",
+      "archiveSha256": "9fbc713fffeee924a5a657d9813d84d7eb957bded63adb854931dd5e3eb61c97",
+      "extractedObjFiles": 1258,
+      "usedFor": "sensory-eye-left v1 build: 23 PART-OF source files.",
+      "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "licenseUpdated": "2025-02-27",
+      "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
+      "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
+    },
+    {
+      "tree": "IS-A",
+      "dataset": "BodyParts3D 4.0",
+      "polygonReduction": "99%",
+      "archive": "isa_BP3D_4.0_obj_99.zip",
+      "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/isa_BP3D_4.0_obj_99.zip",
+      "archiveBytes": 142903898,
+      "archiveEtag": "\"8848a5a-4dd48ec9df000\"",
+      "archiveLastModified": "Wed, 22 May 2013 06:46:24 GMT",
+      "archiveSha256": "40665852c49f218326590e204db91064a1ecfc3c6f8cbd7bbbcaac62c7cd409e",
+      "extractedObjFiles": 2234,
+      "usedFor": "sensory-eye-left v1 build: no IS-A files used.",
+      "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "licenseUpdated": "2025-02-27",
+      "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
+      "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
+    }
+  ],
+  "transform": {
+    "sourceUnits": "millimetres",
+    "sourceUpAxis": "Z",
+    "targetUnits": "metres",
+    "targetUpAxis": "Y",
+    "mapping": "x/1000, z/1000, -y/1000; then centre on the combined bounding box"
+  },
+  "viewerOrientation": "Camera looks from +Z toward the origin; patient left is +X (the viewer's right). The viewer renders no on-screen orientation marker.",
+  "recordTransformDetails": true,
+  "changes": [
+    "Selected 23 source OBJ files from the official BodyParts3D 4.0 tables.",
+    "Merged each structure's source parts into one selectable mesh: 22 selectable nodes.",
+    "Converted millimetres and the Z-up axis to metres and Y-up, centred the combined model, and recomputed vertex normals.",
+    "Exported one uncompressed GLB with stable mesh names. No source colours or textures are used; surface colours are ours.",
+    "No teaching text is stored in the model or seed; the module is unpublished pending faculty review."
+  ],
+  "adaptations": [
+    "Grouped source files by the OBJ header Concept ID and English name so each named structure is one selectable node.",
+    "Large FMA systems are split into independently seeded modules because the viewer supports one GLB per system and each GLB must stay below the release budget."
+  ],
+  "structures": [
+    {
+      "slug": "left-sclera",
+      "meshName": "left_sclera",
+      "layer": "eyeball",
+      "color": "#c96b6b",
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1317",
+          "archive": "PART-OF",
+          "concept": "FMA58272",
+          "name": "Left sclera",
+          "sha256": "81a184bd0d3d8602af3c2186405a16565bcabd0d305fcbad7e02b979335d9582",
+          "triangles": 39504
+        }
+      ]
+    },
+    {
+      "slug": "left-choroid",
+      "meshName": "left_choroid",
+      "layer": "eyeball",
+      "color": "#c96b6b",
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1285",
+          "archive": "PART-OF",
+          "concept": "FMA58300",
+          "name": "Left choroid",
+          "sha256": "dd7677f804c1c370a2c6d11966877934efa9ca09c6b100e18f06fd4508ccbbb6",
+          "triangles": 28918
+        },
+        {
+          "id": "FJ1286",
+          "archive": "PART-OF",
+          "concept": "FMA58300",
+          "name": "Left choroid",
+          "sha256": "ba4e6f7156124700b63d526a882933b35b89fa0e9fd53495964d57aa5de1c989",
+          "triangles": 6704
+        }
+      ]
+    },
+    {
+      "slug": "suspensory-ligament-of-left-lens",
+      "meshName": "suspensory_ligament_of_left_lens",
+      "layer": "eyeball",
+      "color": "#c96b6b",
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1320",
+          "archive": "PART-OF",
+          "concept": "FMA58840",
+          "name": "Suspensory ligament of left lens",
+          "sha256": "a73a8e48e83cd65e15eda97533b59cac7f3f687a7b117e587bc561bf4f7b50a1",
+          "triangles": 7256
+        }
+      ]
+    },
+    {
+      "slug": "left-vitreous-body",
+      "meshName": "left_vitreous_body",
+      "layer": "eyeball",
+      "color": "#c96b6b",
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1331",
+          "archive": "PART-OF",
+          "concept": "FMA58829",
+          "name": "Left vitreous body",
+          "sha256": "417bc91c6719b2982cb60640058ddcce9f50ecfb5a20db02393f2cf7bad82a0b",
+          "triangles": 5448
+        }
+      ]
+    },
+    {
+      "slug": "left-cornea",
+      "meshName": "left_cornea",
+      "layer": "eyeball",
+      "color": "#c96b6b",
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1289",
+          "archive": "PART-OF",
+          "concept": "FMA58240",
+          "name": "Left cornea",
+          "sha256": "6edadfa812d834f5b90d17d427baa0c6688a4cc32856c2b8c6320907bbc05150",
+          "triangles": 4602
+        }
+      ]
+    },
+    {
+      "slug": "left-iris",
+      "meshName": "left_iris",
+      "layer": "eyeball",
+      "color": "#c96b6b",
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1297",
+          "archive": "PART-OF",
+          "concept": "FMA58237",
+          "name": "Left iris",
+          "sha256": "e9359237794eef61117f1c12a6822dafdd0cfc70ada8d2447e3d26d4fcda9bd7",
+          "triangles": 3286
+        }
+      ]
+    },
+    {
+      "slug": "anterior-chamber-of-left-eyeball",
+      "meshName": "anterior_chamber_of_left_eyeball",
+      "layer": "eyeball",
+      "color": "#c96b6b",
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1282",
+          "archive": "PART-OF",
+          "concept": "FMA58082",
+          "name": "Anterior chamber of left eyeball",
+          "sha256": "c66ed172ed90448e3e9508f21b116f319cfd1036cb7281e2f3541ede5f2adb1f",
+          "triangles": 3064
+        }
+      ]
+    },
+    {
+      "slug": "left-lens",
+      "meshName": "left_lens",
+      "layer": "eyeball",
+      "color": "#c96b6b",
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1305",
+          "archive": "PART-OF",
+          "concept": "FMA58243",
+          "name": "Left lens",
+          "sha256": "a2b7f9b53dd2d14a352dfa0d3e01452031a2957aae62aa7c904d7c1d1922954c",
+          "triangles": 1606
+        }
+      ]
+    },
+    {
+      "slug": "left-levator-palpebrae-superioris",
+      "meshName": "left_levator_palpebrae_superioris",
+      "layer": "extraocular-muscles",
+      "color": "#b95757",
+      "laterality": "left",
+      "sharedWith": [
+        "musculoskeletal"
+      ],
+      "canonicalOwner": "musculoskeletal",
+      "files": [
+        {
+          "id": "FJ1306",
+          "archive": "PART-OF",
+          "concept": "FMA49049",
+          "name": "Left levator palpebrae superioris",
+          "sha256": "8c1ea58bcbf741edb03d74b9a6548a5caebcf92be96e10cdd47146f5fa12f9f6",
+          "triangles": 4360
+        }
+      ]
+    },
+    {
+      "slug": "left-superior-oblique",
+      "meshName": "left_superior_oblique",
+      "layer": "extraocular-muscles",
+      "color": "#b95757",
+      "laterality": "left",
+      "sharedWith": [
+        "musculoskeletal"
+      ],
+      "canonicalOwner": "musculoskeletal",
+      "files": [
+        {
+          "id": "FJ1322",
+          "archive": "PART-OF",
+          "concept": "FMA49053",
+          "name": "Left superior oblique",
+          "sha256": "4b232702831f2b4d16bc0acb3c60993c60bcdfa97cdb0ea94ad28367326ca2aa",
+          "triangles": 3604
+        }
+      ]
+    },
+    {
+      "slug": "left-inferior-rectus",
+      "meshName": "left_inferior_rectus",
+      "layer": "extraocular-muscles",
+      "color": "#b95757",
+      "laterality": "left",
+      "sharedWith": [
+        "musculoskeletal"
+      ],
+      "canonicalOwner": "musculoskeletal",
+      "files": [
+        {
+          "id": "FJ1295",
+          "archive": "PART-OF",
+          "concept": "FMA49047",
+          "name": "Left inferior rectus",
+          "sha256": "562e288371931b64c3de9ae723e7c6304bac003b47c1a5d11e4651e4b168b317",
+          "triangles": 3560
+        }
+      ]
+    },
+    {
+      "slug": "left-lateral-rectus",
+      "meshName": "left_lateral_rectus",
+      "layer": "extraocular-muscles",
+      "color": "#b95757",
+      "laterality": "left",
+      "sharedWith": [
+        "musculoskeletal"
+      ],
+      "canonicalOwner": "musculoskeletal",
+      "files": [
+        {
+          "id": "FJ1304",
+          "archive": "PART-OF",
+          "concept": "FMA49055",
+          "name": "Left lateral rectus",
+          "sha256": "645602a64a72c8f0bcbae63af87abbb660382460563cad83dcdb112d1955d336",
+          "triangles": 3316
+        }
+      ]
+    },
+    {
+      "slug": "left-superior-rectus",
+      "meshName": "left_superior_rectus",
+      "layer": "extraocular-muscles",
+      "color": "#b95757",
+      "laterality": "left",
+      "sharedWith": [
+        "musculoskeletal"
+      ],
+      "canonicalOwner": "musculoskeletal",
+      "files": [
+        {
+          "id": "FJ1323",
+          "archive": "PART-OF",
+          "concept": "FMA49045",
+          "name": "Left superior rectus",
+          "sha256": "b9d550c96aae41955e5a725b27dea5972c4eff56033815b8d3d9e416080d9c57",
+          "triangles": 2836
+        }
+      ]
+    },
+    {
+      "slug": "left-medial-rectus",
+      "meshName": "left_medial_rectus",
+      "layer": "extraocular-muscles",
+      "color": "#b95757",
+      "laterality": "left",
+      "sharedWith": [
+        "musculoskeletal"
+      ],
+      "canonicalOwner": "musculoskeletal",
+      "files": [
+        {
+          "id": "FJ1308",
+          "archive": "PART-OF",
+          "concept": "FMA49057",
+          "name": "Left medial rectus",
+          "sha256": "a7c5886edbe3ec53a916e61064605de06f2955d6a5ecef48344bbc1c2f6aa7cf",
+          "triangles": 2576
+        }
+      ]
+    },
+    {
+      "slug": "left-inferior-oblique",
+      "meshName": "left_inferior_oblique",
+      "layer": "extraocular-muscles",
+      "color": "#b95757",
+      "laterality": "left",
+      "sharedWith": [
+        "musculoskeletal"
+      ],
+      "canonicalOwner": "musculoskeletal",
+      "files": [
+        {
+          "id": "FJ1294",
+          "archive": "PART-OF",
+          "concept": "FMA49051",
+          "name": "Left inferior oblique",
+          "sha256": "ae67b7050046ccfc4091216a24c2f93cfd2c7152fdf62ec4c5b87601164ec058",
+          "triangles": 2360
+        }
+      ]
+    },
+    {
+      "slug": "left-lacrimal-gland",
+      "meshName": "left_lacrimal_gland",
+      "layer": "lacrimal",
+      "color": "#d08a5f",
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1299",
+          "archive": "PART-OF",
+          "concept": "FMA59103",
+          "name": "Left lacrimal gland",
+          "sha256": "f8bae78d7a0a522faa67cf0e7e1222c20ea4ffac8a3c547dd2078b45d1f162f3",
+          "triangles": 1768
+        }
+      ]
+    },
+    {
+      "slug": "left-lacrimal-canaliculus",
+      "meshName": "left_lacrimal_canaliculus",
+      "layer": "lacrimal",
+      "color": "#d08a5f",
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1298",
+          "archive": "PART-OF",
+          "concept": "FMA59583",
+          "name": "Left lacrimal canaliculus",
+          "sha256": "e594afdfeb739c5b9effd057669ff195040d42832030f8c55a8bdad400dd86a4",
+          "triangles": 634
+        }
+      ]
+    },
+    {
+      "slug": "left-nasolacrimal-duct",
+      "meshName": "left_nasolacrimal_duct",
+      "layer": "lacrimal",
+      "color": "#d08a5f",
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1302",
+          "archive": "PART-OF",
+          "concept": "FMA59556",
+          "name": "Left nasolacrimal duct",
+          "sha256": "95df8f737e94cc327745c1a57f184c2d414c61501bfa9dac47071ce6af243a81",
+          "triangles": 444
+        }
+      ]
+    },
+    {
+      "slug": "left-lacrimal-sac",
+      "meshName": "left_lacrimal_sac",
+      "layer": "lacrimal",
+      "color": "#d08a5f",
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1309",
+          "archive": "PART-OF",
+          "concept": "FMA59546",
+          "name": "Left lacrimal sac",
+          "sha256": "2bea1eaf545b1a7b7f2696c34ead194d3bcd646a8fc420661ee9a4d37d3acecc",
+          "triangles": 382
+        }
+      ]
+    },
+    {
+      "slug": "left-lacrimal-lake",
+      "meshName": "left_lacrimal_lake",
+      "layer": "lacrimal",
+      "color": "#d08a5f",
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1301",
+          "archive": "PART-OF",
+          "concept": "FMA59542",
+          "name": "Left lacrimal lake",
+          "sha256": "c2c73af7e31c43b4f2dfa27d54538cdee41fcecf4609d5d0e00a53730a2c0f75",
+          "triangles": 248
+        }
+      ]
+    },
+    {
+      "slug": "tarsal-plate-of-left-upper-eyelid",
+      "meshName": "tarsal_plate_of_left_upper_eyelid",
+      "layer": "eyelids",
+      "color": "#c79a52",
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1324",
+          "archive": "PART-OF",
+          "concept": "FMA59092",
+          "name": "Tarsal plate of left upper eyelid",
+          "sha256": "366ca5bdb12a23ea67be99e572e23051511c83e29d80e44015f6fd93b36bc459",
+          "triangles": 1484
+        }
+      ]
+    },
+    {
+      "slug": "tarsal-plate-of-left-lower-eyelid",
+      "meshName": "tarsal_plate_of_left_lower_eyelid",
+      "layer": "eyelids",
+      "color": "#c79a52",
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1328",
+          "archive": "PART-OF",
+          "concept": "FMA59090",
+          "name": "Tarsal plate of left lower eyelid",
+          "sha256": "5d61f08e19e35cc4192acb461910347e52799316513723801b232ba6782324c0",
+          "triangles": 1034
+        }
+      ]
+    }
+  ],
+  "textOnly": [],
+  "totalTriangles": 128994
+}

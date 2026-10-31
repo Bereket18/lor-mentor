@@ -20,7 +20,7 @@ random unprinted passwords and are deleted with a 401 check.
 | 2C | Docker / nginx review without a daemon; nginx test script | **Done** (static review; image builds and `nginx -t` NOT RUN) |
 | 2D | `/anatomy` for ADMIN/SUPER_ADMIN; run existing Playwright specs; checklist | **Done** |
 | 3 | Faculty review + edit tool | **Partly done: offline packet only, in-app tool NOT built** |
-| 4 | Build remaining systems (respiratory … body surface) | **Not started (not blocked)** |
+| 4 | Build remaining systems (respiratory … body surface) | **Done (local build; 16 unpublished drafts, owner review and teaching text pending)** |
 | 5 | Left/right proof, README, final report | **Done** (left/right proof, README `8e929fe`, final report below) |
 | S1 | Read-only anatomy text integrity check | **Done** (mismatches reported, none fixed) |
 | S2 | npm audit critical/high inventory | **Done** (read-only; no dependency changes) |
@@ -110,6 +110,134 @@ No critical/high finding is confirmed reachable in the running API or web
 request path. The only unresolved reachability is `follow-redirects` through a
 possible server-side axios call; the source search found client-side axios use
 only. No dependency was upgraded or removed.
+
+## Step 3 — eight new anatomy systems (local build)
+
+Run on `integration/anatomy-hardening` from `b03aeb9`. All work is local; no
+system was published, no teaching text was written, and no `isReviewed` row was
+set.
+
+### Sources and derivation
+
+- Official BodyParts3D archives/tables were downloaded only to
+  `C:\Users\berek\Desktop\bp3d-source`. All 10 archive SHA-256 values in
+  `docs/anatomy/provenance/phase-1-sources.json` verified OK.
+- Structures were derived from the recursive FMA inclusion tree
+  (`inclusion_relation_list`) and matched to OBJ files through
+  `element_parts`. This reproduces every official system count in
+  `whole-body-plan.md` exactly.
+- The OBJ header `Concept ID` / `English name` is the grouping key for one
+  structure per named structure. Left and right are separate rows, not a
+  mirrored mesh.
+- `scripts/generate-anatomy-systems.mjs --check` passes and regenerates the 16
+  source maps, seed files, mapping documents, registry, attribution file,
+  `step-3-systems.json`, and `step-3-orientation-pairs.json` deterministically.
+
+### Built modules
+
+The database/viewer supports one GLB per system and a 5 MB / 150,000-triangle
+budget per GLB, so large systems were split into modules. All 16 GLBs pass
+`validate-anatomy-model.mjs`; all SHA-256 values are registered in
+`apps/web/public/models/anatomy/published-models.json`.
+
+| Module | Structures | GLB bytes | Triangles | Playwright first render | Median frame |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| respiratory | 26 | 2,729,336 | 139,164 | 2,630 ms | 66.6 ms |
+| digestive-upper | 12 | 1,184,308 | 61,140 | 2,062 ms | 33.3 ms |
+| digestive-lower | 19 | 3,590,876 | 116,642 | 1,453 ms | 33.3 ms |
+| digestive-liver | 8 | 2,464,824 | 127,788 | 1,772 ms | 66.6 ms |
+| digestive-hepatobiliary | 48 | 1,869,160 | 84,834 | 2,539 ms | 66.7 ms |
+| nervous-left | 21 | 2,051,568 | 104,652 | 2,447 ms | 66.7 ms |
+| nervous-right | 21 | 2,085,392 | 106,280 | 1,893 ms | 33.4 ms |
+| nervous-central | 12 | 2,163,996 | 112,058 | 1,723 ms | 33.4 ms |
+| sensory-eye-right | 21 | 2,481,460 | 125,714 | 2,482 ms | 66.7 ms |
+| sensory-eye-left | 22 | 2,493,604 | 128,994 | 1,767 ms | 33.3 ms |
+| sensory-ear | 1 | 64,576 | 2,910 | 1,468 ms | 33.3 ms |
+| endocrine | 3 | 141,324 | 7,454 | 1,502 ms | 33.3 ms |
+| lymphatic | 3 | 72,276 | 3,410 | 1,294 ms | 33.3 ms |
+| male-reproductive | 10 | 122,508 | 5,130 | 1,410 ms | 33.3 ms |
+| body-surface-upper | 1 | 1,861,888 | 101,691 | 1,367 ms | 33.3 ms |
+| body-surface-lower | 1 | 1,849,888 | 101,691 | 1,265 ms | 33.3 ms |
+| **Total** | **229** | **27,226,984** | **1,329,552** | - | - |
+
+Largest GLB: 3,590,876 bytes; largest triangle count: 139,164. Both are below
+the 5 MB / 150,000-triangle limits. Heart v2 (26 rows, 2,003,856 bytes,
+102,568 triangles) and urinary v1 (15 rows, 465,208 bytes, 20,364 triangles)
+were included in the same Playwright run as regression checks.
+
+Coverage limits recorded in the mapping documents:
+
+- Respiratory has no lung-surface mesh in the source; the model is bronchi,
+  trachea, diaphragm, and six lingular arteries.
+- Lymphatic has only spleen and thymus lobes; endocrine has only pituitary and
+  left/right adrenal.
+- Male reproductive has 10 source files and no ductus deferens/scrotum mesh;
+  sensory-ear is the external ear only.
+- Body surface is one 203,382-triangle skin mesh. It was split by triangle
+  centroid Z into two derived 101,691-triangle OBJs (`FJ2810U`, `FJ2810L`);
+  no decimation or duplication was used. Derived hashes are in
+  `step-3-systems.json`.
+
+All 16 generated mapping documents still contain
+`mapping not yet owner-reviewed`. That is deliberate: no owner/faculty mapping
+review was performed, and the publish script refuses to publish while the
+marker is present.
+
+### Seed, AI refusal, and publish gate
+
+- Local seed applied to `lor_mentor`: **18 systems, 270 structures, 0 reviewed,
+  229 empty-text rows**. Heart remains published/sample with 26 rows; urinary
+  remains an unpublished 15-row draft; all 16 new systems are unpublished.
+- The protected heart/urinary aggregate is unchanged:
+  `039549a077774dbc9964afb3a31beff93f506c1f6003b4022c5aabc09f8ce32c`.
+- `anatomy.service.ts` refuses AI explain/quiz for empty-text rows with HTTP
+  **409** and `Teaching notes are not available for this structure yet.` The
+  UI hides the AI panel and shows “Notes coming soon”.
+- `apps/api/prisma/publish-anatomy.ts` is dry-run by default. A respiratory
+  dry run was blocked by the mapping marker, 26 empty-text rows, and 26
+  unreviewed rows. A urinary `--unpublish` dry run reported no blockers. No
+  `--confirm` run was made and no publication flag changed.
+
+### Verification (real results)
+
+| Check | Result |
+| --- | --- |
+| `node scripts/generate-anatomy-systems.mjs --check` | pass; official totals reproduced |
+| `npm run validate:anatomy-model --workspace=apps/web` | 16/16 GLBs pass |
+| `npm run check:anatomy-orientation --workspace=apps/web` | 42 pairs across 4 GLBs pass |
+| `npm test --workspace=apps/api -- --runInBand` | 25 suites, **354/354 tests** pass |
+| Anatomy service suite | 16/16 pass |
+| Anatomy seed-to-model contract suite | 88/88 pass |
+| `npm run build --workspace=apps/api` | pass |
+| `npx tsc --noEmit` in `apps/web` | pass |
+| `npm run build --workspace=apps/web` | pass; 55/55 pages generated |
+| ESLint on all changed API files | pass |
+| ESLint on changed web files | pass |
+| Step 3 Playwright (temporary TEACHER) | 1/1 pass in 4.2 min; 18 systems, all 42 left/right pair structures selected, **no console/page errors** |
+| Existing Playwright smoke/theme/accessibility | 14/14 pass |
+| Final DB state check | 18 systems, 270 structures, 0 reviewed, 229 empty-text |
+
+The Playwright run opened every system, waited for the GLB to finish loading,
+selected at least five structures per system, and selected every structure in
+the 42 cross-module left/right pairs (nervous-left/right and
+sensory-eye-left/right). Every selected mesh resolved; no “not in the loaded 3D
+model” status appeared. The temporary teacher was deleted and its login
+returned **401**.
+
+### Not run / limitations
+
+- `prisma migrate deploy` was **not run** in Step 3; no schema migration was
+  needed for this step.
+- No publish `--confirm`, no `isPublished=true`, and no `isReviewed=true` write
+  was made.
+- Headless Chromium used software rendering. Median frame intervals were
+  33.3–66.7 ms (p95 up to 400 ms), so these are headless limits, not a GPU
+  performance verdict. A human visual/3D review was not performed.
+- The 16 mapping documents still need owner review; all 16 systems remain
+  unpublished drafts with empty teaching text.
+- Docker/nginx and production deployment checks were not run in this step.
+
+Commit: Step 3 commit recorded below after the commit was made.
 
 ## Phase 1 — merge + GitLab files
 
@@ -445,7 +573,11 @@ The smoke test must be run with Git Bash, not the WSL `bash` on `PATH`: WSL
 cannot reach the Windows-hosted `127.0.0.1`/`localhost` ports and reports
 `000`. With `C:\Program Files\Git\bin\bash.exe` the suite passes 18/0.
 
-## Final report
+## Final report (pre-Step-3 baseline)
+
+> Historical report from before Step 3. Its “Phase 4 blocked” and “no system
+> beyond heart and urinary” statements are superseded by the Step 3 section
+> above and by the final Step 6 report.
 
 ### Delivered
 

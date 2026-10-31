@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 2,
+  "system": "sensory-ear",
+  "model": {
+    "file": "sensory-ear.v1.glb",
+    "bytes": 64576,
+    "sha256": "3a4a625dcfc06522e44aaefb572191f4614d7bd3acf50fd313dfd43a26d066b6",
+    "triangles": 2910,
+    "structures": 1,
+    "textOnlyStructures": 0,
+    "totalStructures": 1
+  },
+  "sources": [
+    {
+      "tree": "PART-OF",
+      "dataset": "BodyParts3D 4.0",
+      "polygonReduction": "99%",
+      "archive": "partof_BP3D_4.0_obj_99.zip",
+      "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_BP3D_4.0_obj_99.zip",
+      "archiveBytes": 64888505,
+      "archiveEtag": "\"3de1eb9-4dd48e9fe8d00\"",
+      "archiveLastModified": "Wed, 22 May 2013 06:45:40 GMT",
+      "archiveSha256": "9fbc713fffeee924a5a657d9813d84d7eb957bded63adb854931dd5e3eb61c97",
+      "extractedObjFiles": 1258,
+      "usedFor": "sensory-ear v1 build: no PART-OF files used.",
+      "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "licenseUpdated": "2025-02-27",
+      "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
+      "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
+    },
+    {
+      "tree": "IS-A",
+      "dataset": "BodyParts3D 4.0",
+      "polygonReduction": "99%",
+      "archive": "isa_BP3D_4.0_obj_99.zip",
+      "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/isa_BP3D_4.0_obj_99.zip",
+      "archiveBytes": 142903898,
+      "archiveEtag": "\"8848a5a-4dd48ec9df000\"",
+      "archiveLastModified": "Wed, 22 May 2013 06:46:24 GMT",
+      "archiveSha256": "40665852c49f218326590e204db91064a1ecfc3c6f8cbd7bbbcaac62c7cd409e",
+      "extractedObjFiles": 2234,
+      "usedFor": "sensory-ear v1 build: 1 IS-A source files.",
+      "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "licenseUpdated": "2025-02-27",
+      "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
+      "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
+    }
+  ],
+  "transform": {
+    "sourceUnits": "millimetres",
+    "sourceUpAxis": "Z",
+    "targetUnits": "metres",
+    "targetUpAxis": "Y",
+    "mapping": "x/1000, z/1000, -y/1000; then centre on the combined bounding box",
+    "scale": 0.001,
+    "sourceCentreMm": [
+      -0.674699,
+      -85.197903,
+      1508.220017
+    ],
+    "offsetMetres": [
+      -0.000675,
+      1.50822,
+      0.085198
+    ],
+    "offsetConvention": "bodyPosition = modelPosition + offsetMetres"
+  },
+  "changes": [
+    "Selected 1 source OBJ files from the official BodyParts3D 4.0 tables.",
+    "Merged each structure's source parts into one selectable mesh: 1 selectable nodes.",
+    "Converted millimetres and the Z-up axis to metres and Y-up, centred the combined model, and recomputed vertex normals.",
+    "Exported one uncompressed GLB with stable mesh names. No source colours or textures are used; surface colours are ours.",
+    "No teaching text is stored in the model or seed; the module is unpublished pending faculty review."
+  ],
+  "adaptations": [
+    "Grouped source files by the OBJ header Concept ID and English name so each named structure is one selectable node.",
+    "Large FMA systems are split into independently seeded modules because the viewer supports one GLB per system and each GLB must stay below the release budget."
+  ],
+  "license": {
+    "notice": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International",
+    "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+    "statements": [
+      {
+        "source": "BodyParts3D licence page (last updated 2025-02-27) and README_e.html",
+        "statement": "The license for this database is specified in the Creative Commons Attribution 4.0 International."
+      },
+      {
+        "source": "Header comment in all 3,492 distributed BodyParts3D 4.0 OBJ files",
+        "statement": "The license for this database is specified in the Creative Commons Attribution-Share Alike 2.1 Japan."
+      }
+    ],
+    "status": "Which licence applies is being clarified with the Database Center for Life Science (DBCLS).",
+    "adaptedModelTerms": "The adapted model file is offered under the same terms as the stricter statement, CC BY-SA 2.1 Japan."
+  },
+  "structures": [
+    {
+      "slug": "external-ear",
+      "meshName": "external_ear",
+      "layer": "external-ear",
+      "color": "#c96b6b",
+      "triangles": 2910,
+      "fma": [
+        "FMA52781"
+      ],
+      "files": [
+        {
+          "id": "FJ2811",
+          "archive": "IS-A",
+          "concept": "FMA52781",
+          "name": "External ear",
+          "sha256": "b56003f405585b23220d6fe6ad350abdb7ec5152eaee7dc81093af592860477b",
+          "triangles": 2910
+        }
+      ]
+    }
+  ],
+  "textOnly": [],
+  "checks": {
+    "uniqueMeshNames": true,
+    "uniqueSourceFiles": true,
+    "sourceHeadersVerified": true,
+    "sourceHashesVerified": true,
+    "unrepresentedStructures": "deferred; see docs/anatomy/provenance/README.md"
+  }
+}

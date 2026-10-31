@@ -1,0 +1,1679 @@
+{
+  "schemaVersion": 2,
+  "system": "digestive-hepatobiliary",
+  "model": {
+    "file": "digestive-hepatobiliary.v1.glb",
+    "bytes": 1869160,
+    "sha256": "6249f6ba0256a8ccbcdb9341b2cb855b52be9ab2d5c69b1fe847241391d02f96",
+    "triangles": 84834,
+    "structures": 48,
+    "textOnlyStructures": 0,
+    "totalStructures": 48
+  },
+  "sources": [
+    {
+      "tree": "PART-OF",
+      "dataset": "BodyParts3D 4.0",
+      "polygonReduction": "99%",
+      "archive": "partof_BP3D_4.0_obj_99.zip",
+      "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_BP3D_4.0_obj_99.zip",
+      "archiveBytes": 64888505,
+      "archiveEtag": "\"3de1eb9-4dd48e9fe8d00\"",
+      "archiveLastModified": "Wed, 22 May 2013 06:45:40 GMT",
+      "archiveSha256": "9fbc713fffeee924a5a657d9813d84d7eb957bded63adb854931dd5e3eb61c97",
+      "extractedObjFiles": 1258,
+      "usedFor": "digestive-hepatobiliary v1 build: 58 PART-OF source files.",
+      "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "licenseUpdated": "2025-02-27",
+      "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
+      "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
+    },
+    {
+      "tree": "IS-A",
+      "dataset": "BodyParts3D 4.0",
+      "polygonReduction": "99%",
+      "archive": "isa_BP3D_4.0_obj_99.zip",
+      "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/isa_BP3D_4.0_obj_99.zip",
+      "archiveBytes": 142903898,
+      "archiveEtag": "\"8848a5a-4dd48ec9df000\"",
+      "archiveLastModified": "Wed, 22 May 2013 06:46:24 GMT",
+      "archiveSha256": "40665852c49f218326590e204db91064a1ecfc3c6f8cbd7bbbcaac62c7cd409e",
+      "extractedObjFiles": 2234,
+      "usedFor": "digestive-hepatobiliary v1 build: no IS-A files used.",
+      "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "licenseUpdated": "2025-02-27",
+      "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
+      "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
+    }
+  ],
+  "transform": {
+    "sourceUnits": "millimetres",
+    "sourceUpAxis": "Z",
+    "targetUnits": "metres",
+    "targetUpAxis": "Y",
+    "mapping": "x/1000, z/1000, -y/1000; then centre on the combined bounding box",
+    "scale": 0.001,
+    "sourceCentreMm": [
+      -17.802298,
+      -124.546198,
+      1088.29999
+    ],
+    "offsetMetres": [
+      -0.017802,
+      1.0883,
+      0.124546
+    ],
+    "offsetConvention": "bodyPosition = modelPosition + offsetMetres"
+  },
+  "changes": [
+    "Selected 58 source OBJ files from the official BodyParts3D 4.0 tables.",
+    "Merged each structure's source parts into one selectable mesh: 48 selectable nodes.",
+    "Converted millimetres and the Z-up axis to metres and Y-up, centred the combined model, and recomputed vertex normals.",
+    "Exported one uncompressed GLB with stable mesh names. No source colours or textures are used; surface colours are ours.",
+    "No teaching text is stored in the model or seed; the module is unpublished pending faculty review."
+  ],
+  "adaptations": [
+    "Grouped source files by the OBJ header Concept ID and English name so each named structure is one selectable node.",
+    "Large FMA systems are split into independently seeded modules because the viewer supports one GLB per system and each GLB must stay below the release budget."
+  ],
+  "sharedStructures": [
+    {
+      "slug": "left-portal-vein",
+      "meshName": "left_portal_vein",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ1893",
+        "FJ2404"
+      ]
+    },
+    {
+      "slug": "right-portal-vein",
+      "meshName": "right_portal_vein",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ1913",
+        "FJ2405"
+      ]
+    },
+    {
+      "slug": "anterior-inferior-segmental-tributary-of-middle-hepatic-vein",
+      "meshName": "anterior_inferior_segmental_tributary_of_middle_hepatic_vein",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ3083",
+        "FJ3086"
+      ]
+    },
+    {
+      "slug": "right-hepatic-vein",
+      "meshName": "right_hepatic_vein",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ2416"
+      ]
+    },
+    {
+      "slug": "anterior-inferior-segmental-branch-of-right-portal-vein",
+      "meshName": "anterior_inferior_segmental_branch_of_right_portal_vein",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ3074"
+      ]
+    },
+    {
+      "slug": "posterior-superior-segmental-branch-of-right-portal-vein",
+      "meshName": "posterior_superior_segmental_branch_of_right_portal_vein",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ3112",
+        "FJ3113"
+      ]
+    },
+    {
+      "slug": "posterior-superior-segmental-hepatic-artery",
+      "meshName": "posterior_superior_segmental_hepatic_artery",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ3115",
+        "FJ3116"
+      ]
+    },
+    {
+      "slug": "lateral-superior-segmental-branch-of-left-portal-vein",
+      "meshName": "lateral_superior_segmental_branch_of_left_portal_vein",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ3126"
+      ]
+    },
+    {
+      "slug": "lateral-inferior-segmental-branch-of-left-portal-vein",
+      "meshName": "lateral_inferior_segmental_branch_of_left_portal_vein",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ3125"
+      ]
+    },
+    {
+      "slug": "posterior-inferior-segmental-branch-of-right-portal-vein",
+      "meshName": "posterior_inferior_segmental_branch_of_right_portal_vein",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ3111"
+      ]
+    },
+    {
+      "slug": "anterior-inferior-segmental-hepatic-artery",
+      "meshName": "anterior_inferior_segmental_hepatic_artery",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ3075"
+      ]
+    },
+    {
+      "slug": "medial-inferior-segmental-branch-of-left-portal-vein",
+      "meshName": "medial_inferior_segmental_branch_of_left_portal_vein",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ3128"
+      ]
+    },
+    {
+      "slug": "left-hepatic-vein",
+      "meshName": "left_hepatic_vein",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ2415"
+      ]
+    },
+    {
+      "slug": "trunk-of-left-hepatic-artery",
+      "meshName": "trunk_of_left_hepatic_artery",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ3095"
+      ]
+    },
+    {
+      "slug": "lateral-superior-segmental-hepatic-artery",
+      "meshName": "lateral_superior_segmental_hepatic_artery",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ3091",
+        "FJ3093"
+      ]
+    },
+    {
+      "slug": "medial-superior-segmental-branch-of-left-portal-vein",
+      "meshName": "medial_superior_segmental_branch_of_left_portal_vein",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ3127"
+      ]
+    },
+    {
+      "slug": "anterior-superior-segmental-hepatic-artery",
+      "meshName": "anterior_superior_segmental_hepatic_artery",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ3076"
+      ]
+    },
+    {
+      "slug": "posterior-inferior-segmental-hepatic-artery",
+      "meshName": "posterior_inferior_segmental_hepatic_artery",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ3114"
+      ]
+    },
+    {
+      "slug": "anterior-superior-segmental-branch-of-right-portal-vein",
+      "meshName": "anterior_superior_segmental_branch_of_right_portal_vein",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ3073"
+      ]
+    },
+    {
+      "slug": "medial-inferior-segmental-hepatic-artery",
+      "meshName": "medial_inferior_segmental_hepatic_artery",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ3106"
+      ]
+    },
+    {
+      "slug": "trunk-of-left-portal-vein",
+      "meshName": "trunk_of_left_portal_vein",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ3102"
+      ]
+    },
+    {
+      "slug": "caudate-lobe-branch-of-right-hepatic-artery",
+      "meshName": "caudate_lobe_branch_of_right_hepatic_artery",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ1916",
+        "FJ2386"
+      ]
+    },
+    {
+      "slug": "lateral-inferior-segmental-hepatic-artery",
+      "meshName": "lateral_inferior_segmental_hepatic_artery",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ3092"
+      ]
+    },
+    {
+      "slug": "medial-superior-segmental-hepatic-artery",
+      "meshName": "medial_superior_segmental_hepatic_artery",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ3107"
+      ]
+    },
+    {
+      "slug": "caudate-lobe-branch-of-left-portal-vein",
+      "meshName": "caudate_lobe_branch_of_left_portal_vein",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ3124"
+      ]
+    },
+    {
+      "slug": "trunk-of-right-hepatic-artery",
+      "meshName": "trunk_of_right_hepatic_artery",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ3117"
+      ]
+    },
+    {
+      "slug": "caudate-lobe-branch-of-left-hepatic-artery",
+      "meshName": "caudate_lobe_branch_of_left_hepatic_artery",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ3077"
+      ]
+    },
+    {
+      "slug": "hepatic-artery-proper",
+      "meshName": "hepatic_artery_proper",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ3081"
+      ]
+    },
+    {
+      "slug": "caudate-lobe-branch-of-right-portal-vein",
+      "meshName": "caudate_lobe_branch_of_right_portal_vein",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ1914"
+      ]
+    },
+    {
+      "slug": "trunk-of-right-portal-vein",
+      "meshName": "trunk_of_right_portal_vein",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        "FJ3122"
+      ]
+    }
+  ],
+  "orientation": {
+    "sourceFrame": {
+      "units": "millimetres",
+      "upAxis": "Z",
+      "patientLeftAxis": "+X",
+      "centroidX": {
+        "left_portal_vein": -16.314893,
+        "right_portal_vein": -66.579246,
+        "left_hepatic_vein": 27.806017,
+        "right_hepatic_vein": -64.685821,
+        "left_hepatic_duct": -12.620665,
+        "right_hepatic_duct": -26.538242
+      }
+    },
+    "outputFrame": {
+      "units": "metres",
+      "upAxis": "Y",
+      "patientLeftAxis": "+X",
+      "centroidX": {
+        "left_portal_vein": 0.001487,
+        "right_portal_vein": -0.048777,
+        "left_hepatic_vein": 0.045608,
+        "right_hepatic_vein": -0.046884,
+        "left_hepatic_duct": 0.005182,
+        "right_hepatic_duct": -0.008736
+      }
+    },
+    "checks": [
+      {
+        "left": "left_portal_vein",
+        "right": "right_portal_vein"
+      },
+      {
+        "left": "left_hepatic_vein",
+        "right": "right_hepatic_vein"
+      },
+      {
+        "left": "left_hepatic_duct",
+        "right": "right_hepatic_duct"
+      }
+    ],
+    "viewer": "Camera looks from +Z toward the origin; patient left is +X (the viewer's right). The viewer renders no on-screen orientation marker."
+  },
+  "license": {
+    "notice": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International",
+    "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+    "statements": [
+      {
+        "source": "BodyParts3D licence page (last updated 2025-02-27) and README_e.html",
+        "statement": "The license for this database is specified in the Creative Commons Attribution 4.0 International."
+      },
+      {
+        "source": "Header comment in all 3,492 distributed BodyParts3D 4.0 OBJ files",
+        "statement": "The license for this database is specified in the Creative Commons Attribution-Share Alike 2.1 Japan."
+      }
+    ],
+    "status": "Which licence applies is being clarified with the Database Center for Life Science (DBCLS).",
+    "adaptedModelTerms": "The adapted model file is offered under the same terms as the stricter statement, CC BY-SA 2.1 Japan."
+  },
+  "structures": [
+    {
+      "slug": "left-portal-vein",
+      "meshName": "left_portal_vein",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 8060,
+      "fma": [
+        "FMA15415"
+      ],
+      "laterality": "left",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ1893",
+          "archive": "PART-OF",
+          "concept": "FMA15415",
+          "name": "Left portal vein",
+          "sha256": "c92536c5059b17366769bfb48700bc3aa3d1500f9c0e21d94f9cd98e3e9372a6",
+          "triangles": 1354
+        },
+        {
+          "id": "FJ2404",
+          "archive": "PART-OF",
+          "concept": "FMA15415",
+          "name": "Left portal vein",
+          "sha256": "316a7b553981cafff7ac1279140251cff0c6a88d4cf91f5d729cdb02702405b8",
+          "triangles": 6706
+        }
+      ]
+    },
+    {
+      "slug": "right-portal-vein",
+      "meshName": "right_portal_vein",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 6516,
+      "fma": [
+        "FMA15414"
+      ],
+      "laterality": "right",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ1913",
+          "archive": "PART-OF",
+          "concept": "FMA15414",
+          "name": "Right portal vein",
+          "sha256": "a305c27d3f093693dcd36b79d17494eec4b854623abd5ef1bf9b8cfcc1924fef",
+          "triangles": 3286
+        },
+        {
+          "id": "FJ2405",
+          "archive": "PART-OF",
+          "concept": "FMA15414",
+          "name": "Right portal vein",
+          "sha256": "dbeafcb261e23112037b6616d8ffd130f9c96d9e30e70d61855e2f7ef71fccc1",
+          "triangles": 3230
+        }
+      ]
+    },
+    {
+      "slug": "anterior-inferior-segmental-tributary-of-middle-hepatic-vein",
+      "meshName": "anterior_inferior_segmental_tributary_of_middle_hepatic_vein",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 3796,
+      "fma": [
+        "FMA15800"
+      ],
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ3083",
+          "archive": "PART-OF",
+          "concept": "FMA15800",
+          "name": "Anterior inferior segmental tributary of middle hepatic vein",
+          "sha256": "2d5997d5b9ac3ef4bc8461779eed5fe77feadcd0c3ef21bea43f9ee2cb73e90c",
+          "triangles": 2806
+        },
+        {
+          "id": "FJ3086",
+          "archive": "PART-OF",
+          "concept": "FMA15800",
+          "name": "Anterior inferior segmental tributary of middle hepatic vein",
+          "sha256": "974e8d71edc4a0de74480bc4f4a3431082daf60922109f3a0f644d9f953b4af5",
+          "triangles": 990
+        }
+      ]
+    },
+    {
+      "slug": "right-hepatic-vein",
+      "meshName": "right_hepatic_vein",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 3538,
+      "fma": [
+        "FMA14338"
+      ],
+      "laterality": "right",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ2416",
+          "archive": "PART-OF",
+          "concept": "FMA14338",
+          "name": "Right hepatic vein",
+          "sha256": "0e239c38accb79c114d9214e97cd2e8c96b29913c37725325e2942e1af2980ee",
+          "triangles": 3538
+        }
+      ]
+    },
+    {
+      "slug": "anterior-inferior-segmental-branch-of-right-portal-vein",
+      "meshName": "anterior_inferior_segmental_branch_of_right_portal_vein",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 2832,
+      "fma": [
+        "FMA15421"
+      ],
+      "laterality": "right",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ3074",
+          "archive": "PART-OF",
+          "concept": "FMA15421",
+          "name": "Anterior inferior segmental branch of right portal vein",
+          "sha256": "8de7ebf4db8679e5db99cdedceb59df6a43c4e33e4cf707e1e4666cd6e50679b",
+          "triangles": 2832
+        }
+      ]
+    },
+    {
+      "slug": "posterior-superior-segmental-branch-of-right-portal-vein",
+      "meshName": "posterior_superior_segmental_branch_of_right_portal_vein",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 2812,
+      "fma": [
+        "FMA15423"
+      ],
+      "laterality": "right",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ3112",
+          "archive": "PART-OF",
+          "concept": "FMA15423",
+          "name": "Posterior superior segmental branch of right portal vein",
+          "sha256": "86d033cb87c87b08a0a387c9b40b94ae3507af62aa969ec9b3f81b2a827a513f",
+          "triangles": 1100
+        },
+        {
+          "id": "FJ3113",
+          "archive": "PART-OF",
+          "concept": "FMA15423",
+          "name": "Posterior superior segmental branch of right portal vein",
+          "sha256": "cf50d8358b5612e561d32099f85e46826a1e2eec087d6326adbbebc477bb1d19",
+          "triangles": 1712
+        }
+      ]
+    },
+    {
+      "slug": "posterior-superior-segmental-hepatic-artery",
+      "meshName": "posterior_superior_segmental_hepatic_artery",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 2430,
+      "fma": [
+        "FMA70445"
+      ],
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ3115",
+          "archive": "PART-OF",
+          "concept": "FMA70445",
+          "name": "Posterior superior segmental hepatic artery",
+          "sha256": "0b91de2f1433e506092600fbc25ddca37b9c5254858196de31b3c9b69f9ba4e6",
+          "triangles": 1616
+        },
+        {
+          "id": "FJ3116",
+          "archive": "PART-OF",
+          "concept": "FMA70445",
+          "name": "Posterior superior segmental hepatic artery",
+          "sha256": "3fa2c973eb6a00e00972035a8926794f03e7b04cccf0ec4fa80ee30e85170f29",
+          "triangles": 814
+        }
+      ]
+    },
+    {
+      "slug": "lateral-superior-segmental-branch-of-left-portal-vein",
+      "meshName": "lateral_superior_segmental_branch_of_left_portal_vein",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 2364,
+      "fma": [
+        "FMA15431"
+      ],
+      "laterality": "left",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ3126",
+          "archive": "PART-OF",
+          "concept": "FMA15431",
+          "name": "Lateral superior segmental branch of left portal vein",
+          "sha256": "c21b4c470358525f91162c4a0bff632f6bd25e09d2ad1b6df10ef2df09cb54b8",
+          "triangles": 2364
+        }
+      ]
+    },
+    {
+      "slug": "lateral-inferior-segmental-branch-of-left-portal-vein",
+      "meshName": "lateral_inferior_segmental_branch_of_left_portal_vein",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 2284,
+      "fma": [
+        "FMA15432"
+      ],
+      "laterality": "left",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ3125",
+          "archive": "PART-OF",
+          "concept": "FMA15432",
+          "name": "Lateral inferior segmental branch of left portal vein",
+          "sha256": "adf3f9e59b7f0823541a33214fd1b0c127c7cb9d917b48a7fd3075522a74cd9d",
+          "triangles": 2284
+        }
+      ]
+    },
+    {
+      "slug": "posterior-inferior-segmental-branch-of-right-portal-vein",
+      "meshName": "posterior_inferior_segmental_branch_of_right_portal_vein",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 2194,
+      "fma": [
+        "FMA15424"
+      ],
+      "laterality": "right",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ3111",
+          "archive": "PART-OF",
+          "concept": "FMA15424",
+          "name": "Posterior inferior segmental branch of right portal vein",
+          "sha256": "be81ba12835c12dcfc80ec9bff9afac3bfb0508b3cad4063de981caa60dfee0c",
+          "triangles": 2194
+        }
+      ]
+    },
+    {
+      "slug": "anterior-inferior-segmental-hepatic-artery",
+      "meshName": "anterior_inferior_segmental_hepatic_artery",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 1666,
+      "fma": [
+        "FMA70443"
+      ],
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ3075",
+          "archive": "PART-OF",
+          "concept": "FMA70443",
+          "name": "Anterior inferior segmental hepatic artery",
+          "sha256": "d0aa3b26c1866580abbfa1f9bf44b4d2bc9302ddda0838605b738a3eea912597",
+          "triangles": 1666
+        }
+      ]
+    },
+    {
+      "slug": "medial-inferior-segmental-branch-of-left-portal-vein",
+      "meshName": "medial_inferior_segmental_branch_of_left_portal_vein",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 1660,
+      "fma": [
+        "FMA15429"
+      ],
+      "laterality": "left",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ3128",
+          "archive": "PART-OF",
+          "concept": "FMA15429",
+          "name": "Medial inferior segmental branch of left portal vein",
+          "sha256": "c5586090113b7e556268612565d98737aca9eeceddd11c8d070110f883e00932",
+          "triangles": 1660
+        }
+      ]
+    },
+    {
+      "slug": "left-hepatic-vein",
+      "meshName": "left_hepatic_vein",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 1386,
+      "fma": [
+        "FMA14339"
+      ],
+      "laterality": "left",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ2415",
+          "archive": "PART-OF",
+          "concept": "FMA14339",
+          "name": "Left hepatic vein",
+          "sha256": "f6f2d7c03cf24362c80741608d5e8bdcc1c259bd17aaf19fd2ab974be6220a3c",
+          "triangles": 1386
+        }
+      ]
+    },
+    {
+      "slug": "trunk-of-left-hepatic-artery",
+      "meshName": "trunk_of_left_hepatic_artery",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 1328,
+      "fma": [
+        "FMA70457"
+      ],
+      "laterality": "left",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ3095",
+          "archive": "PART-OF",
+          "concept": "FMA70457",
+          "name": "Trunk of left hepatic artery",
+          "sha256": "e53e52448e647cb04154eb2f1f1ae1823c9672aa495d369a0dacf36408675f21",
+          "triangles": 1328
+        }
+      ]
+    },
+    {
+      "slug": "lateral-superior-segmental-hepatic-artery",
+      "meshName": "lateral_superior_segmental_hepatic_artery",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 1256,
+      "fma": [
+        "FMA70452"
+      ],
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ3091",
+          "archive": "PART-OF",
+          "concept": "FMA70452",
+          "name": "Lateral superior segmental hepatic artery",
+          "sha256": "e9d8c27658e99f33f81f8babae551404b526b5eec7814befd73157966dedd8e6",
+          "triangles": 598
+        },
+        {
+          "id": "FJ3093",
+          "archive": "PART-OF",
+          "concept": "FMA70452",
+          "name": "Lateral superior segmental hepatic artery",
+          "sha256": "5eee760c2aec02f46a9976870c184f1ec61079155bf92f67b59cf962c3803a7f",
+          "triangles": 658
+        }
+      ]
+    },
+    {
+      "slug": "medial-superior-segmental-branch-of-left-portal-vein",
+      "meshName": "medial_superior_segmental_branch_of_left_portal_vein",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 1162,
+      "fma": [
+        "FMA15428"
+      ],
+      "laterality": "left",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ3127",
+          "archive": "PART-OF",
+          "concept": "FMA15428",
+          "name": "Medial superior segmental branch of left portal vein",
+          "sha256": "8e265e380cefb97c042957abc9c65180dcc59669dcd91888008483a2b601353f",
+          "triangles": 1162
+        }
+      ]
+    },
+    {
+      "slug": "anterior-superior-segmental-hepatic-artery",
+      "meshName": "anterior_superior_segmental_hepatic_artery",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 892,
+      "fma": [
+        "FMA70442"
+      ],
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ3076",
+          "archive": "PART-OF",
+          "concept": "FMA70442",
+          "name": "Anterior superior segmental hepatic artery",
+          "sha256": "45223049350ffe29c9b4842c832efa9248fb60bc16955db35fbfd3b7953ba8da",
+          "triangles": 892
+        }
+      ]
+    },
+    {
+      "slug": "posterior-inferior-segmental-hepatic-artery",
+      "meshName": "posterior_inferior_segmental_hepatic_artery",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 772,
+      "fma": [
+        "FMA70446"
+      ],
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ3114",
+          "archive": "PART-OF",
+          "concept": "FMA70446",
+          "name": "Posterior inferior segmental hepatic artery",
+          "sha256": "a234049c9964ccf5042b9b20030c08824ac58ec80b758a2546f3027533c86706",
+          "triangles": 772
+        }
+      ]
+    },
+    {
+      "slug": "anterior-superior-segmental-branch-of-right-portal-vein",
+      "meshName": "anterior_superior_segmental_branch_of_right_portal_vein",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 770,
+      "fma": [
+        "FMA15420"
+      ],
+      "laterality": "right",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ3073",
+          "archive": "PART-OF",
+          "concept": "FMA15420",
+          "name": "Anterior superior segmental branch of right portal vein",
+          "sha256": "d5a6c22e5680ecf272e36b26bc387279e76d99ea7e6cd0637b69570b6da1159a",
+          "triangles": 770
+        }
+      ]
+    },
+    {
+      "slug": "medial-inferior-segmental-hepatic-artery",
+      "meshName": "medial_inferior_segmental_hepatic_artery",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 754,
+      "fma": [
+        "FMA70450"
+      ],
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ3106",
+          "archive": "PART-OF",
+          "concept": "FMA70450",
+          "name": "Medial inferior segmental hepatic artery",
+          "sha256": "6a915804cff8434c4cddc3cb21ae643480fbee3eb6b0838037d51c4d1c1148e4",
+          "triangles": 754
+        }
+      ]
+    },
+    {
+      "slug": "trunk-of-left-portal-vein",
+      "meshName": "trunk_of_left_portal_vein",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 730,
+      "fma": [
+        "FMA82697"
+      ],
+      "laterality": "left",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ3102",
+          "archive": "PART-OF",
+          "concept": "FMA82697",
+          "name": "Trunk of left portal vein",
+          "sha256": "34942cd65cf922f32fdacf165ceab2f35a90f074a2bf3e342abe5d4b8b90ce80",
+          "triangles": 730
+        }
+      ]
+    },
+    {
+      "slug": "caudate-lobe-branch-of-right-hepatic-artery",
+      "meshName": "caudate_lobe_branch_of_right_hepatic_artery",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 724,
+      "fma": [
+        "FMA70447"
+      ],
+      "laterality": "right",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ1916",
+          "archive": "PART-OF",
+          "concept": "FMA70447",
+          "name": "Caudate lobe branch of right hepatic artery",
+          "sha256": "5d19f212509f20499e3a7c1f8c7e80d4bb84c0a0d4a0afcb42d4a0f6146c0b64",
+          "triangles": 362
+        },
+        {
+          "id": "FJ2386",
+          "archive": "PART-OF",
+          "concept": "FMA70447",
+          "name": "Caudate lobe branch of right hepatic artery",
+          "sha256": "4669f05fe9d27ef45b2a183b8a21676314d3b11d9491cb497bd93487bf55133b",
+          "triangles": 362
+        }
+      ]
+    },
+    {
+      "slug": "lateral-inferior-segmental-hepatic-artery",
+      "meshName": "lateral_inferior_segmental_hepatic_artery",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 618,
+      "fma": [
+        "FMA70453"
+      ],
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ3092",
+          "archive": "PART-OF",
+          "concept": "FMA70453",
+          "name": "Lateral inferior segmental hepatic artery",
+          "sha256": "4e0facfaf6fcf60d1709143982ed5c40dc45fadbb39cc61262908bf12d2a2ac6",
+          "triangles": 618
+        }
+      ]
+    },
+    {
+      "slug": "medial-superior-segmental-hepatic-artery",
+      "meshName": "medial_superior_segmental_hepatic_artery",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 612,
+      "fma": [
+        "FMA70449"
+      ],
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ3107",
+          "archive": "PART-OF",
+          "concept": "FMA70449",
+          "name": "Medial superior segmental hepatic artery",
+          "sha256": "0cb461fc8492d383e8acfb946d9fbf568b011644b9855b1c65059253d66398b3",
+          "triangles": 612
+        }
+      ]
+    },
+    {
+      "slug": "caudate-lobe-branch-of-left-portal-vein",
+      "meshName": "caudate_lobe_branch_of_left_portal_vein",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 494,
+      "fma": [
+        "FMA15425"
+      ],
+      "laterality": "left",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ3124",
+          "archive": "PART-OF",
+          "concept": "FMA15425",
+          "name": "Caudate lobe branch of left portal vein",
+          "sha256": "a5427ce74353d9c3a2eb535961c78e5aae25a6d57a1e35100c304b000b906403",
+          "triangles": 494
+        }
+      ]
+    },
+    {
+      "slug": "trunk-of-right-hepatic-artery",
+      "meshName": "trunk_of_right_hepatic_artery",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 442,
+      "fma": [
+        "FMA70456"
+      ],
+      "laterality": "right",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ3117",
+          "archive": "PART-OF",
+          "concept": "FMA70456",
+          "name": "Trunk of right hepatic artery",
+          "sha256": "ba48e5808de07cdaf52ef051062651be5db56862f305f6648d0537938dd41b23",
+          "triangles": 442
+        }
+      ]
+    },
+    {
+      "slug": "caudate-lobe-branch-of-left-hepatic-artery",
+      "meshName": "caudate_lobe_branch_of_left_hepatic_artery",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 430,
+      "fma": [
+        "FMA70455"
+      ],
+      "laterality": "left",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ3077",
+          "archive": "PART-OF",
+          "concept": "FMA70455",
+          "name": "Caudate lobe branch of left hepatic artery",
+          "sha256": "67bd46a0f91ca9d635f6d7750e96452a72586dc7df2b592be7198ac3d28fe72b",
+          "triangles": 430
+        }
+      ]
+    },
+    {
+      "slug": "hepatic-artery-proper",
+      "meshName": "hepatic_artery_proper",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 358,
+      "fma": [
+        "FMA14772"
+      ],
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ3081",
+          "archive": "PART-OF",
+          "concept": "FMA14772",
+          "name": "Hepatic artery proper",
+          "sha256": "bf69f9eb22bdde959860b0c2f13e00399126f69cc3e608dcf2fa364950d0a467",
+          "triangles": 358
+        }
+      ]
+    },
+    {
+      "slug": "caudate-lobe-branch-of-right-portal-vein",
+      "meshName": "caudate_lobe_branch_of_right_portal_vein",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 316,
+      "fma": [
+        "FMA82706"
+      ],
+      "laterality": "right",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ1914",
+          "archive": "PART-OF",
+          "concept": "FMA82706",
+          "name": "Caudate lobe branch of right portal vein",
+          "sha256": "48313d7172ce57ada4fecbaedf82ab5420193bf958b3d74e2397d03c129fa992",
+          "triangles": 316
+        }
+      ]
+    },
+    {
+      "slug": "trunk-of-right-portal-vein",
+      "meshName": "trunk_of_right_portal_vein",
+      "layer": "hepatic-vessels",
+      "color": "#c96b6b",
+      "triangles": 206,
+      "fma": [
+        "FMA82695"
+      ],
+      "laterality": "right",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ3122",
+          "archive": "PART-OF",
+          "concept": "FMA82695",
+          "name": "Trunk of right portal vein",
+          "sha256": "ff00a9830cf1ab18c4de3186ddce1920d62daffe57ec51d6adc6bd64cd13beab",
+          "triangles": 206
+        }
+      ]
+    },
+    {
+      "slug": "gallbladder",
+      "meshName": "gallbladder",
+      "layer": "biliary",
+      "color": "#b95757",
+      "triangles": 2396,
+      "fma": [
+        "FMA7202"
+      ],
+      "files": [
+        {
+          "id": "FJ2817",
+          "archive": "PART-OF",
+          "concept": "FMA7202",
+          "name": "Gallbladder",
+          "sha256": "625af13ef374a4df98eb5e51f9c2201a1436ca33168ce4deb277ce811c3fb8c8",
+          "triangles": 2396
+        }
+      ]
+    },
+    {
+      "slug": "posterior-superior-tributary-of-right-hepatic-biliary-tree",
+      "meshName": "posterior_superior_tributary_of_right_hepatic_biliary_tree",
+      "layer": "biliary",
+      "color": "#b95757",
+      "triangles": 1824,
+      "fma": [
+        "FMA71869"
+      ],
+      "laterality": "right",
+      "files": [
+        {
+          "id": "FJ3109",
+          "archive": "PART-OF",
+          "concept": "FMA71869",
+          "name": "Posterior superior tributary of right hepatic biliary tree",
+          "sha256": "37a65eb6bdb90b815de604952b35649a4b7433c34dc2cb1b099889a83a4f4bc4",
+          "triangles": 628
+        },
+        {
+          "id": "FJ3110",
+          "archive": "PART-OF",
+          "concept": "FMA71869",
+          "name": "Posterior superior tributary of right hepatic biliary tree",
+          "sha256": "b562dd3f3bcf6a520d382ce41aa95536b37568949aec3c3ed23226a682f0743b",
+          "triangles": 1196
+        }
+      ]
+    },
+    {
+      "slug": "anterior-inferior-tributary-of-right-hepatic-biliary-tree",
+      "meshName": "anterior_inferior_tributary_of_right_hepatic_biliary_tree",
+      "layer": "biliary",
+      "color": "#b95757",
+      "triangles": 1708,
+      "fma": [
+        "FMA71868"
+      ],
+      "laterality": "right",
+      "files": [
+        {
+          "id": "FJ3072",
+          "archive": "PART-OF",
+          "concept": "FMA71868",
+          "name": "Anterior inferior tributary of right hepatic biliary tree",
+          "sha256": "0e5ec3bfde87ac0924359c11e59f62a1559fc8692ac4c40c54049c3eb5f1c712",
+          "triangles": 1708
+        }
+      ]
+    },
+    {
+      "slug": "lateral-superior-tributary-of-left-hepatic-biliary-tree",
+      "meshName": "lateral_superior_tributary_of_left_hepatic_biliary_tree",
+      "layer": "biliary",
+      "color": "#b95757",
+      "triangles": 1416,
+      "fma": [
+        "FMA71887"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ3088",
+          "archive": "PART-OF",
+          "concept": "FMA71887",
+          "name": "Lateral superior tributary of left hepatic biliary tree",
+          "sha256": "b4d46c97bc201e818a86f794a3d3342c99252770eb828465d3a39129adeec44c",
+          "triangles": 608
+        },
+        {
+          "id": "FJ3090",
+          "archive": "PART-OF",
+          "concept": "FMA71887",
+          "name": "Lateral superior tributary of left hepatic biliary tree",
+          "sha256": "08269713ea808adcc06cddeedfc5a6560e402518a7ea8feab456d2a6618656b4",
+          "triangles": 808
+        }
+      ]
+    },
+    {
+      "slug": "common-hepatic-duct",
+      "meshName": "common_hepatic_duct",
+      "layer": "biliary",
+      "color": "#b95757",
+      "triangles": 1364,
+      "fma": [
+        "FMA14668"
+      ],
+      "files": [
+        {
+          "id": "FJ3079",
+          "archive": "PART-OF",
+          "concept": "FMA14668",
+          "name": "Common hepatic duct",
+          "sha256": "3a7275527584d73fae6e8909ddbcc2badf176ca6141cb8ae4cfaf2fbb51f01c4",
+          "triangles": 1364
+        }
+      ]
+    },
+    {
+      "slug": "medial-superior-tributary-of-left-hepatic-biliary-tree",
+      "meshName": "medial_superior_tributary_of_left_hepatic_biliary_tree",
+      "layer": "biliary",
+      "color": "#b95757",
+      "triangles": 1064,
+      "fma": [
+        "FMA71885"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ3104",
+          "archive": "PART-OF",
+          "concept": "FMA71885",
+          "name": "Medial superior tributary of left hepatic biliary tree",
+          "sha256": "8a78e25b0446fe08a18ae2c55c021951640274f8a5194205ee5d7d6ba691f7cf",
+          "triangles": 570
+        },
+        {
+          "id": "FJ3105",
+          "archive": "PART-OF",
+          "concept": "FMA71885",
+          "name": "Medial superior tributary of left hepatic biliary tree",
+          "sha256": "ca3519645aec712c6f25749609888241124ca9047063a352b77279d19b61a47e",
+          "triangles": 494
+        }
+      ]
+    },
+    {
+      "slug": "posterior-inferior-tributary-of-right-hepatic-biliary-tree",
+      "meshName": "posterior_inferior_tributary_of_right_hepatic_biliary_tree",
+      "layer": "biliary",
+      "color": "#b95757",
+      "triangles": 870,
+      "fma": [
+        "FMA71870"
+      ],
+      "laterality": "right",
+      "files": [
+        {
+          "id": "FJ3108",
+          "archive": "PART-OF",
+          "concept": "FMA71870",
+          "name": "Posterior inferior tributary of right hepatic biliary tree",
+          "sha256": "751c75af681299c75f8424a589e0aade0d1c15e31056ad2ed48d3ccd70a24c83",
+          "triangles": 870
+        }
+      ]
+    },
+    {
+      "slug": "left-hepatic-duct",
+      "meshName": "left_hepatic_duct",
+      "layer": "biliary",
+      "color": "#b95757",
+      "triangles": 848,
+      "fma": [
+        "FMA14670"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ3096",
+          "archive": "PART-OF",
+          "concept": "FMA14670",
+          "name": "Left hepatic duct",
+          "sha256": "c4f34b49d7a1b657ac99631a0614b283ff3cff231bfcb4d41a5ed48b4c8ab15b",
+          "triangles": 848
+        }
+      ]
+    },
+    {
+      "slug": "medial-inferior-tributary-of-left-hepatic-biliary-tree",
+      "meshName": "medial_inferior_tributary_of_left_hepatic_biliary_tree",
+      "layer": "biliary",
+      "color": "#b95757",
+      "triangles": 698,
+      "fma": [
+        "FMA71886"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ3103",
+          "archive": "PART-OF",
+          "concept": "FMA71886",
+          "name": "Medial inferior tributary of left hepatic biliary tree",
+          "sha256": "651f3eea6af28fc2fc9ae0431260661bc9709b1bfda5d3cd56475fbb330bf3cd",
+          "triangles": 698
+        }
+      ]
+    },
+    {
+      "slug": "anterior-superior-tributary-of-right-hepatic-biliary-tree",
+      "meshName": "anterior_superior_tributary_of_right_hepatic_biliary_tree",
+      "layer": "biliary",
+      "color": "#b95757",
+      "triangles": 686,
+      "fma": [
+        "FMA71867"
+      ],
+      "laterality": "right",
+      "files": [
+        {
+          "id": "FJ3071",
+          "archive": "PART-OF",
+          "concept": "FMA71867",
+          "name": "Anterior superior tributary of right hepatic biliary tree",
+          "sha256": "818576ec6fe49301bb43a34df894f22b6e2af846c59ed5a41ba826e2e66dd0df",
+          "triangles": 686
+        }
+      ]
+    },
+    {
+      "slug": "lateral-inferior-tributary-of-left-hepatic-biliary-tree",
+      "meshName": "lateral_inferior_tributary_of_left_hepatic_biliary_tree",
+      "layer": "biliary",
+      "color": "#b95757",
+      "triangles": 664,
+      "fma": [
+        "FMA71888"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ3089",
+          "archive": "PART-OF",
+          "concept": "FMA71888",
+          "name": "Lateral inferior tributary of left hepatic biliary tree",
+          "sha256": "8fcc701eabba3de0ed5c7796dc668d78286150901081abd44a69f1a0757de02f",
+          "triangles": 664
+        }
+      ]
+    },
+    {
+      "slug": "caudate-lobe-tributary-of-left-hepatic-biliary-tree",
+      "meshName": "caudate_lobe_tributary_of_left_hepatic_biliary_tree",
+      "layer": "biliary",
+      "color": "#b95757",
+      "triangles": 428,
+      "fma": [
+        "FMA71889"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1883",
+          "archive": "PART-OF",
+          "concept": "FMA71889",
+          "name": "Caudate lobe tributary of left hepatic biliary tree",
+          "sha256": "305fb8169521520bd373a91e8825597d4dc8200e522e2239b520ca4d1bc67d6e",
+          "triangles": 428
+        }
+      ]
+    },
+    {
+      "slug": "cystic-duct",
+      "meshName": "cystic_duct",
+      "layer": "biliary",
+      "color": "#b95757",
+      "triangles": 278,
+      "fma": [
+        "FMA14539"
+      ],
+      "files": [
+        {
+          "id": "FJ3080",
+          "archive": "PART-OF",
+          "concept": "FMA14539",
+          "name": "Cystic duct",
+          "sha256": "80484b44aa66eac24bd6b2654bf44bd4ea7db72f58354a4d8892a7efd1232bab",
+          "triangles": 278
+        }
+      ]
+    },
+    {
+      "slug": "right-hepatic-duct",
+      "meshName": "right_hepatic_duct",
+      "layer": "biliary",
+      "color": "#b95757",
+      "triangles": 226,
+      "fma": [
+        "FMA14669"
+      ],
+      "laterality": "right",
+      "files": [
+        {
+          "id": "FJ3123",
+          "archive": "PART-OF",
+          "concept": "FMA14669",
+          "name": "Right hepatic duct",
+          "sha256": "67c97c70cce9aed074743d4b3ceba046d34e1d3b05bc5ca35e39a37499e7a66d",
+          "triangles": 226
+        }
+      ]
+    },
+    {
+      "slug": "pancreas",
+      "meshName": "pancreas",
+      "layer": "pancreas",
+      "color": "#d08a5f",
+      "triangles": 4890,
+      "fma": [
+        "FMA7198"
+      ],
+      "files": [
+        {
+          "id": "FJ1895",
+          "archive": "PART-OF",
+          "concept": "FMA7198",
+          "name": "Pancreas",
+          "sha256": "fea8a371ac940fb8c5c13e9d459af6c2bd50e1b499f8989c63883a7db0f149ae",
+          "triangles": 4890
+        }
+      ]
+    },
+    {
+      "slug": "pancreatic-duct-tree",
+      "meshName": "pancreatic_duct_tree",
+      "layer": "pancreas",
+      "color": "#d08a5f",
+      "triangles": 4432,
+      "fma": [
+        "FMA63103"
+      ],
+      "files": [
+        {
+          "id": "FJ2630",
+          "archive": "PART-OF",
+          "concept": "FMA63103",
+          "name": "Pancreatic duct tree",
+          "sha256": "50cee3fbe96c857f11a9de653e603ecd0b24b2a9b1d3cc1e53c711ca2ae2b6cc",
+          "triangles": 4432
+        }
+      ]
+    },
+    {
+      "slug": "parenchyma-of-pancreas",
+      "meshName": "parenchyma_of_pancreas",
+      "layer": "pancreas",
+      "color": "#d08a5f",
+      "triangles": 4272,
+      "fma": [
+        "FMA63120"
+      ],
+      "files": [
+        {
+          "id": "FJ2629",
+          "archive": "PART-OF",
+          "concept": "FMA63120",
+          "name": "Parenchyma of pancreas",
+          "sha256": "a1b00fb55bd8f6f40f2eee606730f9e72daefb4b6b36f6d0207791b64d291669",
+          "triangles": 4272
+        }
+      ]
+    },
+    {
+      "slug": "pancreatic-duct",
+      "meshName": "pancreatic_duct",
+      "layer": "pancreas",
+      "color": "#d08a5f",
+      "triangles": 3368,
+      "fma": [
+        "FMA10419"
+      ],
+      "files": [
+        {
+          "id": "FJ1896",
+          "archive": "PART-OF",
+          "concept": "FMA10419",
+          "name": "Pancreatic duct",
+          "sha256": "17213b1a13963da2a60c792ac6f4047268890f1836d9d03e0383f783b7b73312",
+          "triangles": 3368
+        }
+      ]
+    }
+  ],
+  "textOnly": [],
+  "checks": {
+    "uniqueMeshNames": true,
+    "uniqueSourceFiles": true,
+    "sourceHeadersVerified": true,
+    "sourceHashesVerified": true,
+    "orientationVerified": true,
+    "unrepresentedStructures": "deferred; see docs/anatomy/provenance/README.md"
+  }
+}

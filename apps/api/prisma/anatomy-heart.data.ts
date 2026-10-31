@@ -21,7 +21,10 @@
 export interface AnatomyStructureSeed {
   slug: string;
   name: string;
-  latinName: string;
+  // BodyParts3D supplies English names only. New systems leave this null
+  // rather than inventing a Latin name; heart and urinary keep their curated
+  // values.
+  latinName: string | null;
   summary: string;
   location: string;
   function: string;

@@ -1,0 +1,869 @@
+{
+  "schemaVersion": 2,
+  "system": "digestive-lower",
+  "model": {
+    "file": "digestive-lower.v1.glb",
+    "bytes": 3590876,
+    "sha256": "bb9988de55c80dacb046d61d1e396fdc46904aaffe4efa3b67b0fe60d59c60df",
+    "triangles": 116642,
+    "structures": 19,
+    "textOnlyStructures": 0,
+    "totalStructures": 19
+  },
+  "sources": [
+    {
+      "tree": "PART-OF",
+      "dataset": "BodyParts3D 4.0",
+      "polygonReduction": "99%",
+      "archive": "partof_BP3D_4.0_obj_99.zip",
+      "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_BP3D_4.0_obj_99.zip",
+      "archiveBytes": 64888505,
+      "archiveEtag": "\"3de1eb9-4dd48e9fe8d00\"",
+      "archiveLastModified": "Wed, 22 May 2013 06:45:40 GMT",
+      "archiveSha256": "9fbc713fffeee924a5a657d9813d84d7eb957bded63adb854931dd5e3eb61c97",
+      "extractedObjFiles": 1258,
+      "usedFor": "digestive-lower v1 build: 67 PART-OF source files.",
+      "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "licenseUpdated": "2025-02-27",
+      "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
+      "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
+    },
+    {
+      "tree": "IS-A",
+      "dataset": "BodyParts3D 4.0",
+      "polygonReduction": "99%",
+      "archive": "isa_BP3D_4.0_obj_99.zip",
+      "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/isa_BP3D_4.0_obj_99.zip",
+      "archiveBytes": 142903898,
+      "archiveEtag": "\"8848a5a-4dd48ec9df000\"",
+      "archiveLastModified": "Wed, 22 May 2013 06:46:24 GMT",
+      "archiveSha256": "40665852c49f218326590e204db91064a1ecfc3c6f8cbd7bbbcaac62c7cd409e",
+      "extractedObjFiles": 2234,
+      "usedFor": "digestive-lower v1 build: no IS-A files used.",
+      "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "licenseUpdated": "2025-02-27",
+      "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
+      "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
+    }
+  ],
+  "transform": {
+    "sourceUnits": "millimetres",
+    "sourceUpAxis": "Z",
+    "targetUnits": "metres",
+    "targetUpAxis": "Y",
+    "mapping": "x/1000, z/1000, -y/1000; then centre on the combined bounding box",
+    "scale": 0.001,
+    "sourceCentreMm": [
+      -4.6505,
+      -104.105902,
+      917.218536
+    ],
+    "offsetMetres": [
+      -0.00465,
+      0.917219,
+      0.104106
+    ],
+    "offsetConvention": "bodyPosition = modelPosition + offsetMetres"
+  },
+  "changes": [
+    "Selected 67 source OBJ files from the official BodyParts3D 4.0 tables.",
+    "Merged each structure's source parts into one selectable mesh: 19 selectable nodes.",
+    "Converted millimetres and the Z-up axis to metres and Y-up, centred the combined model, and recomputed vertex normals.",
+    "Exported one uncompressed GLB with stable mesh names. No source colours or textures are used; surface colours are ours.",
+    "No teaching text is stored in the model or seed; the module is unpublished pending faculty review."
+  ],
+  "adaptations": [
+    "Grouped source files by the OBJ header Concept ID and English name so each named structure is one selectable node.",
+    "Large FMA systems are split into independently seeded modules because the viewer supports one GLB per system and each GLB must stay below the release budget."
+  ],
+  "license": {
+    "notice": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International",
+    "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+    "statements": [
+      {
+        "source": "BodyParts3D licence page (last updated 2025-02-27) and README_e.html",
+        "statement": "The license for this database is specified in the Creative Commons Attribution 4.0 International."
+      },
+      {
+        "source": "Header comment in all 3,492 distributed BodyParts3D 4.0 OBJ files",
+        "statement": "The license for this database is specified in the Creative Commons Attribution-Share Alike 2.1 Japan."
+      }
+    ],
+    "status": "Which licence applies is being clarified with the Database Center for Life Science (DBCLS).",
+    "adaptedModelTerms": "The adapted model file is offered under the same terms as the stricter statement, CC BY-SA 2.1 Japan."
+  },
+  "structures": [
+    {
+      "slug": "distal-part-of-jejunum",
+      "meshName": "distal_part_of_jejunum",
+      "layer": "small-intestine",
+      "color": "#c96b6b",
+      "triangles": 2856,
+      "fma": [
+        "FMA16983"
+      ],
+      "files": [
+        {
+          "id": "FJ2611",
+          "archive": "PART-OF",
+          "concept": "FMA16983",
+          "name": "Distal part of jejunum",
+          "sha256": "f307128f506971b523b25c63df7d603561f283327f7cb7a027c69cbd05985abf",
+          "triangles": 226
+        },
+        {
+          "id": "FJ2612",
+          "archive": "PART-OF",
+          "concept": "FMA16983",
+          "name": "Distal part of jejunum",
+          "sha256": "4caa419f277f7a7543a92becadeafdbb2ece3f7e9d423986edb0b2f5c72efd77",
+          "triangles": 248
+        },
+        {
+          "id": "FJ2613",
+          "archive": "PART-OF",
+          "concept": "FMA16983",
+          "name": "Distal part of jejunum",
+          "sha256": "4050e67d24cc9e4682b006278584417b05b996501fc14fa1b9ac3e25924174a2",
+          "triangles": 176
+        },
+        {
+          "id": "FJ2614",
+          "archive": "PART-OF",
+          "concept": "FMA16983",
+          "name": "Distal part of jejunum",
+          "sha256": "3a0fe667c05cf00349c0f0e6dee83af8f9612d2ab0a61cb393082acbd2f45273",
+          "triangles": 232
+        },
+        {
+          "id": "FJ2615",
+          "archive": "PART-OF",
+          "concept": "FMA16983",
+          "name": "Distal part of jejunum",
+          "sha256": "d88c128830e798dd41d723687954fa148702362df7794cb8bff0e69e85fbac6b",
+          "triangles": 264
+        },
+        {
+          "id": "FJ2616",
+          "archive": "PART-OF",
+          "concept": "FMA16983",
+          "name": "Distal part of jejunum",
+          "sha256": "39f4f1e9c3e1c6882e60b1e1386ca8b75b7877b7da247c7188868ddd891c9411",
+          "triangles": 444
+        },
+        {
+          "id": "FJ2618",
+          "archive": "PART-OF",
+          "concept": "FMA16983",
+          "name": "Distal part of jejunum",
+          "sha256": "dba020a6ad5d06cefef0bd468aa2767ff642f8fa9fe8d9907ad7d4d8031358a6",
+          "triangles": 222
+        },
+        {
+          "id": "FJ2619",
+          "archive": "PART-OF",
+          "concept": "FMA16983",
+          "name": "Distal part of jejunum",
+          "sha256": "9f4394a95d24321b3c19f7cf41744a10db1fc8cb8b180c11c89ca15a01c0b920",
+          "triangles": 260
+        },
+        {
+          "id": "FJ2620",
+          "archive": "PART-OF",
+          "concept": "FMA16983",
+          "name": "Distal part of jejunum",
+          "sha256": "e44f63bc62ff749cb53c1e7a914e6ab6284e82adbdfc4117c6c62092de4d2ecc",
+          "triangles": 284
+        },
+        {
+          "id": "FJ2621",
+          "archive": "PART-OF",
+          "concept": "FMA16983",
+          "name": "Distal part of jejunum",
+          "sha256": "fa44e8a3155ccd5c6c98b111a28de4727654ddc5a2ff7a22dd0a50e6efe3ab76",
+          "triangles": 500
+        }
+      ]
+    },
+    {
+      "slug": "proximal-part-of-ileum",
+      "meshName": "proximal_part_of_ileum",
+      "layer": "small-intestine",
+      "color": "#c96b6b",
+      "triangles": 2728,
+      "fma": [
+        "FMA14964"
+      ],
+      "files": [
+        {
+          "id": "FJ2574",
+          "archive": "PART-OF",
+          "concept": "FMA14964",
+          "name": "Proximal part of ileum",
+          "sha256": "b6547b41e4102688005d102b63a853dc0dc5c2e34610672e8c0639a6b4c4d563",
+          "triangles": 380
+        },
+        {
+          "id": "FJ2575",
+          "archive": "PART-OF",
+          "concept": "FMA14964",
+          "name": "Proximal part of ileum",
+          "sha256": "6be375a4887d1354e6b3e8e251e55f22da640e5b5f1f8a8224fd6678d1eda826",
+          "triangles": 276
+        },
+        {
+          "id": "FJ2585",
+          "archive": "PART-OF",
+          "concept": "FMA14964",
+          "name": "Proximal part of ileum",
+          "sha256": "1263e4a01037f3348768686d364f9f590008dfee2f8dd78539964db91f4aa861",
+          "triangles": 288
+        },
+        {
+          "id": "FJ2596",
+          "archive": "PART-OF",
+          "concept": "FMA14964",
+          "name": "Proximal part of ileum",
+          "sha256": "6dc16ba09ede9b97474595da2540e1268d98bfb10af952b0cc9e36231c3a505f",
+          "triangles": 226
+        },
+        {
+          "id": "FJ2600",
+          "archive": "PART-OF",
+          "concept": "FMA14964",
+          "name": "Proximal part of ileum",
+          "sha256": "14cbe0e74c698aace6e1ed1d95d9da60a494f215caf948d760a84441cb47ffda",
+          "triangles": 256
+        },
+        {
+          "id": "FJ2601",
+          "archive": "PART-OF",
+          "concept": "FMA14964",
+          "name": "Proximal part of ileum",
+          "sha256": "af315559e744dcc9ba57c249ec3e7faae53f19211861731ba6cbb994d91061cf",
+          "triangles": 208
+        },
+        {
+          "id": "FJ2602",
+          "archive": "PART-OF",
+          "concept": "FMA14964",
+          "name": "Proximal part of ileum",
+          "sha256": "7300e8d6bcefd3476479fecc61eb1f707806500c9a896934ac7248a6088a01d3",
+          "triangles": 270
+        },
+        {
+          "id": "FJ2603",
+          "archive": "PART-OF",
+          "concept": "FMA14964",
+          "name": "Proximal part of ileum",
+          "sha256": "cdff2efd1e8a0acd13aafa6328043cc8f6e5b8a2b0831fb457af06e33d0d97ab",
+          "triangles": 294
+        },
+        {
+          "id": "FJ2604",
+          "archive": "PART-OF",
+          "concept": "FMA14964",
+          "name": "Proximal part of ileum",
+          "sha256": "cbe476086c02ceced25590d0fcbb6f250e0361f6cac08dca6e743f5ada2b6872",
+          "triangles": 198
+        },
+        {
+          "id": "FJ2605",
+          "archive": "PART-OF",
+          "concept": "FMA14964",
+          "name": "Proximal part of ileum",
+          "sha256": "3ad5c6f04a91c08332c264e9b7fea7839867ca1cada6d540d018ba75c64d49e9",
+          "triangles": 332
+        }
+      ]
+    },
+    {
+      "slug": "distal-part-of-ileum",
+      "meshName": "distal_part_of_ileum",
+      "layer": "small-intestine",
+      "color": "#c96b6b",
+      "triangles": 2654,
+      "fma": [
+        "FMA14966"
+      ],
+      "files": [
+        {
+          "id": "FJ2587",
+          "archive": "PART-OF",
+          "concept": "FMA14966",
+          "name": "Distal part of ileum",
+          "sha256": "cd8315e26a28fce7c54233477704ed4ef1474d75572eb3e26e4e2e9ddc9c056d",
+          "triangles": 228
+        },
+        {
+          "id": "FJ2588",
+          "archive": "PART-OF",
+          "concept": "FMA14966",
+          "name": "Distal part of ileum",
+          "sha256": "b7cbb7897f8d57eb4a7169c32be00f5be796c1e7cc86e74aaec3ad193c677485",
+          "triangles": 266
+        },
+        {
+          "id": "FJ2589",
+          "archive": "PART-OF",
+          "concept": "FMA14966",
+          "name": "Distal part of ileum",
+          "sha256": "1d7695ab41a305eb349921c43dd720bf8016d23bf3859567370d9c339baf6722",
+          "triangles": 326
+        },
+        {
+          "id": "FJ2590",
+          "archive": "PART-OF",
+          "concept": "FMA14966",
+          "name": "Distal part of ileum",
+          "sha256": "73a877864b309b18fc7cb65db64d32baa9c058c9536b4b89fee097e2fc82dbae",
+          "triangles": 184
+        },
+        {
+          "id": "FJ2591",
+          "archive": "PART-OF",
+          "concept": "FMA14966",
+          "name": "Distal part of ileum",
+          "sha256": "dadd4bbb9dc091d2800e3f8d955d7766e5c86c2b854c34a6cd5c61a072d641a3",
+          "triangles": 226
+        },
+        {
+          "id": "FJ2592",
+          "archive": "PART-OF",
+          "concept": "FMA14966",
+          "name": "Distal part of ileum",
+          "sha256": "f5c18c8096976a2c19daa3d6c26cd0032ecec1691392d478b22f1d20c8273a1d",
+          "triangles": 236
+        },
+        {
+          "id": "FJ2593",
+          "archive": "PART-OF",
+          "concept": "FMA14966",
+          "name": "Distal part of ileum",
+          "sha256": "af8ebff2a50f5af91a8a54dac0fb2102850fe9415adb8a3d6893d3275c6736ff",
+          "triangles": 262
+        },
+        {
+          "id": "FJ2594",
+          "archive": "PART-OF",
+          "concept": "FMA14966",
+          "name": "Distal part of ileum",
+          "sha256": "70d6c0ad3390dbfccdda54d352f45b8156ab3255c2184072fecf2e974da01a5d",
+          "triangles": 220
+        },
+        {
+          "id": "FJ2595",
+          "archive": "PART-OF",
+          "concept": "FMA14966",
+          "name": "Distal part of ileum",
+          "sha256": "996e47dec84bf03f4ac007194b83e0eb4d5f511288288986a444fcb6140c1d1d",
+          "triangles": 258
+        },
+        {
+          "id": "FJ2597",
+          "archive": "PART-OF",
+          "concept": "FMA14966",
+          "name": "Distal part of ileum",
+          "sha256": "bdd01b5ff6a117a4a13f23e9f4a9ac390dfa6f0e7550464527c62cf4998dceb6",
+          "triangles": 202
+        },
+        {
+          "id": "FJ2598",
+          "archive": "PART-OF",
+          "concept": "FMA14966",
+          "name": "Distal part of ileum",
+          "sha256": "0efc0e799d28e9df3d0483c828ff9cd4b65db7e0da5fd5d157bf0d10959bd897",
+          "triangles": 246
+        }
+      ]
+    },
+    {
+      "slug": "middle-part-of-ileum",
+      "meshName": "middle_part_of_ileum",
+      "layer": "small-intestine",
+      "color": "#c96b6b",
+      "triangles": 2502,
+      "fma": [
+        "FMA14965"
+      ],
+      "files": [
+        {
+          "id": "FJ2576",
+          "archive": "PART-OF",
+          "concept": "FMA14965",
+          "name": "Middle part of ileum",
+          "sha256": "5e5687e8af2e373c06136c1020a24ab8803c6dc580197fc589a41f9faea4f40e",
+          "triangles": 172
+        },
+        {
+          "id": "FJ2577",
+          "archive": "PART-OF",
+          "concept": "FMA14965",
+          "name": "Middle part of ileum",
+          "sha256": "ee3f47d0554de48b943b4db2d0f6bc1ec584e6ade56f8ec74bb185d1bdbcf84e",
+          "triangles": 314
+        },
+        {
+          "id": "FJ2578",
+          "archive": "PART-OF",
+          "concept": "FMA14965",
+          "name": "Middle part of ileum",
+          "sha256": "390a30e04a95b41f2a243cc96cc584a463ce8d1accd9b20d459ff71385b29065",
+          "triangles": 292
+        },
+        {
+          "id": "FJ2579",
+          "archive": "PART-OF",
+          "concept": "FMA14965",
+          "name": "Middle part of ileum",
+          "sha256": "b82be69d1481aeab262e79b074b4eacb1f783ae2090cf42b7774b20209e7cf58",
+          "triangles": 280
+        },
+        {
+          "id": "FJ2580",
+          "archive": "PART-OF",
+          "concept": "FMA14965",
+          "name": "Middle part of ileum",
+          "sha256": "f45bc8e30afc5d0aa37e8bcf5e310f5b4716df2c21ae7ebea299c8ec183b5b8b",
+          "triangles": 344
+        },
+        {
+          "id": "FJ2581",
+          "archive": "PART-OF",
+          "concept": "FMA14965",
+          "name": "Middle part of ileum",
+          "sha256": "bde15b34176f21e9eb9f65f7c2c6746637d183a8f088200595443a1f5d4266d5",
+          "triangles": 198
+        },
+        {
+          "id": "FJ2582",
+          "archive": "PART-OF",
+          "concept": "FMA14965",
+          "name": "Middle part of ileum",
+          "sha256": "d48d46d478d409f78b8d68c0ac8848192669680c93f00efdf1aff3741ab1eddb",
+          "triangles": 212
+        },
+        {
+          "id": "FJ2583",
+          "archive": "PART-OF",
+          "concept": "FMA14965",
+          "name": "Middle part of ileum",
+          "sha256": "69cc9c8b12d7c12092fbe451f2ed68860e378ec2c46967a2b71ac2e8806838f5",
+          "triangles": 198
+        },
+        {
+          "id": "FJ2584",
+          "archive": "PART-OF",
+          "concept": "FMA14965",
+          "name": "Middle part of ileum",
+          "sha256": "7bfd148d820040c750592c12cb0c86411fead3701607dffd2c3895369c6c1c11",
+          "triangles": 228
+        },
+        {
+          "id": "FJ2586",
+          "archive": "PART-OF",
+          "concept": "FMA14965",
+          "name": "Middle part of ileum",
+          "sha256": "91b76f2902b8f280779820a305caf932cae577073952ba6d116be7a2f8a9243b",
+          "triangles": 264
+        }
+      ]
+    },
+    {
+      "slug": "proximal-part-of-jejunum",
+      "meshName": "proximal_part_of_jejunum",
+      "layer": "small-intestine",
+      "color": "#c96b6b",
+      "triangles": 1944,
+      "fma": [
+        "FMA16981"
+      ],
+      "files": [
+        {
+          "id": "FJ2606",
+          "archive": "PART-OF",
+          "concept": "FMA16981",
+          "name": "Proximal part of jejunum",
+          "sha256": "89b5f2a7b84ce723f206eefd2ffedd8318fca2fd540ceddee173243fb57d9912",
+          "triangles": 320
+        },
+        {
+          "id": "FJ2617",
+          "archive": "PART-OF",
+          "concept": "FMA16981",
+          "name": "Proximal part of jejunum",
+          "sha256": "b590f94cbe6821b109ecb7d6db1f0a7ba34c696c7618187c3c93ce732317a31d",
+          "triangles": 234
+        },
+        {
+          "id": "FJ2622",
+          "archive": "PART-OF",
+          "concept": "FMA16981",
+          "name": "Proximal part of jejunum",
+          "sha256": "005ab831ac1e943836bbab604e1d65977d4c386e593e3644e78f5361ed027cbf",
+          "triangles": 160
+        },
+        {
+          "id": "FJ2623",
+          "archive": "PART-OF",
+          "concept": "FMA16981",
+          "name": "Proximal part of jejunum",
+          "sha256": "38ecee2c5b418641b9399e91f493db87abba6b6a1e8cf9250fcdc295491f025d",
+          "triangles": 386
+        },
+        {
+          "id": "FJ2624",
+          "archive": "PART-OF",
+          "concept": "FMA16981",
+          "name": "Proximal part of jejunum",
+          "sha256": "732a475c4d81228ac54222aa259390d259d2d0f86453777fd23c670a1123a626",
+          "triangles": 172
+        },
+        {
+          "id": "FJ2625",
+          "archive": "PART-OF",
+          "concept": "FMA16981",
+          "name": "Proximal part of jejunum",
+          "sha256": "668459db84a25f6301edb716439c81a58532ccda4e763f4235da6ea1248163fe",
+          "triangles": 152
+        },
+        {
+          "id": "FJ2626",
+          "archive": "PART-OF",
+          "concept": "FMA16981",
+          "name": "Proximal part of jejunum",
+          "sha256": "35124a0a754ebdf402a38f8e8d2193dde0c91bbb4cd851163fed49dba2747b8c",
+          "triangles": 330
+        },
+        {
+          "id": "FJ2627",
+          "archive": "PART-OF",
+          "concept": "FMA16981",
+          "name": "Proximal part of jejunum",
+          "sha256": "994297bdf2c25126db37d5afae74cb9cec76550c4adb6748a7c1f906a2ffab03",
+          "triangles": 190
+        }
+      ]
+    },
+    {
+      "slug": "duodenum",
+      "meshName": "duodenum",
+      "layer": "small-intestine",
+      "color": "#c96b6b",
+      "triangles": 1860,
+      "fma": [
+        "FMA7206"
+      ],
+      "files": [
+        {
+          "id": "FJ2573",
+          "archive": "PART-OF",
+          "concept": "FMA7206",
+          "name": "Duodenum",
+          "sha256": "d549d9857ced73b198cdde3ad2494e897b620884364588f8644d7f6fd74ae1cb",
+          "triangles": 1860
+        }
+      ]
+    },
+    {
+      "slug": "middle-part-of-jejunum",
+      "meshName": "middle_part_of_jejunum",
+      "layer": "small-intestine",
+      "color": "#c96b6b",
+      "triangles": 1226,
+      "fma": [
+        "FMA16982"
+      ],
+      "files": [
+        {
+          "id": "FJ2607",
+          "archive": "PART-OF",
+          "concept": "FMA16982",
+          "name": "Middle part of jejunum",
+          "sha256": "13bbe7d80aa85d7d25e1dad84b9c91842c64f25baa7d46c55950aac11cd12e94",
+          "triangles": 240
+        },
+        {
+          "id": "FJ2608",
+          "archive": "PART-OF",
+          "concept": "FMA16982",
+          "name": "Middle part of jejunum",
+          "sha256": "f1699baa49100725b02d81bec5cbe9a344f08bbf04f66a335d77fae079230130",
+          "triangles": 262
+        },
+        {
+          "id": "FJ2609",
+          "archive": "PART-OF",
+          "concept": "FMA16982",
+          "name": "Middle part of jejunum",
+          "sha256": "c666347a146576fef68f20a0108b3aaa4c64a4b47340fb4d438429a6878d7b0b",
+          "triangles": 192
+        },
+        {
+          "id": "FJ2610",
+          "archive": "PART-OF",
+          "concept": "FMA16982",
+          "name": "Middle part of jejunum",
+          "sha256": "b99fd902532e7f255a4bbf324e8965adc3630544f981763357f1a3362bc8f2d1",
+          "triangles": 296
+        },
+        {
+          "id": "FJ2628",
+          "archive": "PART-OF",
+          "concept": "FMA16982",
+          "name": "Middle part of jejunum",
+          "sha256": "be71bf232347b0d1188112f4ded90d1efe15b6672b6d17cdf4728c661da9b732",
+          "triangles": 236
+        }
+      ]
+    },
+    {
+      "slug": "ileocecal-junction",
+      "meshName": "ileocecal_junction",
+      "layer": "small-intestine",
+      "color": "#c96b6b",
+      "triangles": 288,
+      "fma": [
+        "FMA11338"
+      ],
+      "files": [
+        {
+          "id": "FJ2599",
+          "archive": "PART-OF",
+          "concept": "FMA11338",
+          "name": "Ileocecal junction",
+          "sha256": "38a95d81d5bf9acc1f22b29c50f5d6ee23352dc013ac245d227b1eaf96c5aa28",
+          "triangles": 288
+        }
+      ]
+    },
+    {
+      "slug": "taenia-omentalis",
+      "meshName": "taenia_omentalis",
+      "layer": "large-intestine",
+      "color": "#b95757",
+      "triangles": 15922,
+      "fma": [
+        "FMA15043"
+      ],
+      "files": [
+        {
+          "id": "FJ2570",
+          "archive": "PART-OF",
+          "concept": "FMA15043",
+          "name": "Taenia omentalis",
+          "sha256": "9574b2cbadd22a230c1450101f27ba566d11e2f8c0c3c63329a082b39d89a807",
+          "triangles": 15922
+        }
+      ]
+    },
+    {
+      "slug": "taenia-libera",
+      "meshName": "taenia_libera",
+      "layer": "large-intestine",
+      "color": "#b95757",
+      "triangles": 15244,
+      "fma": [
+        "FMA15044"
+      ],
+      "files": [
+        {
+          "id": "FJ2568",
+          "archive": "PART-OF",
+          "concept": "FMA15044",
+          "name": "Taenia libera",
+          "sha256": "0cb3bccddc08f3121e0e25355c88f68f484ea07d5d8815733b7b49eefd9dbcda",
+          "triangles": 15244
+        }
+      ]
+    },
+    {
+      "slug": "taenia-mesocolica",
+      "meshName": "taenia_mesocolica",
+      "layer": "large-intestine",
+      "color": "#b95757",
+      "triangles": 13342,
+      "fma": [
+        "FMA15042"
+      ],
+      "files": [
+        {
+          "id": "FJ2569",
+          "archive": "PART-OF",
+          "concept": "FMA15042",
+          "name": "Taenia mesocolica",
+          "sha256": "9566e92b9c5c2a265c752200709f45d3deaacf32e8a62e4c41f0f3866b569107",
+          "triangles": 13342
+        }
+      ]
+    },
+    {
+      "slug": "descending-colon",
+      "meshName": "descending_colon",
+      "layer": "large-intestine",
+      "color": "#b95757",
+      "triangles": 5588,
+      "fma": [
+        "FMA14547"
+      ],
+      "files": [
+        {
+          "id": "FJ2567",
+          "archive": "PART-OF",
+          "concept": "FMA14547",
+          "name": "Descending colon",
+          "sha256": "01227dde6807b83e2d2a4d1771765e5cb9f33d54719dbd1771b7245a5f7f7a4b",
+          "triangles": 5588
+        }
+      ]
+    },
+    {
+      "slug": "transverse-colon",
+      "meshName": "transverse_colon",
+      "layer": "large-intestine",
+      "color": "#b95757",
+      "triangles": 3472,
+      "fma": [
+        "FMA14546"
+      ],
+      "files": [
+        {
+          "id": "FJ2572",
+          "archive": "PART-OF",
+          "concept": "FMA14546",
+          "name": "Transverse colon",
+          "sha256": "66c493a453400d704e39950bbf468e70182c1e68090ac8a85099bfece42c9d35",
+          "triangles": 3472
+        }
+      ]
+    },
+    {
+      "slug": "ascending-colon",
+      "meshName": "ascending_colon",
+      "layer": "large-intestine",
+      "color": "#b95757",
+      "triangles": 3310,
+      "fma": [
+        "FMA14545"
+      ],
+      "files": [
+        {
+          "id": "FJ2566",
+          "archive": "PART-OF",
+          "concept": "FMA14545",
+          "name": "Ascending colon",
+          "sha256": "8c156d4b6c70b181ae7d5b181913f693948c38558a530996dbad0158993fb653",
+          "triangles": 3310
+        }
+      ]
+    },
+    {
+      "slug": "rectum",
+      "meshName": "rectum",
+      "layer": "large-intestine",
+      "color": "#b95757",
+      "triangles": 2118,
+      "fma": [
+        "FMA14544"
+      ],
+      "files": [
+        {
+          "id": "FJ2571",
+          "archive": "PART-OF",
+          "concept": "FMA14544",
+          "name": "Rectum",
+          "sha256": "99a7fe3eb3f8aeb10b21b4eedde3a25df209cd80676cfb130f314cc731a8fcaf",
+          "triangles": 2118
+        }
+      ]
+    },
+    {
+      "slug": "appendix",
+      "meshName": "appendix",
+      "layer": "large-intestine",
+      "color": "#b95757",
+      "triangles": 442,
+      "fma": [
+        "FMA14542"
+      ],
+      "files": [
+        {
+          "id": "FJ2565",
+          "archive": "PART-OF",
+          "concept": "FMA14542",
+          "name": "Appendix",
+          "sha256": "253d45e8f678603e82c29087ace8810e856f764fd254c20a5bba5bd8897c98d3",
+          "triangles": 442
+        }
+      ]
+    },
+    {
+      "slug": "mesentery-of-small-intestine",
+      "meshName": "mesentery_of_small_intestine",
+      "layer": "mesentery",
+      "color": "#d08a5f",
+      "triangles": 38274,
+      "fma": [
+        "FMA14643"
+      ],
+      "files": [
+        {
+          "id": "FJ3396",
+          "archive": "PART-OF",
+          "concept": "FMA14643",
+          "name": "Mesentery of small intestine",
+          "sha256": "1422c081de9a42c5770c92dde76484ca04e6241666aa553b9e87698717a01797",
+          "triangles": 38274
+        }
+      ]
+    },
+    {
+      "slug": "transverse-mesocolon",
+      "meshName": "transverse_mesocolon",
+      "layer": "mesentery",
+      "color": "#d08a5f",
+      "triangles": 1484,
+      "fma": [
+        "FMA14647"
+      ],
+      "files": [
+        {
+          "id": "FJ3398",
+          "archive": "PART-OF",
+          "concept": "FMA14647",
+          "name": "Transverse mesocolon",
+          "sha256": "e6937fc4d0e4447521fc6d292aa88c91962b1e42b1f69c175e01b0ead0e6efc1",
+          "triangles": 1484
+        }
+      ]
+    },
+    {
+      "slug": "mesoappendix",
+      "meshName": "mesoappendix",
+      "layer": "mesentery",
+      "color": "#d08a5f",
+      "triangles": 1388,
+      "fma": [
+        "FMA16549"
+      ],
+      "files": [
+        {
+          "id": "FJ3397",
+          "archive": "PART-OF",
+          "concept": "FMA16549",
+          "name": "Mesoappendix",
+          "sha256": "6d3938a42f01651acfca17d3ce4fb475340679df84544b44ad3a15017e958a00",
+          "triangles": 1388
+        }
+      ]
+    }
+  ],
+  "textOnly": [],
+  "checks": {
+    "uniqueMeshNames": true,
+    "uniqueSourceFiles": true,
+    "sourceHeadersVerified": true,
+    "sourceHashesVerified": true,
+    "unrepresentedStructures": "deferred; see docs/anatomy/provenance/README.md"
+  }
+}

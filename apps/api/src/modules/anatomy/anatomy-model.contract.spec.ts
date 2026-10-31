@@ -11,6 +11,7 @@ import {
   URINARY_SYSTEM,
   validateUrinarySeed,
 } from '../../../prisma/anatomy-urinary.data';
+import { ANATOMY_SEED_REGISTRY } from '../../../prisma/anatomy-registry';
 import {
   HEART_V2_MESH_STRUCTURES,
   HEART_V2_TARGET_STRUCTURES,
@@ -683,4 +684,188 @@ describe('Urinary draft seed-to-model contract (v1)', () => {
       expect(seed?.layer).toBe(target.layer);
     }
   });
+});
+
+interface GeneratedManifest {
+  schemaVersion: number;
+  system: string;
+  model: {
+    file: string;
+    bytes: number;
+    sha256: string;
+    triangles: number;
+    structures: number;
+    textOnlyStructures: number;
+    totalStructures: number;
+  };
+  sources: {
+    tree: string;
+    archive: string;
+    archiveBytes: number;
+    archiveSha256: string;
+    requiredCredit: string;
+    license: string;
+  }[];
+  changes: string[];
+  adaptations: string[];
+  license: {
+    notice: string;
+    licenseUrl: string;
+    status: string;
+  };
+  structures: {
+    slug: string;
+    meshName: string;
+    layer: string;
+    triangles: number;
+    fma: string[];
+    files: {
+      id: string;
+      archive: string;
+      concept: string;
+      name: string;
+      sha256: string;
+    }[];
+  }[];
+  textOnly: { slug: string; layer: string; reason: string }[];
+}
+
+describe('Generated Step 3 seed-to-model contracts', () => {
+  const generatedEntries = ANATOMY_SEED_REGISTRY.filter(
+    (entry) => entry.system.slug !== 'heart' && entry.system.slug !== 'urinary',
+  );
+
+  it('registers all 16 generated modules', () => {
+    expect(generatedEntries).toHaveLength(16);
+    expect(
+      new Set(generatedEntries.map((entry) => entry.system.slug)).size,
+    ).toBe(16);
+  });
+
+  for (const entry of generatedEntries) {
+    const slug = entry.system.slug;
+
+    describe(slug, () => {
+      const manifestPath = join(ASSET_DIR, `${slug}.v1.manifest.json`);
+      const glbPath = join(ASSET_DIR, `${slug}.v1.glb`);
+
+      function loadManifest(): GeneratedManifest {
+        return JSON.parse(
+          readFileSync(manifestPath, 'utf8'),
+        ) as GeneratedManifest;
+      }
+
+      it('is an unpublished, empty-text draft with a valid seed', () => {
+        expect(entry.system.isPublished).toBe(false);
+        expect(entry.system.isSample).toBe(false);
+        expect(entry.system.modelUrl).toBe(`/models/anatomy/${slug}.v1.glb`);
+        expect(() => entry.validate()).not.toThrow();
+
+        for (const structure of entry.structures) {
+          expect(structure.meshName).not.toBeNull();
+          expect(structure.meshName).toMatch(/^[a-z0-9_]+$/);
+          expect(structure.references.length).toBeGreaterThan(0);
+          expect(structure.references.join(' ')).toMatch(/^FMA:\d+/);
+          expect([
+            structure.summary,
+            structure.location,
+            structure.function,
+            structure.bloodSupply,
+            structure.clinicalNotes,
+          ]).toEqual(['', '', '', '', '']);
+        }
+      });
+
+      it('keeps the manifest and GLB in sync', () => {
+        const manifest = loadManifest();
+        const glbBytes = readFileSync(glbPath);
+
+        expect(manifest.system).toBe(slug);
+        expect(manifest.schemaVersion).toBe(2);
+        expect(manifest.model.file).toBe(`${slug}.v1.glb`);
+        expect(manifest.model.bytes).toBe(glbBytes.byteLength);
+        expect(manifest.model.bytes).toBeLessThanOrEqual(5 * 1024 * 1024);
+        expect(manifest.model.sha256).toBe(
+          createHash('sha256').update(glbBytes).digest('hex'),
+        );
+        expect(manifest.model.triangles).toBeLessThanOrEqual(150_000);
+      });
+
+      it('has one GLB node and one manifest row per seed structure', () => {
+        const manifest = loadManifest();
+        const glb = readGlbJson(glbPath);
+        const seedMeshNames = entry.structures.map(
+          (structure) => structure.meshName,
+        );
+        const nodeNames = glb.nodes.map((node) => node.name);
+
+        expect(manifest.textOnly).toHaveLength(0);
+        expect(manifest.model.textOnlyStructures).toBe(0);
+        expect(manifest.model.structures).toBe(entry.structures.length);
+        expect(manifest.model.totalStructures).toBe(entry.structures.length);
+        expect(manifest.structures).toHaveLength(entry.structures.length);
+        expect(nodeNames).toHaveLength(entry.structures.length);
+        expect([...nodeNames].sort()).toEqual([...seedMeshNames].sort());
+
+        const manifestBySlug = new Map(
+          manifest.structures.map((structure) => [structure.slug, structure]),
+        );
+        for (const seed of entry.structures) {
+          const row = manifestBySlug.get(seed.slug);
+          expect(row).toBeDefined();
+          expect(row?.meshName).toBe(seed.meshName);
+          expect(row?.layer).toBe(seed.layer);
+          expect(row?.triangles).toBeGreaterThan(0);
+          expect(row?.fma.length).toBeGreaterThan(0);
+          expect(row?.files.length).toBeGreaterThan(0);
+
+          const node = glb.nodes.find((item) => item.name === seed.meshName);
+          expect(node).toBeDefined();
+          expect(node?.extras?.layer).toBe(seed.layer);
+        }
+
+        const totalTriangles = glb.nodes.reduce((total, node) => {
+          const mesh = glb.meshes[node.mesh];
+          const meshTriangles = mesh.primitives.reduce((sum, primitive) => {
+            const accessor =
+              primitive.indices === undefined
+                ? undefined
+                : glb.accessors[primitive.indices];
+            return sum + Math.floor((accessor?.count ?? 0) / 3);
+          }, 0);
+          return total + meshTriangles;
+        }, 0);
+
+        expect(totalTriangles).toBe(manifest.model.triangles);
+      });
+
+      it('records provenance, the BodyParts3D credit, and both licence statements', () => {
+        const manifest = loadManifest();
+        const sourceTrees = new Set(
+          manifest.sources.map((source) => source.tree),
+        );
+
+        expect(sourceTrees.has('PART-OF')).toBe(true);
+        expect(sourceTrees.has('IS-A')).toBe(true);
+        for (const source of manifest.sources) {
+          expect(source.requiredCredit).toContain('BodyParts3D');
+          expect(source.license).toContain('CC BY 4.0');
+          expect(source.license).toContain('CC BY-SA 2.1 Japan');
+          expect(source.archiveSha256).toMatch(/^[a-f0-9]{64}$/);
+        }
+
+        for (const structure of manifest.structures) {
+          for (const file of structure.files) {
+            expect(sourceTrees.has(file.archive)).toBe(true);
+            expect(file.sha256).toMatch(/^[a-f0-9]{64}$/);
+          }
+        }
+
+        expect(manifest.changes.length).toBeGreaterThan(0);
+        expect(manifest.adaptations.length).toBeGreaterThan(0);
+        expect(manifest.license.notice).toContain('BodyParts3D');
+        expect(manifest.license.licenseUrl).toContain('bodyparts3d');
+      });
+    });
+  }
 });
