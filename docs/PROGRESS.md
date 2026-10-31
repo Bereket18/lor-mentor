@@ -237,7 +237,7 @@ returned **401**.
   unpublished drafts with empty teaching text.
 - Docker/nginx and production deployment checks were not run in this step.
 
-Commit: Step 3 commit recorded below after the commit was made.
+Commit: `2492ae4` (`feat(anatomy): build eight new systems as unpublished drafts`).
 
 ## Phase 1 — merge + GitLab files
 
