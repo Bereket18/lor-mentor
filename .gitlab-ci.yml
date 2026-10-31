@@ -212,7 +212,6 @@ nginx-syntax:
   stage: docker
   image: nginx:1.27-alpine
   allow_failure: true
-  entrypoint: [""]
   before_script:
     - apk add --no-cache bash openssl
   script:
