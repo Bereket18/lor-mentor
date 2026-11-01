@@ -1,5 +1,15 @@
+# Keep the runtime image to application source only.
 __pycache__/
+**/__pycache__/
 *.pyc
 .venv/
 .env
-tests/__pycache__/
+.env.*
+!.env.example
+
+# Test suite and its artifacts are not needed at runtime.
+.pytest_cache/
+test_*.py
+
+# Stray local run logs.
+*.log

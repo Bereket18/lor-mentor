@@ -9,7 +9,10 @@
 # `prisma migrate deploy`. Pruning them would break startup migrations.
 
 # ── Base ────────────────────────────────────────────────────────────
-FROM node:24-slim AS base
+# Pinned by digest for reproducible builds. The digest is a multi-arch index,
+# so the same tag works on x86_64 and arm64 VPS hosts. Update deliberately:
+#   docker buildx imagetools inspect node:24-slim
+FROM node:24-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS base
 WORKDIR /app
 # OpenSSL is required by Prisma's query engine at runtime.
 RUN apt-get update && apt-get install -y --no-install-recommends openssl \

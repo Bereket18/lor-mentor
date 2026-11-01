@@ -6,6 +6,15 @@
 **/coverage
 **/*.log
 
+# Python artifacts. The receipt-verifier's local virtualenv is ~140 MB and was
+# being sent to the Docker daemon on every api/web build (those builds use the
+# repo root as their context), slowing every build for no benefit.
+**/.venv
+**/venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+
 # Secrets — must never enter an image layer
 .env
 .env.*
@@ -14,6 +23,13 @@
 apps/api/.env
 apps/web/.env
 services/receipt-verifier/.env
+
+# Local scratch scripts. aicheck.mjs embeds a real database connection string
+# and is tracked in git — keep it out of the build context so that a future
+# `COPY . .` can never place it in an image layer.
+aicheck.mjs
+tmp-*
+test_routing.js
 
 # Local/user content and VCS
 uploads/

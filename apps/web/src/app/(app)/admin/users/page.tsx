@@ -91,7 +91,7 @@ export default function AdminUsersPage() {
     role: "TEACHER" as "STUDENT" | "TEACHER" | "ADMIN" | "SUPER_ADMIN",
     departmentId: "", academicYearId: "",
   });
-  const [createdResult,  setCreatedResult]  = useState<{ name: string; email: string; password: string; courses?: number } | null>(null);
+  const [createdResult,  setCreatedResult]  = useState<{ name: string; email: string; invitationSent: boolean; setupUrl?: string; courses?: number } | null>(null);
   const [cleanupConfirm, setCleanupConfirm] = useState(false);
   const [cleaning,       setCleaning]       = useState(false);
   const [cleanupResult,  setCleanupResult]  = useState<string | null>(null);
@@ -230,7 +230,8 @@ export default function AdminUsersPage() {
       setCreatedResult({
         name: res.data.user.fullName,
         email: res.data.user.email,
-        password: res.data.temporaryPassword,
+        invitationSent: res.data.invitationSent !== false,
+        setupUrl: res.data.setupUrl as string | undefined,
         courses: newStaff.role === "TEACHER" ? selectedCourseIds.length : 0,
       });
       setNewStaff({ fullName: "", email: "", role: "TEACHER", departmentId: "", academicYearId: "" });
@@ -493,10 +494,20 @@ export default function AdminUsersPage() {
                 <div className="rounded-xl p-4 text-sm" style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)" }}>
                   <p className="font-semibold mb-1" style={{ color: "#10B981" }}>✅ Account created — {createdResult.name}</p>
                   <p className="text-secondary text-xs">Email: <span className="font-medium text-primary">{createdResult.email}</span></p>
-                  <p className="text-secondary text-xs mt-0.5">
-                    Temporary password: <span className="font-mono font-bold text-primary px-1.5 py-0.5 rounded" style={{ background: "rgba(45,212,191,0.1)" }}>{createdResult.password}</span>
-                  </p>
-                  <p className="text-muted text-xs mt-1.5">Share this with the staff member — they should change it on first login.</p>
+                  {createdResult.invitationSent ? (
+                    <p className="text-muted text-xs mt-1.5">
+                      📧 An invitation was emailed to {createdResult.email}. They choose their own
+                      password through a one-time link that expires in 48 hours — no password is
+                      shown here or sent to you.
+                    </p>
+                  ) : (
+                    <p className="text-muted text-xs mt-1.5">
+                      📧 The invitation email could not be sent. Share this secure link with them
+                      directly — it lets them set a password once and expires in 48 hours:
+                      <br />
+                      <span className="font-mono text-[11px] break-all">{createdResult.setupUrl}</span>
+                    </p>
+                  )}
                   {createdResult.courses !== undefined && (
                     <p className="text-muted text-xs mt-1">
                       {createdResult.courses > 0

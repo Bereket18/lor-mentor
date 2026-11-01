@@ -126,17 +126,22 @@ web:build:
     - npm run build:web
 
 # ── Receipt verifier (Python) ──────────────────────────────────────
-# normalize.py, cbe_links.py, and their tests are stdlib-only, so no pip
-# install is needed here. main.py's heavy deps are validated by the Docker
-# build below.
+# normalize.py and its tests are stdlib-only. cbe_links.py needs `requests`.
+# The validation/auth helpers live in security.py precisely so test_security.py
+# does not import main.py, which pulls `ethiobank_receipts` (Selenium +
+# Chromium). Importing main.py here without that package installed is what
+# produced `ModuleNotFoundError: No module named 'ethiobank_receipts'`.
+# The one test that does import main.py runs it in a subprocess with the heavy
+# package stubbed, so the fail-closed startup gate is still covered.
+# main.py's real dependency stack is validated by the Docker build below.
 verifier:test:
   stage: test
   image: python:3.12-slim
   before_script:
-    - pip install requests fastapi uvicorn
+    - pip install requests fastapi
   script:
     - cd services/receipt-verifier
-    - python -m py_compile normalize.py cbe_links.py main.py
+    - python -m py_compile normalize.py cbe_links.py security.py main.py
     - python test_normalize.py
     - python test_cbe_links.py
     - python test_security.py

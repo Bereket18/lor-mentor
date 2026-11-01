@@ -69,6 +69,80 @@ export class TokenDenylistService implements OnModuleDestroy {
     }
   }
 
+  private userKey(userId: string): string {
+    return `revoked:user:${userId}`;
+  }
+
+  /**
+   * Revoke every refresh token issued to this user **before now**.
+   *
+   * Used when the password is reset: a token that was already in an attacker's
+   * hands must stop working, while tokens minted after the reset must keep
+   * working so the user stays signed in.
+   *
+   * Records the revocation instant (epoch seconds) rather than a permanent
+   * block, and gives the key a TTL that outlives the longest refresh token, so
+   * Redis does not accumulate keys for dormant accounts.
+   */
+  async revokeUserSessions(userId: string, ttlSeconds: number): Promise<void> {
+    if (!userId || ttlSeconds <= 0) return;
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    await this.client.set(
+      this.userKey(userId),
+      String(nowSeconds),
+      'EX',
+      Math.ceil(ttlSeconds),
+    );
+  }
+
+  /**
+   * True when this token predates the user's last session revocation.
+   *
+   * `issuedAt` is the token's own `iat` claim (epoch seconds). A token minted
+   * in the same second as the revocation is treated as valid: `iat` has
+   * one-second resolution and rejecting it would lock out a user who signs in
+   * immediately after resetting. The trade-off is a ≤1 second window in which
+   * a token issued just before the reset still passes this check; such a token
+   * is still subject to the per-token denylist, and the reset itself does not
+   * extend its life.
+   *
+   * Fails CLOSED (treated as revoked) when Redis cannot answer and
+   * `REDIS_FAIL_MODE` is not explicitly `open` — the same policy as `isDenied`.
+   */
+  async isSessionRevoked(
+    userId: string | undefined,
+    issuedAt: number | undefined,
+  ): Promise<boolean> {
+    if (!userId) return false;
+    let raw: string | null;
+    try {
+      raw = await this.client.get(this.userKey(userId));
+    } catch (err) {
+      const allow = this.failMode === 'open';
+      this.logger.error(
+        `Session revocation check failed (${allow ? 'allowing' : 'denying'} token): ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return !allow;
+    }
+
+    if (raw === null) return false;
+
+    const revokedAt = Number(raw);
+    if (!Number.isFinite(revokedAt)) {
+      // Corrupt marker: we cannot prove the token is newer than the
+      // revocation, so deny.
+      this.logger.error(
+        `Session revocation marker for a user is not a timestamp; denying`,
+      );
+      return true;
+    }
+    // A token with no `iat` cannot be positioned relative to a revocation.
+    if (issuedAt === undefined) return true;
+    return issuedAt < revokedAt;
+  }
+
   async onModuleDestroy(): Promise<void> {
     await this.client.quit();
   }

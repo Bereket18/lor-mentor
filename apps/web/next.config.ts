@@ -1,6 +1,7 @@
 import path from "node:path";
 import type { NextConfig } from "next";
 import withBundleAnalyzer from "@next/bundle-analyzer";
+import { resolveApiOrigin } from "./src/lib/api-base";
 
 // 1. Define the base configuration options first
 const nextConfig: NextConfig = {
@@ -11,13 +12,18 @@ const nextConfig: NextConfig = {
   output: "standalone",
   outputFileTracingRoot: path.join(__dirname, "../../"),
   // Proxy /api/v1/* to the NestJS API so PDF.js canvas requests are same-origin
-  // and browsers don't block cross-origin localhost requests
+  // and browsers don't block cross-origin localhost requests.
+  //
+  // resolveApiOrigin() throws when NEXT_PUBLIC_API_URL is empty, malformed, or
+  // (in production) points at loopback/private addresses, so a misconfigured
+  // deployment fails here — at build time — instead of shipping a bundle whose
+  // server-side API calls all go nowhere. See src/lib/api-base.ts.
   async rewrites() {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+    const apiOrigin = resolveApiOrigin();
     return [
       {
         source: "/api/v1/:path*",
-        destination: `${apiUrl}/api/v1/:path*`,
+        destination: `${apiOrigin}/api/v1/:path*`,
       },
     ];
   },

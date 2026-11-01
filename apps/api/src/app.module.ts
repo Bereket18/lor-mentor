@@ -7,6 +7,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { validateEnv } from './config/env.validation';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { OriginGuard } from './common/guards/origin.guard';
 import { RedisHealthService } from './common/redis/redis-health.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -72,6 +73,9 @@ import { AnatomyModule } from './modules/anatomy/anatomy.module';
     RedisHealthService,
     // Apply the rate limiter globally to every route.
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+    // Refuse state-changing requests whose Origin is not ours. Independent of
+    // SameSite cookie policy; see origin.guard.ts.
+    { provide: APP_GUARD, useClass: OriginGuard },
     // One consistent error envelope for every unhandled exception.
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
   ],

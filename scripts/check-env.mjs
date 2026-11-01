@@ -109,6 +109,53 @@ if (
   );
 }
 
+// Split-host topology (web on <domain>, API on api.<domain>) needs a shared
+// parent cookie domain, otherwise the auth cookies never reach the web host and
+// every protected page redirects to /login. Mirrors apps/api/src/config/
+// env.validation.ts so the preflight catches it before the stack boots.
+function hostnameOf(value) {
+  if (!value || !value.trim()) return null;
+  try {
+    return new URL(value.trim()).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+if (entries.get('NODE_ENV') === 'production') {
+  const webHost = hostnameOf(entries.get('WEB_PUBLIC_URL'));
+  const apiHost = hostnameOf(entries.get('API_PUBLIC_URL'));
+  const bareCookieDomain = cookieDomain.replace(/^\./, '');
+
+  if (webHost && apiHost && webHost !== apiHost && !bareCookieDomain) {
+    errors.push(
+      `COOKIE_DOMAIN is required because WEB_PUBLIC_URL (${webHost}) and API_PUBLIC_URL (${apiHost}) are on different hosts`,
+    );
+  }
+
+  if (bareCookieDomain) {
+    if (!bareCookieDomain.includes('.')) {
+      errors.push(
+        'COOKIE_DOMAIN must be a registrable domain of at least two labels (not a single label such as "com")',
+      );
+    }
+    for (const [key, host] of [
+      ['WEB_PUBLIC_URL', webHost],
+      ['API_PUBLIC_URL', apiHost],
+    ]) {
+      if (
+        host &&
+        host !== bareCookieDomain &&
+        !host.endsWith(`.${bareCookieDomain}`)
+      ) {
+        errors.push(
+          `COOKIE_DOMAIN ("${cookieDomain}") must be a parent domain of ${key} (${host})`,
+        );
+      }
+    }
+  }
+}
+
 const verifierUrl = entries.get('RECEIPT_VERIFIER_URL') ?? '';
 const verifierToken = entries.get('RECEIPT_VERIFIER_TOKEN') ?? '';
 if (verifierUrl && !verifierToken) {
