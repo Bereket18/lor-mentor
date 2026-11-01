@@ -105,6 +105,23 @@ api:e2e:
     - (cd apps/api && npx prisma generate && npx prisma migrate deploy)
     - (cd apps/api && npm run test:e2e)
 
+# Schema validation is cheap and catches a malformed schema before the
+# migration/generate steps in the heavier jobs.
+prisma:validate:
+  extends: .node
+  stage: test
+  script:
+    - npx prisma validate --schema apps/api/prisma/schema.prisma
+
+# Nest's build already type-checks, but this fails fast with a readable list of
+# errors and covers test files that tsconfig.build.json excludes.
+api:typecheck:
+  extends: .node
+  stage: test
+  script:
+    - (cd apps/api && npx prisma generate)
+    - npx tsc -p apps/api/tsconfig.json --noEmit
+
 # ── Anatomy model validators ───────────────────────────────────────
 anatomy:validators:
   extends: .node
@@ -132,6 +149,24 @@ web:build:
     NEXT_PUBLIC_API_URL: https://api.example.com
   script:
     - npm run build:web
+
+web:typecheck:
+  extends: .node
+  stage: test
+  variables:
+    NEXT_PUBLIC_API_URL: https://api.example.com
+  script:
+    # Route types live in .next/types and are not committed; generate them
+    # without running a full production build.
+    - (cd apps/web && npx next typegen)
+    - npx tsc -p apps/web/tsconfig.json --noEmit
+
+web:unit:
+  extends: .node
+  stage: test
+  script:
+    # Pure TypeScript tests; the config does not launch a browser or dev server.
+    - npm run test:unit --workspace=apps/web
 
 # ── Receipt verifier (Python) ──────────────────────────────────────
 # normalize.py and its tests are stdlib-only. cbe_links.py needs `requests`.
