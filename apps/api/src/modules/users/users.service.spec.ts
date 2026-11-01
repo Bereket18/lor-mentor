@@ -73,7 +73,10 @@ describe('UsersService.createUser — teacher course pre-assignment', () => {
     expect(transaction).toHaveBeenCalledTimes(1);
     expect(createUser).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ role: 'TEACHER' }),
+        data: expect.objectContaining({
+          role: 'TEACHER',
+          isAnatomyReviewer: true,
+        }),
       }),
     );
     expect(updateManyCourses).toHaveBeenCalledWith({
@@ -360,6 +363,46 @@ describe('UsersService — user list filters and admin program rules', () => {
       expect(updateUser).toHaveBeenCalledWith(
         expect.objectContaining({
           data: { departmentId: 'dept-1', academicYearId: null },
+        }),
+      );
+    });
+  });
+
+  describe('changeRole reviewer flag', () => {
+    it('grants anatomy review access when a user becomes a teacher', async () => {
+      findUser.mockResolvedValue({ role: 'STUDENT' });
+      updateUser.mockResolvedValue({
+        id: 'user-1',
+        email: 'user@example.com',
+        fullName: 'New Teacher',
+        role: 'TEACHER',
+        isAnatomyReviewer: true,
+      });
+
+      await service.changeRole('user-1', 'TEACHER', 'actor-1', 'SUPER_ADMIN');
+
+      expect(updateUser).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { role: 'TEACHER', isAnatomyReviewer: true },
+        }),
+      );
+    });
+
+    it('clears anatomy review access when a teacher leaves the role', async () => {
+      findUser.mockResolvedValue({ role: 'TEACHER' });
+      updateUser.mockResolvedValue({
+        id: 'user-1',
+        email: 'user@example.com',
+        fullName: 'Former Teacher',
+        role: 'ADMIN',
+        isAnatomyReviewer: false,
+      });
+
+      await service.changeRole('user-1', 'ADMIN', 'actor-1', 'SUPER_ADMIN');
+
+      expect(updateUser).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { role: 'ADMIN', isAnatomyReviewer: false },
         }),
       );
     });

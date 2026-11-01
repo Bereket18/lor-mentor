@@ -315,14 +315,22 @@ export class UsersService {
       );
     }
 
+    // Every TEACHER account is an anatomy reviewer by default. The flag stays
+    // explicit so an individual teacher can still be revoked with the
+    // anatomy:reviewer CLI. Moving a user out of TEACHER clears it: ADMIN and
+    // SUPER_ADMIN are never allowed to review anatomy.
     const user = await this.prisma.user.update({
       where: { id: userId },
-      data: { role: role as 'STUDENT' | 'TEACHER' | 'ADMIN' | 'SUPER_ADMIN' },
+      data: {
+        role: role as 'STUDENT' | 'TEACHER' | 'ADMIN' | 'SUPER_ADMIN',
+        isAnatomyReviewer: role === 'TEACHER',
+      },
       select: {
         id: true,
         email: true,
         fullName: true,
         role: true,
+        isAnatomyReviewer: true,
       },
     });
 
@@ -501,6 +509,9 @@ export class UsersService {
           passwordHash,
           fullName: data.fullName,
           role: data.role,
+          // New teachers receive anatomy review access automatically. The
+          // flag remains revocable per account; see the anatomy:reviewer CLI.
+          ...(data.role === 'TEACHER' ? { isAnatomyReviewer: true } : {}),
           isEmailVerified: true,
           isActive: true,
           ...(data.departmentId ? { departmentId: data.departmentId } : {}),

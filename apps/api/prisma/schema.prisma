@@ -82,8 +82,9 @@ model User {
   role                Role      @default(STUDENT)
   isActive            Boolean   @default(true)
   isEmailVerified     Boolean   @default(false)
-  // Faculty anatomy editors are TEACHER accounts explicitly granted this flag
-  // by the anatomy:reviewer script. ADMIN/SUPER_ADMIN are never reviewers.
+  // Faculty anatomy editors are TEACHER accounts. Every teacher receives this
+  // flag by default; it can be revoked per account with the anatomy:reviewer
+  // script. ADMIN/SUPER_ADMIN are never reviewers.
   isAnatomyReviewer   Boolean   @default(false)
   emailVerifyToken    String?
   emailVerifyExpiry   DateTime?
