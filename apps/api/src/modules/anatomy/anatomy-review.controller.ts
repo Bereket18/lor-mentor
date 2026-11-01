@@ -91,6 +91,30 @@ export class AnatomyReviewController {
     return this.service.reviewSystem(user, params.slug, dto);
   }
 
+  // POST /api/v1/anatomy/review/systems/:slug/publish
+  @Throttle(WRITE_THROTTLE)
+  @Post('systems/:slug/publish')
+  @HttpCode(HttpStatus.OK)
+  publishSystem(
+    @Param() params: ReviewSystemParamsDto,
+    @CurrentUser() user: RequestUser,
+    @Body() dto: ReviewSystemDto,
+  ) {
+    return this.service.publishSystem(user, params.slug, dto);
+  }
+
+  // POST /api/v1/anatomy/review/systems/:slug/unpublish
+  @Throttle(WRITE_THROTTLE)
+  @Post('systems/:slug/unpublish')
+  @HttpCode(HttpStatus.OK)
+  unpublishSystem(
+    @Param() params: ReviewSystemParamsDto,
+    @CurrentUser() user: RequestUser,
+    @Body() dto: ReviewSystemDto,
+  ) {
+    return this.service.unpublishSystem(user, params.slug, dto);
+  }
+
   // POST /api/v1/anatomy/review/structures/:id/revoke
   @Throttle(WRITE_THROTTLE)
   @Post('structures/:id/revoke')

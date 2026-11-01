@@ -15,6 +15,8 @@ const WRITE_HANDLERS = [
   'updateStructure',
   'reviewStructure',
   'reviewSystem',
+  'publishSystem',
+  'unpublishSystem',
   'revokeStructure',
 ] as const;
 

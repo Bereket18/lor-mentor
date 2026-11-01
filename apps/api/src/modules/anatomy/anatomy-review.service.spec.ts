@@ -54,6 +54,7 @@ function setup() {
   const revisionFindMany = jest.fn();
   const systemFindUnique = jest.fn();
   const systemFindMany = jest.fn();
+  const systemUpdate = jest.fn();
   const userFindMany = jest.fn().mockResolvedValue([]);
 
   const prisma: PrismaService = {
@@ -71,6 +72,7 @@ function setup() {
     anatomySystem: {
       findUnique: systemFindUnique,
       findMany: systemFindMany,
+      update: systemUpdate,
     },
     user: { findMany: userFindMany },
     $transaction: jest.fn(
@@ -104,6 +106,7 @@ function setup() {
       revisionFindMany,
       systemFindUnique,
       systemFindMany,
+      systemUpdate,
       userFindMany,
     },
   };
@@ -609,5 +612,168 @@ describe('AnatomyReviewService', () => {
     expect(notifications.notifyUsers).toHaveBeenCalledWith(
       expect.objectContaining({ userIds: ['teacher-2'] }),
     );
+  });
+
+  it('publishes a fully reviewed system, audits it, and notifies reviewers and students', async () => {
+    const { service, audit, notifications, mocks } = setup();
+    const complete = {
+      summary: 'Text',
+      location: 'Text',
+      function: 'Text',
+      bloodSupply: 'Text',
+      clinicalNotes: 'Text',
+      isReviewed: true,
+    };
+    mocks.systemFindUnique.mockResolvedValue({
+      id: 'system-1',
+      slug: 'urinary',
+      name: 'Urinary',
+      isPublished: false,
+      structures: [
+        { ...complete, slug: 'kidney' },
+        { ...complete, slug: 'bladder' },
+      ],
+    });
+    mocks.systemUpdate.mockResolvedValue({});
+    mocks.userFindMany
+      .mockResolvedValueOnce([{ id: 'teacher-2' }])
+      .mockResolvedValueOnce([{ id: 'student-1' }]);
+
+    const result = await service.publishSystem(teacher, 'urinary', {});
+
+    expect(mocks.systemUpdate).toHaveBeenCalledWith({
+      where: { id: 'system-1' },
+      data: { isPublished: true },
+    });
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'ANATOMY_SYSTEM_PUBLISH' }),
+    );
+    expect(notifications.notifyUsers).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userIds: ['teacher-2', 'student-1'],
+        title: 'Anatomy published: Urinary',
+      }),
+    );
+    expect(result).toEqual({
+      systemSlug: 'urinary',
+      systemName: 'Urinary',
+      structureCount: 2,
+      isPublished: true,
+      changed: true,
+    });
+  });
+
+  it('refuses to publish while structures are unreviewed', async () => {
+    const { service, mocks } = setup();
+    mocks.systemFindUnique.mockResolvedValue({
+      id: 'system-1',
+      slug: 'urinary',
+      name: 'Urinary',
+      isPublished: false,
+      structures: [
+        {
+          slug: 'kidney',
+          summary: 'Text',
+          location: 'Text',
+          function: 'Text',
+          bloodSupply: 'Text',
+          clinicalNotes: 'Text',
+          isReviewed: true,
+        },
+        {
+          slug: 'bladder',
+          summary: 'Text',
+          location: 'Text',
+          function: 'Text',
+          bloodSupply: 'Text',
+          clinicalNotes: 'Text',
+          isReviewed: false,
+        },
+      ],
+    });
+
+    await expect(
+      service.publishSystem(teacher, 'urinary', {}),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(mocks.systemUpdate).not.toHaveBeenCalled();
+  });
+
+  it('refuses to publish while teaching text is missing', async () => {
+    const { service, mocks } = setup();
+    mocks.systemFindUnique.mockResolvedValue({
+      id: 'system-1',
+      slug: 'urinary',
+      name: 'Urinary',
+      isPublished: false,
+      structures: [
+        {
+          slug: 'kidney',
+          summary: '',
+          location: null,
+          function: null,
+          bloodSupply: null,
+          clinicalNotes: null,
+          isReviewed: true,
+        },
+      ],
+    });
+
+    await expect(
+      service.publishSystem(teacher, 'urinary', {}),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(mocks.systemUpdate).not.toHaveBeenCalled();
+  });
+
+  it('is a no-op when the system is already published', async () => {
+    const { service, audit, notifications, mocks } = setup();
+    mocks.systemFindUnique.mockResolvedValue({
+      id: 'system-1',
+      slug: 'heart',
+      name: 'Heart',
+      isPublished: true,
+      structures: [],
+    });
+
+    const result = await service.publishSystem(teacher, 'heart', {});
+
+    expect(result.changed).toBe(false);
+    expect(mocks.systemUpdate).not.toHaveBeenCalled();
+    expect(audit.record).not.toHaveBeenCalled();
+    expect(notifications.notifyUsers).not.toHaveBeenCalled();
+  });
+
+  it('unpublishes a published system, audits it, and notifies only reviewers', async () => {
+    const { service, audit, notifications, mocks } = setup();
+    mocks.systemFindUnique.mockResolvedValue({
+      id: 'system-1',
+      slug: 'heart',
+      name: 'Heart',
+      isPublished: true,
+    });
+    mocks.systemUpdate.mockResolvedValue({});
+    mocks.userFindMany.mockResolvedValue([{ id: 'teacher-2' }]);
+
+    const result = await service.unpublishSystem(teacher, 'heart', {});
+
+    expect(mocks.systemUpdate).toHaveBeenCalledWith({
+      where: { id: 'system-1' },
+      data: { isPublished: false },
+    });
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'ANATOMY_SYSTEM_UNPUBLISH' }),
+    );
+    expect(mocks.userFindMany).toHaveBeenCalledTimes(1);
+    expect(notifications.notifyUsers).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userIds: ['teacher-2'],
+        title: 'Anatomy unpublished: Heart',
+      }),
+    );
+    expect(result).toEqual({
+      systemSlug: 'heart',
+      systemName: 'Heart',
+      isPublished: false,
+      changed: true,
+    });
   });
 });

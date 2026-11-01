@@ -8,6 +8,8 @@ import {
   ArrowLeft,
   Boxes,
   CheckCheck,
+  Eye,
+  EyeOff,
   Loader2,
   Search,
   ShieldCheck,
@@ -97,6 +99,7 @@ export function AnatomyReviewWorkspace({
     null,
   );
   const [reviewingSystem, setReviewingSystem] = useState(false);
+  const [publicationBusy, setPublicationBusy] = useState(false);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -313,6 +316,15 @@ export function AnatomyReviewWorkspace({
     counts.draft === 0 &&
     counts.reviewed < system.structures.length;
 
+  // Publishing mirrors the API/CLI gate: the system must have structures and
+  // none may be empty, draft, or pending (pending = complete but unreviewed).
+  const canPublish =
+    !!system &&
+    system.structures.length > 0 &&
+    counts.empty === 0 &&
+    counts.draft === 0 &&
+    counts.pending === 0;
+
   const reviewSystem = useCallback(async () => {
     if (!system || !canReviewSystem || reviewingSystem) return;
     const pendingCount = system.structures.filter(
@@ -358,6 +370,57 @@ export function AnatomyReviewWorkspace({
     reviewingSystem,
     system,
   ]);
+
+  // Publish or unpublish the selected system. Both directions ask for
+  // confirmation because they change what students can see.
+  const setPublication = useCallback(
+    async (published: boolean) => {
+      if (!system || publicationBusy) return;
+      const approved = await confirm({
+        title: published
+          ? `Publish ${system.name} to students?`
+          : `Return ${system.name} to draft?`,
+        description: published
+          ? `Students will see ${system.name} in the Anatomy Lab. You can return it to draft at any time.`
+          : `Students will stop seeing ${system.name}. Faculty approvals and saved text are unchanged.`,
+        confirmLabel: published ? "Publish to students" : "Return to draft",
+        destructive: !published,
+      });
+      if (!approved) return;
+
+      setPublicationBusy(true);
+      setSystemMessage(null);
+      try {
+        await api.post(
+          `/anatomy/review/systems/${encodeURIComponent(system.slug)}/${
+            published ? "publish" : "unpublish"
+          }`,
+          {},
+        );
+        setSystem((current) =>
+          current ? { ...current, isPublished: published } : current,
+        );
+        setSystemMessage({
+          tone: "success",
+          text: published
+            ? `${system.name} is now published. Students can see it in the Anatomy Lab.`
+            : `${system.name} is back to a draft. Students can no longer see it.`,
+        });
+        await refreshSystemList();
+      } catch (error) {
+        const { text } = messageFromError(
+          error,
+          published
+            ? "The system could not be published."
+            : "The system could not be unpublished.",
+        );
+        setSystemMessage({ tone: "error", text });
+      } finally {
+        setPublicationBusy(false);
+      }
+    },
+    [confirm, publicationBusy, refreshSystemList, system],
+  );
 
   const statusOrder: AnatomyReviewStatus[] = [
     "empty",
@@ -581,33 +644,80 @@ export function AnatomyReviewWorkspace({
           <section aria-labelledby="review-structures-heading">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h2
-                  id="review-structures-heading"
-                  className="font-display text-lg font-semibold text-primary"
-                >
-                  {system.name}{" "}
-                  <span className="text-sm font-normal text-muted">
-                    ({system.structureCount} structures)
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2
+                    id="review-structures-heading"
+                    className="font-display text-lg font-semibold text-primary"
+                  >
+                    {system.name}{" "}
+                    <span className="text-sm font-normal text-muted">
+                      ({system.structureCount} structures)
+                    </span>
+                  </h2>
+                  <span
+                    className={cn(
+                      "rounded-full border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                      system.isPublished
+                        ? "border-success/20 bg-success/10 text-success"
+                        : "border-warning/20 bg-warning/10 text-warning",
+                    )}
+                  >
+                    {system.isPublished ? "Published" : "Draft"}
                   </span>
-                </h2>
+                </div>
                 <p className="mt-0.5 text-xs text-secondary">
                   {countSummary(counts)}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => void reviewSystem()}
-                disabled={!canReviewSystem || reviewingSystem || dirty}
-                data-testid="review-system-all"
-                className={`inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-success/30 bg-success/10 px-4 text-xs font-medium text-success transition-colors hover:bg-success/15 disabled:cursor-not-allowed disabled:opacity-50 ${ANATOMY_FOCUS_RING}`}
-              >
-                {reviewingSystem ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-                ) : (
-                  <CheckCheck className="h-3.5 w-3.5" aria-hidden />
-                )}
-                Mark system reviewed
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void setPublication(!system.isPublished)}
+                  disabled={
+                    publicationBusy ||
+                    dirty ||
+                    (!system.isPublished && !canPublish)
+                  }
+                  data-testid="review-system-publication"
+                  title={
+                    !system.isPublished && !canPublish
+                      ? "Review every structure before publishing to students."
+                      : undefined
+                  }
+                  className={cn(
+                    "inline-flex min-h-11 items-center gap-1.5 rounded-lg border px-4 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+                    system.isPublished
+                      ? "border-warning/30 bg-warning/10 text-warning hover:bg-warning/15"
+                      : "border-accent/30 bg-accent/10 text-accent hover:bg-accent/15",
+                    ANATOMY_FOCUS_RING,
+                  )}
+                >
+                  {publicationBusy ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                  ) : system.isPublished ? (
+                    <EyeOff className="h-3.5 w-3.5" aria-hidden />
+                  ) : (
+                    <Eye className="h-3.5 w-3.5" aria-hidden />
+                  )}
+                  {system.isPublished
+                    ? "Return to draft"
+                    : "Publish to students"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void reviewSystem()}
+                  disabled={!canReviewSystem || reviewingSystem || dirty}
+                  data-testid="review-system-all"
+                  className={`inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-success/30 bg-success/10 px-4 text-xs font-medium text-success transition-colors hover:bg-success/15 disabled:cursor-not-allowed disabled:opacity-50 ${ANATOMY_FOCUS_RING}`}
+                >
+                  {reviewingSystem ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                  ) : (
+                    <CheckCheck className="h-3.5 w-3.5" aria-hidden />
+                  )}
+                  Mark system reviewed
+                </button>
+              </div>
             </div>
 
             <div className="mt-3 grid min-w-0 gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">

@@ -518,6 +518,182 @@ export class AnatomyReviewService {
     };
   }
 
+  // Publish a system so students can see it. Reviewer-only (the controller
+  // already enforces TEACHER + the reviewer flag). The gate mirrors the offline
+  // CLI's database checks: the system has structures, every structure has
+  // non-empty teaching text, and every structure is faculty reviewed. The CLI's
+  // extra requirement of an owner-reviewed mapping document stays a
+  // terminal-only governance step the API cannot verify.
+  async publishSystem(user: RequestUser, slug: string, dto: ReviewSystemDto) {
+    const system = await this.prisma.anatomySystem.findUnique({
+      where: { slug },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        isPublished: true,
+        structures: {
+          select: {
+            slug: true,
+            summary: true,
+            location: true,
+            function: true,
+            bloodSupply: true,
+            clinicalNotes: true,
+            isReviewed: true,
+          },
+        },
+      },
+    });
+
+    if (!system) {
+      throw new NotFoundException('Anatomy system not found');
+    }
+
+    // Idempotent: publishing an already-published system changes nothing.
+    if (system.isPublished) {
+      return {
+        systemSlug: system.slug,
+        systemName: system.name,
+        structureCount: system.structures.length,
+        isPublished: true,
+        changed: false,
+      };
+    }
+
+    if (system.structures.length === 0) {
+      throw new ConflictException('Cannot publish a system with no structures.');
+    }
+
+    const incomplete = system.structures.filter(
+      (structure) => missingTextFields(structure).length > 0,
+    );
+    if (incomplete.length > 0) {
+      const sample = incomplete
+        .slice(0, 5)
+        .map((structure) => structure.slug)
+        .join(', ');
+      const suffix = incomplete.length > 5 ? ', ...' : '';
+      throw new ConflictException(
+        `Cannot publish: ${incomplete.length} structure(s) still need teaching text (${sample}${suffix}).`,
+      );
+    }
+
+    const unreviewed = system.structures.filter(
+      (structure) => !structure.isReviewed,
+    );
+    if (unreviewed.length > 0) {
+      const sample = unreviewed
+        .slice(0, 5)
+        .map((structure) => structure.slug)
+        .join(', ');
+      const suffix = unreviewed.length > 5 ? ', ...' : '';
+      throw new ConflictException(
+        `Cannot publish: ${unreviewed.length} structure(s) are not faculty reviewed (${sample}${suffix}).`,
+      );
+    }
+
+    await this.prisma.anatomySystem.update({
+      where: { id: system.id },
+      data: { isPublished: true },
+    });
+
+    await this.recordAudit({
+      action: 'ANATOMY_SYSTEM_PUBLISH',
+      actorId: user.id,
+      entityType: 'AnatomySystem',
+      entityId: system.id,
+      meta: {
+        action: 'publish',
+        systemId: system.id,
+        systemSlug: system.slug,
+        systemName: system.name,
+        structureCount: system.structures.length,
+        note: dto.note ?? null,
+      },
+    });
+
+    // Publishing is the moment content becomes visible to students, so they are
+    // notified too (unlike edit/review on unpublished drafts).
+    await this.notifyAnatomyChange({
+      excludeUserId: user.id,
+      includeStudents: true,
+      action: 'publish',
+      title: `Anatomy published: ${system.name}`,
+      message: `${user.fullName} published ${system.name} to students.`,
+      systemSlug: system.slug,
+      systemName: system.name,
+    });
+
+    return {
+      systemSlug: system.slug,
+      systemName: system.name,
+      structureCount: system.structures.length,
+      isPublished: true,
+      changed: true,
+    };
+  }
+
+  // Return a published system to draft so students stop seeing it. No gate:
+  // withdrawing content is always allowed for a reviewer.
+  async unpublishSystem(user: RequestUser, slug: string, dto: ReviewSystemDto) {
+    const system = await this.prisma.anatomySystem.findUnique({
+      where: { slug },
+      select: { id: true, slug: true, name: true, isPublished: true },
+    });
+
+    if (!system) {
+      throw new NotFoundException('Anatomy system not found');
+    }
+
+    // Idempotent: nothing to do when it is already a draft.
+    if (!system.isPublished) {
+      return {
+        systemSlug: system.slug,
+        systemName: system.name,
+        isPublished: false,
+        changed: false,
+      };
+    }
+
+    await this.prisma.anatomySystem.update({
+      where: { id: system.id },
+      data: { isPublished: false },
+    });
+
+    await this.recordAudit({
+      action: 'ANATOMY_SYSTEM_UNPUBLISH',
+      actorId: user.id,
+      entityType: 'AnatomySystem',
+      entityId: system.id,
+      meta: {
+        action: 'unpublish',
+        systemId: system.id,
+        systemSlug: system.slug,
+        systemName: system.name,
+        note: dto.note ?? null,
+      },
+    });
+
+    // Students were told when it was published; tell the reviewers it is gone.
+    await this.notifyAnatomyChange({
+      excludeUserId: user.id,
+      includeStudents: false,
+      action: 'unpublish',
+      title: `Anatomy unpublished: ${system.name}`,
+      message: `${user.fullName} returned ${system.name} to draft. Students can no longer see it.`,
+      systemSlug: system.slug,
+      systemName: system.name,
+    });
+
+    return {
+      systemSlug: system.slug,
+      systemName: system.name,
+      isPublished: false,
+      changed: true,
+    };
+  }
+
   async revokeStructure(
     user: RequestUser,
     id: string,
@@ -639,7 +815,13 @@ export class AnatomyReviewService {
   private async notifyAnatomyChange(input: {
     excludeUserId: string;
     includeStudents: boolean;
-    action: 'edit' | 'review' | 'review-system' | 'revoke';
+    action:
+      | 'edit'
+      | 'review'
+      | 'review-system'
+      | 'revoke'
+      | 'publish'
+      | 'unpublish';
     title: string;
     message: string;
     systemSlug: string;
