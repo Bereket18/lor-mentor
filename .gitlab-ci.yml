@@ -91,8 +91,18 @@ api:test:
 api:e2e:
   extends: .node
   stage: test
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+    - name: redis:7-alpine
+      alias: redis
+  variables:
+    REDIS_HOST: redis
+    REDIS_PORT: "6379"
   script:
-    - (cd apps/api && npx prisma generate)
+    # Same fresh-database proof as api:test. The e2e spec mocks Prisma and
+    # Redis, so this is the only part of the job that touches the real schema.
+    - (cd apps/api && npx prisma generate && npx prisma migrate deploy)
     - (cd apps/api && npm run test:e2e)
 
 # ── Anatomy model validators ───────────────────────────────────────
