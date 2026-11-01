@@ -74,19 +74,38 @@ point at an empty database.
 
 ## Reviewer access
 
-Reviewer access is currently controlled by the `User.isAnatomyReviewer` flag,
-not by role alone. Grant or revoke it with:
+Every TEACHER account receives `User.isAnatomyReviewer = true` automatically:
+new teachers are created with the flag, and changing a user's role to TEACHER
+sets it (changing away from TEACHER clears it). Existing teachers were
+backfilled in the local database. ADMIN and SUPER_ADMIN are never reviewers and
+are rejected by the API role guard even if the flag is set by hand.
+
+The flag stays revocable per account, and there is a one-time backfill for
+accounts that predate the policy:
 
 ```bash
 npm run anatomy:reviewer --workspace=apps/api -- --email <teacher-email> --grant
 npm run anatomy:reviewer --workspace=apps/api -- --email <teacher-email> --grant --confirm
 npm run anatomy:reviewer --workspace=apps/api -- --email <teacher-email> --revoke --confirm
+npm run anatomy:reviewer --workspace=apps/api -- --all-teachers --grant
+npm run anatomy:reviewer --workspace=apps/api -- --all-teachers --grant --confirm
 ```
 
-The first command is a dry run. The flag is TEACHER-only; ADMIN and
-SUPER_ADMIN are blocked by the API role guard regardless of the flag. A pending
-policy decision is whether every teacher should receive this flag
-automatically; until that is implemented, treat the CLI as the source of truth.
+Grant and backfill commands are dry runs until `--confirm` is added. Only
+TEACHER accounts can be granted the flag.
 
-See `docs/PROGRESS.md` (Step 4 and Step 6) for the local verification record and
-remaining risks.
+## New in this local build
+
+- The public anatomy detail shows the reviewer's full name and the review
+  date/time, plus "Last edited by <teacher> on <date/time>" derived from the
+  newest revision.
+- `/admin/audit` (SUPER_ADMIN only) has an **Anatomy lab** area filter and
+  richer anatomy metadata (`changedFields`, `revisionId`, cleared review, note).
+- In-app notifications are created for anatomy edits and reviews: other
+  reviewers are told about pending edits, teachers hear about reviews on
+  unpublished content, and students hear only about published content that was
+  reviewed. The acting teacher is never notified about their own action. There
+  is no email notification.
+
+See `docs/PROGRESS.md` (Step 7) for the local verification record and remaining
+risks.

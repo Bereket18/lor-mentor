@@ -24,6 +24,7 @@ random unprinted passwords and are deleted with a 401 check.
 | 5 | Left/right proof, README, final report | **Done** (left/right proof, README `8e929fe`; see the Step 6 final report) |
 | S1 | Read-only anatomy text integrity check | **Done** (mismatches reported, none fixed) |
 | S2 | npm audit critical/high inventory | **Done** (read-only; no dependency changes) |
+| 7 | All-teacher reviewer access, attribution, audit filter, in-app notifications | **Done (local)**; UI checked by build/typecheck/lint, browser interaction NOT RUN |
 
 ## Step 1 — anatomy text integrity (read-only)
 
@@ -970,3 +971,108 @@ release step is a staging deployment with the Docker/nginx gates, followed by
 Phase 4 only when licensed assets, source maps, and faculty-approved text are
 available. Phase 4 remains blocked; no system beyond heart and urinary is
 registered.
+
+## Step 7 — all-teacher reviewers, attribution, audit filter, notifications
+
+Run on `integration/anatomy-hardening` from `238b694`, local only. No migration
+was needed: `NotificationType.NEW_CONTENT` already existed, and last-editor
+attribution is derived from the existing append-only
+`AnatomyStructureRevision` rows rather than new columns.
+
+### Policy applied
+
+- Every current and future TEACHER account gets `isAnatomyReviewer = true` by
+  default. `UsersService.createUser` sets it for new teachers and
+  `UsersService.changeRole` sets it when entering TEACHER and clears it when
+  leaving the role.
+- The flag stays per-account revocable through
+  `npm run anatomy:reviewer --workspace=apps/api -- --email <teacher> --revoke --confirm`.
+- ADMIN and SUPER_ADMIN remain blocked by the `@Roles('TEACHER')` gate even if
+  the flag is set by hand.
+- Public attribution shows full teacher names with review and last-edit
+  date/time.
+- In-app notifications only. The acting teacher is excluded, other reviewers
+  hear about pending edits, teachers hear about unpublished reviews/revokes,
+  and students hear only when published content is reviewed.
+
+### Local backfill
+
+- Pre-grant read-only snapshot:
+  `C:\Users\berek\AppData\Local\Temp\opencode\reviewer-pregrant-snapshot.json`
+  (SHA-256 `83BA33D47A4297A32DC69FB94B822FFF2BDFB881F34911046E15BDB61AAB37D9`):
+  18 users (9 STUDENT, 4 TEACHER, 3 ADMIN, 2 SUPER_ADMIN), 0 reviewer flags,
+  18 systems, 270 structures, 0 reviewed, 0 revisions, 14 notifications,
+  44 audit rows.
+- Dry run: `teachers=4 wouldGrant=4 mode=dry-run`.
+- Applied: `npm run anatomy:reviewer --workspace=apps/api -- --all-teachers --grant --confirm`
+  -> **4 teachers granted**, one `ANATOMY_REVIEWER_GRANT` audit row each.
+- Post-grant snapshot (SHA-256
+  `FE6D96AAB7673BA4737D70175EF3F717837AA0369D1B5AF10CF4FE6A91D8CFE6`):
+  4 reviewer flags; every other count unchanged.
+
+### Implementation
+
+- `apps/api/src/modules/anatomy/anatomy.service.ts` includes the newest revision
+  and exposes `lastEditedByName` / `lastEditedAt` next to `reviewedByName`.
+- `apps/api/src/modules/anatomy/anatomy-review.service.ts` adds
+  `changedFields`, `action`, `revisionId`, `clearedReview`, `reviewedAt` and
+  notes to anatomy audit metadata, and sends best-effort in-app notices through
+  `NotificationsService.notifyUsers`.
+- `apps/api/src/modules/notifications/notifications.service.ts` batches notices
+  with `createMany` and skips duplicate unread titles so repeated saves do not
+  flood reviewers.
+- `apps/api/src/modules/audit` adds an `actionPrefix` query filter and anatomy
+  action labels; `/admin/audit` has an **Anatomy lab** area filter and anatomy
+  category.
+- The web detail panel shows `Faculty reviewed by <name> on <date/time>` and
+  `Last edited by <name> on <date/time>`. The notifications page follows
+  validated in-app `meta.href` links.
+
+### Verification (real results)
+
+- `npm run build --workspace=apps/api`: pass.
+- `npx tsc --noEmit -p apps/api/tsconfig.json`: pass.
+- API Jest suite: **30 suites, 406 tests, all pass**.
+- Web build with local env overrides
+  (`NEXT_PUBLIC_API_URL=http://localhost:4000`, `ALLOW_LOCAL_API_ORIGIN=1`):
+  pass, **56 static/dynamic routes** generated including `/anatomy/[slug]`,
+  `/admin/audit` and `/notifications`.
+- ESLint on the four changed web files: pass (no output).
+- Live API run against disposable fixtures (2 temporary teachers, 1 temporary
+  student, 1 temporary SUPER_ADMIN, 1 temporary unpublished-then-published
+  system with 1 structure): **27/27 checks passed**. Covered:
+  - all four temporary logins returned 200;
+  - reviewer teardown: student and SUPER_ADMIN both `403` on the review
+    surface; SUPER_ADMIN `403` on the public anatomy route; teacher `403` on
+    `/audit`;
+  - edit returned `200 changed=true`; review returned `200 isReviewed=true`;
+    a second edit cleared the approval; a second review restored it;
+  - the other reviewer received the edit and review notices with
+    `meta.href=/anatomy/<slug>`; the editor received neither; the student
+    received no edit/unpublished-review notice and exactly the published-review
+    notice;
+  - the student's public system response carried `reviewedByName=E2E Teacher A`,
+    `lastEditedByName=E2E Teacher A` and a non-null `lastEditedAt`;
+  - `/audit?actionPrefix=ANATOMY_` returned 8 entries, all `ANATOMY_*`, with 4
+    fixture entries including `changedFields` and `reviewedAt`;
+  - cleanup restored every baseline count exactly (18 users, 18 systems, 270
+    structures, 0 reviewed, 0 revisions, 14 notifications, 44 audit rows);
+  - all four deleted fixtures returned **401** on login.
+- The temporary E2E and snapshot scripts were deleted; no test fixture remains
+  in the repository.
+
+### Commits
+
+- `3a618bf` feat(api): grant anatomy review access to all teachers
+- `4596363` feat(api): add anatomy attribution, reviewer notifications and audit metadata
+- `68995ce` feat(web): show anatomy attribution, audit area filter and notification links
+- This Step 7 documentation commit.
+
+### Not run
+
+- Browser click-through of the new detail attribution, audit area filter and
+  notification "Open" link. Those UI files were only verified by the production
+  build, TypeScript and ESLint; **browser interaction is not run**.
+- Docker image builds, container health checks, `nginx -t`, staging or
+  production migration, and HTTPS smoke tests: **not run**.
+- No `.env` or secret was read or printed; no password was printed.
