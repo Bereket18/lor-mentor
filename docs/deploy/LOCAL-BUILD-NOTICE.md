@@ -80,8 +80,13 @@ sets it (changing away from TEACHER clears it). Existing teachers were
 backfilled in the local database. ADMIN and SUPER_ADMIN are never reviewers and
 are rejected by the API role guard even if the flag is set by hand.
 
-The flag stays revocable per account, and there is a one-time backfill for
-accounts that predate the policy:
+The flag stays revocable per account. ADMIN and SUPER_ADMIN can grant or
+revoke it from `/admin/users` (the **Reviewer / No review** control on TEACHER
+rows); revoking asks for confirmation. This admin control changes **who may
+review** only — it does not approve or withdraw individual structures, and
+admins still get `403` on all anatomy content and review routes.
+
+The CLI remains available for offline backfills and break-glass changes:
 
 ```bash
 npm run anatomy:reviewer --workspace=apps/api -- --email <teacher-email> --grant
@@ -96,6 +101,10 @@ TEACHER accounts can be granted the flag.
 
 ## New in this local build
 
+- `/admin/users` has an **Anatomy reviewer** control for TEACHER rows: ADMIN and
+  SUPER_ADMIN can grant or revoke the flag (revoke asks for confirmation).
+  Each change writes one `ANATOMY_REVIEWER_GRANT` / `ANATOMY_REVIEWER_REVOKE`
+  audit row with `source: 'admin-reviewer-access'`.
 - The public anatomy detail shows the reviewer's full name and the review
   date/time, plus "Last edited by <teacher> on <date/time>" derived from the
   newest revision.
@@ -107,5 +116,5 @@ TEACHER accounts can be granted the flag.
   reviewed. The acting teacher is never notified about their own action. There
   is no email notification.
 
-See `docs/PROGRESS.md` (Step 7) for the local verification record and remaining
-risks.
+See `docs/PROGRESS.md` (Steps 7-8) for the local verification record and
+remaining risks.

@@ -1076,3 +1076,102 @@ attribution is derived from the existing append-only
 - Docker image builds, container health checks, `nginx -t`, staging or
   production migration, and HTTPS smoke tests: **not run**.
 - No `.env` or secret was read or printed; no password was printed.
+
+## Step 8 - admin-managed anatomy reviewer access
+
+Run on `integration/anatomy-hardening` from `59e7cd1` (Step 8 feature commit
+`5d1afd7`), local only. No schema migration and no database content change.
+
+### Policy
+
+- ADMIN and SUPER_ADMIN can grant or revoke
+  `User.isAnatomyReviewer` for **TEACHER accounts only**, from `/admin/users`.
+- This changes who may review; it does **not** approve or withdraw individual
+  structures. Structure approval stays with reviewers through the review
+  surface.
+- Admin accounts still have no anatomy content access. The anatomy controller
+  keeps its `@Roles('STUDENT', 'TEACHER')` gate, and the review controller keeps
+  `@Roles('TEACHER')` plus `AnatomyReviewerGuard`, so an ADMIN/SUPER_ADMIN gets
+  `403` even if the reviewer flag is set by hand.
+- Moving a user into TEACHER still grants the flag; moving a teacher out of the
+  role still clears it. The admin control is for revoking (and restoring) the
+  flag without the CLI.
+
+### Implementation
+
+- `apps/api/src/modules/users/role.util.ts` adds
+  `canManageReviewerAccess(actorRole, targetRole)`: privileged actor, TEACHER
+  target only.
+- `apps/api/src/modules/users/users.service.ts` adds `setAnatomyReviewer`:
+  - loads the target and rejects a non-TEACHER target with `403`;
+  - is idempotent and returns `changed: false` without an audit row when the
+    flag already matches;
+  - on a real change, updates the flag and writes one explicit
+    `ANATOMY_REVIEWER_GRANT` or `ANATOMY_REVIEWER_REVOKE` audit row with
+    `source: 'admin-reviewer-access'`;
+  - `findAll` now returns `isAnatomyReviewer` so the admin list can show it.
+- `apps/api/src/modules/users/dto/set-anatomy-reviewer.dto.ts` validates the
+  boolean body.
+- `PATCH /api/v1/users/:id/anatomy-reviewer` is guarded by
+  `@Roles('ADMIN', 'SUPER_ADMIN')`, uses `@SkipAudit()` and relies on the
+  service's explicit audit row (same pattern as `changeStatus`).
+- `/admin/users` shows a compact **Reviewer / No review** toggle under the role
+  selector for TEACHER rows. Revoking asks for confirmation ("Revoke anatomy
+  reviewer access?"); granting does not. Role changes now also sync the local
+  reviewer flag from the API response.
+- The existing audit labels already covered both action keys, including the
+  `/admin/audit` **Anatomy lab** filter, so no new label was needed.
+
+### Verification (real results)
+
+- `npx tsc --noEmit -p apps/api/tsconfig.json`: pass.
+- `npm run build --workspace=apps/api`: pass.
+- API Jest suite: **30 suites, 410 tests, all pass** (4 new
+  `setAnatomyReviewer` tests: grant, revoke, non-teacher rejection, no-op).
+- Web build with local env overrides
+  (`NEXT_PUBLIC_API_URL=http://localhost:4000`, `ALLOW_LOCAL_API_ORIGIN=1`):
+  pass.
+- ESLint on `apps/web/src/app/(app)/admin/users/page.tsx`: pass (no output).
+- Live API run against disposable fixtures (1 temporary ADMIN, 1 temporary
+  TEACHER; random passwords never printed): **17/17 checks passed**.
+  - baseline before and after: 18 users, 4 reviewer flags, 52 audit rows;
+  - `GET /users` exposed `isAnatomyReviewer=true` for the teacher;
+  - ADMIN revoke returned `200 changed=true flag=false`; the revoked teacher
+    then got `403` on `/anatomy/review/systems`;
+  - a repeat revoke returned `200 changed=false` with no new audit row;
+  - ADMIN grant returned `200 changed=true flag=true`; the teacher's review
+    surface returned `200` again;
+  - a non-teacher target returned `403`; an invalid body returned `400`; a
+    TEACHER token on the admin route returned `403`;
+  - exactly one `ANATOMY_REVIEWER_REVOKE` and one
+    `ANATOMY_REVIEWER_GRANT` row were written, both from the admin actor with
+    `source: 'admin-reviewer-access'`; no `users.setAnatomyReviewer` automatic
+    row leaked through `@SkipAudit()`;
+  - both deleted fixtures returned **401** on login.
+- Headless browser run of `/admin/users` with a disposable ADMIN and TEACHER:
+  **11/11 UI checks passed**.
+  - admin login redirected to `/admin`;
+  - the teacher row showed the toggle as granted (`aria-pressed=true`);
+  - clicking it opened the confirmation dialog; "Revoke access" flipped the row
+    to **No review** and set the database flag to `false`;
+  - clicking **No review** granted it back with no dialog and set the flag to
+    `true`;
+  - each UI change wrote exactly one matching audit row;
+  - no runtime page errors; cleanup restored the reviewer-flag count (4 -> 4).
+- Temporary verification scripts and fixtures were removed. No test fixture or
+  random password remains.
+- Urinary remains **unpublished**. The read-only publish dry run from the
+  earlier check still reports 15 reviewed structures and no blockers, but no
+  `--confirm` publish was run because publishing real content still requires
+  your explicit consent.
+
+### Commits
+
+- `5d1afd7` feat(api,web): let admins manage anatomy reviewer access
+- This Step 8 documentation commit.
+
+### Not run
+
+- Docker image builds, container health checks, `nginx -t`, staging or
+  production migration, and HTTPS smoke tests: **not run**.
+- No `.env` or secret was read or printed; no password was printed.
