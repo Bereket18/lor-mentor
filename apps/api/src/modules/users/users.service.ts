@@ -12,6 +12,7 @@ import {
   canCreateRole,
   canChangeRole,
   canDeleteRole,
+  canManageReviewerAccess,
   isPrivileged,
 } from './role.util';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -217,6 +218,7 @@ export class UsersService {
           role: true,
           isActive: true,
           isEmailVerified: true,
+          isAnatomyReviewer: true,
           createdAt: true,
           updatedAt: true,
           departmentId: true,
@@ -426,6 +428,88 @@ export class UsersService {
 
     const status = isActive ? 'activated' : 'deactivated';
     return { message: `Account ${status}`, user };
+  }
+
+  // Grant or revoke a teacher's anatomy reviewer access. This flag is the only
+  // per-account gate on the anatomy review routes; approving individual
+  // structures is a separate action. Every TEACHER gets the flag by default
+  // (createUser / changeRole), and this is the admin-controlled way to take it
+  // away again. Reviewer access is TEACHER-only, so the service rejects any
+  // other target role even though the route already requires ADMIN/SUPER_ADMIN.
+  async setAnatomyReviewer(
+    userId: string,
+    isAnatomyReviewer: boolean,
+    actorId: string,
+    actorRole: string,
+  ) {
+    const target = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+        isAnatomyReviewer: true,
+      },
+    });
+    if (!target) throw new NotFoundException('User not found');
+
+    if (!canManageReviewerAccess(actorRole, target.role)) {
+      throw new ForbiddenException(
+        'Anatomy reviewer access can only be changed for teacher accounts',
+      );
+    }
+
+    // Idempotent: don't write a redundant audit entry for a no-op change.
+    if (target.isAnatomyReviewer === isAnatomyReviewer) {
+      return {
+        message: isAnatomyReviewer
+          ? 'Teacher already has anatomy reviewer access'
+          : 'Teacher does not have anatomy reviewer access',
+        changed: false,
+        user: target,
+      };
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { isAnatomyReviewer },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+        isAnatomyReviewer: true,
+      },
+    });
+
+    // Grant/revoke is a permission change — record who did it and to whom,
+    // reusing the action keys written by the anatomy:reviewer CLI so the
+    // audit trail reads consistently.
+    await this.prisma.auditLog.create({
+      data: {
+        actorId,
+        action: isAnatomyReviewer
+          ? 'ANATOMY_REVIEWER_GRANT'
+          : 'ANATOMY_REVIEWER_REVOKE',
+        entityType: 'User',
+        entityId: updated.id,
+        meta: {
+          email: updated.email,
+          fullName: updated.fullName,
+          isAnatomyReviewer: updated.isAnatomyReviewer,
+          source: 'admin-reviewer-access',
+        },
+      },
+    });
+
+    return {
+      message: isAnatomyReviewer
+        ? 'Anatomy reviewer access granted'
+        : 'Anatomy reviewer access revoked',
+      changed: true,
+      user: updated,
+    };
   }
 
   // Create a user of any role the actor is permitted to create.

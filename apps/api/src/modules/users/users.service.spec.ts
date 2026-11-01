@@ -227,6 +227,7 @@ describe('UsersService — user list filters and admin program rules', () => {
   const findAcademicYear = jest.fn();
   const findCourse = jest.fn();
   const updateManyCourses = jest.fn();
+  const createAudit = jest.fn();
   const transactionMock = jest.fn();
 
   const prisma = {
@@ -239,6 +240,7 @@ describe('UsersService — user list filters and admin program rules', () => {
     department: { findUnique: findDepartment },
     academicYear: { findUnique: findAcademicYear },
     course: { findMany: findCourse, updateMany: updateManyCourses },
+    auditLog: { create: createAudit },
     $transaction: transactionMock,
   } as unknown as PrismaService;
 
@@ -248,6 +250,7 @@ describe('UsersService — user list filters and admin program rules', () => {
     jest.clearAllMocks();
     findManyUsers.mockResolvedValue([]);
     countUsers.mockResolvedValue(0);
+    createAudit.mockResolvedValue({});
   });
 
   describe('findAll filters', () => {
@@ -405,6 +408,125 @@ describe('UsersService — user list filters and admin program rules', () => {
           data: { role: 'ADMIN', isAnatomyReviewer: false },
         }),
       );
+    });
+  });
+
+  describe('setAnatomyReviewer admin control', () => {
+    it('grants reviewer access to a teacher and audits the grant', async () => {
+      findUser.mockResolvedValue({
+        id: 'teacher-1',
+        email: 't1@example.com',
+        fullName: 'Dr. One',
+        role: 'TEACHER',
+        isAnatomyReviewer: false,
+      });
+      updateUser.mockResolvedValue({
+        id: 'teacher-1',
+        email: 't1@example.com',
+        fullName: 'Dr. One',
+        role: 'TEACHER',
+        isAnatomyReviewer: true,
+      });
+
+      const result = await service.setAnatomyReviewer(
+        'teacher-1',
+        true,
+        'admin-1',
+        'ADMIN',
+      );
+
+      expect(updateUser).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'teacher-1' },
+          data: { isAnatomyReviewer: true },
+        }),
+      );
+      expect(createAudit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            actorId: 'admin-1',
+            action: 'ANATOMY_REVIEWER_GRANT',
+            entityType: 'User',
+            entityId: 'teacher-1',
+          }),
+        }),
+      );
+      expect(result.changed).toBe(true);
+      expect(result.user.isAnatomyReviewer).toBe(true);
+    });
+
+    it('revokes reviewer access from a teacher and audits the revoke', async () => {
+      findUser.mockResolvedValue({
+        id: 'teacher-2',
+        email: 't2@example.com',
+        fullName: 'Dr. Two',
+        role: 'TEACHER',
+        isAnatomyReviewer: true,
+      });
+      updateUser.mockResolvedValue({
+        id: 'teacher-2',
+        email: 't2@example.com',
+        fullName: 'Dr. Two',
+        role: 'TEACHER',
+        isAnatomyReviewer: false,
+      });
+
+      const result = await service.setAnatomyReviewer(
+        'teacher-2',
+        false,
+        'super-1',
+        'SUPER_ADMIN',
+      );
+
+      expect(createAudit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'ANATOMY_REVIEWER_REVOKE',
+            entityId: 'teacher-2',
+          }),
+        }),
+      );
+      expect(result.message).toBe('Anatomy reviewer access revoked');
+      expect(result.user.isAnatomyReviewer).toBe(false);
+    });
+
+    it('refuses to change reviewer access for a non-teacher target', async () => {
+      findUser.mockResolvedValue({
+        id: 'admin-2',
+        email: 'a2@example.com',
+        fullName: 'Admin Two',
+        role: 'ADMIN',
+        isAnatomyReviewer: false,
+      });
+
+      await expect(
+        service.setAnatomyReviewer('admin-2', true, 'admin-1', 'ADMIN'),
+      ).rejects.toThrow(
+        'Anatomy reviewer access can only be changed for teacher accounts',
+      );
+      expect(updateUser).not.toHaveBeenCalled();
+      expect(createAudit).not.toHaveBeenCalled();
+    });
+
+    it('is a no-op when the flag already matches the request', async () => {
+      findUser.mockResolvedValue({
+        id: 'teacher-3',
+        email: 't3@example.com',
+        fullName: 'Dr. Three',
+        role: 'TEACHER',
+        isAnatomyReviewer: true,
+      });
+
+      const result = await service.setAnatomyReviewer(
+        'teacher-3',
+        true,
+        'admin-1',
+        'ADMIN',
+      );
+
+      expect(result.changed).toBe(false);
+      expect(updateUser).not.toHaveBeenCalled();
+      expect(createAudit).not.toHaveBeenCalled();
     });
   });
 
