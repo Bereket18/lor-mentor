@@ -181,7 +181,11 @@ verifier:test:
   stage: test
   image: python:3.12-slim
   before_script:
-    - pip install requests fastapi
+    # fastapi matches services/receipt-verifier/requirements.txt; requests is
+    # the version in the venv the suite was validated against. Do not install
+    # requirements.txt: it pulls ethiobank-receipts (Selenium + Chromium), which
+    # these tests deliberately do not need.
+    - pip install requests==2.34.2 fastapi==0.140.0
   script:
     - cd services/receipt-verifier
     - python -m py_compile normalize.py cbe_links.py security.py main.py
