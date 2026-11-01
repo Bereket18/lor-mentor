@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import type { AuditService } from '../audit/audit.service';
+import type { NotificationsService } from '../notifications/notifications.service';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../../common/types/request-user';
 import { AnatomyReviewService } from './anatomy-review.service';
@@ -12,6 +13,7 @@ const teacher = {
   id: 'teacher-1',
   role: 'TEACHER',
   isAnatomyReviewer: true,
+  fullName: 'Dr Editor',
 } as unknown as RequestUser;
 
 function structure(overrides: Record<string, unknown> = {}) {
@@ -37,7 +39,7 @@ function structure(overrides: Record<string, unknown> = {}) {
     createdAt: new Date('2026-10-01T09:00:00.000Z'),
     updatedAt: loadedAt,
     reviewedBy: { id: 'teacher-old', fullName: 'Dr Old Reviewer' },
-    system: { slug: 'heart', name: 'Heart' },
+    system: { slug: 'heart', name: 'Heart', isPublished: true },
     ...overrides,
   };
 }
@@ -52,6 +54,7 @@ function setup() {
   const revisionFindMany = jest.fn();
   const systemFindUnique = jest.fn();
   const systemFindMany = jest.fn();
+  const userFindMany = jest.fn().mockResolvedValue([]);
 
   const prisma: PrismaService = {
     anatomyStructure: {
@@ -69,6 +72,7 @@ function setup() {
       findUnique: systemFindUnique,
       findMany: systemFindMany,
     },
+    user: { findMany: userFindMany },
     $transaction: jest.fn(
       async (callback: (tx: PrismaService) => Promise<unknown>) =>
         callback(prisma),
@@ -79,9 +83,14 @@ function setup() {
     record: jest.fn().mockResolvedValue(undefined),
   } as unknown as AuditService;
 
+  const notifications = {
+    notifyUsers: jest.fn().mockResolvedValue(0),
+  } as unknown as NotificationsService;
+
   return {
-    service: new AnatomyReviewService(prisma, audit),
+    service: new AnatomyReviewService(prisma, audit, notifications),
     audit: audit as unknown as { record: jest.Mock },
+    notifications: notifications as unknown as { notifyUsers: jest.Mock },
     prisma: prisma as unknown as {
       $transaction: jest.Mock;
     },
@@ -95,6 +104,7 @@ function setup() {
       revisionFindMany,
       systemFindUnique,
       systemFindMany,
+      userFindMany,
     },
   };
 }
@@ -512,5 +522,92 @@ describe('AnatomyReviewService', () => {
         counts: { empty: 1, draft: 1, pending: 1, reviewed: 1 },
       }),
     ]);
+  });
+
+  it('notifies other reviewers about a changed edit and excludes the editor', async () => {
+    const { service, notifications, mocks } = setup();
+    mocks.findUnique.mockResolvedValue(
+      structure({ isReviewed: false, reviewedBy: null }),
+    );
+    mocks.updateMany.mockResolvedValue({ count: 1 });
+    mocks.revisionCreate.mockResolvedValue({ id: 'revision-1' });
+    mocks.findUniqueOrThrow.mockResolvedValue(
+      structure({ summary: 'Updated summary.', isReviewed: false }),
+    );
+    mocks.userFindMany.mockResolvedValue([{ id: 'teacher-2' }]);
+
+    await service.updateStructure(teacher, 'structure-1', {
+      updatedAt: loadedAt.toISOString(),
+      summary: 'Updated summary.',
+    });
+
+    expect(notifications.notifyUsers).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userIds: ['teacher-2'],
+        title: 'Anatomy edit: Aorta',
+      }),
+    );
+  });
+
+  it('notifies other teachers and students when published content is reviewed', async () => {
+    const { service, notifications, mocks } = setup();
+    mocks.findUnique.mockResolvedValue(
+      structure({
+        isReviewed: false,
+        reviewedBy: null,
+        reviewedAt: null,
+        reviewedById: null,
+      }),
+    );
+    mocks.updateMany.mockResolvedValue({ count: 1 });
+    mocks.findUniqueOrThrow.mockResolvedValue(
+      structure({
+        isReviewed: true,
+        reviewedAt: savedAt,
+        reviewedById: 'teacher-1',
+        reviewedBy: { id: 'teacher-1', fullName: 'Dr Reviewer' },
+      }),
+    );
+    mocks.userFindMany
+      .mockResolvedValueOnce([{ id: 'teacher-2' }])
+      .mockResolvedValueOnce([{ id: 'student-1' }]);
+
+    await service.reviewStructure(teacher, 'structure-1', {});
+
+    expect(notifications.notifyUsers).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userIds: ['teacher-2', 'student-1'],
+        title: 'Anatomy reviewed: Aorta',
+      }),
+    );
+  });
+
+  it('does not notify students when an unpublished system is edited or reviewed', async () => {
+    const { service, notifications, mocks } = setup();
+    mocks.findUnique.mockResolvedValue(
+      structure({
+        isReviewed: false,
+        reviewedBy: null,
+        system: { slug: 'urinary', name: 'Urinary', isPublished: false },
+      }),
+    );
+    mocks.updateMany.mockResolvedValue({ count: 1 });
+    mocks.findUniqueOrThrow.mockResolvedValue(
+      structure({
+        isReviewed: true,
+        reviewedAt: savedAt,
+        reviewedById: 'teacher-1',
+        reviewedBy: { id: 'teacher-1', fullName: 'Dr Reviewer' },
+        system: { slug: 'urinary', name: 'Urinary', isPublished: false },
+      }),
+    );
+    mocks.userFindMany.mockResolvedValue([{ id: 'teacher-2' }]);
+
+    await service.reviewStructure(teacher, 'structure-1', {});
+
+    expect(mocks.userFindMany).toHaveBeenCalledTimes(1);
+    expect(notifications.notifyUsers).toHaveBeenCalledWith(
+      expect.objectContaining({ userIds: ['teacher-2'] }),
+    );
   });
 });

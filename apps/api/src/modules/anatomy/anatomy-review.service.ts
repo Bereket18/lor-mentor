@@ -8,6 +8,7 @@ import {
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import type { RequestUser } from '../../common/types/request-user';
 import type {
   ReviewStructureDto,
@@ -90,6 +91,15 @@ function unique(values: string[]): string[] {
   return [...new Set(values)];
 }
 
+function changedFieldNames(
+  previous: EditableSnapshot,
+  next: EditableSnapshot,
+): string[] {
+  return (Object.keys(previous) as (keyof EditableSnapshot)[]).filter(
+    (field) => JSON.stringify(previous[field]) !== JSON.stringify(next[field]),
+  );
+}
+
 function serializeStructure(structure: StructureWithReviewer) {
   const { reviewedBy, ...rest } = structure;
   return {
@@ -106,6 +116,7 @@ export class AnatomyReviewService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // All systems, including drafts, with the four review-state counts the
@@ -289,13 +300,34 @@ export class AnatomyReviewService {
       entityType: 'AnatomyStructure',
       entityId: id,
       meta: {
+        action: 'edit',
         systemSlug: existing.system.slug,
+        systemName: existing.system.name,
+        structureId: id,
         structureSlug: existing.slug,
+        structureName: existing.name,
         revisionId: result.revisionId,
         changed,
+        changedFields: changed ? changedFieldNames(previous, next) : [],
         clearedReview: changed && existing.isReviewed,
+        note: dto.note ?? null,
       },
     });
+
+    if (changed) {
+      await this.notifyAnatomyChange({
+        excludeUserId: user.id,
+        includeStudents: false,
+        action: 'edit',
+        title: `Anatomy edit: ${existing.name}`,
+        message: `${user.fullName} updated ${existing.name} in ${existing.system.name}. Faculty review is pending.`,
+        systemSlug: existing.system.slug,
+        systemName: existing.system.name,
+        structureId: id,
+        structureSlug: existing.slug,
+        structureName: existing.name,
+      });
+    }
 
     return {
       ...serializeStructure(result.structure),
@@ -313,7 +345,7 @@ export class AnatomyReviewService {
       where: { id },
       include: {
         ...STRUCTURE_INCLUDE,
-        system: { select: { slug: true } },
+        system: { select: { slug: true, name: true, isPublished: true } },
       },
     });
 
@@ -362,10 +394,28 @@ export class AnatomyReviewService {
       entityType: 'AnatomyStructure',
       entityId: id,
       meta: {
+        action: 'review',
         systemSlug: existing.system.slug,
+        systemName: existing.system.name,
+        structureId: id,
         structureSlug: existing.slug,
+        structureName: existing.name,
+        reviewedAt: updated.reviewedAt,
         note: dto.note ?? null,
       },
+    });
+
+    await this.notifyAnatomyChange({
+      excludeUserId: user.id,
+      includeStudents: existing.system.isPublished,
+      action: 'review',
+      title: `Anatomy reviewed: ${existing.name}`,
+      message: `${user.fullName} reviewed ${existing.name} in ${existing.system.name}.`,
+      systemSlug: existing.system.slug,
+      systemName: existing.system.name,
+      structureId: id,
+      structureSlug: existing.slug,
+      structureName: existing.name,
     });
 
     return { ...serializeStructure(updated), alreadyReviewed: false };
@@ -378,6 +428,7 @@ export class AnatomyReviewService {
         id: true,
         slug: true,
         name: true,
+        isPublished: true,
         structures: {
           select: {
             id: true,
@@ -438,12 +489,27 @@ export class AnatomyReviewService {
       entityType: 'AnatomySystem',
       entityId: system.id,
       meta: {
+        action: 'review-system',
+        systemId: system.id,
         systemSlug: system.slug,
+        systemName: system.name,
         structureCount: system.structures.length,
         updatedCount: unreviewedIds.length,
         note: dto.note ?? null,
       },
     });
+
+    if (unreviewedIds.length > 0) {
+      await this.notifyAnatomyChange({
+        excludeUserId: user.id,
+        includeStudents: system.isPublished,
+        action: 'review-system',
+        title: `Anatomy reviewed: ${system.name}`,
+        message: `${user.fullName} reviewed ${unreviewedIds.length} structure(s) in ${system.name}.`,
+        systemSlug: system.slug,
+        systemName: system.name,
+      });
+    }
 
     return {
       systemSlug: system.slug,
@@ -461,7 +527,7 @@ export class AnatomyReviewService {
       where: { id },
       include: {
         ...STRUCTURE_INCLUDE,
-        system: { select: { slug: true } },
+        system: { select: { slug: true, name: true, isPublished: true } },
       },
     });
 
@@ -485,10 +551,27 @@ export class AnatomyReviewService {
       entityType: 'AnatomyStructure',
       entityId: id,
       meta: {
+        action: 'revoke',
         systemSlug: existing.system.slug,
+        systemName: existing.system.name,
+        structureId: id,
         structureSlug: existing.slug,
+        structureName: existing.name,
         note: dto.note ?? null,
       },
+    });
+
+    await this.notifyAnatomyChange({
+      excludeUserId: user.id,
+      includeStudents: false,
+      action: 'revoke',
+      title: `Anatomy review revoked: ${existing.name}`,
+      message: `${user.fullName} revoked faculty review for ${existing.name} in ${existing.system.name}.`,
+      systemSlug: existing.system.slug,
+      systemName: existing.system.name,
+      structureId: id,
+      structureSlug: existing.slug,
+      structureName: existing.name,
     });
 
     return { ...serializeStructure(updated), alreadyRevoked: false };
@@ -546,6 +629,65 @@ export class AnatomyReviewService {
     if (missing.length > 0) {
       throw new BadRequestException(
         `relatedSlugs must reference existing structures in this system: ${missing.join(', ')}`,
+      );
+    }
+  }
+
+  // In-app notices are best-effort: a notification failure must never make a
+  // successful edit/review return an error. Students only hear about content
+  // that has actually been reviewed and is published.
+  private async notifyAnatomyChange(input: {
+    excludeUserId: string;
+    includeStudents: boolean;
+    action: 'edit' | 'review' | 'review-system' | 'revoke';
+    title: string;
+    message: string;
+    systemSlug: string;
+    systemName: string;
+    structureId?: string;
+    structureSlug?: string;
+    structureName?: string;
+  }) {
+    try {
+      const [teachers, students] = await Promise.all([
+        this.prisma.user.findMany({
+          where: {
+            role: 'TEACHER',
+            isAnatomyReviewer: true,
+            isActive: true,
+            id: { not: input.excludeUserId },
+          },
+          select: { id: true },
+        }),
+        input.includeStudents
+          ? this.prisma.user.findMany({
+              where: { role: 'STUDENT', isActive: true },
+              select: { id: true },
+            })
+          : Promise.resolve([] as Array<{ id: string }>),
+      ]);
+
+      const userIds = [...teachers, ...students].map((row) => row.id);
+      await this.notifications.notifyUsers({
+        userIds,
+        title: input.title,
+        message: input.message,
+        meta: {
+          action: input.action,
+          href: `/anatomy/${input.systemSlug}`,
+          systemSlug: input.systemSlug,
+          systemName: input.systemName,
+          ...(input.structureId ? { structureId: input.structureId } : {}),
+          ...(input.structureSlug ? { structureSlug: input.structureSlug } : {}),
+          ...(input.structureName
+            ? { structureName: input.structureName }
+            : {}),
+        },
+      });
+    } catch (error) {
+      this.logger.error(
+        `Could not create anatomy notification ${input.title}`,
+        error instanceof Error ? error.stack : String(error),
       );
     }
   }

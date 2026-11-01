@@ -90,7 +90,20 @@ export class AnatomyService {
     const systemStructures = await this.prisma.anatomyStructure.findMany({
       where: { systemId: system.id },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-      include: { reviewedBy: { select: { fullName: true } } },
+      include: {
+        reviewedBy: { select: { fullName: true } },
+        // The latest revision is the durable record of who last changed the
+        // teaching text. Revisions are append-only, so "latest" is reliable
+        // even after a review is cleared or restored.
+        revisions: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: {
+            createdAt: true,
+            editor: { select: { fullName: true } },
+          },
+        },
+      },
     });
 
     // Related structures are stored as slugs so the seed stays readable and
@@ -99,15 +112,22 @@ export class AnatomyService {
     const bySlug = new Map(
       systemStructures.map((structure) => [structure.slug, structure]),
     );
-    const structures = systemStructures.map(({ reviewedBy, ...structure }) => ({
-      ...structure,
-      // Expose only the reviewer's display name, never their email or id.
-      reviewedByName: reviewedBy?.fullName ?? null,
-      related: structure.relatedSlugs.flatMap((relatedSlug) => {
-        const related = bySlug.get(relatedSlug);
-        return related ? [{ slug: related.slug, name: related.name }] : [];
-      }),
-    }));
+    const structures = systemStructures.map(
+      ({ reviewedBy, revisions, ...structure }) => {
+        const lastRevision = revisions?.[0] ?? null;
+        return {
+          ...structure,
+          // Expose only the reviewer's display name, never their email or id.
+          reviewedByName: reviewedBy?.fullName ?? null,
+          lastEditedByName: lastRevision?.editor.fullName ?? null,
+          lastEditedAt: lastRevision?.createdAt ?? null,
+          related: structure.relatedSlugs.flatMap((relatedSlug) => {
+            const related = bySlug.get(relatedSlug);
+            return related ? [{ slug: related.slug, name: related.name }] : [];
+          }),
+        };
+      },
+    );
 
     return {
       ...system,

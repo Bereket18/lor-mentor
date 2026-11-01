@@ -174,6 +174,9 @@ export class AuditService {
     if (query.action?.trim()) {
       filters.push({ action: query.action.trim() });
     }
+    if (query.actionPrefix?.trim()) {
+      filters.push({ action: { startsWith: query.actionPrefix.trim() } });
+    }
     if (query.entityType?.trim()) {
       filters.push({ entityType: query.entityType.trim() });
     }
