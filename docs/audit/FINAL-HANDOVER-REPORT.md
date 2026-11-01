@@ -6,7 +6,10 @@
 previously approved outstanding fixes (two in the first pass, six security items in the
 final engineering remediation pass), security re-verification, Docker/VPS readiness review,
 and the deployment handover package.
-**Nothing in this report was committed, pushed, merged, rebased, or deployed.**
+**Nothing in this report was committed, pushed, merged, rebased, or deployed** by the two
+passes described here. A later consolidation pass (2026-11-02) committed and pushed a
+consolidation branch under a separate lane; see **§L**, which records what changed and which
+statements above it supersedes.
 
 **Two passes are recorded here.** Pass 1 (§B.1 rows 30–32, §C.1) covered the two approved
 fixes plus one critical defect found during reconciliation. Pass 2 — the *final engineering
@@ -821,5 +824,95 @@ working tree has been staged or committed**, so the security work described here
 locally; and the branch currently reports as **in sync** with
 `origin/integration/anatomy-hardening` as of the last fetch, which means the remote does not
 contain it either. The deployment engineer must be told explicitly which branch or tag to
-deploy — and that tag must be cut *after* this work is reviewed and committed, or the VPS
+deploy - and that tag must be cut *after* this work is reviewed and committed, or the VPS
 will run the unremediated code.
+
+---
+
+## L. Release consolidation verification - 2026-11-02
+
+This section supersedes the parts of this report that are now out of date. It covers a
+separate lane: consolidating `integration/anatomy-hardening` into `main` through
+`release/consolidation`.
+
+### L.1 What this pass did
+
+| Commit | Change |
+| --- | --- |
+| `c5140d2` | removed conflict markers committed in `9bb4ddf`; restored three web files to `origin/integration/anatomy-hardening`; single `workflow:` block; honest `audit:npm`; nginx `image:` mapping |
+| `db792d5` | `aicheck.mjs` reads `DATABASE_URL` from the environment instead of a hardcoded local DB credential |
+| `6fa4c76` | removed the duplicate `VERIFIER_SHARED_TOKEN` key that defeated the `:?` fail-closed guard |
+| `686689b` | `api:e2e` gets Postgres/Redis services and runs `prisma migrate deploy` |
+| `f59ccde` | new `prisma:validate`, `api:typecheck`, `web:typecheck`, `web:unit` jobs |
+| `0aec411` | verifier test dependencies pinned (`requests==2.34.2`, `fastapi==0.140.0`) |
+| `0eb75b8` | Trivy uses the pinned official `aquasec/trivy:0.76.1` image |
+
+### L.2 Statements above that this supersedes
+
+- **§E.3 / §E.4 row 1** said "Action taken: none" for the `aicheck.mjs` credential. The
+  hardcoded value is now removed from the tree (`db792d5`) and the script fails closed when
+  `DATABASE_URL` is unset. The value remains in history (`f6f98ac`) and history rewriting is
+  prohibited, so **rotation of that local Postgres password is still the owner's action**.
+- **§J** described `integration/anatomy-hardening` at `3d4c315` with nothing committed. The
+  consolidation branch is `release/consolidation`; local HEAD is `0eb75b8`; working tree was
+  clean at verification time. It is 25+ commits ahead of `origin/main` and 0 behind.
+- **§F** compose readiness: `docker-compose.prod.yml` had a duplicate key introduced by
+  `c20d228` that made `docker compose config` fail outright. `6fa4c76` removes it. Prod and
+  the prod+staging overlay now both pass `docker compose config` with the example env file.
+  The staging file is an overlay only; it is expected to fail when used without prod.
+
+### L.3 Executed locally (pass)
+
+| Check | Result |
+| --- | --- |
+| `npm ci` | 1767 packages |
+| `prisma validate` / `generate` | pass |
+| New migration `20261031120000_add_anatomy_faculty_review` | additive only: `ADD COLUMN`, `CREATE TABLE`, `CREATE INDEX`, FK; no `DROP`, no column `ALTER` |
+| API `nest build`, `tsc --noEmit` | pass |
+| API Jest | 34 suites, 452 tests pass |
+| API e2e | 3/3 pass |
+| Web `tsc --noEmit`, `eslint .` | pass, no findings |
+| Web unit (Playwright, no browser) | 25/25 pass |
+| Web production build | pass |
+| Anatomy model validators | heart and urinary pass; orientation check 42 pairs / 4 GLBs |
+| Verifier `py_compile` + 32 tests | pass on Python 3.14 and 3.11 |
+| `docker compose config` | prod and prod+staging overlay pass |
+| Dependency audits (prod) | API 5 (2 moderate, 3 high); web 12 (5 moderate, 6 high, 1 critical); every high/critical is transitive and matches §B/D triage |
+
+### L.4 Still unproven
+
+- Docker daemon was unavailable. No image build, container start, `nginx -t`, or HTTPS smoke
+  test was run, so §F remains static verification plus the compose parse above.
+- Python 3.12 could not be executed locally (broken launcher path); the verifier suite was
+  proven on 3.14 and 3.11 only. The CI job pins 3.12 and is the first real run of that
+  interpreter.
+- The GitLab pipeline for `release/consolidation` has not run; no pipeline ID or SHA-based
+  result exists. Every CI change in §L.1 is validated by local execution and semantic YAML
+  assertions, not by a pipeline.
+
+### L.5 Anatomy claim adjudication
+
+| # | Claim | Status | Evidence |
+| --- | --- | --- | --- |
+| 1 | Schema migration is safe | PASS | additive migration above |
+| 2 | Review/publish routes are authenticated and role-gated | PASS | `anatomy-review.controller.ts`: `JwtAuthGuard` + `RolesGuard` + `AnatomyReviewerGuard` + `@Roles('TEACHER')`; lab routes `@Roles('STUDENT','TEACHER')`; audit + notification writes in `anatomy-review.service.ts` |
+| 3 | Draft systems are not published | PASS | heart is the only `isPublished: true`; the other 17, including urinary, are `false`; `seed-anatomy.ts` is create-only and `--system` scoped; `publish-anatomy.ts` refuses without mapping doc, teaching text and review |
+| 4 | Admin accounts cannot use the lab | PASS (with precision) | the API returns 403 via the role guard; the web app redirects admins rather than rendering the page — `route-access.ts` `isAllowed()` returns false for `/anatomy` |
+| 5 | Faculty review precedes publication | PASS, with caveat | publish requires `isReviewed` on every structure plus teaching text; revision, audit and notification rows are written; there is no separately recorded sign-off, and one reviewer can bulk-review then publish |
+| 6 | Content is labelled as AI-drafted / not textbook-sourced | PARTIAL | the UI shows "Pending faculty review" (`anatomy-detail-panel.tsx`); the "AI-drafted ... not copied from any textbook" wording exists only in `docs/anatomy/drafts/urinary-teaching-draft.md` — there is no user-facing textbook-sourcing claim |
+| 7 | Licensing wording is accurate | PASS, unchanged | the attribution UI says CC BY 4.0; docs record the legacy CC BY-SA 2.1 Japan source headers and the pending DBCLS clarification |
+| 8 | Financial retention protection exists in HEAD | PASS | `users.service.ts` delete guards and bulk sweep; `delete-user-retention.spec.ts` |
+
+### L.6 Reviewer policy - decision owed
+
+Any TEACHER account is automatically flagged `isAnatomyReviewer` on creation and on role
+change (`users.service.ts`), and `anatomy-reviewer.ts --all-teachers` backfills older accounts.
+A flagged reviewer can both review and publish. If that is wider than intended, the options are:
+flag reviewers explicitly by name only, require reviewer plus a recorded second sign-off, or
+restrict publish to ADMIN while keeping teacher review. No policy change was made.
+
+### L.7 Residual security note
+
+`docs/test-report.md:97` contains a one-use 64-hex email-verification token from a local test
+run (24h expiry by design). It was treated as a test artifact, not a deployment credential, and
+was not modified by this pass.

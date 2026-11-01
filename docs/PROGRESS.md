@@ -1360,3 +1360,74 @@ migration and no change to real anatomy content.
 - Urinary remains **unpublished**. No real content (`isPublished` /
   `isReviewed`) was changed; publishing real content still requires explicit
   consent.
+
+## Release consolidation verification - 2026-11-02
+
+`release/consolidation` consolidates `integration/anatomy-hardening` into `main`. This
+section records what was executed while preparing that merge. It supersedes older "not run"
+notes above where they conflict; anything not listed as executed is still unproven.
+
+### Commits added by this pass
+
+| Commit | Change |
+| --- | --- |
+| `c5140d2` | removed conflict markers committed in `9bb4ddf`; restored three web files to `origin/integration/anatomy-hardening`; single `workflow:` block; honest `audit:npm`; nginx `image:` mapping |
+| `db792d5` | `aicheck.mjs` reads `DATABASE_URL` from the environment instead of a hardcoded local DB credential |
+| `6fa4c76` | removed the duplicate `VERIFIER_SHARED_TOKEN` key that defeated the `:?` fail-closed guard |
+| `686689b` | `api:e2e` gets Postgres/Redis services and runs `prisma migrate deploy` |
+| `f59ccde` | new `prisma:validate`, `api:typecheck`, `web:typecheck`, `web:unit` jobs |
+| `0aec411` | verifier test dependencies pinned (`requests==2.34.2`, `fastapi==0.140.0`) |
+| `0eb75b8` | Trivy uses the pinned official `aquasec/trivy:0.76.1` image |
+
+### Executed locally (pass)
+
+| Check | Result |
+| --- | --- |
+| `npm ci` | 1767 packages |
+| `prisma validate` / `generate` | pass |
+| New migration `20261031120000_add_anatomy_faculty_review` | additive only: `ADD COLUMN`, `CREATE TABLE`, `CREATE INDEX`, FK; no `DROP`, no column `ALTER` |
+| API `nest build`, `tsc --noEmit` | pass |
+| API Jest | 34 suites, 452 tests pass |
+| API e2e | 3/3 pass |
+| Web `tsc --noEmit`, `eslint .` | pass, no findings |
+| Web unit (Playwright, no browser) | 25/25 pass |
+| Web production build | pass |
+| Anatomy model validators | heart and urinary pass; orientation check 42 pairs / 4 GLBs |
+| Verifier `py_compile` + 32 tests | pass on Python 3.14 and 3.11 |
+| `docker compose config` | prod and prod+staging overlay pass with the example env |
+| Dependency audits (prod) | API 5 (2 moderate, 3 high); web 12 (5 moderate, 6 high, 1 critical); every high/critical is transitive and matches the existing triage baseline |
+
+### Not executed / unproven
+
+- Docker daemon was unavailable, so no image build, container start, `nginx -t`, or HTTPS
+  smoke test was run. Those remain proven only by CI.
+- Python 3.12 could not be executed locally (its launcher path is broken); the verifier suite
+  was proven on 3.14 and 3.11 only.
+- The GitLab pipeline for this branch has not run yet; there is no pipeline ID or SHA-based
+  result at the time of writing.
+- `docs/test-report.md:97` still contains a one-use 64-hex email-verification token from a
+  local test run. It is a test artifact with a 24h expiry, not a deployment credential.
+- The `aicheck.mjs` credential is removed from the current tree but remains in Git history
+  (`f6f98ac`). Rewriting history is prohibited; the owner is rotating that local Postgres
+  password.
+
+### Anatomy claims - adjudication
+
+| # | Claim | Status | Evidence |
+| --- | --- | --- | --- |
+| 1 | Schema migration is safe | PASS | additive migration above |
+| 2 | Review/publish routes are authenticated and role-gated | PASS | `anatomy-review.controller.ts`: `JwtAuthGuard` + `RolesGuard` + `AnatomyReviewerGuard` + `@Roles('TEACHER')`; lab routes `@Roles('STUDENT','TEACHER')`; audit + notification writes in `anatomy-review.service.ts` |
+| 3 | Draft systems are not published | PASS | heart is the only `isPublished: true`; the other 17, including urinary, are `false`; `seed-anatomy.ts` is create-only and `--system` scoped; `publish-anatomy.ts` refuses without mapping doc, teaching text and review |
+| 4 | Admin accounts cannot use the lab | PASS (with precision) | the API returns 403 via the role guard; the web app redirects admins instead of rendering the page — `route-access.ts` `isAllowed()` returns false for `/anatomy` |
+| 5 | Faculty review precedes publication | PASS, with caveat | publish requires `isReviewed` on every structure plus teaching text; revision, audit and notification rows are written; there is no separately recorded sign-off, and one reviewer can bulk-review then publish |
+| 6 | Content is labelled as AI-drafted / not textbook-sourced | PARTIAL | the UI shows "Pending faculty review" (`anatomy-detail-panel.tsx`); the "AI-drafted ... not copied from any textbook" wording exists only in `docs/anatomy/drafts/urinary-teaching-draft.md` — there is no user-facing textbook-sourcing claim |
+| 7 | Licensing wording is accurate | PASS, unchanged | the attribution UI says CC BY 4.0; docs record the legacy CC BY-SA 2.1 Japan source headers and the pending DBCLS clarification |
+| 8 | Financial retention protection exists in HEAD | PASS | `users.service.ts` delete guards and bulk sweep; `delete-user-retention.spec.ts` |
+
+### Reviewer policy - current behaviour, for the owner to decide
+
+Any TEACHER account is automatically flagged `isAnatomyReviewer` on creation and on role
+change (`users.service.ts`), and `anatomy-reviewer.ts --all-teachers` backfills older accounts.
+A flagged reviewer can both review and publish. If that is wider than intended, the options are:
+flag reviewers explicitly by name only, require reviewer plus a recorded second sign-off, or
+restrict publish to ADMIN while keeping teacher review. No policy change was made.
