@@ -36,6 +36,8 @@ export interface AnatomyStructure {
   reviewedAt: string | null;
   reviewedById: string | null;
   reviewedByName: string | null;
+  lastEditedByName: string | null;
+  lastEditedAt: string | null;
   updatedAt: string;
   related: AnatomyStructureRelated[];
 }

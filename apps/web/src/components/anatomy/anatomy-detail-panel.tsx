@@ -34,20 +34,22 @@ function focusTreeItem(tree: HTMLElement | null, key: string) {
   });
 }
 
-function reviewDateLabel(value: string | null): string {
+function dateTimeLabel(value: string | null): string {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleDateString(undefined, {
+  return date.toLocaleString(undefined, {
     year: "numeric",
     month: "short",
     day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 
 function reviewBadgeText(selected: AnatomyStructure): string {
   if (!selected.isReviewed) return "Pending faculty review";
-  const date = reviewDateLabel(selected.reviewedAt);
+  const date = dateTimeLabel(selected.reviewedAt);
   if (selected.reviewedByName && date) {
     return `Faculty reviewed by ${selected.reviewedByName} on ${date}`;
   }
@@ -55,6 +57,14 @@ function reviewBadgeText(selected: AnatomyStructure): string {
     return `Faculty reviewed by ${selected.reviewedByName}`;
   }
   return date ? `Faculty reviewed on ${date}` : "Faculty reviewed";
+}
+
+function lastEditedText(selected: AnatomyStructure): string | null {
+  if (!selected.lastEditedByName) return null;
+  const date = dateTimeLabel(selected.lastEditedAt);
+  return date
+    ? `Last edited by ${selected.lastEditedByName} on ${date}`
+    : `Last edited by ${selected.lastEditedByName}`;
 }
 
 interface AnatomyDetailPanelProps {
@@ -543,6 +553,15 @@ export function AnatomyDetailPanel({
                 </span>
               )}
             </div>
+
+            {selected.lastEditedByName && (
+              <p
+                className="mt-2 text-xs text-muted"
+                data-testid="anatomy-last-edited"
+              >
+                {lastEditedText(selected)}
+              </p>
+            )}
 
             {selected.latinName && (
               <p className="mt-3 font-display text-sm italic text-muted">
