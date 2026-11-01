@@ -1246,3 +1246,117 @@ Two local-environment problems, not application code:
 - While this work was in progress, external git activity (not initiated here)
   rebased the branch and swept unrelated pre-existing work into commit
   `408dfc4`. The two Step 8 commits were preserved (`ff923ca`, `3d4c315`).
+
+## Step 9 - in-app anatomy publish / unpublish for reviewers
+
+Run on `integration/anatomy-hardening` from `e643775`, local only. No schema
+migration and no change to real anatomy content.
+
+### Policy
+
+- Anatomy **reviewers** (`TEACHER` + `isAnatomyReviewer`) can publish and
+  unpublish a system from the review surface `/anatomy/review`. This is the same
+  gate as the rest of the review surface. ADMIN / SUPER_ADMIN still get `403`.
+- Publishing is gated in-app by the same database checks the offline CLI uses:
+  the system has structures, every structure has non-empty teaching text, and
+  every structure is faculty reviewed. The CLI's extra requirement of an
+  owner-reviewed **mapping document** stays a terminal-only governance step the
+  API cannot verify.
+- Unpublishing (returning a system to draft) has no gate; withdrawing content is
+  always allowed for a reviewer.
+- Both actions are idempotent: a no-op returns `changed: false`, writes no audit
+  row, and sends no notification.
+- Publishing is the moment content becomes visible to students, so it notifies
+  other reviewers **and** students. Unpublishing notifies reviewers only. The
+  acting teacher is never notified about their own action.
+
+### Implementation
+
+- `apps/api/src/modules/anatomy/anatomy-review.service.ts` adds `publishSystem`
+  and `unpublishSystem`; the internal `notifyAnatomyChange` action union now
+  includes `'publish' | 'unpublish'`.
+- `apps/api/src/modules/anatomy/anatomy-review.controller.ts` adds
+  `POST /api/v1/anatomy/review/systems/:slug/publish` and
+  `POST /api/v1/anatomy/review/systems/:slug/unpublish`, both `200` on success,
+  behind the existing controller-level `@Roles('TEACHER')` +
+  `AnatomyReviewerGuard` and the standard write throttle.
+- New audit actions `ANATOMY_SYSTEM_PUBLISH` / `ANATOMY_SYSTEM_UNPUBLISH` with
+  labels "Anatomy system published" / "Anatomy system unpublished"
+  (`apps/api/src/modules/audit/audit-action.util.ts`) and matching labels in the
+  `/admin/audit` legacy map. These actions also fall under the existing
+  **Anatomy lab** area filter.
+- `apps/web/src/components/anatomy/anatomy-review-workspace.tsx` adds a
+  `Published` / `Draft` badge and a confirm-first control: **Publish to
+  students** (disabled until the system is publishable, with an explanatory
+  tooltip) or **Return to draft**. Publishing a system asks for confirmation;
+  returning to draft uses a destructive confirmation. Both refresh the system
+  list after success.
+- No database schema change. `AnatomySystem.isPublished` already existed and is
+  only flipped by this feature (and the CLI).
+
+### Verification (real results)
+
+- `npx tsc --noEmit -p apps/api/tsconfig.json`: pass.
+- API Jest, anatomy + audit suites: **10 suites, 163 tests, all pass**
+  (5 new `publishSystem` / `unpublishSystem` tests: publish success + notify,
+  block on missing text, block on unreviewed, publish no-op, unpublish +
+  reviewers-only notify).
+- `npx eslint` on the two changed web files: pass (no output).
+- Web production build with the local env overrides
+  (`NEXT_PUBLIC_API_URL=http://localhost:4000`, `ALLOW_LOCAL_API_ORIGIN=1`):
+  pass.
+- `npx nest build` (API): pass. API and web restarted on the new builds; the API
+  router log shows the two new routes mapped, `/api/v1/health` and
+  `/api/v1/health/ready` return `200`.
+- Live API run against disposable fixtures (one disposable non-sample system, one
+  temporary reviewer TEACHER, one plain TEACHER, one STUDENT, one ADMIN; random
+  passwords never printed): **29/29 checks passed.**
+  - baseline before and after: 18 users, 18 systems, 54 audit rows, 4 reviewer
+    flags (the earlier "52 audits" figure predated two `users.changeRole` rows
+    from the Step 8 reviewer-toggle check);
+  - gate: publishing blocked `409` while a structure lacked teaching text, and
+    `409` while a structure was complete but unreviewed; the system stayed
+    unpublished both times;
+  - reviewer publish returned `200 isPublished=true changed=true`; a repeat
+    publish returned `changed=false` and wrote no audit row;
+  - the published system appeared in the student's `GET /anatomy/systems` list
+    (a bare array) and disappeared again after unpublish;
+  - student detail (`GET /anatomy/systems/:slug`) for a **non-sample** published
+    system kept the pre-existing subscription gate: `403 "An active subscription
+    is required to access materials"`; flipping the disposable system to
+    `isSample=true` made the published detail `200` for the unsubscribed
+    student, and unpublishing made it `404`;
+  - access control: a non-reviewer TEACHER and an ADMIN both got `403` on
+    publish;
+  - notifications: the student received exactly one "Anatomy published"
+    notification and none for the unpublish; the acting reviewer received none;
+  - audit: exactly one `ANATOMY_SYSTEM_PUBLISH` and one
+    `ANATOMY_SYSTEM_UNPUBLISH` row, both from the reviewer actor;
+  - both deleted fixtures returned **401** on login (after waiting out the
+    5/min login throttle).
+- Two initial false failures were bugs in the throwaway verification script, not
+  the product: it read `{ systems: [...] }` for a list endpoint that returns a
+  bare array, and it expected a `200` detail for a non-sample system before
+  granting the student a subscription. The script was corrected and the fixed
+  run is the 29/29 above.
+- Temporary verification scripts and fixtures were removed. No test fixture or
+  random password remains.
+
+### Commits
+
+- `b429ae9` feat(api,web): let anatomy reviewers publish systems in-app
+- This Step 9 documentation commit.
+
+### Not run
+
+- Browser/UI drive of the new publish control (headless click-through): **not
+  run**. The web build and ESLint pass and the API path is verified live, but the
+  button itself was not exercised in a real browser in this session.
+- Full repository Jest suite (only the anatomy and audit suites were run):
+  **not run**.
+- Docker image builds, `nginx -t`, staging/production migration and HTTPS smoke
+  tests: **not run**.
+- No `.env` or secret was read or printed; no password was printed.
+- Urinary remains **unpublished**. No real content (`isPublished` /
+  `isReviewed`) was changed; publishing real content still requires explicit
+  consent.

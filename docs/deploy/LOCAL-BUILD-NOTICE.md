@@ -115,6 +115,15 @@ TEACHER accounts can be granted the flag.
   unpublished content, and students hear only about published content that was
   reviewed. The acting teacher is never notified about their own action. There
   is no email notification.
+- Anatomy **reviewers** can now publish or unpublish a system from
+  `/anatomy/review` instead of the terminal. A `Published` / `Draft` badge and a
+  **Publish to students** / **Return to draft** control sit beside the existing
+  "Mark system reviewed" action; both ask for confirmation first. Publishing is
+  allowed only when the system has structures, every structure has teaching text,
+  and every structure is faculty reviewed (the same checks the CLI applies; the
+  CLI's offline mapping-document requirement stays terminal-only). Publishing
+  notifies reviewers and students; returning to draft notifies reviewers only.
+  ADMIN / SUPER_ADMIN still get `403` on these routes.
 
-See `docs/PROGRESS.md` (Steps 7-8) for the local verification record and
+See `docs/PROGRESS.md` (Steps 7-9) for the local verification record and
 remaining risks.
