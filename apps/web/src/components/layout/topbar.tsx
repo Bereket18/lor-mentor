@@ -42,8 +42,20 @@ export function Topbar({ onMenuToggle, drawerOpen = false }: TopbarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Close the account menu on navigation or on an outside click / Escape.
-  useEffect(() => setMenuOpen(false), [pathname]);
+  // Close the account menu on navigation. This adjusts state during render
+  // rather than in an effect: an effect would commit the new route with the
+  // menu still open and only close it on a second pass, and calling setState
+  // synchronously in an effect body is what `react-hooks/set-state-in-effect`
+  // flags. Comparing against the last route this state was reconciled with —
+  // rather than just "did the pathname change" — also stops the menu popping
+  // back open if the user navigates away and returns to the same route.
+  const [menuRoute, setMenuRoute] = useState(pathname);
+  if (menuRoute !== pathname) {
+    setMenuRoute(pathname);
+    setMenuOpen(false);
+  }
+
+  // Close it on an outside click or Escape.
   useEffect(() => {
     if (!menuOpen) return;
     function onPointerDown(event: PointerEvent) {

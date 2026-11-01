@@ -12,8 +12,8 @@
 #   * Hard gates: install, API build, API unit + e2e tests, both anatomy model
 #     validators, web build, verifier tests.
 #   * Report-only (allow_failure: true) until they have been proven green on
-#     main: web lint, npm audit, Docker image builds, compose config, nginx
-#     syntax, Trivy.
+#     main: npm audit, Docker image builds, compose config, nginx syntax,
+#     Trivy. Web lint is a hard gate again now that apps/web lints clean.
 #
 # Keep the test matrix in sync with .github/workflows/ci.yml.
 
@@ -107,13 +107,14 @@ anatomy:validators:
     - (cd apps/web && node scripts/validate-anatomy-model.mjs --system urinary)
 
 # ── Web ────────────────────────────────────────────────────────────
-# Report-only for now: there is pre-existing lint debt (react-hooks rules)
-# unrelated to this pipeline. Build + tests are the hard gates. Tighten this
-# to a blocking step once the existing warnings/errors are paid down.
+# Blocking again: apps/web now lints clean. The last five errors were all
+# react-hooks/set-state-in-effect — three hydration flags in the auth pages and
+# the route-change resets in the topbar and app layout. They were fixed at the
+# source (useSyncExternalStore and state adjustment during render) rather than
+# suppressed, so this job can gate without an ignore list.
 web:lint:
   extends: .node
   stage: test
-  allow_failure: true
   script:
     - (cd apps/web && npx eslint .)
 
@@ -194,7 +195,12 @@ docker-build-verifier:
   stage: docker
   allow_failure: true
   script:
-    - docker build -f services/receipt-verifier/Dockerfile -t lor-mentor-verifier:ci .
+    # Context MUST be the service directory, matching docker-compose.prod.yml
+    # (`context: ./services/receipt-verifier`). The Dockerfile's COPY paths are
+    # relative to that directory: `COPY requirements.txt .` fails with the repo
+    # root as context, and building from the root would also ignore the
+    # service's own .dockerignore, shipping test_*.py into the image.
+    - docker build -t lor-mentor-verifier:ci ./services/receipt-verifier
 
 # Validate both compose files against a throwaway env. `docker compose config`
 # is client-side and does not need a running daemon, but it does need the
@@ -206,10 +212,22 @@ compose-config:
   before_script:
     - apk add --no-cache docker-cli-compose
   script:
-    - cp .env.production.example /tmp/ci-prod.env
-    - cp .env.production.example /tmp/ci-staging.env
-    - docker compose -f docker-compose.prod.yml --env-file /tmp/ci-prod.env config > /dev/null
-    - docker compose -f docker-compose.prod.yml -f docker-compose.staging.yml --env-file /tmp/ci-staging.env config > /dev/null
+    # Two separate mechanisms are at work here. `--env-file` supplies the values
+    # used for ${VAR} interpolation *inside* the compose file. The api service
+    # additionally declares a container-level `env_file: .env.production`, which
+    # compose resolves as a real path next to the compose file — `--env-file`
+    # does NOT satisfy it, which is why the previous /tmp copy failed with
+    # "env file .../.env.production not found".
+    #
+    # So materialise the throwaway env at exactly the path compose expects. The
+    # example file holds placeholders only, `.env.*` is in .gitignore so it is
+    # never tracked, and .dockerignore excludes `.env.*` so it cannot reach an
+    # image layer. Both invocations use it: the staging overlay deliberately
+    # inherits api's env_file from the prod file (see its header) and is
+    # documented to be run with `--env-file .env.production`.
+    - cp .env.production.example .env.production
+    - docker compose -f docker-compose.prod.yml --env-file .env.production config > /dev/null
+    - docker compose -f docker-compose.prod.yml -f docker-compose.staging.yml --env-file .env.production config > /dev/null
 
 # ── nginx syntax (official image, empty entrypoint) ────────────────
 # test-nginx-config.sh copies the conf, substitutes the domain placeholders

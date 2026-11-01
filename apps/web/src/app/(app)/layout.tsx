@@ -24,9 +24,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   // The mobile drawer re-uses the full desktop sidebar. Close it whenever
   // the route changes (including tapping the item for the current page).
-  useEffect(() => {
+  //
+  // This adjusts state during render instead of in an effect: an effect would
+  // commit the new route with the drawer still open and only close it on a
+  // second pass, and calling setState synchronously in an effect body is what
+  // `react-hooks/set-state-in-effect` flags. Comparing against the last route
+  // this state was reconciled with — rather than just "did the pathname
+  // change" — also stops the drawer reappearing if the user navigates back to
+  // the route it was opened on.
+  const [drawerRoute, setDrawerRoute] = useState(pathname);
+  if (drawerRoute !== pathname) {
+    setDrawerRoute(pathname);
     setMobileMenuOpen(false);
-  }, [pathname]);
+  }
 
   useEffect(() => {
     if (!mobileMenuOpen) return;
