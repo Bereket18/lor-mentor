@@ -91,6 +91,7 @@ services:
       # clear error at `docker compose up` time instead. The API requires the
       # same value whenever RECEIPT_VERIFIER_URL is set (env.validation.ts).
       VERIFIER_SHARED_TOKEN: ${RECEIPT_VERIFIER_TOKEN:?RECEIPT_VERIFIER_TOKEN must be set — it is the verifier shared token}
+      VERIFIER_SHARED_TOKEN: ${RECEIPT_VERIFIER_TOKEN}
     healthcheck:
       test:
         ["CMD", "python", "-c", "import urllib.request,sys; urllib.request.urlopen('http://127.0.0.1:8000/health'); "]
