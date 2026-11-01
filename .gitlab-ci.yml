@@ -5,12 +5,12 @@
 # Docker / nginx / dependency-audit jobs that GitHub Actions never had.
 #
 # Rules of this file:
-#   * Runs on merge requests and the default branch only.
+#   * Runs on merge requests, the default branch, and manual web pipelines.
 #   * No deploy jobs.
 #   * No secrets. Every credential below is a throwaway value for the
 #     ephemeral CI Postgres service, not a real one.
 #   * Hard gates: install, API build, API unit + e2e tests, both anatomy model
-#     validators, web build, verifier tests.
+#     validators, web lint, web build, verifier tests.
 #   * Report-only (allow_failure: true) until they have been proven green on
 #     main: npm audit, Docker image builds, compose config, nginx syntax,
 #     Trivy. Web lint is a hard gate again now that apps/web lints clean.
@@ -31,14 +31,6 @@ stages:
   - build
   - docker
   - security
-
-# Restrict the whole pipeline (including the included templates) to merge
-# requests and the default branch, so feature-branch pushes do not spin up a
-# second, duplicate pipeline.
-workflow:
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 default:
   interruptible: true
@@ -132,7 +124,6 @@ web:build:
     - npm run build:web
 
 # ── Receipt verifier (Python) ──────────────────────────────────────
-<<<<<<< HEAD
 # normalize.py and its tests are stdlib-only. cbe_links.py needs `requests`.
 # The validation/auth helpers live in security.py precisely so test_security.py
 # does not import main.py, which pulls `ethiobank_receipts` (Selenium +
@@ -146,17 +137,6 @@ verifier:test:
   image: python:3.12-slim
   before_script:
     - pip install requests fastapi
-=======
-# test_security.py imports main.py, which pulls fastapi, pydantic and
-# ethiobank-receipts (the latter also brings requests). Install the service's
-# own requirements rather than hand-picking packages, so a dependency added for
-# the service is automatically covered by this job.
-verifiertest:
-  stage: test
-  image: python:3.12-slim
-  before_script:
-    - pip install -r services/receipt-verifier/requirements.txt
->>>>>>> origin/main
   script:
     - cd services/receipt-verifier
     - python -m py_compile normalize.py cbe_links.py security.py main.py
@@ -172,10 +152,9 @@ audit:npm:
   script:
     - |
       status=0
-      npm audit --omit=dev --audit-level=critical --workspace=apps/api || status=$?
-      npm audit --omit=dev --audit-level=critical --workspace=apps/web || status=$?
-      # If you want it to pass even if high/critical advisories exist (since you're handling them separately):
-      exit 0
+      npm audit --omit=dev --audit-level=high --workspace=apps/api || status=1
+      npm audit --omit=dev --audit-level=high --workspace=apps/web || status=1
+      exit $status
 
 # ── Docker builds (image only, never pushed) ───────────────────────
 # Report-only until the images have built green on main. `docker:dind` gives a
@@ -253,14 +232,10 @@ compose-config:
 # minimal nginx.conf and runs `nginx -t -c`. Report-only until proven on main.
 nginx-syntax:
   stage: docker
-<<<<<<< HEAD
-  image: nginx:1.27-alpine
-  allow_failure: true
-=======
   image:
     name: nginx:1.27-alpine
     entrypoint: [""]
->>>>>>> origin/main
+  allow_failure: true
   before_script:
     - apk add --no-cache bash openssl
   script:
