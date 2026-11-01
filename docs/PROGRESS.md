@@ -1175,3 +1175,74 @@ Run on `integration/anatomy-hardening` from `59e7cd1` (Step 8 feature commit
 - Docker image builds, container health checks, `nginx -t`, staging or
   production migration, and HTTPS smoke tests: **not run**.
 - No `.env` or secret was read or printed; no password was printed.
+
+## Step 8.1 - repair the local web build (404 / login bounce)
+
+Reported symptom: the admin/super-admin page returned "This page couldn't
+load" and teacher logins appeared to bounce straight back to `/login`.
+
+### Root cause
+
+Two local-environment problems, not application code:
+
+1. **Disk exhaustion broke Redis.** The C: drive had dropped to ~1.3 GB free,
+   so Redis could not persist and returned `MISCONFIG ... stop-writes-on-bgsave-error`,
+   which made every auth call fail and bounce users back to `/login`.
+2. **The web build was internally inconsistent.** The last `next build` had run
+   while the disk was filling and left `.next` truncated: the prerendered
+   `/admin-login` HTML referenced the client chunk
+   `/_next/static/chunks/1_qo6-pmeohj4.js`, which was missing on disk. That
+   request returned `500`, the page never hydrated (the submit button stayed
+   `disabled`), and the app surfaced the browser error screen instead of the
+   admin UI.
+
+### Fix (local only)
+
+- Freed ~3.7 GB on C: (`%LOCALAPPDATA%\npm-cache` and `%LOCALAPPDATA%\Temp`).
+  Redis recovered: `rdb_last_bgsave_status:ok`.
+- Deleted the corrupted `apps/web/.next` and rebuilt clean with the local API
+  origin:
+
+  ```powershell
+  $env:NEXT_PUBLIC_API_URL="http://localhost:4000"
+  $env:ALLOW_LOCAL_API_ORIGIN="1"
+  npx next build   # from apps/web
+  ```
+
+  New `BUILD_ID` `6aGRNGErs7QH7F5wbxbEN`. All 14 referenced client chunks now
+  return `200`.
+
+### Verification (real results)
+
+- Headless browser, disposable ADMIN and TEACHER fixtures (random passwords
+  never printed):
+  - admin `/admin-login` -> landed on `/admin`, full Admin Overview rendered;
+  - hard load of `/admin` -> rendered, no error screen;
+  - teacher `/login` -> landed on `/teacher`, teacher dashboard rendered;
+  - hard load of `/teacher` -> rendered, no error screen;
+  - the only console errors were the expected logged-out `401 GET /api/v1/me`
+    on the login pages; no page errors, no failed requests.
+- Headless browser, disposable SUPER_ADMIN: `/admin`, `/admin/users`,
+  `/admin/audit`, `/admin/payments`, `/admin/plans`, `/admin/courses`,
+  `/admin/moderation`, `/admin/banks` all rendered; only the expected
+  logged-out `401 /api/v1/me`; no page errors.
+- `/admin/users` rendered the 4 **Reviewer / No review** toggles (one per
+  teacher). Screenshots captured for the user.
+- API live probe (disposable fixtures): teacher login `200`, teacher
+  `/users/me` `200`, admin login `200`, admin `/users` `200`; fixtures deleted
+  and baseline restored.
+- Temporary scripts and fixtures were removed.
+
+### Notes / not done
+
+- This checkout's `.next` is a **local** build pointing at
+  `http://localhost:4000`; never deploy it as-is (see
+  `docs/deploy/LOCAL-BUILD-NOTICE.md`).
+- `npm run build --workspace=apps/web` reported "Could not determine Node.js
+  install directory" in this session, so the clean build was produced with
+  `npx next build` from `apps/web`. Root cause was not investigated.
+- Docker image builds, `nginx -t`, staging/production migration and HTTPS smoke
+  tests: **not run**.
+- While this work was in progress, external git activity (not initiated here)
+  rebased the branch and swept unrelated pre-existing work into commit
+  `408dfc4`. The two Step 8 commits were preserved (`ff923ca`, `3d4c315`).
