@@ -731,6 +731,12 @@ interface GeneratedManifest {
 }
 
 describe('Generated Step 3 seed-to-model contracts', () => {
+  // Systems whose AI-drafted teaching text has been loaded into the seed from
+  // docs/anatomy/drafts via scripts/apply-anatomy-teaching-draft.mjs. Every
+  // other generated system is still an empty-text draft. Loaded text is
+  // unverified, so it must not change the unpublished / unreviewed state.
+  const SYSTEMS_WITH_LOADED_TEACHING_TEXT = new Set(['respiratory']);
+
   const generatedEntries = ANATOMY_SEED_REGISTRY.filter(
     (entry) => entry.system.slug !== 'heart' && entry.system.slug !== 'urinary',
   );
@@ -744,6 +750,7 @@ describe('Generated Step 3 seed-to-model contracts', () => {
 
   for (const entry of generatedEntries) {
     const slug = entry.system.slug;
+    const hasTeachingText = SYSTEMS_WITH_LOADED_TEACHING_TEXT.has(slug);
 
     describe(slug, () => {
       const manifestPath = join(ASSET_DIR, `${slug}.v1.manifest.json`);
@@ -755,7 +762,7 @@ describe('Generated Step 3 seed-to-model contracts', () => {
         ) as GeneratedManifest;
       }
 
-      it('is an unpublished, empty-text draft with a valid seed', () => {
+      it('is an unpublished draft with a valid seed', () => {
         expect(entry.system.isPublished).toBe(false);
         expect(entry.system.isSample).toBe(false);
         expect(entry.system.modelUrl).toBe(`/models/anatomy/${slug}.v1.glb`);
@@ -766,13 +773,20 @@ describe('Generated Step 3 seed-to-model contracts', () => {
           expect(structure.meshName).toMatch(/^[a-z0-9_]+$/);
           expect(structure.references.length).toBeGreaterThan(0);
           expect(structure.references.join(' ')).toMatch(/^FMA:\d+/);
-          expect([
+          const teachingText = [
             structure.summary,
             structure.location,
             structure.function,
             structure.bloodSupply,
             structure.clinicalNotes,
-          ]).toEqual(['', '', '', '', '']);
+          ];
+          if (hasTeachingText) {
+            for (const value of teachingText) {
+              expect(value.trim().length).toBeGreaterThan(0);
+            }
+          } else {
+            expect(teachingText).toEqual(['', '', '', '', '']);
+          }
         }
       });
 
