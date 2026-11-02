@@ -27,6 +27,7 @@ const studentNav = [
 const adminNav = [
   { href: "/admin",            icon: LayoutDashboard, label: "Overview" },
   { href: "/admin/users",      icon: User,            label: "Users" },
+  { href: "/admin/anatomy",    icon: HeartPulse,      label: "Anatomy publishing" },
   { href: "/admin/payments",   icon: CreditCard,      label: "Payments" },
   { href: "/admin/banks",      icon: Landmark,        label: "Payment banks" },
   { href: "/admin/plans",      icon: CreditCard,      label: "Plans" },

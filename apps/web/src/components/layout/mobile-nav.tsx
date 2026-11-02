@@ -32,6 +32,7 @@ const studentNav = [
 const adminNav = [
   { href: "/admin", icon: LayoutDashboard, label: "Overview" },
   { href: "/admin/users", icon: Users, label: "Users" },
+  { href: "/admin/anatomy", icon: HeartPulse, label: "Anatomy" },
   { href: "/admin/payments", icon: CreditCard, label: "Payments" },
   { href: "/admin/courses", icon: BookOpen, label: "Courses" },
   { href: "/admin/plans", icon: Layers, label: "Plans" },

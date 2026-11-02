@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 import { ANATOMY_FOCUS_RING } from "@/components/anatomy/anatomy-focus";
+import { AnatomyAiDisclaimer } from "@/components/anatomy/anatomy-ai-disclaimer";
 import { AnatomyReviewViewport } from "@/components/anatomy/anatomy-review-viewport";
 import { ReviewStatusChip } from "@/components/anatomy/anatomy-review-status";
 import { useConfirm } from "@/components/ui/confirm-dialog-provider";
@@ -59,6 +60,7 @@ interface AnatomyReviewEditorProps {
   system: AnatomyReviewSystemDetail;
   revisions: AnatomyRevision[];
   revisionsLoading: boolean;
+  canSignOff: boolean;
   onStructureChange: (structure: AnatomyReviewStructure) => void;
   onSelectStructure: (structure: AnatomyReviewStructure) => void;
   onRefreshRevisions: () => void;
@@ -236,6 +238,7 @@ export function AnatomyReviewEditor({
   system,
   revisions,
   revisionsLoading,
+  canSignOff,
   onStructureChange,
   onSelectStructure,
   onRefreshRevisions,
@@ -346,6 +349,21 @@ export function AnatomyReviewEditor({
       }
 
       if (markReviewed) {
+        if (!canSignOff) {
+          setMessage({
+            tone: "error",
+            text: "Faculty sign-off requires reviewer access granted by an administrator.",
+          });
+          return;
+        }
+        if (structure.signOffBlockedBySecondReviewer) {
+          setMessage({
+            tone: "error",
+            text: "A second reviewer must sign off this structure because you were the last editor.",
+          });
+          return;
+        }
+
         const missing = missingTextFields(form);
         if (missing.length > 0) {
           setMessage({
@@ -414,6 +432,7 @@ export function AnatomyReviewEditor({
     },
     [
       applyServerStructure,
+      canSignOff,
       confirm,
       dirty,
       editedThisSession,
@@ -428,6 +447,20 @@ export function AnatomyReviewEditor({
 
   const handleMarkReviewed = useCallback(async () => {
     if (saving) return;
+    if (!canSignOff) {
+      setMessage({
+        tone: "error",
+        text: "Faculty sign-off requires reviewer access granted by an administrator.",
+      });
+      return;
+    }
+    if (structure.signOffBlockedBySecondReviewer) {
+      setMessage({
+        tone: "error",
+        text: "A second reviewer must sign off this structure because you were the last editor.",
+      });
+      return;
+    }
     if (dirty) {
       setMessage({
         tone: "error",
@@ -477,6 +510,7 @@ export function AnatomyReviewEditor({
     }
   }, [
     applyServerStructure,
+    canSignOff,
     confirm,
     dirty,
     editedThisSession,
@@ -543,6 +577,10 @@ export function AnatomyReviewEditor({
 
   const missing = missingTextFields(form);
   const canReview = missing.length === 0;
+  const secondReviewerBlocked =
+    !structure.isReviewed &&
+    structure.signOffBlockedBySecondReviewer === true;
+  const canSignOffHere = canSignOff && !secondReviewerBlocked;
   const locked = saving;
 
   return (
@@ -577,30 +615,54 @@ export function AnatomyReviewEditor({
           <p className="mt-1 text-xs text-muted">
             Last updated {formatTimestamp(structure.updatedAt)}
           </p>
+          <AnatomyAiDisclaimer
+            isReviewed={structure.isReviewed}
+            className="mt-3"
+          />
+          {canSignOff && secondReviewerBlocked && (
+            <p
+              className="mt-2 rounded-lg border border-warning/20 bg-warning/5 px-3 py-2 text-xs leading-relaxed text-warning"
+              data-testid="review-second-reviewer-block"
+            >
+              The lab requires a second reviewer. Because you were the last
+              editor of this structure, another reviewer must sign it off.
+            </p>
+          )}
+          {!canSignOff && (
+            <p
+              className="mt-2 text-xs leading-relaxed text-muted"
+              data-testid="review-signoff-unavailable"
+            >
+              Editing only: faculty sign-off requires reviewer access granted
+              by an administrator.
+            </p>
+          )}
           <div className="mt-3 flex flex-wrap gap-2">
-            {structure.isReviewed ? (
-              <button
-                type="button"
-                onClick={handleRevoke}
-                disabled={locked}
-                data-testid="review-revoke"
-                className={`inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-warning/30 bg-warning/10 px-3 text-xs font-medium text-warning transition-colors hover:bg-warning/15 disabled:opacity-50 ${ANATOMY_FOCUS_RING}`}
-              >
-                <ShieldOff className="h-3.5 w-3.5" aria-hidden />
-                Remove approval
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleMarkReviewed}
-                disabled={locked || dirty || !canReview}
-                data-testid="review-mark"
-                className={`inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-success/30 bg-success/10 px-3 text-xs font-medium text-success transition-colors hover:bg-success/15 disabled:cursor-not-allowed disabled:opacity-50 ${ANATOMY_FOCUS_RING}`}
-              >
-                <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
-                Mark reviewed
-              </button>
-            )}
+            {structure.isReviewed
+              ? canSignOff && (
+                  <button
+                    type="button"
+                    onClick={handleRevoke}
+                    disabled={locked}
+                    data-testid="review-revoke"
+                    className={`inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-warning/30 bg-warning/10 px-3 text-xs font-medium text-warning transition-colors hover:bg-warning/15 disabled:opacity-50 ${ANATOMY_FOCUS_RING}`}
+                  >
+                    <ShieldOff className="h-3.5 w-3.5" aria-hidden />
+                    Remove approval
+                  </button>
+                )
+              : canSignOff && (
+                  <button
+                    type="button"
+                    onClick={handleMarkReviewed}
+                    disabled={locked || dirty || !canReview || secondReviewerBlocked}
+                    data-testid="review-mark"
+                    className={`inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-success/30 bg-success/10 px-3 text-xs font-medium text-success transition-colors hover:bg-success/15 disabled:cursor-not-allowed disabled:opacity-50 ${ANATOMY_FOCUS_RING}`}
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
+                    Mark reviewed
+                  </button>
+                )}
             <button
               type="button"
               onClick={() => setHistoryOpen((open) => !open)}
@@ -935,7 +997,7 @@ export function AnatomyReviewEditor({
             )}
             Save
           </button>
-          {!structure.isReviewed && (
+          {!structure.isReviewed && canSignOffHere && (
             <button
               type="button"
               onClick={() => void handleSave(true)}

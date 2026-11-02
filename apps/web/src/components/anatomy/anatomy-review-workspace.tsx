@@ -8,7 +8,6 @@ import {
   ArrowLeft,
   Boxes,
   CheckCheck,
-  Eye,
   EyeOff,
   Loader2,
   Search,
@@ -37,6 +36,7 @@ interface WorkspaceMessage {
 
 interface AnatomyReviewWorkspaceProps {
   reviewerName: string;
+  canSignOff: boolean;
 }
 
 function countStatuses(
@@ -81,6 +81,7 @@ function countSummary(counts: AnatomyReviewCounts): string {
 
 export function AnatomyReviewWorkspace({
   reviewerName,
+  canSignOff,
 }: AnatomyReviewWorkspaceProps) {
   const confirm = useConfirm();
   const [systems, setSystems] = useState<AnatomyReviewSystemSummary[]>([]);
@@ -310,20 +311,24 @@ export function AnatomyReviewWorkspace({
   }, [query, system]);
 
   const canReviewSystem =
+    canSignOff &&
     !!system &&
     system.structures.length > 0 &&
     counts.empty === 0 &&
     counts.draft === 0 &&
     counts.reviewed < system.structures.length;
 
-  // Publishing mirrors the API/CLI gate: the system must have structures and
-  // none may be empty, draft, or pending (pending = complete but unreviewed).
-  const canPublish =
+  // Administrator approval is separate from faculty sign-off and must match
+  // the current content revision. The lab surface only reports this state;
+  // approving and publishing happen on the admin page.
+  const approvalCurrent =
+    !!system &&
+    !!system.publicationApprovedAt &&
+    system.publicationApprovedRevision === system.contentRevision;
+  const allSignedOff =
     !!system &&
     system.structures.length > 0 &&
-    counts.empty === 0 &&
-    counts.draft === 0 &&
-    counts.pending === 0;
+    system.structures.every((structure) => structure.isReviewed);
 
   const reviewSystem = useCallback(async () => {
     if (!system || !canReviewSystem || reviewingSystem) return;
@@ -371,56 +376,51 @@ export function AnatomyReviewWorkspace({
     system,
   ]);
 
-  // Publish or unpublish the selected system. Both directions ask for
-  // confirmation because they change what students can see.
-  const setPublication = useCallback(
-    async (published: boolean) => {
-      if (!system || publicationBusy) return;
-      const approved = await confirm({
-        title: published
-          ? `Publish ${system.name} to students?`
-          : `Return ${system.name} to draft?`,
-        description: published
-          ? `Students will see ${system.name} in the Anatomy Lab. You can return it to draft at any time.`
-          : `Students will stop seeing ${system.name}. Faculty approvals and saved text are unchanged.`,
-        confirmLabel: published ? "Publish to students" : "Return to draft",
-        destructive: !published,
-      });
-      if (!approved) return;
+  // Reviewers may withdraw published content. Publishing itself requires
+  // administrator approval and is handled outside the anatomy lab.
+  const handleUnpublish = useCallback(async () => {
+    if (!system || publicationBusy || !system.isPublished) return;
+    const approved = await confirm({
+      title: `Return ${system.name} to draft?`,
+      description: `Students will stop seeing ${system.name}. Faculty sign-offs and saved text are unchanged; administrator approval is invalidated.`,
+      confirmLabel: "Return to draft",
+      destructive: true,
+    });
+    if (!approved) return;
 
-      setPublicationBusy(true);
-      setSystemMessage(null);
-      try {
-        await api.post(
-          `/anatomy/review/systems/${encodeURIComponent(system.slug)}/${
-            published ? "publish" : "unpublish"
-          }`,
-          {},
-        );
-        setSystem((current) =>
-          current ? { ...current, isPublished: published } : current,
-        );
-        setSystemMessage({
-          tone: "success",
-          text: published
-            ? `${system.name} is now published. Students can see it in the Anatomy Lab.`
-            : `${system.name} is back to a draft. Students can no longer see it.`,
-        });
-        await refreshSystemList();
-      } catch (error) {
-        const { text } = messageFromError(
-          error,
-          published
-            ? "The system could not be published."
-            : "The system could not be unpublished.",
-        );
-        setSystemMessage({ tone: "error", text });
-      } finally {
-        setPublicationBusy(false);
-      }
-    },
-    [confirm, publicationBusy, refreshSystemList, system],
-  );
+    setPublicationBusy(true);
+    setSystemMessage(null);
+    try {
+      await api.post(
+        `/anatomy/review/systems/${encodeURIComponent(system.slug)}/unpublish`,
+        {},
+      );
+      setSystem((current) =>
+        current
+          ? {
+              ...current,
+              isPublished: false,
+              publicationApprovedAt: null,
+              publicationApprovedById: null,
+              publicationApprovedRevision: null,
+            }
+          : current,
+      );
+      setSystemMessage({
+        tone: "success",
+        text: `${system.name} is back to a draft. Students can no longer see it.`,
+      });
+      await refreshSystemList();
+    } catch (error) {
+      const { text } = messageFromError(
+        error,
+        "The system could not be unpublished.",
+      );
+      setSystemMessage({ tone: "error", text });
+    } finally {
+      setPublicationBusy(false);
+    }
+  }, [confirm, publicationBusy, refreshSystemList, system]);
 
   const statusOrder: AnatomyReviewStatus[] = [
     "empty",
@@ -452,8 +452,17 @@ export function AnatomyReviewWorkspace({
             </h1>
             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-secondary">
               <span className="inline-flex items-center gap-1">
-                <ShieldCheck className="h-3.5 w-3.5 text-success" aria-hidden />
-                Approved reviewer
+                {canSignOff ? (
+                  <>
+                    <ShieldCheck
+                      className="h-3.5 w-3.5 text-success"
+                      aria-hidden
+                    />
+                    Approved reviewer
+                  </>
+                ) : (
+                  "Editing access"
+                )}
               </span>
               <span className="text-muted">·</span>
               <span>{reviewerName}</span>
@@ -668,41 +677,49 @@ export function AnatomyReviewWorkspace({
                 <p className="mt-0.5 text-xs text-secondary">
                   {countSummary(counts)}
                 </p>
+                <p
+                  className={cn(
+                    "mt-1 text-xs leading-relaxed",
+                    approvalCurrent ? "text-success" : "text-muted",
+                  )}
+                  data-testid="review-approval-status"
+                >
+                  {approvalCurrent
+                    ? "An administrator approved the current revision."
+                    : allSignedOff
+                      ? "Faculty sign-off complete. Awaiting administrator approval before publication."
+                      : "An administrator can approve once every structure is signed off."}
+                </p>
+                {!canSignOff && (
+                  <p
+                    className="mt-1 text-xs leading-relaxed text-warning"
+                    data-testid="review-editing-only"
+                  >
+                    You can edit teaching text and read history. Faculty sign-off
+                    requires reviewer access granted by an administrator.
+                  </p>
+                )}
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => void setPublication(!system.isPublished)}
-                  disabled={
-                    publicationBusy ||
-                    dirty ||
-                    (!system.isPublished && !canPublish)
-                  }
-                  data-testid="review-system-publication"
-                  title={
-                    !system.isPublished && !canPublish
-                      ? "Review every structure before publishing to students."
-                      : undefined
-                  }
-                  className={cn(
-                    "inline-flex min-h-11 items-center gap-1.5 rounded-lg border px-4 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-                    system.isPublished
-                      ? "border-warning/30 bg-warning/10 text-warning hover:bg-warning/15"
-                      : "border-accent/30 bg-accent/10 text-accent hover:bg-accent/15",
-                    ANATOMY_FOCUS_RING,
-                  )}
-                >
-                  {publicationBusy ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-                  ) : system.isPublished ? (
-                    <EyeOff className="h-3.5 w-3.5" aria-hidden />
-                  ) : (
-                    <Eye className="h-3.5 w-3.5" aria-hidden />
-                  )}
-                  {system.isPublished
-                    ? "Return to draft"
-                    : "Publish to students"}
-                </button>
+                {system.isPublished && canSignOff && (
+                  <button
+                    type="button"
+                    onClick={() => void handleUnpublish()}
+                    disabled={publicationBusy || dirty}
+                    data-testid="review-system-unpublish"
+                    className={`inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-warning/30 bg-warning/10 px-4 text-xs font-medium text-warning transition-colors hover:bg-warning/15 disabled:cursor-not-allowed disabled:opacity-50 ${ANATOMY_FOCUS_RING}`}
+                  >
+                    {publicationBusy ? (
+                      <Loader2
+                        className="h-3.5 w-3.5 animate-spin"
+                        aria-hidden
+                      />
+                    ) : (
+                      <EyeOff className="h-3.5 w-3.5" aria-hidden />
+                    )}
+                    Return to draft
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => void reviewSystem()}
@@ -821,6 +838,7 @@ export function AnatomyReviewWorkspace({
                       setSystemReloadKey((key) => key + 1);
                     }}
                     onDirtyChange={setDirty}
+                    canSignOff={canSignOff}
                   />
                 ) : (
                   <div className="flex min-h-[320px] flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface/50 p-8 text-center">
