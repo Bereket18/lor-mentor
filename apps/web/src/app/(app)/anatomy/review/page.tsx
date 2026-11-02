@@ -14,13 +14,16 @@ export default function AnatomyReviewPage() {
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-6 w-6 animate-spin text-accent" aria-hidden />
-          <p className="text-sm text-secondary">Checking reviewer access…</p>
+          <p className="text-sm text-secondary">Checking faculty access.</p>
         </div>
       </div>
     );
   }
 
-  if (user?.role !== "TEACHER" || !user.isAnatomyReviewer) {
+  // Every teacher may edit anatomy text and read the revision history.
+  // Sign-off controls are disabled below for teachers without the explicit
+  // reviewer flag; the API rejects those calls with 403 as well.
+  if (user?.role !== "TEACHER") {
     return (
       <div className="mx-auto flex min-h-[60vh] max-w-lg items-center justify-center">
         <div
@@ -35,9 +38,8 @@ export default function AnatomyReviewPage() {
             Faculty review is restricted
           </h1>
           <p className="mt-2 text-sm leading-relaxed text-secondary">
-            This workspace is limited to TEACHER accounts explicitly approved as
-            anatomy reviewers. Ask an administrator to grant access with the
-            `anatomy:reviewer` script.
+            This workspace is limited to TEACHER accounts. Administrators use
+            the separate publication approval workflow under Admin.
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-2">
             <Link
@@ -53,5 +55,10 @@ export default function AnatomyReviewPage() {
     );
   }
 
-  return <AnatomyReviewWorkspace reviewerName={user.fullName} />;
+  return (
+    <AnatomyReviewWorkspace
+      reviewerName={user.fullName}
+      canSignOff={user.isAnatomyReviewer === true}
+    />
+  );
 }

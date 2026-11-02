@@ -226,6 +226,7 @@ describe('AnatomyService', () => {
       include: {
         reviewedBy: { select: { fullName: true } },
         revisions: {
+          where: { kind: 'edit' },
           orderBy: { createdAt: 'desc' },
           take: 1,
           select: {

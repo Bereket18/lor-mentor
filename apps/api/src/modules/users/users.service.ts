@@ -383,15 +383,14 @@ export class UsersService {
       );
     }
 
-    // Every TEACHER account is an anatomy reviewer by default. The flag stays
-    // explicit so an individual teacher can still be revoked with the
-    // anatomy:reviewer CLI. Moving a user out of TEACHER clears it: ADMIN and
-    // SUPER_ADMIN are never allowed to review anatomy.
+    // Role changes never touch isAnatomyReviewer. Reviewer access is granted
+    // and revoked only through the administrator "Manage Reviewer Access"
+    // action, so promoting a teacher must not silently grant sign-off rights
+    // and demoting one must not silently revoke a flag the owner configured.
     const user = await this.prisma.user.update({
       where: { id: userId },
       data: {
         role: role as 'STUDENT' | 'TEACHER' | 'ADMIN' | 'SUPER_ADMIN',
-        isAnatomyReviewer: role === 'TEACHER',
       },
       select: {
         id: true,
@@ -498,10 +497,10 @@ export class UsersService {
 
   // Grant or revoke a teacher's anatomy reviewer access. This flag is the only
   // per-account gate on the anatomy review routes; approving individual
-  // structures is a separate action. Every TEACHER gets the flag by default
-  // (createUser / changeRole), and this is the admin-controlled way to take it
-  // away again. Reviewer access is TEACHER-only, so the service rejects any
-  // other target role even though the route already requires ADMIN/SUPER_ADMIN.
+  // Grant or revoke the explicit faculty sign-off permission. This is the only
+  // path that writes isAnatomyReviewer; account creation and role changes never
+  // touch it. Reviewer access is TEACHER-only, so the service rejects any other
+  // target role even though the route already requires ADMIN/SUPER_ADMIN.
   async setAnatomyReviewer(
     userId: string,
     isAnatomyReviewer: boolean,
@@ -550,7 +549,7 @@ export class UsersService {
     });
 
     // Grant/revoke is a permission change — record who did it and to whom,
-    // reusing the action keys written by the anatomy:reviewer CLI so the
+    // using the same action keys as earlier reviewer-access tooling so the
     // audit trail reads consistently.
     await this.prisma.auditLog.create({
       data: {
@@ -668,9 +667,8 @@ export class UsersService {
           passwordHash,
           fullName: data.fullName,
           role: data.role,
-          // New teachers receive anatomy review access automatically. The
-          // flag remains revocable per account; see the anatomy:reviewer CLI.
-          ...(data.role === 'TEACHER' ? { isAnatomyReviewer: true } : {}),
+          // Reviewer access is deliberately NOT granted here. An administrator
+          // grants it separately through "Manage Reviewer Access".
           isEmailVerified: true,
           isActive: true,
           passwordResetToken: setupToken,

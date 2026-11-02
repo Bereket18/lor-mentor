@@ -139,7 +139,9 @@ describe('UsersService.createUser — teacher course pre-assignment', () => {
       { data: Record<string, unknown> },
     ];
     expect(createData.role).toBe('TEACHER');
-    expect(createData.isAnatomyReviewer).toBe(true);
+    // Reviewer access is never granted automatically; an administrator must
+    // grant it explicitly.
+    expect(createData.isAnatomyReviewer).toBeUndefined();
     expect(updateManyCourses).toHaveBeenCalledWith({
       where: {
         id: { in: ['course-a', 'course-b'] },
@@ -234,11 +236,15 @@ describe('UsersService.createUser — teacher course pre-assignment', () => {
     });
 
     expect(findManyCourses).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: { in: ['course-a', 'course-b'] }, isArchived: false } }),
+      expect.objectContaining({
+        where: { id: { in: ['course-a', 'course-b'] }, isArchived: false },
+      }),
     );
     expect(updateManyCourses).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ id: { in: ['course-a', 'course-b'] } }),
+        where: expect.objectContaining({
+          id: { in: ['course-a', 'course-b'] },
+        }),
       }),
     );
   });
@@ -433,40 +439,40 @@ describe('UsersService — user list filters and admin program rules', () => {
   });
 
   describe('changeRole reviewer flag', () => {
-    it('grants anatomy review access when a user becomes a teacher', async () => {
+    it('does not grant anatomy review access when a user becomes a teacher', async () => {
       findUser.mockResolvedValue({ role: 'STUDENT' });
       updateUser.mockResolvedValue({
         id: 'user-1',
         email: 'user@example.com',
         fullName: 'New Teacher',
         role: 'TEACHER',
-        isAnatomyReviewer: true,
+        isAnatomyReviewer: false,
       });
 
       await service.changeRole('user-1', 'TEACHER', 'actor-1', 'SUPER_ADMIN');
 
       expect(updateUser).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: { role: 'TEACHER', isAnatomyReviewer: true },
+          data: { role: 'TEACHER' },
         }),
       );
     });
 
-    it('clears anatomy review access when a teacher leaves the role', async () => {
+    it('does not touch an existing reviewer flag when a teacher leaves the role', async () => {
       findUser.mockResolvedValue({ role: 'TEACHER' });
       updateUser.mockResolvedValue({
         id: 'user-1',
         email: 'user@example.com',
         fullName: 'Former Teacher',
         role: 'ADMIN',
-        isAnatomyReviewer: false,
+        isAnatomyReviewer: true,
       });
 
       await service.changeRole('user-1', 'ADMIN', 'actor-1', 'SUPER_ADMIN');
 
       expect(updateUser).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: { role: 'ADMIN', isAnatomyReviewer: false },
+          data: { role: 'ADMIN' },
         }),
       );
     });

@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -11,6 +12,7 @@ import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import type { RequestUser } from '../../common/types/request-user';
 import type {
+  ReviewSettingsDto,
   ReviewStructureDto,
   ReviewSystemDto,
   UpdateAnatomyStructureDto,
@@ -28,6 +30,21 @@ type TextField = (typeof TEXT_FIELDS)[number];
 
 export type AnatomyReviewStatus = 'empty' | 'draft' | 'pending' | 'reviewed';
 
+const SETTINGS_ID = 'global';
+
+const EDIT_REVISION = 'edit';
+const SIGN_OFF_REVISION = 'sign-off';
+const SIGN_OFF_INVALIDATED_REVISION = 'sign-off-invalidated';
+const REVIEW_REVOKED_REVISION = 'review-revoked';
+
+const ADMIN_ROLES = new Set(['ADMIN', 'SUPER_ADMIN']);
+
+const SECOND_REVIEWER_MESSAGE =
+  'A different designated reviewer must sign this structure off because you were the last person to edit it.';
+
+const STALE_MESSAGE =
+  'This structure changed since you loaded it. Reload the latest version and try again.';
+
 interface EditableSnapshot {
   summary: string;
   location: string | null;
@@ -38,11 +55,16 @@ interface EditableSnapshot {
   relatedSlugs: string[];
 }
 
-const STALE_MESSAGE =
-  'This structure changed since you loaded it. Reload the latest version and try again.';
-
 const STRUCTURE_INCLUDE = {
   reviewedBy: { select: { id: true, fullName: true } },
+  // Only content edits determine "who last edited". Sign-off and invalidation
+  // rows are review events, so they are excluded here.
+  revisions: {
+    where: { kind: EDIT_REVISION },
+    orderBy: { createdAt: 'desc' },
+    take: 1,
+    select: { editorId: true, createdAt: true },
+  },
 } satisfies Prisma.AnatomyStructureInclude;
 
 type StructureWithReviewer = Prisma.AnatomyStructureGetPayload<{
@@ -50,6 +72,16 @@ type StructureWithReviewer = Prisma.AnatomyStructureGetPayload<{
 }>;
 
 type StructureText = Pick<StructureWithReviewer, TextField>;
+
+type TransactionClient = Prisma.TransactionClient;
+
+// Minimal surface shared by PrismaService and a transaction client, so the
+// second-reviewer check can run both before and inside the lock.
+type RevisionClient = {
+  anatomyStructureRevision: {
+    findMany: PrismaService['anatomyStructureRevision']['findMany'];
+  };
+};
 
 function isFilled(value: string | null | undefined): boolean {
   return typeof value === 'string' && value.trim().length > 0;
@@ -100,13 +132,43 @@ function changedFieldNames(
   );
 }
 
-function serializeStructure(structure: StructureWithReviewer) {
-  const { reviewedBy, ...rest } = structure;
+function sampleSlugs(structures: Array<{ slug: string }>): string {
+  const sample = structures
+    .slice(0, 5)
+    .map((structure) => structure.slug)
+    .join(', ');
+  return structures.length > 5 ? `${sample}, ...` : sample;
+}
+
+function serializeStructure(
+  structure: StructureWithReviewer,
+  options: { requireSecondReviewer?: boolean; userId?: string } = {},
+) {
+  const { reviewedBy, revisions, ...rest } = structure;
+  const lastEdit = revisions?.[0] ?? null;
+  const lastEditedById = lastEdit?.editorId ?? null;
+  const requireSecondReviewer = options.requireSecondReviewer === true;
+  const signOffBlockedBySecondReviewer =
+    requireSecondReviewer &&
+    options.userId !== undefined &&
+    lastEditedById === options.userId;
+
   return {
     ...rest,
     status: statusFor(structure),
     reviewedByName: reviewedBy?.fullName ?? null,
+    lastEditedById,
+    lastEditedAt: lastEdit?.createdAt ?? null,
+    signOffBlockedBySecondReviewer,
   };
+}
+
+function assertActiveAccount(user: RequestUser) {
+  if (!user.isActive) {
+    throw new ForbiddenException(
+      'Your account is inactive. Contact an administrator.',
+    );
+  }
 }
 
 @Injectable()
@@ -119,8 +181,81 @@ export class AnatomyReviewService {
     private readonly notifications: NotificationsService,
   ) {}
 
+  // ── Authorization helpers ────────────────────────────────────────────────
+  // Controllers add the role and reviewer guards, but the service repeats the
+  // checks so any future caller (script, admin route, queue worker) cannot
+  // bypass them by skipping the HTTP layer.
+
+  private assertReviewer(user: RequestUser) {
+    assertActiveAccount(user);
+    if (user.role !== 'TEACHER' || user.isAnatomyReviewer !== true) {
+      throw new ForbiddenException(
+        'Anatomy sign-off is restricted to approved faculty reviewers.',
+      );
+    }
+  }
+
+  private assertAdmin(user: RequestUser) {
+    assertActiveAccount(user);
+    if (!ADMIN_ROLES.has(user.role)) {
+      throw new ForbiddenException(
+        'Anatomy publication approval is restricted to administrators.',
+      );
+    }
+  }
+
+  private async requireSecondReviewer(): Promise<boolean> {
+    const settings = await this.prisma.anatomyReviewSettings.findUnique({
+      where: { id: SETTINGS_ID },
+      select: { requireSecondReviewer: true },
+    });
+    return settings?.requireSecondReviewer === true;
+  }
+
+  async getSettings() {
+    const settings = await this.prisma.anatomyReviewSettings.findUnique({
+      where: { id: SETTINGS_ID },
+      select: { requireSecondReviewer: true, updatedAt: true },
+    });
+    return {
+      requireSecondReviewer: settings?.requireSecondReviewer ?? false,
+      updatedAt: settings?.updatedAt ?? null,
+    };
+  }
+
+  async updateSettings(user: RequestUser, dto: ReviewSettingsDto) {
+    this.assertAdmin(user);
+    const settings = await this.prisma.anatomyReviewSettings.upsert({
+      where: { id: SETTINGS_ID },
+      create: {
+        id: SETTINGS_ID,
+        requireSecondReviewer: dto.requireSecondReviewer,
+        updatedById: user.id,
+      },
+      update: {
+        requireSecondReviewer: dto.requireSecondReviewer,
+        updatedById: user.id,
+      },
+      select: { requireSecondReviewer: true, updatedAt: true },
+    });
+
+    await this.recordAudit({
+      action: 'ANATOMY_SETTINGS_UPDATE',
+      actorId: user.id,
+      entityType: 'AnatomyReviewSettings',
+      entityId: SETTINGS_ID,
+      meta: {
+        requireSecondReviewer: settings.requireSecondReviewer,
+      },
+    });
+
+    return settings;
+  }
+
+  // ── Review library ───────────────────────────────────────────────────────
+
   // All systems, including drafts, with the four review-state counts the
-  // reviewer dashboard shows.
+  // reviewer dashboard shows and the administrator approval state.
   async listSystems() {
     const systems = await this.prisma.anatomySystem.findMany({
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
@@ -134,6 +269,11 @@ export class AnatomyReviewService {
         isSample: true,
         isPublished: true,
         sortOrder: true,
+        contentRevision: true,
+        publicationApprovedAt: true,
+        publicationApprovedById: true,
+        publicationApprovedRevision: true,
+        publicationApprovedBy: { select: { fullName: true } },
         structures: {
           select: {
             summary: true,
@@ -142,25 +282,39 @@ export class AnatomyReviewService {
             bloodSupply: true,
             clinicalNotes: true,
             isReviewed: true,
+            reviewedRevisionId: true,
           },
         },
       },
     });
 
-    return systems.map(({ structures, ...system }) => {
+    return systems.map(({ structures, publicationApprovedBy, ...system }) => {
       const counts = { empty: 0, draft: 0, pending: 0, reviewed: 0 };
+      let signedOff = 0;
       for (const structure of structures) {
         counts[statusFor(structure)] += 1;
+        if (structure.isReviewed && structure.reviewedRevisionId) {
+          signedOff += 1;
+        }
       }
       return {
         ...system,
+        publicationApprovedByName: publicationApprovedBy?.fullName ?? null,
         structureCount: structures.length,
+        signedOffCount: signedOff,
+        unsignedStructures: structures
+          .map((structure, index) => ({ structure, index }))
+          .filter(
+            ({ structure }) =>
+              !structure.isReviewed || !structure.reviewedRevisionId,
+          )
+          .map(({ index }) => index),
         counts,
       };
     });
   }
 
-  async getSystemStructures(slug: string) {
+  async getSystemStructures(slug: string, user?: RequestUser) {
     const system = await this.prisma.anatomySystem.findUnique({
       where: { slug },
       select: {
@@ -173,6 +327,11 @@ export class AnatomyReviewService {
         isSample: true,
         isPublished: true,
         sortOrder: true,
+        contentRevision: true,
+        publicationApprovedAt: true,
+        publicationApprovedById: true,
+        publicationApprovedRevision: true,
+        publicationApprovedBy: { select: { fullName: true } },
       },
     });
 
@@ -180,29 +339,45 @@ export class AnatomyReviewService {
       throw new NotFoundException('Anatomy system not found');
     }
 
-    const structures = await this.prisma.anatomyStructure.findMany({
-      where: { systemId: system.id },
-      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-      include: STRUCTURE_INCLUDE,
-    });
+    const [structures, requireSecondReviewer] = await Promise.all([
+      this.prisma.anatomyStructure.findMany({
+        where: { systemId: system.id },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+        include: STRUCTURE_INCLUDE,
+      }),
+      this.requireSecondReviewer(),
+    ]);
+
+    const { publicationApprovedBy, ...systemMeta } = system;
 
     return {
-      ...system,
+      ...systemMeta,
+      publicationApprovedByName: publicationApprovedBy?.fullName ?? null,
+      requireSecondReviewer,
       structureCount: structures.length,
-      structures: structures.map(serializeStructure),
+      structures: structures.map((structure) =>
+        serializeStructure(structure, {
+          requireSecondReviewer,
+          userId: user?.id,
+        }),
+      ),
     };
   }
+
+  // ── Editing (ordinary teachers) ──────────────────────────────────────────
 
   async updateStructure(
     user: RequestUser,
     id: string,
     dto: UpdateAnatomyStructureDto,
   ) {
+    assertActiveAccount(user);
+
     const existing = await this.prisma.anatomyStructure.findUnique({
       where: { id },
       include: {
         ...STRUCTURE_INCLUDE,
-        system: { select: { slug: true, name: true } },
+        system: { select: { slug: true, name: true, isPublished: true } },
       },
     });
 
@@ -253,19 +428,27 @@ export class AnatomyReviewService {
 
     const previous = snapshot(existing);
     const changed = JSON.stringify(previous) !== JSON.stringify(next);
+    const previousWasReviewed = existing.isReviewed;
+
     // Unchecked variant: reviewedById is a relation scalar, so it is only
     // exposed on the unchecked input type.
     const data: Prisma.AnatomyStructureUncheckedUpdateManyInput = { ...next };
 
-    // Editing a reviewed row sends it back to pending review. A no-op save
-    // leaves the approval intact.
-    if (changed && existing.isReviewed) {
+    // Editing signed-off text invalidates the sign-off. A no-op save leaves the
+    // approval intact.
+    if (changed) {
       data.isReviewed = false;
       data.reviewedAt = null;
       data.reviewedById = null;
+      data.reviewedRevisionId = null;
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
+      // Serialize edits against publication/approval. Both paths lock the
+      // parent system row, so a publish cannot commit between an edit's
+      // content write and its approval invalidation.
+      await this.lockSystem(tx, existing.systemId);
+
       // updateMany with the loaded updatedAt is the concurrency guard: if
       // another editor saved first, no row matches and the request gets 409.
       const update = await tx.anatomyStructure.updateMany({
@@ -283,15 +466,57 @@ export class AnatomyReviewService {
           previous: previous as unknown as Prisma.InputJsonValue,
           new: next as unknown as Prisma.InputJsonValue,
           note: dto.note ?? null,
+          kind: EDIT_REVISION,
         },
       });
+
+      let invalidationRevisionId: string | null = null;
+      if (changed && previousWasReviewed) {
+        // Durable evidence that the previous sign-off was invalidated by this
+        // exact edit, in the same transaction as the content change.
+        const invalidation = await tx.anatomyStructureRevision.create({
+          data: {
+            structureId: id,
+            editorId: user.id,
+            previous: previous as unknown as Prisma.InputJsonValue,
+            new: next as unknown as Prisma.InputJsonValue,
+            note: dto.note ?? null,
+            kind: SIGN_OFF_INVALIDATED_REVISION,
+          },
+        });
+        invalidationRevisionId = invalidation.id;
+      }
+
+      let systemUnpublished = false;
+      if (changed) {
+        // Any content change makes an existing administrator approval stale.
+        // Editing signed-off content also withdraws the system from students.
+        const systemUpdate = await tx.anatomySystem.update({
+          where: { id: existing.systemId },
+          data: {
+            contentRevision: { increment: 1 },
+            publicationApprovedAt: null,
+            publicationApprovedById: null,
+            publicationApprovedRevision: null,
+            ...(previousWasReviewed ? { isPublished: false } : {}),
+          },
+          select: { isPublished: true },
+        });
+        systemUnpublished =
+          previousWasReviewed && systemUpdate.isPublished === false;
+      }
 
       const structure = await tx.anatomyStructure.findUniqueOrThrow({
         where: { id },
         include: STRUCTURE_INCLUDE,
       });
 
-      return { structure, revisionId: revision.id };
+      return {
+        structure,
+        revisionId: revision.id,
+        invalidationRevisionId,
+        systemUnpublished,
+      };
     });
 
     await this.recordAudit({
@@ -307,12 +532,35 @@ export class AnatomyReviewService {
         structureSlug: existing.slug,
         structureName: existing.name,
         revisionId: result.revisionId,
+        invalidationRevisionId: result.invalidationRevisionId,
         changed,
         changedFields: changed ? changedFieldNames(previous, next) : [],
-        clearedReview: changed && existing.isReviewed,
+        clearedReview: changed && previousWasReviewed,
+        systemUnpublished: result.systemUnpublished,
         note: dto.note ?? null,
       },
     });
+
+    if (changed && previousWasReviewed) {
+      await this.recordAudit({
+        action: 'ANATOMY_SIGN_OFF_INVALIDATED',
+        actorId: user.id,
+        entityType: 'AnatomyStructure',
+        entityId: id,
+        meta: {
+          action: 'sign-off-invalidated',
+          systemSlug: existing.system.slug,
+          systemName: existing.system.name,
+          structureId: id,
+          structureSlug: existing.slug,
+          structureName: existing.name,
+          revisionId: result.invalidationRevisionId,
+          editRevisionId: result.revisionId,
+          systemUnpublished: result.systemUnpublished,
+          note: dto.note ?? null,
+        },
+      });
+    }
 
     if (changed) {
       await this.notifyAnatomyChange({
@@ -320,7 +568,7 @@ export class AnatomyReviewService {
         includeStudents: false,
         action: 'edit',
         title: `Anatomy edit: ${existing.name}`,
-        message: `${user.fullName} updated ${existing.name} in ${existing.system.name}. Faculty review is pending.`,
+        message: `${user.fullName} updated ${existing.name} in ${existing.system.name}. Faculty review and administrator approval are pending.`,
         systemSlug: existing.system.slug,
         systemName: existing.system.name,
         structureId: id,
@@ -332,15 +580,21 @@ export class AnatomyReviewService {
     return {
       ...serializeStructure(result.structure),
       revisionId: result.revisionId,
+      invalidationRevisionId: result.invalidationRevisionId,
       changed,
+      systemUnpublished: result.systemUnpublished,
     };
   }
+
+  // ── Structure sign-off (designated reviewers) ────────────────────────────
 
   async reviewStructure(
     user: RequestUser,
     id: string,
     dto: ReviewStructureDto,
   ) {
+    this.assertReviewer(user);
+
     const existing = await this.prisma.anatomyStructure.findUnique({
       where: { id },
       include: {
@@ -365,28 +619,82 @@ export class AnatomyReviewService {
       );
     }
 
-    if (existing.isReviewed) {
+    // Duplicate sign-off is a no-op, not a second audit event.
+    if (existing.isReviewed && existing.reviewedRevisionId) {
       return { ...serializeStructure(existing), alreadyReviewed: true };
     }
 
+    const requireSecondReviewer = await this.requireSecondReviewer();
+    if (requireSecondReviewer) {
+      const lastEditorId = existing.revisions?.[0]?.editorId ?? null;
+      if (lastEditorId === user.id) {
+        throw new ForbiddenException(SECOND_REVIEWER_MESSAGE);
+      }
+    }
+
+    const previous = snapshot(existing);
+    const reviewedAt = new Date();
+
     const updated = await this.prisma.$transaction(async (tx) => {
+      await this.lockSystem(tx, existing.systemId);
+
+      // Re-check the second-reviewer rule inside the lock: an edit could have
+      // landed after the pre-check and changed the last editor.
+      if (requireSecondReviewer) {
+        const latestEdit = await tx.anatomyStructureRevision.findFirst({
+          where: { structureId: id, kind: EDIT_REVISION },
+          orderBy: { createdAt: 'desc' },
+          select: { editorId: true },
+        });
+        if (latestEdit?.editorId === user.id) {
+          throw new ForbiddenException(SECOND_REVIEWER_MESSAGE);
+        }
+      }
+
+      // The sign-off revision is the immutable content version the reviewer
+      // approved; reviewedRevisionId points at it.
+      const signOffRevision = await tx.anatomyStructureRevision.create({
+        data: {
+          structureId: id,
+          editorId: user.id,
+          previous: previous as unknown as Prisma.InputJsonValue,
+          new: previous as unknown as Prisma.InputJsonValue,
+          note: dto.note ?? null,
+          kind: SIGN_OFF_REVISION,
+        },
+      });
+
       const update = await tx.anatomyStructure.updateMany({
-        where: expected ? { id, updatedAt: expected } : { id },
+        where: expected
+          ? { id, updatedAt: expected, isReviewed: false }
+          : { id, isReviewed: false },
         data: {
           isReviewed: true,
-          reviewedAt: new Date(),
+          reviewedAt,
           reviewedById: user.id,
+          reviewedRevisionId: signOffRevision.id,
         },
       });
       if (update.count === 0) {
         if (expected) throw new ConflictException(STALE_MESSAGE);
-        throw new NotFoundException('Anatomy structure not found');
+        // Someone else signed off while we waited for the lock.
+        return tx.anatomyStructure.findUniqueOrThrow({
+          where: { id },
+          include: STRUCTURE_INCLUDE,
+        });
       }
+
       return tx.anatomyStructure.findUniqueOrThrow({
         where: { id },
         include: STRUCTURE_INCLUDE,
       });
     });
+
+    if (!updated.isReviewed) {
+      throw new ConflictException(
+        'This structure could not be signed off. Reload and try again.',
+      );
+    }
 
     await this.recordAudit({
       action: 'ANATOMY_STRUCTURE_REVIEW',
@@ -401,16 +709,17 @@ export class AnatomyReviewService {
         structureSlug: existing.slug,
         structureName: existing.name,
         reviewedAt: updated.reviewedAt,
+        reviewedRevisionId: updated.reviewedRevisionId,
         note: dto.note ?? null,
       },
     });
 
     await this.notifyAnatomyChange({
       excludeUserId: user.id,
-      includeStudents: existing.system.isPublished,
+      includeStudents: false,
       action: 'review',
       title: `Anatomy reviewed: ${existing.name}`,
-      message: `${user.fullName} reviewed ${existing.name} in ${existing.system.name}.`,
+      message: `${user.fullName} signed off ${existing.name} in ${existing.system.name}.`,
       systemSlug: existing.system.slug,
       systemName: existing.system.name,
       structureId: id,
@@ -422,6 +731,8 @@ export class AnatomyReviewService {
   }
 
   async reviewSystem(user: RequestUser, slug: string, dto: ReviewSystemDto) {
+    this.assertReviewer(user);
+
     const system = await this.prisma.anatomySystem.findUnique({
       where: { slug },
       select: {
@@ -433,12 +744,16 @@ export class AnatomyReviewService {
           select: {
             id: true,
             slug: true,
+            name: true,
             summary: true,
             location: true,
             function: true,
             bloodSupply: true,
             clinicalNotes: true,
             isReviewed: true,
+            reviewedRevisionId: true,
+            references: true,
+            relatedSlugs: true,
           },
         },
       },
@@ -456,30 +771,81 @@ export class AnatomyReviewService {
       (structure) => missingTextFields(structure).length > 0,
     );
     if (incomplete.length > 0) {
-      const sample = incomplete
-        .slice(0, 5)
-        .map((structure) => structure.slug)
-        .join(', ');
-      const suffix = incomplete.length > 5 ? ', ...' : '';
       throw new ConflictException(
-        `Cannot mark the system reviewed: ${incomplete.length} structure(s) still need teaching text (${sample}${suffix}).`,
+        `Cannot mark the system reviewed: ${incomplete.length} structure(s) still need teaching text (${sampleSlugs(incomplete)}).`,
       );
     }
 
-    const unreviewedIds = system.structures
-      .filter((structure) => !structure.isReviewed)
-      .map((structure) => structure.id);
+    const pending = system.structures.filter(
+      (structure) => !structure.isReviewed || !structure.reviewedRevisionId,
+    );
 
-    if (unreviewedIds.length > 0) {
+    const requireSecondReviewer = await this.requireSecondReviewer();
+    if (requireSecondReviewer && pending.length > 0) {
+      const blockedIds = await this.structuresLastEditedBy(
+        this.prisma,
+        pending.map((structure) => structure.id),
+        user.id,
+      );
+      const blockedStructures = pending.filter((structure) =>
+        blockedIds.has(structure.id),
+      );
+      if (blockedStructures.length > 0) {
+        throw new ForbiddenException(
+          `A different designated reviewer must sign off ${blockedStructures.length} structure(s) you were the last to edit (${sampleSlugs(blockedStructures)}).`,
+        );
+      }
+    }
+
+    const reviewedAt = new Date();
+
+    if (pending.length > 0) {
       await this.prisma.$transaction(async (tx) => {
-        await tx.anatomyStructure.updateMany({
-          where: { id: { in: unreviewedIds } },
-          data: {
-            isReviewed: true,
-            reviewedAt: new Date(),
-            reviewedById: user.id,
-          },
-        });
+        await this.lockSystem(tx, system.id);
+
+        // Re-check inside the lock: an edit may have landed after the
+        // pre-check and changed who last touched a structure.
+        if (requireSecondReviewer) {
+          const blockedIds = await this.structuresLastEditedBy(
+            tx,
+            pending.map((structure) => structure.id),
+            user.id,
+          );
+          const blockedStructures = pending.filter((structure) =>
+            blockedIds.has(structure.id),
+          );
+          if (blockedStructures.length > 0) {
+            throw new ForbiddenException(
+              `A different designated reviewer must sign off ${blockedStructures.length} structure(s) you were the last to edit (${sampleSlugs(blockedStructures)}).`,
+            );
+          }
+        }
+
+        for (const structure of pending) {
+          const signOffRevision = await tx.anatomyStructureRevision.create({
+            data: {
+              structureId: structure.id,
+              editorId: user.id,
+              previous: snapshotFields(
+                structure,
+              ) as unknown as Prisma.InputJsonValue,
+              new: snapshotFields(
+                structure,
+              ) as unknown as Prisma.InputJsonValue,
+              note: dto.note ?? null,
+              kind: SIGN_OFF_REVISION,
+            },
+          });
+          await tx.anatomyStructure.update({
+            where: { id: structure.id },
+            data: {
+              isReviewed: true,
+              reviewedAt,
+              reviewedById: user.id,
+              reviewedRevisionId: signOffRevision.id,
+            },
+          });
+        }
       });
     }
 
@@ -494,18 +860,18 @@ export class AnatomyReviewService {
         systemSlug: system.slug,
         systemName: system.name,
         structureCount: system.structures.length,
-        updatedCount: unreviewedIds.length,
+        updatedCount: pending.length,
         note: dto.note ?? null,
       },
     });
 
-    if (unreviewedIds.length > 0) {
+    if (pending.length > 0) {
       await this.notifyAnatomyChange({
         excludeUserId: user.id,
-        includeStudents: system.isPublished,
+        includeStudents: false,
         action: 'review-system',
         title: `Anatomy reviewed: ${system.name}`,
-        message: `${user.fullName} reviewed ${unreviewedIds.length} structure(s) in ${system.name}.`,
+        message: `${user.fullName} signed off ${pending.length} structure(s) in ${system.name}.`,
         systemSlug: system.slug,
         systemName: system.name,
       });
@@ -514,101 +880,137 @@ export class AnatomyReviewService {
     return {
       systemSlug: system.slug,
       structureCount: system.structures.length,
-      updatedCount: unreviewedIds.length,
+      updatedCount: pending.length,
     };
   }
 
-  // Publish a system so students can see it. Reviewer-only (the controller
-  // already enforces TEACHER + the reviewer flag). The gate mirrors the offline
-  // CLI's database checks: the system has structures, every structure has
-  // non-empty teaching text, and every structure is faculty reviewed. The CLI's
-  // extra requirement of an owner-reviewed mapping document stays a
-  // terminal-only governance step the API cannot verify.
-  async publishSystem(user: RequestUser, slug: string, dto: ReviewSystemDto) {
-    const system = await this.prisma.anatomySystem.findUnique({
-      where: { slug },
-      select: {
-        id: true,
-        slug: true,
-        name: true,
-        isPublished: true,
-        structures: {
-          select: {
-            slug: true,
-            summary: true,
-            location: true,
-            function: true,
-            bloodSupply: true,
-            clinicalNotes: true,
-            isReviewed: true,
-          },
+  // ── Administrator publication workflow ───────────────────────────────────
+
+  // Approve publication of the current content revision. This is deliberately
+  // separate from faculty sign-off and is only reachable from the admin
+  // surface. Every structure must already carry a valid sign-off.
+  async approvePublication(
+    user: RequestUser,
+    slug: string,
+    dto: ReviewSystemDto,
+  ) {
+    this.assertAdmin(user);
+
+    const approved = await this.prisma.$transaction(async (tx) => {
+      const system = await this.loadSystemForPublication(tx, slug);
+      this.assertPublishable(system);
+
+      await this.lockSystem(tx, system.id);
+      // Re-read inside the lock so an edit cannot land between the check and
+      // the approval.
+      const locked = await this.loadSystemForPublication(tx, slug);
+      this.assertPublishable(locked);
+
+      return tx.anatomySystem.update({
+        where: { id: locked.id },
+        data: {
+          publicationApprovedAt: new Date(),
+          publicationApprovedById: user.id,
+          publicationApprovedRevision: locked.contentRevision,
         },
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          contentRevision: true,
+          publicationApprovedAt: true,
+          publicationApprovedById: true,
+          publicationApprovedRevision: true,
+          isPublished: true,
+        },
+      });
+    });
+
+    await this.recordAudit({
+      action: 'ANATOMY_PUBLICATION_APPROVE',
+      actorId: user.id,
+      entityType: 'AnatomySystem',
+      entityId: approved.id,
+      meta: {
+        action: 'approve-publication',
+        systemId: approved.id,
+        systemSlug: approved.slug,
+        systemName: approved.name,
+        contentRevision: approved.contentRevision,
+        publicationApprovedAt: approved.publicationApprovedAt,
+        note: dto.note ?? null,
       },
     });
 
-    if (!system) {
-      throw new NotFoundException('Anatomy system not found');
-    }
+    return {
+      systemSlug: approved.slug,
+      systemName: approved.name,
+      contentRevision: approved.contentRevision,
+      publicationApprovedAt: approved.publicationApprovedAt,
+      publicationApprovedRevision: approved.publicationApprovedRevision,
+      isPublished: approved.isPublished,
+      approved: true,
+    };
+  }
 
-    // Idempotent: publishing an already-published system changes nothing.
-    if (system.isPublished) {
+  // Publish a system so students can see it. Requires BOTH a complete set of
+  // faculty sign-offs and a fresh administrator approval for the current
+  // content revision. Administrator-only.
+  async publishSystem(user: RequestUser, slug: string, dto: ReviewSystemDto) {
+    this.assertAdmin(user);
+
+    const published = await this.prisma.$transaction(async (tx) => {
+      await this.lockSystemBySlug(tx, slug);
+      const system = await this.loadSystemForPublication(tx, slug);
+      this.assertPublishable(system);
+
+      if (
+        !system.publicationApprovedAt ||
+        !system.publicationApprovedById ||
+        system.publicationApprovedRevision !== system.contentRevision
+      ) {
+        throw new ConflictException(
+          'Cannot publish: an administrator must approve the current revision first. Approval is missing or stale.',
+        );
+      }
+
+      // Idempotent: publishing an already-published system changes nothing.
+      if (system.isPublished) {
+        return { system, changed: false };
+      }
+
+      await tx.anatomySystem.update({
+        where: { id: system.id },
+        data: { isPublished: true },
+      });
+
+      return { system, changed: true };
+    });
+
+    if (!published.changed) {
       return {
-        systemSlug: system.slug,
-        systemName: system.name,
-        structureCount: system.structures.length,
+        systemSlug: published.system.slug,
+        systemName: published.system.name,
+        structureCount: published.system.structures.length,
         isPublished: true,
         changed: false,
       };
     }
 
-    if (system.structures.length === 0) {
-      throw new ConflictException('Cannot publish a system with no structures.');
-    }
-
-    const incomplete = system.structures.filter(
-      (structure) => missingTextFields(structure).length > 0,
-    );
-    if (incomplete.length > 0) {
-      const sample = incomplete
-        .slice(0, 5)
-        .map((structure) => structure.slug)
-        .join(', ');
-      const suffix = incomplete.length > 5 ? ', ...' : '';
-      throw new ConflictException(
-        `Cannot publish: ${incomplete.length} structure(s) still need teaching text (${sample}${suffix}).`,
-      );
-    }
-
-    const unreviewed = system.structures.filter(
-      (structure) => !structure.isReviewed,
-    );
-    if (unreviewed.length > 0) {
-      const sample = unreviewed
-        .slice(0, 5)
-        .map((structure) => structure.slug)
-        .join(', ');
-      const suffix = unreviewed.length > 5 ? ', ...' : '';
-      throw new ConflictException(
-        `Cannot publish: ${unreviewed.length} structure(s) are not faculty reviewed (${sample}${suffix}).`,
-      );
-    }
-
-    await this.prisma.anatomySystem.update({
-      where: { id: system.id },
-      data: { isPublished: true },
-    });
-
     await this.recordAudit({
       action: 'ANATOMY_SYSTEM_PUBLISH',
       actorId: user.id,
       entityType: 'AnatomySystem',
-      entityId: system.id,
+      entityId: published.system.id,
       meta: {
         action: 'publish',
-        systemId: system.id,
-        systemSlug: system.slug,
-        systemName: system.name,
-        structureCount: system.structures.length,
+        systemId: published.system.id,
+        systemSlug: published.system.slug,
+        systemName: published.system.name,
+        structureCount: published.system.structures.length,
+        contentRevision: published.system.contentRevision,
+        publicationApprovedRevision:
+          published.system.publicationApprovedRevision,
         note: dto.note ?? null,
       },
     });
@@ -619,24 +1021,30 @@ export class AnatomyReviewService {
       excludeUserId: user.id,
       includeStudents: true,
       action: 'publish',
-      title: `Anatomy published: ${system.name}`,
-      message: `${user.fullName} published ${system.name} to students.`,
-      systemSlug: system.slug,
-      systemName: system.name,
+      title: `Anatomy published: ${published.system.name}`,
+      message: `An administrator published ${published.system.name} to students.`,
+      systemSlug: published.system.slug,
+      systemName: published.system.name,
     });
 
     return {
-      systemSlug: system.slug,
-      systemName: system.name,
-      structureCount: system.structures.length,
+      systemSlug: published.system.slug,
+      systemName: published.system.name,
+      structureCount: published.system.structures.length,
       isPublished: true,
       changed: true,
     };
   }
 
-  // Return a published system to draft so students stop seeing it. No gate:
-  // withdrawing content is always allowed for a reviewer.
+  // Return a published system to draft so students stop seeing it. Both
+  // reviewers (withdrawing their own content) and administrators may do this.
   async unpublishSystem(user: RequestUser, slug: string, dto: ReviewSystemDto) {
+    if (user.role === 'TEACHER') {
+      this.assertReviewer(user);
+    } else {
+      this.assertAdmin(user);
+    }
+
     const system = await this.prisma.anatomySystem.findUnique({
       where: { slug },
       select: { id: true, slug: true, name: true, isPublished: true },
@@ -656,9 +1064,17 @@ export class AnatomyReviewService {
       };
     }
 
-    await this.prisma.anatomySystem.update({
-      where: { id: system.id },
-      data: { isPublished: false },
+    await this.prisma.$transaction(async (tx) => {
+      await this.lockSystem(tx, system.id);
+      await tx.anatomySystem.update({
+        where: { id: system.id },
+        data: {
+          isPublished: false,
+          publicationApprovedAt: null,
+          publicationApprovedById: null,
+          publicationApprovedRevision: null,
+        },
+      });
     });
 
     await this.recordAudit({
@@ -694,11 +1110,15 @@ export class AnatomyReviewService {
     };
   }
 
+  // ── Review revocation ────────────────────────────────────────────────────
+
   async revokeStructure(
     user: RequestUser,
     id: string,
     dto: ReviewStructureDto,
   ) {
+    this.assertReviewer(user);
+
     const existing = await this.prisma.anatomyStructure.findUnique({
       where: { id },
       include: {
@@ -715,10 +1135,50 @@ export class AnatomyReviewService {
       return { ...serializeStructure(existing), alreadyRevoked: true };
     }
 
-    const updated = await this.prisma.anatomyStructure.update({
-      where: { id },
-      data: { isReviewed: false, reviewedAt: null, reviewedById: null },
-      include: STRUCTURE_INCLUDE,
+    const previous = snapshot(existing);
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await this.lockSystem(tx, existing.systemId);
+
+      const revision = await tx.anatomyStructureRevision.create({
+        data: {
+          structureId: id,
+          editorId: user.id,
+          previous: previous as unknown as Prisma.InputJsonValue,
+          new: previous as unknown as Prisma.InputJsonValue,
+          note: dto.note ?? null,
+          kind: REVIEW_REVOKED_REVISION,
+        },
+      });
+
+      await tx.anatomyStructure.update({
+        where: { id },
+        data: {
+          isReviewed: false,
+          reviewedAt: null,
+          reviewedById: null,
+          reviewedRevisionId: null,
+        },
+      });
+
+      // A withdrawn sign-off makes any publication decision invalid.
+      await tx.anatomySystem.update({
+        where: { id: existing.systemId },
+        data: {
+          contentRevision: { increment: 1 },
+          isPublished: false,
+          publicationApprovedAt: null,
+          publicationApprovedById: null,
+          publicationApprovedRevision: null,
+        },
+      });
+
+      const structure = await tx.anatomyStructure.findUniqueOrThrow({
+        where: { id },
+        include: STRUCTURE_INCLUDE,
+      });
+
+      return { structure, revisionId: revision.id };
     });
 
     await this.recordAudit({
@@ -733,6 +1193,24 @@ export class AnatomyReviewService {
         structureId: id,
         structureSlug: existing.slug,
         structureName: existing.name,
+        revisionId: updated.revisionId,
+        note: dto.note ?? null,
+      },
+    });
+
+    await this.recordAudit({
+      action: 'ANATOMY_SIGN_OFF_INVALIDATED',
+      actorId: user.id,
+      entityType: 'AnatomyStructure',
+      entityId: id,
+      meta: {
+        action: 'sign-off-revoked',
+        systemSlug: existing.system.slug,
+        systemName: existing.system.name,
+        structureId: id,
+        structureSlug: existing.slug,
+        structureName: existing.name,
+        revisionId: updated.revisionId,
         note: dto.note ?? null,
       },
     });
@@ -742,7 +1220,7 @@ export class AnatomyReviewService {
       includeStudents: false,
       action: 'revoke',
       title: `Anatomy review revoked: ${existing.name}`,
-      message: `${user.fullName} revoked faculty review for ${existing.name} in ${existing.system.name}.`,
+      message: `${user.fullName} revoked faculty sign-off for ${existing.name} in ${existing.system.name}. Administrator approval is invalidated.`,
       systemSlug: existing.system.slug,
       systemName: existing.system.name,
       structureId: id,
@@ -750,7 +1228,7 @@ export class AnatomyReviewService {
       structureName: existing.name,
     });
 
-    return { ...serializeStructure(updated), alreadyRevoked: false };
+    return { ...serializeStructure(updated.structure), alreadyRevoked: false };
   }
 
   async listRevisions(id: string) {
@@ -779,7 +1257,131 @@ export class AnatomyReviewService {
       previous: revision.previous,
       new: revision.new,
       note: revision.note,
+      kind: revision.kind,
     }));
+  }
+
+  // ── Internal helpers ─────────────────────────────────────────────────────
+
+  // Returns the ids in `structureIds` whose most recent content edit belongs to
+  // `editorId`. Only the last editor is blocked; a teacher who edited a
+  // structure before someone else may still review it.
+  private async structuresLastEditedBy(
+    client: RevisionClient,
+    structureIds: string[],
+    editorId: string,
+  ): Promise<Set<string>> {
+    if (structureIds.length === 0) return new Set();
+
+    const revisions = await client.anatomyStructureRevision.findMany({
+      where: {
+        structureId: { in: structureIds },
+        kind: EDIT_REVISION,
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { structureId: true, editorId: true },
+    });
+
+    const lastEditorByStructure = new Map<string, string>();
+    for (const revision of revisions) {
+      if (!lastEditorByStructure.has(revision.structureId)) {
+        lastEditorByStructure.set(revision.structureId, revision.editorId);
+      }
+    }
+
+    return new Set(
+      structureIds.filter((id) => lastEditorByStructure.get(id) === editorId),
+    );
+  }
+
+  // SELECT ... FOR UPDATE on the parent system serializes edits, sign-offs,
+  // publication approval, publish, and unpublish against each other.
+  private async lockSystem(tx: TransactionClient, systemId: string) {
+    await tx.$queryRaw`SELECT "id" FROM "AnatomySystem" WHERE "id" = ${systemId} FOR UPDATE`;
+  }
+
+  private async lockSystemBySlug(tx: TransactionClient, slug: string) {
+    const rows = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "AnatomySystem" WHERE "slug" = ${slug} FOR UPDATE
+    `;
+    if (rows.length === 0) {
+      throw new NotFoundException('Anatomy system not found');
+    }
+  }
+
+  private async loadSystemForPublication(tx: TransactionClient, slug: string) {
+    const system = await tx.anatomySystem.findUnique({
+      where: { slug },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        isPublished: true,
+        contentRevision: true,
+        publicationApprovedAt: true,
+        publicationApprovedById: true,
+        publicationApprovedRevision: true,
+        structures: {
+          select: {
+            id: true,
+            slug: true,
+            summary: true,
+            location: true,
+            function: true,
+            bloodSupply: true,
+            clinicalNotes: true,
+            isReviewed: true,
+            reviewedRevisionId: true,
+          },
+        },
+      },
+    });
+
+    if (!system) {
+      throw new NotFoundException('Anatomy system not found');
+    }
+    return system;
+  }
+
+  // Throws a 4xx that names every unsigned structure. Administrator approval
+  // and publishing both use this, so an administrator cannot bypass the
+  // unsigned check.
+  private assertPublishable(system: {
+    structures: Array<{
+      slug: string;
+      summary: string;
+      location: string | null;
+      function: string | null;
+      bloodSupply: string | null;
+      clinicalNotes: string | null;
+      isReviewed: boolean;
+      reviewedRevisionId: string | null;
+    }>;
+    publicationApprovedAt: Date | null;
+  }) {
+    if (system.structures.length === 0) {
+      throw new ConflictException(
+        'Cannot publish a system with no structures.',
+      );
+    }
+
+    const incomplete = system.structures.filter(
+      (structure) => missingTextFields(structure).length > 0,
+    );
+    if (incomplete.length > 0) {
+      throw new ConflictException(
+        `Cannot publish: ${incomplete.length} structure(s) still need teaching text (${sampleSlugs(incomplete)}).`,
+      );
+    }
+
+    const unsigned = system.structures.filter(
+      (structure) => !structure.isReviewed || !structure.reviewedRevisionId,
+    );
+    if (unsigned.length > 0) {
+      throw new ConflictException(
+        `Cannot publish: ${unsigned.length} structure(s) are not faculty signed off (${sampleSlugs(unsigned)}).`,
+      );
+    }
   }
 
   private async assertRelatedSlugs(
@@ -810,8 +1412,7 @@ export class AnatomyReviewService {
   }
 
   // In-app notices are best-effort: a notification failure must never make a
-  // successful edit/review return an error. Students only hear about content
-  // that has actually been reviewed and is published.
+  // successful edit/review return an error.
   private async notifyAnatomyChange(input: {
     excludeUserId: string;
     includeStudents: boolean;
@@ -860,7 +1461,9 @@ export class AnatomyReviewService {
           systemSlug: input.systemSlug,
           systemName: input.systemName,
           ...(input.structureId ? { structureId: input.structureId } : {}),
-          ...(input.structureSlug ? { structureSlug: input.structureSlug } : {}),
+          ...(input.structureSlug
+            ? { structureSlug: input.structureSlug }
+            : {}),
           ...(input.structureName
             ? { structureName: input.structureName }
             : {}),
@@ -893,4 +1496,24 @@ export class AnatomyReviewService {
       );
     }
   }
+}
+
+function snapshotFields(structure: {
+  summary: string;
+  location: string | null;
+  function: string | null;
+  bloodSupply: string | null;
+  clinicalNotes: string | null;
+  references: string[];
+  relatedSlugs: string[];
+}): EditableSnapshot {
+  return {
+    summary: structure.summary,
+    location: structure.location,
+    function: structure.function,
+    bloodSupply: structure.bloodSupply,
+    clinicalNotes: structure.clinicalNotes,
+    references: structure.references,
+    relatedSlugs: structure.relatedSlugs,
+  };
 }

@@ -96,6 +96,7 @@ export class AnatomyService {
         // teaching text. Revisions are append-only, so "latest" is reliable
         // even after a review is cleared or restored.
         revisions: {
+          where: { kind: 'edit' },
           orderBy: { createdAt: 'desc' },
           take: 1,
           select: {
@@ -129,8 +130,14 @@ export class AnatomyService {
       },
     );
 
+    // The student/teacher lab surface does not need the administrator's user
+    // id; approval is an administrative concern. Publication state already
+    // tells the lab whether students can see the system.
+    const { publicationApprovedById: _publicationApprovedById, ...systemMeta } =
+      system;
+
     return {
-      ...system,
+      ...systemMeta,
       structureCount: structures.length,
       structures,
     };

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Users, CreditCard, BookOpen, Layers } from "lucide-react";
+import { Users, CreditCard, BookOpen, Layers, HeartPulse } from "lucide-react";
 
 const cards = [
   {
@@ -9,6 +9,12 @@ const cards = [
     icon: Users,
     title: "Users",
     description: "Manage students, teachers, and staff accounts",
+  },
+  {
+    href: "/admin/anatomy",
+    icon: HeartPulse,
+    title: "Anatomy publishing",
+    description: "Approve and publish faculty-reviewed anatomy systems",
   },
   {
     href: "/admin/plans",
