@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import {
+  prepareLoad,
+  resolveSystemInputs,
+  run,
+} from "./apply-anatomy-teaching-draft.mjs";
 import {
   LOADED_TEACHING_TEXT_SYSTEMS,
   assertRegenerationSafe,
@@ -297,6 +303,164 @@ describe("real generated seed modules", () => {
         [],
         `${slug} should have no curated teaching text`,
       );
+    }
+  });
+});
+
+/** Build a minimal seed module for loader tests. */
+function loaderSeedModule(slugs) {
+  const rows = slugs
+    .map(
+      (slug) => `  {
+    slug: '${slug}',
+    name: '${slug}',
+    latinName: null,
+    summary: '',
+    location: '',
+    function: '',
+    bloodSupply: '',
+    clinicalNotes: '',
+    meshName: '${slug.replace(/-/g, "_")}',
+    layer: 'test',
+    relatedSlugs: [],
+    references: ['FMA:1 (Test).'],
+  },`,
+    )
+    .join("\n");
+  return `export const TEST_STRUCTURES = [\n${rows}\n];\n`;
+}
+
+/** Build a complete draft for the given slugs. */
+function loaderDraft(slugs) {
+  return `${slugs
+    .map(
+      (slug) => `### ${slug}
+- latinName: ${slug}
+- summary: Summary for ${slug}.
+- location: Location for ${slug}.
+- function: Function for ${slug}.
+- bloodSupply: Blood supply for ${slug}.
+- clinicalNotes: Notes for ${slug}.
+`,
+    )
+    .join("\n")}`;
+}
+
+describe("apply-anatomy-teaching-draft system inputs", () => {
+  test("derives the draft and seed paths from a system slug", () => {
+    const inputs = resolveSystemInputs("endocrine", repoRoot);
+    assert.equal(inputs.slug, "endocrine");
+    assert.equal(
+      inputs.draftPath,
+      join(repoRoot, "docs/anatomy/drafts/endocrine-teaching-draft.md"),
+    );
+    assert.equal(
+      inputs.dataPath,
+      join(repoRoot, "apps/api/prisma/anatomy-endocrine.data.ts"),
+    );
+  });
+
+  test("refuses a slug that could escape the drafts directory", () => {
+    assert.throws(
+      () => resolveSystemInputs("../anatomy-heart", repoRoot),
+      /Invalid system slug/,
+    );
+  });
+
+  test("refuses a duplicate --system flag", () => {
+    assert.throws(
+      () =>
+        run(["--system", "endocrine", "--system", "endocrine", "--check"], {
+          log() {},
+          warn() {},
+        }),
+      /Duplicate --system "endocrine"/,
+    );
+  });
+
+  test("supports a list of systems and --check writes nothing", () => {
+    const before = readFileSync(seedPath("endocrine"), "utf8");
+    const prepared = run(
+      [
+        "--system",
+        "endocrine",
+        "--system",
+        "lymphatic",
+        "--check",
+      ],
+      { log() {}, warn() {} },
+    );
+    assert.deepEqual(
+      prepared.map((item) => item.slug),
+      ["endocrine", "lymphatic"],
+    );
+    assert.deepEqual(
+      prepared.map((item) => item.draftCount),
+      [3, 3],
+    );
+    assert.equal(readFileSync(seedPath("endocrine"), "utf8"), before);
+  });
+
+  test("refuses a draft that omits a seed slug", () => {
+    const directory = mkdtempSync(join(tmpdir(), "lor-anatomy-loader-"));
+    try {
+      const draftPath = join(directory, "draft.md");
+      const dataPath = join(directory, "data.ts");
+      writeFileSync(draftPath, loaderDraft(["one"]), "utf8");
+      writeFileSync(dataPath, loaderSeedModule(["one", "two"]), "utf8");
+
+      assert.throws(
+        () => prepareLoad({ draftPath, dataPath }),
+        /missing draft block\(s\) for seed slug\(s\): two/,
+      );
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("refuses an unknown draft slug", () => {
+    const directory = mkdtempSync(join(tmpdir(), "lor-anatomy-loader-"));
+    try {
+      const draftPath = join(directory, "draft.md");
+      const dataPath = join(directory, "data.ts");
+      writeFileSync(draftPath, loaderDraft(["ghost"]), "utf8");
+      writeFileSync(dataPath, loaderSeedModule(["one"]), "utf8");
+
+      assert.throws(
+        () => prepareLoad({ draftPath, dataPath }),
+        /Unknown slug "ghost"/,
+      );
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("allows a partial draft only explicitly, and is idempotent", () => {
+    const directory = mkdtempSync(join(tmpdir(), "lor-anatomy-loader-"));
+    try {
+      const draftPath = join(directory, "draft.md");
+      const dataPath = join(directory, "data.ts");
+      writeFileSync(draftPath, loaderDraft(["one"]), "utf8");
+      writeFileSync(dataPath, loaderSeedModule(["one", "two"]), "utf8");
+
+      const first = prepareLoad({
+        draftPath,
+        dataPath,
+        allowPartial: true,
+        warn() {},
+      });
+      assert.deepEqual(first.untouched, ["two"]);
+      writeFileSync(dataPath, first.output, "utf8");
+
+      const second = prepareLoad({
+        draftPath,
+        dataPath,
+        allowPartial: true,
+        warn() {},
+      });
+      assert.equal(second.output, first.output);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
     }
   });
 });

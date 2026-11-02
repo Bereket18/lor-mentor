@@ -14,6 +14,9 @@
  *     whole load (unknown slug), naming the offending slug and line.
  *   - A slug that appears twice in the draft, or twice in the target seed
  *     file, refuses the whole load (duplicate slug).
+ *   - A seed slug with no draft block refuses the whole load (missing slug), so
+ *     a complete load covers exactly the seed's structures. --allow-partial is
+ *     an explicit legacy override for deliberately partial drafts.
  *   - Only the six fields above are written. name, meshName, layer,
  *     relatedSlugs, references, isReviewed and isPublished are never touched,
  *     so loaded rows stay unreviewed and the module stays unpublished.
@@ -23,12 +26,18 @@
  *     --draft docs/anatomy/drafts/respiratory-teaching-draft.md \
  *     --data apps/api/prisma/anatomy-respiratory.data.ts
  *
+ *   node scripts/apply-anatomy-teaching-draft.mjs \
+ *     --system endocrine --system lymphatic --check
+ *
  * Options:
+ *   --system <slug>   load by system slug; repeat to load several systems.
+ *                     Derives docs/anatomy/drafts/<slug>-teaching-draft.md and
+ *                     apps/api/prisma/anatomy-<slug>.data.ts.
  *   --draft <path>    draft markdown (default: respiratory draft)
  *   --data <path>     target seed module (default: respiratory data)
  *   --array <name>    seed array constant (default: the *_STRUCTURES array)
  *   --check           parse and validate only; write nothing
- *   --allow-partial   do not warn when the draft leaves seed rows empty
+ *   --allow-partial   do not refuse when the draft leaves seed rows empty
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
@@ -38,6 +47,7 @@ import ts from "typescript";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
+const SELF = fileURLToPath(import.meta.url);
 
 const FIELDS = [
   "latinName",
@@ -58,27 +68,49 @@ const TEACHING_FIELDS = [
 
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-function readFlag(name) {
-  const index = process.argv.indexOf(name);
+/**
+ * Derive the draft and seed paths for a system slug. The slug is also a path
+ * segment, so only kebab-case is accepted.
+ */
+export function resolveSystemInputs(slug, root = ROOT) {
+  if (typeof slug !== "string" || !SLUG_PATTERN.test(slug)) {
+    throw new Error(
+      `Invalid system slug "${slug}" (expected lower-case kebab-case).`,
+    );
+  }
+  return {
+    slug,
+    draftPath: resolve(
+      root,
+      "docs/anatomy/drafts",
+      `${slug}-teaching-draft.md`,
+    ),
+    dataPath: resolve(root, "apps/api/prisma", `anatomy-${slug}.data.ts`),
+  };
+}
+
+function readFlag(name, argv) {
+  const index = argv.indexOf(name);
   if (index === -1) return undefined;
-  const value = process.argv[index + 1];
+  const value = argv[index + 1];
   if (!value || value.startsWith("--")) {
     throw new Error(`${name} requires a value.`);
   }
   return value;
 }
 
-const draftPath = resolve(
-  ROOT,
-  readFlag("--draft") ?? "docs/anatomy/drafts/respiratory-teaching-draft.md",
-);
-const dataPath = resolve(
-  ROOT,
-  readFlag("--data") ?? "apps/api/prisma/anatomy-respiratory.data.ts",
-);
-const arrayHint = readFlag("--array");
-const checkOnly = process.argv.includes("--check");
-const allowPartial = process.argv.includes("--allow-partial");
+function readFlags(name, argv) {
+  const values = [];
+  argv.forEach((argument, index) => {
+    if (argument !== name) return;
+    const value = argv[index + 1];
+    if (!value || value.startsWith("--")) {
+      throw new Error(`${name} requires a value.`);
+    }
+    values.push(value);
+  });
+  return values;
+}
 
 /** A TypeScript string literal with backslashes and single quotes escaped. */
 function tsString(value) {
@@ -93,7 +125,7 @@ function collapse(value) {
  * Parse the draft into slug -> { field: value }. Refuses duplicate slugs and
  * duplicate fields within a block.
  */
-function parseDraft(text, source) {
+export function parseDraft(text, source) {
   const blocks = new Map();
   let current = null;
   let field = null;
@@ -222,12 +254,24 @@ function collectStructures(sourceText, fileName, hint) {
   return { arrayName, bySlug, sourceFile };
 }
 
-function main() {
+/**
+ * Parse and validate one draft against one seed module. Returns the intended
+ * output without writing it, so callers can validate a whole batch before any
+ * file is touched.
+ */
+export function prepareLoad({
+  draftPath,
+  dataPath,
+  arrayHint,
+  allowPartial = false,
+  warn = () => {},
+  slug = null,
+}) {
   const draftText = readFileSync(draftPath, "utf8");
   const dataText = readFileSync(dataPath, "utf8");
 
   const draft = parseDraft(draftText, draftPath);
-  const { arrayName, bySlug, sourceFile } = collectStructures(
+  const { arrayName, bySlug } = collectStructures(
     dataText,
     dataPath,
     arrayHint,
@@ -292,9 +336,15 @@ function main() {
     }
   }
 
-  const untouched = [...bySlug.keys()].filter((slug) => !draft.has(slug));
-  if (untouched.length > 0 && !allowPartial) {
-    console.warn(
+  const untouched = [...bySlug.keys()].filter((seedSlug) => !draft.has(seedSlug));
+  if (untouched.length > 0) {
+    if (!allowPartial) {
+      throw new Error(
+        `${draftPath}: missing draft block(s) for seed slug(s): ${untouched.join(", ")}. ` +
+          "The draft's slugs must equal the seed's slugs exactly. Refusing to load.",
+      );
+    }
+    warn(
       `Warning: ${untouched.length} seed row(s) have no draft block and keep empty text: ${untouched.join(", ")}.`,
     );
   }
@@ -306,21 +356,117 @@ function main() {
       output.slice(0, edit.start) + edit.replacement + output.slice(edit.end);
   }
 
-  const summary =
-    `${checkOnly ? "Checked" : "Loaded"} ${draft.size} draft block(s) into ` +
-    `${arrayName} (${edits.length} fields). ` +
-    `${untouched.length} seed row(s) untouched.`;
-  console.log(summary);
-
-  if (!checkOnly) {
-    writeFileSync(dataPath, output, "utf8");
-    console.log(`Wrote ${dataPath}`);
-  }
+  return {
+    slug,
+    arrayName,
+    draftPath,
+    dataPath,
+    draftCount: draft.size,
+    fieldCount: edits.length,
+    untouched,
+    output,
+  };
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(`apply-anatomy-teaching-draft failed: ${error.message}`);
-  process.exit(1);
+/** Build the list of loads requested on the command line. */
+function buildJobs(argv) {
+  const checkOnly = argv.includes("--check");
+  const allowPartial = argv.includes("--allow-partial");
+  const arrayHint = readFlag("--array", argv);
+  const draft = readFlag("--draft", argv);
+  const data = readFlag("--data", argv);
+  const systems = readFlags("--system", argv);
+
+  if (systems.length > 0 && (draft || data)) {
+    throw new Error(
+      "--system cannot be combined with --draft or --data; use one form.",
+    );
+  }
+
+  if (systems.length > 1 && arrayHint) {
+    throw new Error("--array applies to a single system, not a batch.");
+  }
+
+  if (systems.length > 0) {
+    const seen = new Set();
+    for (const slug of systems) {
+      if (seen.has(slug)) {
+        throw new Error(`Duplicate --system "${slug}".`);
+      }
+      seen.add(slug);
+    }
+    return {
+      checkOnly,
+      allowPartial,
+      jobs: systems.map((slug) => ({
+        ...resolveSystemInputs(slug),
+        arrayHint,
+      })),
+    };
+  }
+
+  return {
+    checkOnly,
+    allowPartial,
+    jobs: [
+      {
+        slug: null,
+        draftPath: resolve(
+          ROOT,
+          draft ?? "docs/anatomy/drafts/respiratory-teaching-draft.md",
+        ),
+        dataPath: resolve(
+          ROOT,
+          data ?? "apps/api/prisma/anatomy-respiratory.data.ts",
+        ),
+        arrayHint,
+      },
+    ],
+  };
+}
+
+/** Run the requested loads. Every draft is validated before any file is written. */
+export function run(
+  argv = process.argv.slice(2),
+  { warn = console.warn, log = console.log } = {},
+) {
+  const { checkOnly, allowPartial, jobs } = buildJobs(argv);
+
+  // Prepare every job first so a failure in the last system leaves all files
+  // untouched.
+  const prepared = jobs.map((job) =>
+    prepareLoad({ ...job, allowPartial, warn }),
+  );
+
+  for (const item of prepared) {
+    const label = item.slug ? `[${item.slug}] ` : "";
+    log(
+      `${label}${checkOnly ? "Checked" : "Loaded"} ${item.draftCount} draft block(s) into ` +
+        `${item.arrayName} (${item.fieldCount} fields). ` +
+        `${item.untouched.length} seed row(s) untouched.`,
+    );
+  }
+
+  if (!checkOnly) {
+    for (const item of prepared) {
+      writeFileSync(item.dataPath, item.output, "utf8");
+    }
+    for (const item of prepared) {
+      log(`Wrote ${item.dataPath}`);
+    }
+  }
+
+  return prepared;
+}
+
+const isDirectRun =
+  process.argv[1] && resolve(process.argv[1]) === resolve(SELF);
+
+if (isDirectRun) {
+  try {
+    run();
+  } catch (error) {
+    console.error(`apply-anatomy-teaching-draft failed: ${error.message}`);
+    process.exit(1);
+  }
 }
