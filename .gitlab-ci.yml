@@ -129,6 +129,7 @@ anatomy:validators:
   script:
     - (cd apps/web && node scripts/validate-anatomy-model.mjs --system heart)
     - (cd apps/web && node scripts/validate-anatomy-model.mjs --system urinary)
+    - npm run test:scripts
 
 # ── Web ────────────────────────────────────────────────────────────
 # Blocking again: apps/web now lints clean. The last five errors were all
