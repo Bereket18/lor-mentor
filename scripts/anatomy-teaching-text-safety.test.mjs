@@ -11,6 +11,7 @@ import {
   run,
 } from "./apply-anatomy-teaching-draft.mjs";
 import {
+  CURATED_FIELDS,
   LOADED_TEACHING_TEXT_SYSTEMS,
   assertRegenerationSafe,
   emptyTeachingTextGuardLines,
@@ -63,13 +64,41 @@ const EMPTY_RECORD = {
   clinicalNotes: "",
 };
 
+const BATCH_ONE_LOADED_SYSTEMS = [
+  "endocrine",
+  "lymphatic",
+  "sensory-ear",
+  "body-surface-upper",
+  "body-surface-lower",
+  "nervous-central",
+  "male-reproductive",
+];
+
+const EMPTY_GENERATED_SYSTEMS = [
+  "digestive-hepatobiliary",
+  "digestive-liver",
+  "digestive-lower",
+  "digestive-upper",
+  "nervous-left",
+  "nervous-right",
+  "sensory-eye-left",
+  "sensory-eye-right",
+];
+
 describe("loaded-teaching-text set", () => {
-  test("includes respiratory", () => {
-    assert.ok(LOADED_TEACHING_TEXT_SYSTEMS.has("respiratory"));
+  test("includes respiratory and every batch-1 system", () => {
+    for (const slug of ["respiratory", ...BATCH_ONE_LOADED_SYSTEMS]) {
+      assert.ok(
+        LOADED_TEACHING_TEXT_SYSTEMS.has(slug),
+        `${slug} should be in LOADED_TEACHING_TEXT_SYSTEMS`,
+      );
+    }
+    assert.equal(LOADED_TEACHING_TEXT_SYSTEMS.size, 8);
   });
 
-  test("recognises respiratory as loaded and other systems as not", () => {
+  test("recognises loaded and unloaded systems", () => {
     assert.equal(isLoadedTeachingTextSystem("respiratory"), true);
+    assert.equal(isLoadedTeachingTextSystem("nervous-central"), true);
     assert.equal(isLoadedTeachingTextSystem("digestive-upper"), false);
   });
 });
@@ -263,39 +292,55 @@ describe("seed header and description", () => {
 });
 
 describe("real generated seed modules", () => {
-  test("respiratory is detected as fully loaded", () => {
-    const path = seedPath("respiratory");
-    const bySlug = extractCuratedText(readFileSync(path, "utf8"), path);
-    assert.equal(bySlug.size, 26);
-    assert.equal(structuresWithCuratedContent(bySlug).length, 26);
-    assert.doesNotThrow(() =>
-      assertRegenerationSafe({
-        slug: "respiratory",
-        existingBySlug: bySlug,
-        dataPath: path,
-      }),
+  const loadedCounts = new Map([
+    ["respiratory", 26],
+    ["endocrine", 3],
+    ["lymphatic", 3],
+    ["sensory-ear", 1],
+    ["body-surface-upper", 1],
+    ["body-surface-lower", 1],
+    ["nervous-central", 12],
+    ["male-reproductive", 10],
+  ]);
+
+  test("the loaded set is exactly the fully curated systems", () => {
+    assert.deepEqual(
+      [...LOADED_TEACHING_TEXT_SYSTEMS].sort(),
+      ["respiratory", ...BATCH_ONE_LOADED_SYSTEMS].sort(),
     );
   });
 
-  test("every other generated system is still an empty draft", () => {
-    const slugs = [
-      "body-surface-lower",
-      "body-surface-upper",
-      "digestive-hepatobiliary",
-      "digestive-liver",
-      "digestive-lower",
-      "digestive-upper",
-      "endocrine",
-      "lymphatic",
-      "male-reproductive",
-      "nervous-central",
-      "nervous-left",
-      "nervous-right",
-      "sensory-ear",
-      "sensory-eye-left",
-      "sensory-eye-right",
-    ];
-    for (const slug of slugs) {
+  test("every loaded system is fully curated", () => {
+    for (const [slug, count] of loadedCounts) {
+      const path = seedPath(slug);
+      const bySlug = extractCuratedText(readFileSync(path, "utf8"), path);
+      assert.equal(bySlug.size, count, `${slug} should have ${count} rows`);
+      assert.equal(
+        structuresWithCuratedContent(bySlug).length,
+        count,
+        `${slug} should have ${count} curated rows`,
+      );
+      for (const [structureSlug, record] of bySlug) {
+        for (const field of CURATED_FIELDS) {
+          assert.ok(
+            typeof record[field] === "string" &&
+              record[field].trim().length > 0,
+            `${slug}/${structureSlug} should have a non-empty ${field}`,
+          );
+        }
+      }
+      assert.doesNotThrow(() =>
+        assertRegenerationSafe({
+          slug,
+          existingBySlug: bySlug,
+          dataPath: path,
+        }),
+      );
+    }
+  });
+
+  test("every unloaded generated system is still an empty draft", () => {
+    for (const slug of EMPTY_GENERATED_SYSTEMS) {
       const path = seedPath(slug);
       const bySlug = extractCuratedText(readFileSync(path, "utf8"), path);
       assert.deepEqual(

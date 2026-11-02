@@ -23,7 +23,16 @@ import ts from "typescript";
  * Regenerating them preserves the text and never re-adds the empty-text
  * validator guard.
  */
-export const LOADED_TEACHING_TEXT_SYSTEMS = new Set(["respiratory"]);
+export const LOADED_TEACHING_TEXT_SYSTEMS = new Set([
+  "respiratory",
+  "endocrine",
+  "lymphatic",
+  "sensory-ear",
+  "body-surface-upper",
+  "body-surface-lower",
+  "nervous-central",
+  "male-reproductive",
+]);
 
 export const TEACHING_TEXT_FIELDS = [
   "summary",

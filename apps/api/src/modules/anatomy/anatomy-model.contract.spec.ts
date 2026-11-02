@@ -735,7 +735,16 @@ describe('Generated Step 3 seed-to-model contracts', () => {
   // docs/anatomy/drafts via scripts/apply-anatomy-teaching-draft.mjs. Every
   // other generated system is still an empty-text draft. Loaded text is
   // unverified, so it must not change the unpublished / unreviewed state.
-  const SYSTEMS_WITH_LOADED_TEACHING_TEXT = new Set(['respiratory']);
+  const SYSTEMS_WITH_LOADED_TEACHING_TEXT = new Set([
+    'respiratory',
+    'endocrine',
+    'lymphatic',
+    'sensory-ear',
+    'body-surface-upper',
+    'body-surface-lower',
+    'nervous-central',
+    'male-reproductive',
+  ]);
 
   const generatedEntries = ANATOMY_SEED_REGISTRY.filter(
     (entry) => entry.system.slug !== 'heart' && entry.system.slug !== 'urinary',
@@ -746,6 +755,36 @@ describe('Generated Step 3 seed-to-model contracts', () => {
     expect(
       new Set(generatedEntries.map((entry) => entry.system.slug)).size,
     ).toBe(16);
+  });
+
+  it('splits the generated modules into eight loaded and eight empty', () => {
+    const loaded = generatedEntries
+      .map((entry) => entry.system.slug)
+      .filter((slug) => SYSTEMS_WITH_LOADED_TEACHING_TEXT.has(slug));
+    const empty = generatedEntries
+      .map((entry) => entry.system.slug)
+      .filter((slug) => !SYSTEMS_WITH_LOADED_TEACHING_TEXT.has(slug));
+
+    expect(loaded.sort()).toEqual([
+      'body-surface-lower',
+      'body-surface-upper',
+      'endocrine',
+      'lymphatic',
+      'male-reproductive',
+      'nervous-central',
+      'respiratory',
+      'sensory-ear',
+    ]);
+    expect(empty.sort()).toEqual([
+      'digestive-hepatobiliary',
+      'digestive-liver',
+      'digestive-lower',
+      'digestive-upper',
+      'nervous-left',
+      'nervous-right',
+      'sensory-eye-left',
+      'sensory-eye-right',
+    ]);
   });
 
   for (const entry of generatedEntries) {
@@ -781,6 +820,9 @@ describe('Generated Step 3 seed-to-model contracts', () => {
             structure.clinicalNotes,
           ];
           if (hasTeachingText) {
+            expect((structure.latinName ?? '').trim().length).toBeGreaterThan(
+              0,
+            );
             for (const value of teachingText) {
               expect(value.trim().length).toBeGreaterThan(0);
             }
