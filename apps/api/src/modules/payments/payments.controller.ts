@@ -115,10 +115,7 @@ export class PaymentsController {
   @Patch('admin/banks/:code/account')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
-  setBankAccount(
-    @Param('code') code: string,
-    @Body() dto: SetBankAccountDto,
-  ) {
+  setBankAccount(@Param('code') code: string, @Body() dto: SetBankAccountDto) {
     return this.service.setBankAccount(code, dto);
   }
 

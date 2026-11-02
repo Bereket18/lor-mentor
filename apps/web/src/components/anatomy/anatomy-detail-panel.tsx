@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { AnatomyAiPanel } from "@/components/anatomy/anatomy-ai-panel";
+import { AnatomyAiDisclaimer } from "@/components/anatomy/anatomy-ai-disclaimer";
 import { ANATOMY_FOCUS_RING } from "@/components/anatomy/anatomy-focus";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -568,6 +569,11 @@ export function AnatomyDetailPanel({
                 {selected.latinName}
               </p>
             )}
+
+            <AnatomyAiDisclaimer
+              isReviewed={selected.isReviewed}
+              className="mt-3"
+            />
 
             {selectedHasNotes ? (
               <>

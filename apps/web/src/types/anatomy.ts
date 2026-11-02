@@ -9,6 +9,11 @@ export interface AnatomySystemSummary {
   isPublished: boolean;
   sortOrder: number;
   structureCount: number;
+  contentRevision?: number;
+  publicationApprovedAt?: string | null;
+  publicationApprovedById?: string | null;
+  publicationApprovedRevision?: number | null;
+  publicationApprovedByName?: string | null;
 }
 
 export interface AnatomyStructureRelated {
@@ -36,8 +41,11 @@ export interface AnatomyStructure {
   reviewedAt: string | null;
   reviewedById: string | null;
   reviewedByName: string | null;
+  reviewedRevisionId?: string | null;
+  lastEditedById?: string | null;
   lastEditedByName: string | null;
   lastEditedAt: string | null;
+  signOffBlockedBySecondReviewer?: boolean;
   updatedAt: string;
   related: AnatomyStructureRelated[];
 }
@@ -57,6 +65,8 @@ export interface AnatomyReviewCounts {
 
 export interface AnatomyReviewSystemSummary extends AnatomySystemSummary {
   counts: AnatomyReviewCounts;
+  signedOffCount?: number;
+  unsignedStructures?: number[];
 }
 
 export interface AnatomyReviewStructure
@@ -69,6 +79,7 @@ export interface AnatomyReviewSystemDetail
   extends Omit<AnatomySystemSummary, "structureCount"> {
   structureCount: number;
   structures: AnatomyReviewStructure[];
+  requireSecondReviewer?: boolean;
 }
 
 export interface AnatomyEditableFields {
@@ -90,6 +101,7 @@ export interface AnatomyRevision {
   previous: AnatomyEditableFields;
   new: AnatomyEditableFields;
   note: string | null;
+  kind?: string;
 }
 
 export interface AnatomyQuizQuestion {

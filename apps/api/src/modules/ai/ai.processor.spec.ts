@@ -79,8 +79,8 @@ describe('AiProcessor retry safety', () => {
   it('reuses an existing flashcard set and quiz bank instead of hitting the unique keys', async () => {
     const { processor, aiContentUpsert, transaction } = buildProcessor();
     const tx = buildTx(16, 8);
-    transaction.mockImplementation(async (callback: (client: unknown) => unknown) =>
-      callback(tx),
+    transaction.mockImplementation(
+      async (callback: (client: unknown) => unknown) => callback(tx),
     );
 
     await processor.process(job);
@@ -111,8 +111,8 @@ describe('AiProcessor retry safety', () => {
   it('fills the cards and questions when the existing rows are empty', async () => {
     const { processor, transaction } = buildProcessor();
     const tx = buildTx(0, 0);
-    transaction.mockImplementation(async (callback: (client: unknown) => unknown) =>
-      callback(tx),
+    transaction.mockImplementation(
+      async (callback: (client: unknown) => unknown) => callback(tx),
     );
 
     await processor.process(job);

@@ -147,7 +147,10 @@ describe('ChekiService', () => {
     );
     const service = makeService();
 
-    const outcome = await service.verify({ bank: 'boa', url: 'https://cs.bankofabyssinia.com/slip/?trx=ABC' });
+    const outcome = await service.verify({
+      bank: 'boa',
+      url: 'https://cs.bankofabyssinia.com/slip/?trx=ABC',
+    });
 
     expect(outcome).toEqual({
       kind: 'DECODED_ONLY',
@@ -161,7 +164,10 @@ describe('ChekiService', () => {
     );
     const service = makeService();
 
-    const outcome = await service.verify({ bank: 'cbe', reference: 'FT1234567890' });
+    const outcome = await service.verify({
+      bank: 'cbe',
+      reference: 'FT1234567890',
+    });
 
     expect(outcome.kind).toBe('FAILED');
     expect(outcome).not.toHaveProperty('receipt');
@@ -179,16 +185,26 @@ describe('ChekiService', () => {
 
     const outcome = await service.verify({ bank: 'tele', reference: 'XYZ' });
 
-    expect(outcome).toMatchObject({ kind: 'FAILED', code: 'FALLBACK_REQUIRED' });
+    expect(outcome).toMatchObject({
+      kind: 'FAILED',
+      code: 'FALLBACK_REQUIRED',
+    });
   });
 
   it('surfaces rate limits with Retry-After instead of retrying', async () => {
     fetchMock.mockResolvedValue(
-      jsonResponse(429, { error: 'too many requests' }, { 'retry-after': '30' }),
+      jsonResponse(
+        429,
+        { error: 'too many requests' },
+        { 'retry-after': '30' },
+      ),
     );
     const service = makeService();
 
-    const outcome = await service.verify({ bank: 'cbe', reference: 'FT1234567890' });
+    const outcome = await service.verify({
+      bank: 'cbe',
+      reference: 'FT1234567890',
+    });
 
     expect(outcome).toMatchObject({ kind: 'FAILED', code: 'RATE_LIMITED' });
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -198,12 +214,16 @@ describe('ChekiService', () => {
     fetchMock.mockResolvedValue(
       jsonResponse(502, {
         success: false,
-        error: '[Commercial Bank of Ethiopia] CBE receipt service unavailable. Try again.',
+        error:
+          '[Commercial Bank of Ethiopia] CBE receipt service unavailable. Try again.',
       }),
     );
     const service = makeService();
 
-    const outcome = await service.verify({ bank: 'cbe', reference: 'FT1234567890' });
+    const outcome = await service.verify({
+      bank: 'cbe',
+      reference: 'FT1234567890',
+    });
 
     expect(outcome).toMatchObject({ kind: 'FAILED', code: 'HTTP_ERROR' });
   });
@@ -212,7 +232,10 @@ describe('ChekiService', () => {
     fetchMock.mockResolvedValue(jsonResponse(200, '<html>not json</html>'));
     const service = makeService();
 
-    const outcome = await service.verify({ bank: 'cbe', reference: 'FT1234567890' });
+    const outcome = await service.verify({
+      bank: 'cbe',
+      reference: 'FT1234567890',
+    });
 
     expect(outcome).toMatchObject({ kind: 'FAILED', code: 'MALFORMED' });
   });
@@ -228,7 +251,10 @@ describe('ChekiService', () => {
     );
     const service = makeService({ CHEKI_TIMEOUT_MS: '10' });
 
-    const outcome = await service.verify({ bank: 'cbe', reference: 'FT1234567890' });
+    const outcome = await service.verify({
+      bank: 'cbe',
+      reference: 'FT1234567890',
+    });
 
     expect(outcome).toMatchObject({ kind: 'FAILED', code: 'UNREACHABLE' });
   });
@@ -333,7 +359,9 @@ describe('ChekiService', () => {
   });
 
   it('does not cache failures so recovery is never hidden', async () => {
-    fetchMock.mockResolvedValue(jsonResponse(500, { success: false, error: 'boom' }));
+    fetchMock.mockResolvedValue(
+      jsonResponse(500, { success: false, error: 'boom' }),
+    );
     const service = makeService();
 
     await service.verify({ bank: 'cbe', reference: 'FT1234567890' });
@@ -346,7 +374,10 @@ describe('ChekiService', () => {
     const service = makeService({ CHEKI_ENABLED: 'false' });
 
     expect(service.enabled).toBe(false);
-    const outcome = await service.verify({ bank: 'cbe', reference: 'FT1234567890' });
+    const outcome = await service.verify({
+      bank: 'cbe',
+      reference: 'FT1234567890',
+    });
     expect(outcome).toMatchObject({ kind: 'FAILED', code: 'NOT_CONFIGURED' });
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -424,12 +455,21 @@ describe('ChekiService', () => {
 
       const outcome = await makeService().scanReceiptImage(Buffer.from('x'));
 
-      expect(outcome).toMatchObject({ kind: 'FOUND', bankCode: 'nib', bank: null });
+      expect(outcome).toMatchObject({
+        kind: 'FOUND',
+        bankCode: 'nib',
+        bank: null,
+      });
     });
 
     it('returns NONE when the image has no QR (manually reviewed instead)', async () => {
       fetchMock.mockResolvedValue(
-        jsonResponse(200, { success: true, source: 'none', text: '', qrDetected: false }),
+        jsonResponse(200, {
+          success: true,
+          source: 'none',
+          text: '',
+          qrDetected: false,
+        }),
       );
 
       const outcome = await makeService().scanReceiptImage(Buffer.from('x'));
@@ -456,14 +496,18 @@ describe('ChekiService', () => {
       fetchMock.mockResolvedValue(
         jsonResponse(500, { success: false, error: 'ocr exploded' }),
       );
-      expect(await makeService().scanReceiptImage(Buffer.from('x'))).toMatchObject({
+      expect(
+        await makeService().scanReceiptImage(Buffer.from('x')),
+      ).toMatchObject({
         kind: 'FAILED',
         code: 'HTTP_ERROR',
         message: 'ocr exploded',
       });
 
       fetchMock.mockResolvedValue(jsonResponse(200, 'not-json'));
-      expect(await makeService().scanReceiptImage(Buffer.from('x'))).toMatchObject({
+      expect(
+        await makeService().scanReceiptImage(Buffer.from('x')),
+      ).toMatchObject({
         kind: 'FAILED',
         code: 'MALFORMED',
       });

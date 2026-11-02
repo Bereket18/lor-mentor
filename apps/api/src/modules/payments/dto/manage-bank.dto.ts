@@ -34,7 +34,8 @@ export class SetBankAccountDto {
   @MinLength(5)
   @MaxLength(40)
   @Matches(/^[0-9\s-]+$/, {
-    message: 'accountNumber must contain only digits (spaces and dashes allowed).',
+    message:
+      'accountNumber must contain only digits (spaces and dashes allowed).',
   })
   accountNumber!: string;
 

@@ -73,7 +73,12 @@ export const BANK_CATALOG: readonly CatalogBank[] = [
     input: 'ref',
     auto: false,
   },
-  { code: 'bunna', label: 'Bunna International Bank', input: 'ref', auto: false },
+  {
+    code: 'bunna',
+    label: 'Bunna International Bank',
+    input: 'ref',
+    auto: false,
+  },
   { code: 'cbebirr', label: 'CBE Birr', input: 'ref', auto: false },
   { code: 'enat', label: 'Enat Bank', input: 'ref', auto: false },
   { code: 'gadaa', label: 'Gadaa Bank', input: 'ref', auto: false },

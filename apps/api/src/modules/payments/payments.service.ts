@@ -512,7 +512,7 @@ export class PaymentsService {
           verification: {
             reviewNote: 'Uploaded receipt is awaiting manual review.',
             ocr: this.ocrMeta(scan),
-          } as Prisma.InputJsonValue,
+          },
         },
       });
       paymentCreated = true;
@@ -757,10 +757,7 @@ export class PaymentsService {
       await this.assertReferenceUnused(bankRef);
     }
 
-    const decision = await this.assessReceipt(
-      receipt,
-      Number(plan.priceETB),
-    );
+    const decision = await this.assessReceipt(receipt, Number(plan.priceETB));
     if (decision.outcome === 'REJECT') {
       await this.createRejectedVerification(userId, dto, plan, receipt, {
         reason: decision.reason,
@@ -837,7 +834,12 @@ export class PaymentsService {
    */
   private async attemptExtractedReceipt(
     plan: { id: string; priceETB: Prisma.Decimal; name: string },
-    scan: { bank: string | null; bankCode: string; reference: string; text: string },
+    scan: {
+      bank: string | null;
+      bankCode: string;
+      reference: string;
+      text: string;
+    },
   ): Promise<
     | {
         outcome: 'APPROVED';
@@ -879,7 +881,7 @@ export class PaymentsService {
     const url = /^https?:\/\//i.test(scan.text) ? scan.text : undefined;
     const dto: VerifyReceiptDto = {
       planId: plan.id,
-      bank: scan.bank as VerifyReceiptDto['bank'],
+      bank: scan.bank,
       ...(url ? { url } : { reference: scan.reference }),
     };
 
@@ -961,10 +963,7 @@ export class PaymentsService {
       await this.assertReferenceUnused(bankRef);
     }
 
-    const decision = await this.assessReceipt(
-      receipt,
-      Number(plan.priceETB),
-    );
+    const decision = await this.assessReceipt(receipt, Number(plan.priceETB));
     if (decision.outcome === 'REJECT') {
       return {
         outcome: 'REJECTED',
@@ -1090,7 +1089,9 @@ export class PaymentsService {
 
   /** Legacy env-configured accounts, normalised to digits. */
   private envAccountRows(): { accountNumber: string; label: string }[] {
-    const labels = (this.config.get<string>('COMPANY_BANK_ACCOUNT_LABELS') ?? '')
+    const labels = (
+      this.config.get<string>('COMPANY_BANK_ACCOUNT_LABELS') ?? ''
+    )
       .split(',')
       .map((label) => label.trim());
     return (this.config.get<string>('COMPANY_BANK_ACCOUNTS') ?? '')

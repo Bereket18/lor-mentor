@@ -28,7 +28,12 @@ describe('VerifyReceiptDto hardening', () => {
   ])('rejects the client-supplied "%s" field', async (_name, injected) => {
     await expect(
       pipe.transform(
-        { planId: 'plan-1', bank: 'cbe', reference: 'FT1234567890', ...injected },
+        {
+          planId: 'plan-1',
+          bank: 'cbe',
+          reference: 'FT1234567890',
+          ...injected,
+        },
         bodyMeta,
       ),
     ).rejects.toThrow();
@@ -56,9 +61,9 @@ describe('VerifyReceiptDto hardening', () => {
       .catch((e: unknown) => e);
 
     expect(err).toBeDefined();
-    expect(JSON.stringify((err as { getResponse(): unknown }).getResponse())).toMatch(
-      /bank must be one of/,
-    );
+    expect(
+      JSON.stringify((err as { getResponse(): unknown }).getResponse()),
+    ).toMatch(/bank must be one of/);
   });
 
   it('rejects a missing planId', async () => {

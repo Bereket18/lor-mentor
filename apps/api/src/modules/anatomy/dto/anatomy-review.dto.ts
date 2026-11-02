@@ -2,6 +2,7 @@ import { Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsDateString,
   IsOptional,
   IsString,
@@ -139,4 +140,10 @@ export class ReviewSystemDto {
   @MaxLength(300)
   @Matches(NO_HTML, { message: 'HTML tags are not allowed.' })
   note?: string;
+}
+
+// Administrator-only lab policy toggle.
+export class ReviewSettingsDto {
+  @IsBoolean()
+  requireSecondReviewer!: boolean;
 }

@@ -65,7 +65,8 @@ describe('PaymentsService bank verification security', () => {
       deleteMany: deleteBanks,
     },
     $transaction: jest.fn(
-      (fn: (client: unknown) => Promise<unknown>): Promise<unknown> => fn(txMock),
+      (fn: (client: unknown) => Promise<unknown>): Promise<unknown> =>
+        fn(txMock),
     ),
   } as unknown as PrismaService;
 
@@ -165,10 +166,11 @@ describe('PaymentsService bank verification security', () => {
     findSubscription.mockReset().mockResolvedValue(null);
     // Every catalog bank is enabled by default in these tests; individual
     // cases override this to exercise the disabled/unknown path.
-    findBank.mockReset().mockImplementation(
-      ({ where }: { where: { code: string } }) =>
+    findBank
+      .mockReset()
+      .mockImplementation(({ where }: { where: { code: string } }) =>
         Promise.resolve({ code: where.code, isActive: true }),
-    );
+      );
     // No admin-managed accounts by default; the env fallback in the config
     // mock still provides the standard college account.
     findBanks.mockReset().mockResolvedValue([]);
@@ -627,9 +629,9 @@ describe('PaymentsService bank verification security', () => {
       expect(extract).not.toHaveBeenCalled();
       expect(chekiVerify).toHaveBeenCalledTimes(1);
       expect(createdData.amount).toEqual(new Prisma.Decimal(1000));
-      expect(
-        (createdData.verification as Record<string, unknown>).source,
-      ).toBe('cheki');
+      expect((createdData.verification as Record<string, unknown>).source).toBe(
+        'cheki',
+      );
       expect(result).toMatchObject({
         status: 'APPROVED',
         autoApproved: true,
@@ -906,9 +908,9 @@ describe('PaymentsService bank verification security', () => {
       });
       expect(extract).not.toHaveBeenCalled();
       expect(createdData.receiptPath).toBe('upload-x.png');
-      expect(
-        (createdData.verification as Record<string, unknown>).ocr,
-      ).toEqual({ via: 'cheki-ocr', bankCode: 'cbe' });
+      expect((createdData.verification as Record<string, unknown>).ocr).toEqual(
+        { via: 'cheki-ocr', bankCode: 'cbe' },
+      );
       expect(result).toMatchObject({
         status: 'APPROVED',
         autoApproved: true,
@@ -951,7 +953,10 @@ describe('PaymentsService bank verification security', () => {
       const verification = createdData.verification as Record<string, unknown>;
       expect(verification.chekiCode).toBe('RATE_LIMITED');
       expect(verification.verifierCode).toBe('UNREACHABLE');
-      expect(verification.ocr).toEqual({ via: 'cheki-ocr', bankCode: 'dashen' });
+      expect(verification.ocr).toEqual({
+        via: 'cheki-ocr',
+        bankCode: 'dashen',
+      });
     });
 
     it('blocks a replayed QR receipt exactly like the reference flow', async () => {

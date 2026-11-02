@@ -161,7 +161,8 @@ export class ChekiService {
     const enabled = (
       this.config.get<string>('CHEKI_ENABLED') ?? 'true'
     ).toLowerCase();
-    this.enabledFlag = Boolean(this.baseUrl) && enabled !== 'false' && enabled !== '0';
+    this.enabledFlag =
+      Boolean(this.baseUrl) && enabled !== 'false' && enabled !== '0';
     this.timeoutMs = Number(
       this.config.get<string>('CHEKI_TIMEOUT_MS') ?? '20000',
     );
@@ -229,7 +230,9 @@ export class ChekiService {
       try {
         const parsed: unknown = JSON.parse(text);
         body =
-          parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)
+          parsed !== null &&
+          typeof parsed === 'object' &&
+          !Array.isArray(parsed)
             ? (parsed as Record<string, unknown>)
             : null;
       } catch {
@@ -308,8 +311,7 @@ export class ChekiService {
         return {
           kind: 'FAILED',
           code: 'FALLBACK_REQUIRED',
-          message:
-            'Cheki requires in-country confirmation for this receipt',
+          message: 'Cheki requires in-country confirmation for this receipt',
         };
       }
 
@@ -396,7 +398,9 @@ export class ChekiService {
       try {
         const parsed: unknown = JSON.parse(text);
         body =
-          parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)
+          parsed !== null &&
+          typeof parsed === 'object' &&
+          !Array.isArray(parsed)
             ? (parsed as Record<string, unknown>)
             : null;
       } catch {

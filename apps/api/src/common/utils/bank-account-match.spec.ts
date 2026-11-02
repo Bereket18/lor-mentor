@@ -101,7 +101,9 @@ describe('extractLegacyCbeLinkDigits', () => {
       extractLegacyCbeLinkDigits('https://mbreciept.cbe.com.et/AbC123xyz'),
     ).toBeNull();
     expect(
-      extractLegacyCbeLinkDigits('https://apps.cbe.com.et:100/?id=FT26287CZTG9'),
+      extractLegacyCbeLinkDigits(
+        'https://apps.cbe.com.et:100/?id=FT26287CZTG9',
+      ),
     ).toBeNull();
     expect(
       extractLegacyCbeLinkDigits('https://apps.cbe.com.et:100/?id=ABC23923036'),

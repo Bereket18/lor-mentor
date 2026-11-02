@@ -339,7 +339,7 @@ export class ChapaService {
             source: 'chapa',
             reference: json.data?.reference ?? txRef,
             amount: settled,
-          } as Prisma.InputJsonValue,
+          },
         },
       });
       return;

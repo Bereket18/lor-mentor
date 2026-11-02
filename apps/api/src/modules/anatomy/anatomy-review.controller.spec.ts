@@ -15,10 +15,28 @@ const WRITE_HANDLERS = [
   'updateStructure',
   'reviewStructure',
   'reviewSystem',
-  'publishSystem',
   'unpublishSystem',
   'revokeStructure',
 ] as const;
+
+const REVIEWER_ONLY_HANDLERS = [
+  'reviewStructure',
+  'reviewSystem',
+  'unpublishSystem',
+  'revokeStructure',
+] as const;
+
+function guardsFor(handler: string): unknown[] {
+  const prototype = AnatomyReviewController.prototype as unknown as Record<
+    string,
+    object
+  >;
+  return (
+    (Reflect.getMetadata(GUARDS_METADATA, prototype[handler]) as
+      | unknown[]
+      | undefined) ?? []
+  );
+}
 
 describe('AnatomyReviewController access', () => {
   it('restricts the whole controller to TEACHER', () => {
@@ -30,20 +48,30 @@ describe('AnatomyReviewController access', () => {
     ).toEqual(['TEACHER']);
   });
 
-  it('applies authentication, role, reviewer, and throttler guards', () => {
+  it('applies authentication, role, and throttler guards to the class', () => {
     const guards = Reflect.getMetadata(
       GUARDS_METADATA,
       AnatomyReviewController,
     ) as unknown[];
 
     expect(guards).toEqual(
-      expect.arrayContaining([
-        JwtAuthGuard,
-        RolesGuard,
-        AnatomyReviewerGuard,
-        UserThrottlerGuard,
-      ]),
+      expect.arrayContaining([JwtAuthGuard, RolesGuard, UserThrottlerGuard]),
     );
+  });
+
+  it('does not require reviewer access for ordinary-teacher editing and reads', () => {
+    expect(guardsFor('updateStructure')).not.toContain(AnatomyReviewerGuard);
+    expect(guardsFor('listSystems')).not.toContain(AnatomyReviewerGuard);
+    expect(guardsFor('getSystemStructures')).not.toContain(
+      AnatomyReviewerGuard,
+    );
+    expect(guardsFor('listRevisions')).not.toContain(AnatomyReviewerGuard);
+  });
+
+  it('requires explicit reviewer access for sign-off and revocation', () => {
+    for (const handler of REVIEWER_ONLY_HANDLERS) {
+      expect(guardsFor(handler)).toContain(AnatomyReviewerGuard);
+    }
   });
 
   it('throttles every write handler per user', () => {
@@ -65,5 +93,12 @@ describe('AnatomyReviewController access', () => {
         Reflect.getMetadata(`${THROTTLER_LIMIT}default`, fn),
       ).toBeUndefined();
     }
+  });
+
+  it('has no publish route inside the anatomy lab', () => {
+    expect(
+      (AnatomyReviewController.prototype as unknown as Record<string, unknown>)
+        .publishSystem,
+    ).toBeUndefined();
   });
 });

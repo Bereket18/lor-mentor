@@ -278,13 +278,19 @@ export default function AdminUsersPage() {
   async function handleRoleChange(userId: string, role: string) {
     try {
       const res = await api.patch(`/users/${userId}/role`, { role });
-      // The API keeps isAnatomyReviewer in sync with the role (all teachers
-      // have it, everyone else does not), so mirror the returned value.
-      const nextFlag =
-        res.data?.user?.isAnatomyReviewer ?? role === "TEACHER";
+      // Role changes never grant or revoke reviewer access. Reviewer access is
+      // managed only through the "Manage Reviewer Access" action below, so we
+      // preserve whatever the API returns (or the flag already on the row).
       setUsers((prev) =>
         prev.map((u) =>
-          u.id === userId ? { ...u, role, isAnatomyReviewer: nextFlag } : u,
+          u.id === userId
+            ? {
+                ...u,
+                role,
+                isAnatomyReviewer:
+                  res.data?.user?.isAnatomyReviewer ?? u.isAnatomyReviewer,
+              }
+            : u,
         ),
       );
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -935,7 +941,8 @@ export default function AdminUsersPage() {
                       ))}
                     </select>
                     {/* Anatomy reviewer access — TEACHER-only capability.
-                        Every teacher gets it by default; admins can revoke. */}
+                        It is never granted by role changes or account
+                        creation; this control is the only grant/revoke path. */}
                     {user.role === "TEACHER" && canModify(user) && (
                       <button
                         type="button"
