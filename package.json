@@ -14,7 +14,8 @@
     "build:web": "npm run build --workspace=apps/web",
     "build:api": "npm run build --workspace=apps/api",
     "check:env": "node scripts/check-env.mjs",
-    "check:f8-email": "node scripts/f8-email-check.mjs"
+    "check:f8-email": "node scripts/f8-email-check.mjs",
+    "test:scripts": "node --test scripts/anatomy-teaching-text-safety.test.mjs"
   },
   "engines": {
     "node": ">=20.0.0",

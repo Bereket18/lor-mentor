@@ -15,6 +15,12 @@
  * anything. Groups are formed from the OBJ header's Concept ID + English name,
  * which is the authoritative "one structure per named structure" key.
  *
+ * Teaching-text safety: a system listed in LOADED_TEACHING_TEXT_SYSTEMS (see
+ * scripts/anatomy-teaching-text-safety.mjs) keeps its loaded per-structure
+ * teaching text and never re-adds the empty-text validator guard. Any other
+ * system that already contains non-empty teaching text refuses to regenerate,
+ * so curated text is never silently overwritten.
+ *
  * Large systems are split into independently seeded modules because the
  * viewer supports one GLB per system and each GLB must stay below 150,000
  * triangles. The split is recorded in each mapping document.
@@ -37,6 +43,14 @@ import {
 } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  assertRegenerationSafe,
+  emptyTeachingTextGuardLines,
+  extractCuratedText,
+  preservedCuratedText,
+  systemTeachingDescription,
+  teachingTextHeaderLines,
+} from "./anatomy-teaching-text-safety.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "..");
@@ -1384,7 +1398,7 @@ function tsString(value) {
   return JSON.stringify(value);
 }
 
-function buildSeedFile(slug) {
+function buildSeedFile(slug, preserved) {
   const { meta, structures } = modules.get(slug);
   const identifier = slug.replace(/-/g, "_").toUpperCase();
   const lines = [];
@@ -1398,10 +1412,7 @@ function buildSeedFile(slug) {
     " * BodyParts3D 4.0 tables. Do not hand-edit; re-run the generator.",
   );
   lines.push(" *");
-  lines.push(
-    " * Teaching text is intentionally empty. These rows are drafts pending",
-  );
-  lines.push(" * faculty review and the module stays unpublished.");
+  for (const line of teachingTextHeaderLines(slug)) lines.push(line);
   lines.push(" */");
   lines.push("");
   lines.push(
@@ -1417,9 +1428,7 @@ function buildSeedFile(slug) {
   lines.push(`  name: ${tsString(meta.name)},`);
   lines.push("  latinName: null,");
   lines.push(
-    `  description: ${tsString(
-      `${meta.name} anatomy model derived from BodyParts3D 4.0. Teaching notes are empty pending faculty review; this module is not published. See the attribution page for credit and licence details.`,
-    )},`,
+    `  description: ${tsString(systemTeachingDescription(meta.name, slug))},`,
   );
   lines.push(`  modelUrl: ${tsString(`/models/anatomy/${slug}.v1.glb`)},`);
   lines.push("  isSample: false,");
@@ -1431,15 +1440,24 @@ function buildSeedFile(slug) {
     `export const ${identifier}_STRUCTURES: AnatomyStructureSeed[] = [`,
   );
   for (const structure of structures) {
+    const curated = preserved?.get(structure.slug) ?? null;
+    const curatedString = (value) =>
+      typeof value === "string" && value.trim().length > 0
+        ? tsString(value)
+        : "''";
     lines.push("  {");
     lines.push(`    slug: ${tsString(structure.slug)},`);
     lines.push(`    name: ${tsString(structure.name)},`);
-    lines.push("    latinName: null,");
-    lines.push("    summary: '',");
-    lines.push("    location: '',");
-    lines.push("    function: '',");
-    lines.push("    bloodSupply: '',");
-    lines.push("    clinicalNotes: '',");
+    lines.push(
+      `    latinName: ${
+        curated?.latinName ? tsString(curated.latinName) : "null"
+      },`,
+    );
+    lines.push(`    summary: ${curatedString(curated?.summary)},`);
+    lines.push(`    location: ${curatedString(curated?.location)},`);
+    lines.push(`    function: ${curatedString(curated?.function)},`);
+    lines.push(`    bloodSupply: ${curatedString(curated?.bloodSupply)},`);
+    lines.push(`    clinicalNotes: ${curatedString(curated?.clinicalNotes)},`);
     lines.push(`    meshName: ${tsString(structure.meshName)},`);
     lines.push(`    layer: ${tsString(structure.layer)},`);
     lines.push(
@@ -1502,13 +1520,7 @@ function buildSeedFile(slug) {
     `      throw new Error(\`Structure \"\${structure.slug}\" has an invalid mesh name \"\${structure.meshName}\".\`);`,
   );
   lines.push("    }");
-  lines.push(
-    "    if ([structure.summary, structure.location, structure.function, structure.bloodSupply, structure.clinicalNotes].some((value) => value.trim().length > 0)) {",
-  );
-  lines.push(
-    `      throw new Error(\`Structure \"\${structure.slug}\" must not contain teaching text until faculty review.\`);`,
-  );
-  lines.push("    }");
+  for (const line of emptyTeachingTextGuardLines(slug)) lines.push(line);
   lines.push("  }");
   lines.push("}");
   lines.push("");
@@ -1703,6 +1715,19 @@ if (args.check) {
   process.exit(0);
 }
 
+// Teaching-text safety. Before writing anything, inspect each existing seed
+// module. Loaded systems keep their curated text; any other system that
+// already carries non-empty teaching text refuses the whole run.
+const preservedBySlug = new Map();
+for (const slug of Object.keys(MODULE_META)) {
+  const dataPath = join(repoRoot, `apps/api/prisma/anatomy-${slug}.data.ts`);
+  const existingBySlug = existsSync(dataPath)
+    ? extractCuratedText(readFileSync(dataPath, "utf8"), dataPath)
+    : new Map();
+  assertRegenerationSafe({ slug, existingBySlug, dataPath });
+  preservedBySlug.set(slug, preservedCuratedText(slug, existingBySlug));
+}
+
 const generatedRegistryLines = [];
 generatedRegistryLines.push("/**");
 generatedRegistryLines.push(" * Generated Anatomy Lab seed registry.");
@@ -1779,7 +1804,7 @@ for (const slug of Object.keys(MODULE_META)) {
   );
   writeFileSync(
     join(repoRoot, `apps/api/prisma/anatomy-${slug}.data.ts`),
-    buildSeedFile(slug),
+    buildSeedFile(slug, preservedBySlug.get(slug)),
     "utf8",
   );
   writeFileSync(
