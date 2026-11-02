@@ -124,9 +124,12 @@ const LEGACY_LABELS: Record<string, string> = {
   ANATOMY_STRUCTURE_UPDATE: 'Anatomy structure edited',
   ANATOMY_STRUCTURE_REVIEW: 'Anatomy structure reviewed',
   ANATOMY_STRUCTURE_REVOKE: 'Anatomy review revoked',
+  ANATOMY_SIGN_OFF_INVALIDATED: 'Anatomy sign-off invalidated',
   ANATOMY_SYSTEM_REVIEW: 'Anatomy system reviewed',
   ANATOMY_SYSTEM_PUBLISH: 'Anatomy system published',
   ANATOMY_SYSTEM_UNPUBLISH: 'Anatomy system unpublished',
+  ANATOMY_PUBLICATION_APPROVE: 'Anatomy publication approved',
+  ANATOMY_SETTINGS_UPDATE: 'Anatomy review settings updated',
   ANATOMY_REVIEWER_GRANT: 'Anatomy reviewer access granted',
   ANATOMY_REVIEWER_REVOKE: 'Anatomy reviewer access revoked',
 };
