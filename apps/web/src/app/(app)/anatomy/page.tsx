@@ -11,10 +11,13 @@ import {
   HeartPulse,
   Rotate3d,
   ScanSearch,
+  ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import api from "@/lib/api";
+import { useAuth } from "@/hooks/use-auth";
+import { ANATOMY_FOCUS_RING } from "@/components/anatomy/anatomy-focus";
 import type { AnatomySystemSummary } from "@/types/anatomy";
 
 // One icon per system, keyed by slug. New systems get a neutral fallback
@@ -47,6 +50,7 @@ const labSteps = [
 ];
 
 export default function AnatomyPage() {
+  const { user } = useAuth();
   const [systems, setSystems] = useState<AnatomySystemSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -83,18 +87,30 @@ export default function AnatomyPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-8">
       <header>
-        <div className="flex items-start gap-3">
-          <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border border-accent/20 bg-accent/10 text-accent">
-            <Boxes className="h-5 w-5" aria-hidden />
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border border-accent/20 bg-accent/10 text-accent">
+              <Boxes className="h-5 w-5" aria-hidden />
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-accent">
+                Visual learning
+              </p>
+              <h1 className="font-display text-2xl font-semibold text-primary sm:text-3xl">
+                Anatomy Lab
+              </h1>
+            </div>
           </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-accent">
-              Visual learning
-            </p>
-            <h1 className="font-display text-2xl font-semibold text-primary sm:text-3xl">
-              Anatomy Lab
-            </h1>
-          </div>
+          {user?.role === "TEACHER" && user.isAnatomyReviewer && (
+            <Link
+              href="/anatomy/review"
+              data-testid="anatomy-review-link"
+              className={`inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-success/30 bg-success/10 px-4 text-sm font-medium text-success transition-colors hover:bg-success/15 ${ANATOMY_FOCUS_RING}`}
+            >
+              <ShieldCheck className="h-4 w-4" aria-hidden />
+              Faculty review
+            </Link>
+          )}
         </div>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-secondary">
           Explore interactive 3D anatomy, select structures, and study the

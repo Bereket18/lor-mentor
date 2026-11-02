@@ -75,6 +75,7 @@ describe('AuditService.findAll', () => {
     await service.findAll({
       search: 'Jane',
       action: 'users.changeRole',
+      actionPrefix: 'ANATOMY_',
       entityType: 'User',
       actorId: 'actor-1',
       from: '2026-10-01T00:00:00.000Z',
@@ -85,6 +86,7 @@ describe('AuditService.findAll', () => {
     expect(where?.AND).toEqual(
       expect.arrayContaining([
         { action: 'users.changeRole' },
+        { action: { startsWith: 'ANATOMY_' } },
         { entityType: 'User' },
         { actorId: 'actor-1' },
         { createdAt: { gte: new Date('2026-10-01T00:00:00.000Z') } },

@@ -17,6 +17,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
 
 function cookieOptions(config: ConfigService) {
   const domain = config.get<string>('COOKIE_DOMAIN')?.trim();
@@ -54,8 +55,8 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('verify-email')
   @HttpCode(HttpStatus.OK)
-  async verifyEmail(@Body('token') token: string) {
-    return this.authService.verifyEmail(token);
+  async verifyEmail(@Body() dto: VerifyEmailDto) {
+    return this.authService.verifyEmail(dto.token);
   }
 
   // POST /api/v1/auth/login
@@ -108,8 +109,13 @@ export class AuthController {
 
     try {
       const payload = await this.authService.verifyRefreshToken(refreshToken);
-      // Reject a token that was revoked on logout or already rotated away.
-      await this.authService.assertRefreshTokenActive(payload.jti);
+      // Reject a token that was revoked on logout, already rotated away, or
+      // issued before the user's last password reset.
+      await this.authService.assertRefreshTokenActive(
+        payload.jti,
+        payload.sub,
+        payload.iat,
+      );
       // Rotation reuse-detection: burn the presented token so a stolen copy
       // can't be replayed after the legitimate client rotates.
       await this.authService.revokeRefreshPayload(payload);

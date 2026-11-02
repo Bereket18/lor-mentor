@@ -5,15 +5,15 @@
 # Docker / nginx / dependency-audit jobs that GitHub Actions never had.
 #
 # Rules of this file:
-#   * Runs on merge requests and the default branch only.
+#   * Runs on merge requests, the default branch, and manual web pipelines.
 #   * No deploy jobs.
 #   * No secrets. Every credential below is a throwaway value for the
 #     ephemeral CI Postgres service, not a real one.
 #   * Hard gates: install, API build, API unit + e2e tests, both anatomy model
-#     validators, web build, verifier tests.
+#     validators, web lint, web build, verifier tests.
 #   * Report-only (allow_failure: true) until they have been proven green on
-#     main: web lint, npm audit, Docker image builds, compose config, nginx
-#     syntax, Trivy.
+#     main: npm audit, Docker image builds, compose config, nginx syntax,
+#     Trivy. Web lint is a hard gate again now that apps/web lints clean.
 #
 # Keep the test matrix in sync with .github/workflows/ci.yml.
 workflow:
@@ -31,14 +31,6 @@ stages:
   - build
   - docker
   - security
-
-# Restrict the whole pipeline (including the included templates) to merge
-# requests and the default branch, so feature-branch pushes do not spin up a
-# second, duplicate pipeline.
-workflow:
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 default:
   interruptible: true
@@ -99,9 +91,36 @@ api:test:
 api:e2e:
   extends: .node
   stage: test
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+    - name: redis:7-alpine
+      alias: redis
+  variables:
+    REDIS_HOST: redis
+    REDIS_PORT: "6379"
+  script:
+    # Same fresh-database proof as api:test. The e2e spec mocks Prisma and
+    # Redis, so this is the only part of the job that touches the real schema.
+    - (cd apps/api && npx prisma generate && npx prisma migrate deploy)
+    - (cd apps/api && npm run test:e2e)
+
+# Schema validation is cheap and catches a malformed schema before the
+# migration/generate steps in the heavier jobs.
+prisma:validate:
+  extends: .node
+  stage: test
+  script:
+    - npx prisma validate --schema apps/api/prisma/schema.prisma
+
+# Nest's build already type-checks, but this fails fast with a readable list of
+# errors and covers test files that tsconfig.build.json excludes.
+api:typecheck:
+  extends: .node
+  stage: test
   script:
     - (cd apps/api && npx prisma generate)
-    - (cd apps/api && npm run test:e2e)
+    - npx tsc -p apps/api/tsconfig.json --noEmit
 
 # ── Anatomy model validators ───────────────────────────────────────
 anatomy:validators:
@@ -112,13 +131,14 @@ anatomy:validators:
     - (cd apps/web && node scripts/validate-anatomy-model.mjs --system urinary)
 
 # ── Web ────────────────────────────────────────────────────────────
-# Report-only for now: there is pre-existing lint debt (react-hooks rules)
-# unrelated to this pipeline. Build + tests are the hard gates. Tighten this
-# to a blocking step once the existing warnings/errors are paid down.
+# Blocking again: apps/web now lints clean. The last five errors were all
+# react-hooks/set-state-in-effect — three hydration flags in the auth pages and
+# the route-change resets in the topbar and app layout. They were fixed at the
+# source (useSyncExternalStore and state adjustment during render) rather than
+# suppressed, so this job can gate without an ignore list.
 web:lint:
   extends: .node
   stage: test
-  allow_failure: true
   script:
     - (cd apps/web && npx eslint .)
 
@@ -130,19 +150,45 @@ web:build:
   script:
     - npm run build:web
 
+web:typecheck:
+  extends: .node
+  stage: test
+  variables:
+    NEXT_PUBLIC_API_URL: https://api.example.com
+  script:
+    # Route types live in .next/types and are not committed; generate them
+    # without running a full production build.
+    - (cd apps/web && npx next typegen)
+    - npx tsc -p apps/web/tsconfig.json --noEmit
+
+web:unit:
+  extends: .node
+  stage: test
+  script:
+    # Pure TypeScript tests; the config does not launch a browser or dev server.
+    - npm run test:unit --workspace=apps/web
+
 # ── Receipt verifier (Python) ──────────────────────────────────────
-# test_security.py imports main.py, which pulls fastapi, pydantic and
-# ethiobank-receipts (the latter also brings requests). Install the service's
-# own requirements rather than hand-picking packages, so a dependency added for
-# the service is automatically covered by this job.
-verifiertest:
+# normalize.py and its tests are stdlib-only. cbe_links.py needs `requests`.
+# The validation/auth helpers live in security.py precisely so test_security.py
+# does not import main.py, which pulls `ethiobank_receipts` (Selenium +
+# Chromium). Importing main.py here without that package installed is what
+# produced `ModuleNotFoundError: No module named 'ethiobank_receipts'`.
+# The one test that does import main.py runs it in a subprocess with the heavy
+# package stubbed, so the fail-closed startup gate is still covered.
+# main.py's real dependency stack is validated by the Docker build below.
+verifier:test:
   stage: test
   image: python:3.12-slim
   before_script:
-    - pip install -r services/receipt-verifier/requirements.txt
+    # fastapi matches services/receipt-verifier/requirements.txt; requests is
+    # the version in the venv the suite was validated against. Do not install
+    # requirements.txt: it pulls ethiobank-receipts (Selenium + Chromium), which
+    # these tests deliberately do not need.
+    - pip install requests==2.34.2 fastapi==0.140.0
   script:
     - cd services/receipt-verifier
-    - python -m py_compile normalize.py cbe_links.py main.py
+    - python -m py_compile normalize.py cbe_links.py security.py main.py
     - python test_normalize.py
     - python test_cbe_links.py
     - python test_security.py
@@ -195,7 +241,12 @@ docker-build-verifier:
   stage: docker
   allow_failure: true
   script:
-    - docker build -f services/receipt-verifier/Dockerfile -t lor-mentor-verifier:ci .
+    # Context MUST be the service directory, matching docker-compose.prod.yml
+    # (`context: ./services/receipt-verifier`). The Dockerfile's COPY paths are
+    # relative to that directory: `COPY requirements.txt .` fails with the repo
+    # root as context, and building from the root would also ignore the
+    # service's own .dockerignore, shipping test_*.py into the image.
+    - docker build -t lor-mentor-verifier:ci ./services/receipt-verifier
 
 # Validate both compose files against a throwaway env. `docker compose config`
 # is client-side and does not need a running daemon, but it does need the
@@ -207,10 +258,22 @@ compose-config:
   before_script:
     - apk add --no-cache docker-cli-compose
   script:
-    - cp .env.production.example /tmp/ci-prod.env
-    - cp .env.production.example /tmp/ci-staging.env
-    - docker compose -f docker-compose.prod.yml --env-file /tmp/ci-prod.env config > /dev/null
-    - docker compose -f docker-compose.prod.yml -f docker-compose.staging.yml --env-file /tmp/ci-staging.env config > /dev/null
+    # Two separate mechanisms are at work here. `--env-file` supplies the values
+    # used for ${VAR} interpolation *inside* the compose file. The api service
+    # additionally declares a container-level `env_file: .env.production`, which
+    # compose resolves as a real path next to the compose file — `--env-file`
+    # does NOT satisfy it, which is why the previous /tmp copy failed with
+    # "env file .../.env.production not found".
+    #
+    # So materialise the throwaway env at exactly the path compose expects. The
+    # example file holds placeholders only, `.env.*` is in .gitignore so it is
+    # never tracked, and .dockerignore excludes `.env.*` so it cannot reach an
+    # image layer. Both invocations use it: the staging overlay deliberately
+    # inherits api's env_file from the prod file (see its header) and is
+    # documented to be run with `--env-file .env.production`.
+    - cp .env.production.example .env.production
+    - docker compose -f docker-compose.prod.yml --env-file .env.production config > /dev/null
+    - docker compose -f docker-compose.prod.yml -f docker-compose.staging.yml --env-file .env.production config > /dev/null
 
 # ── nginx syntax (official image, empty entrypoint) ────────────────
 # test-nginx-config.sh copies the conf, substitutes the domain placeholders
@@ -221,6 +284,7 @@ nginx-syntax:
   image:
     name: nginx:1.27-alpine
     entrypoint: [""]
+  allow_failure: true
   before_script:
     - apk add --no-cache bash openssl
   script:
@@ -231,7 +295,9 @@ nginx-syntax:
 # keeps it report-only; allow_failure is a second safety net.
 trivy:
   stage: security
-  image: docker:27
+  image:
+    name: aquasec/trivy:0.76.1
+    entrypoint: [""]
   allow_failure: true
   services:
     - docker:27-dind
@@ -241,8 +307,11 @@ trivy:
     DOCKER_TLS_VERIFY: "1"
     DOCKER_CERT_PATH: "/certs/client"
   before_script:
-    - apk add --no-cache curl
-    - curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+    # 0.76.1 is the current GitHub release and a real docker.io tag. The
+    # official image is Alpine-based but has no Docker CLI, so add it to build
+    # and export the image locally; nothing is pushed to a registry.
+    - apk add --no-cache docker-cli
+    - docker info
   script:
     - docker build -f apps/api/Dockerfile -t lor-mentor-api:ci .
     - docker save lor-mentor-api:ci -o /tmp/api.tar

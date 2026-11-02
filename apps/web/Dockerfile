@@ -10,7 +10,9 @@
 # time, so the public API URL must be passed as a build arg (not just runtime).
 
 # ── Base ────────────────────────────────────────────────────────────
-FROM node:24-slim AS base
+# Pinned by digest for reproducible builds; multi-arch index (amd64 + arm64).
+# Update deliberately: docker buildx imagetools inspect node:24-slim
+FROM node:24-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS base
 WORKDIR /app
 
 # ── Dependencies (cached on lockfile) ───────────────────────────────

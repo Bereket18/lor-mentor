@@ -1,0 +1,148 @@
+{
+  "generatedAt": "2026-10-30T21:07:37.798Z",
+  "sourceRoot": "C:\\Users\\berek\\Desktop\\bp3d-source",
+  "bodySurface": {
+    "method": "triangle centroid Z median partition",
+    "plane": 740.0456666666665,
+    "upper": {
+      "id": "FJ2810U",
+      "sha256": "5341b7a2629ad7f44803df966c51585c35c5054af1ddc22401fd5c9813e12916",
+      "triangles": 101691
+    },
+    "lower": {
+      "id": "FJ2810L",
+      "sha256": "0760a98cebd638e4860b2da267ec7bc4da1fddbe538f1c4004463331c3f3775f",
+      "triangles": 101691
+    }
+  },
+  "modules": [
+    {
+      "slug": "respiratory",
+      "name": "Respiratory system",
+      "files": 108,
+      "structures": 26,
+      "triangles": 139164,
+      "model": "respiratory.v1.glb"
+    },
+    {
+      "slug": "digestive-upper",
+      "name": "Digestive system - upper tract",
+      "files": 12,
+      "structures": 12,
+      "triangles": 61140,
+      "model": "digestive-upper.v1.glb"
+    },
+    {
+      "slug": "digestive-lower",
+      "name": "Digestive system - lower tract",
+      "files": 67,
+      "structures": 19,
+      "triangles": 116642,
+      "model": "digestive-lower.v1.glb"
+    },
+    {
+      "slug": "digestive-liver",
+      "name": "Digestive system - liver",
+      "files": 9,
+      "structures": 8,
+      "triangles": 127788,
+      "model": "digestive-liver.v1.glb"
+    },
+    {
+      "slug": "digestive-hepatobiliary",
+      "name": "Digestive system - hepatobiliary and pancreas",
+      "files": 58,
+      "structures": 48,
+      "triangles": 84834,
+      "model": "digestive-hepatobiliary.v1.glb"
+    },
+    {
+      "slug": "nervous-left",
+      "name": "Nervous system - left-sided structures",
+      "files": 21,
+      "structures": 21,
+      "triangles": 104652,
+      "model": "nervous-left.v1.glb"
+    },
+    {
+      "slug": "nervous-right",
+      "name": "Nervous system - right-sided structures",
+      "files": 21,
+      "structures": 21,
+      "triangles": 106280,
+      "model": "nervous-right.v1.glb"
+    },
+    {
+      "slug": "nervous-central",
+      "name": "Nervous system - central midline structures",
+      "files": 18,
+      "structures": 12,
+      "triangles": 112058,
+      "model": "nervous-central.v1.glb"
+    },
+    {
+      "slug": "sensory-eye-right",
+      "name": "Sensory system - right eye",
+      "files": 22,
+      "structures": 21,
+      "triangles": 125714,
+      "model": "sensory-eye-right.v1.glb"
+    },
+    {
+      "slug": "sensory-eye-left",
+      "name": "Sensory system - left eye",
+      "files": 23,
+      "structures": 22,
+      "triangles": 128994,
+      "model": "sensory-eye-left.v1.glb"
+    },
+    {
+      "slug": "sensory-ear",
+      "name": "Sensory system - external ear",
+      "files": 1,
+      "structures": 1,
+      "triangles": 2910,
+      "model": "sensory-ear.v1.glb"
+    },
+    {
+      "slug": "endocrine",
+      "name": "Endocrine system",
+      "files": 3,
+      "structures": 3,
+      "triangles": 7454,
+      "model": "endocrine.v1.glb"
+    },
+    {
+      "slug": "lymphatic",
+      "name": "Lymphatic system",
+      "files": 3,
+      "structures": 3,
+      "triangles": 3410,
+      "model": "lymphatic.v1.glb"
+    },
+    {
+      "slug": "male-reproductive",
+      "name": "Male reproductive system",
+      "files": 10,
+      "structures": 10,
+      "triangles": 5130,
+      "model": "male-reproductive.v1.glb"
+    },
+    {
+      "slug": "body-surface-upper",
+      "name": "Body surface - upper region",
+      "files": 1,
+      "structures": 1,
+      "triangles": 101691,
+      "model": "body-surface-upper.v1.glb"
+    },
+    {
+      "slug": "body-surface-lower",
+      "name": "Body surface - lower region",
+      "files": 1,
+      "structures": 1,
+      "triangles": 101691,
+      "model": "body-surface-lower.v1.glb"
+    }
+  ]
+}

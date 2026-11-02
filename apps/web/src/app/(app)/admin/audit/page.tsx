@@ -19,6 +19,7 @@ import {
   Search,
   ShieldAlert,
   ShieldCheck,
+  Stethoscope,
   UserRound,
   Users,
   X,
@@ -35,8 +36,11 @@ type CategoryName =
   | "Academic"
   | "Billing"
   | "Moderation"
+  | "Anatomy"
   | "Security"
   | "System";
+
+const ANATOMY_AREA = "ANATOMY";
 
 interface AuditActor {
   id?: string;
@@ -117,6 +121,12 @@ const CATEGORY_CONFIG: Record<
     bg: "rgba(245, 158, 11, 0.12)",
     border: "rgba(245, 158, 11, 0.24)",
   },
+  Anatomy: {
+    icon: Stethoscope,
+    color: "#2DD4BF",
+    bg: "rgba(45, 212, 191, 0.12)",
+    border: "rgba(45, 212, 191, 0.24)",
+  },
   Security: {
     icon: ShieldAlert,
     color: "#F87171",
@@ -141,6 +151,14 @@ const LEGACY_ACTION_LABELS: Record<string, string> = {
   PAYMENT_APPROVED: "Payment approved",
   PAYMENT_REJECTED: "Payment rejected",
   PAYMENT_REVERSED: "Payment reversed",
+  ANATOMY_STRUCTURE_UPDATE: "Anatomy structure edited",
+  ANATOMY_STRUCTURE_REVIEW: "Anatomy structure reviewed",
+  ANATOMY_STRUCTURE_REVOKE: "Anatomy review revoked",
+  ANATOMY_SYSTEM_REVIEW: "Anatomy system reviewed",
+  ANATOMY_SYSTEM_PUBLISH: "Anatomy system published",
+  ANATOMY_SYSTEM_UNPUBLISH: "Anatomy system unpublished",
+  ANATOMY_REVIEWER_GRANT: "Anatomy reviewer access granted",
+  ANATOMY_REVIEWER_REVOKE: "Anatomy reviewer access revoked",
 };
 
 const INTERNAL_META_KEYS = new Set([
@@ -224,6 +242,13 @@ function categoryFor(log: AuditLog): CategoryName {
 
   const entity = log.entityType ?? "";
   if (log.action.startsWith("AUTH_")) return "Security";
+  if (
+    log.action.startsWith("ANATOMY_") ||
+    entity === "AnatomyStructure" ||
+    entity === "AnatomySystem"
+  ) {
+    return "Anatomy";
+  }
   if (
     log.action.startsWith("PAYMENT_") ||
     ["Payment", "PaymentBank", "Plan", "Subscription"].includes(entity)
@@ -762,7 +787,11 @@ export default function AuditLogsPage() {
 
       const searchValue = deferredSearch.trim();
       if (searchValue) params.set("search", searchValue);
-      if (area) params.set("entityType", area);
+      if (area === ANATOMY_AREA) {
+        params.set("actionPrefix", "ANATOMY_");
+      } else if (area) {
+        params.set("entityType", area);
+      }
       if (action) params.set("action", action);
 
       const from = periodStart(period);
@@ -967,6 +996,7 @@ export default function AuditLogsPage() {
               className="xl:w-44"
             >
               <option value="">All areas</option>
+              <option value={ANATOMY_AREA}>Anatomy lab</option>
               {facets.entities.map((facet) => (
                 <option key={facet.value} value={facet.value}>
                   {facet.label} ({facet.count})

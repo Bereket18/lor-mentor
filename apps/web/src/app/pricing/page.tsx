@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Check, ArrowRight, ArrowLeft } from "lucide-react";
 import { PLAN_FEATURES } from "@/lib/plan-features";
 import { BrandLogo } from "@/components/shared/brand-logo";
+import { resolveApiOrigin } from "@/lib/api-base";
 
 interface Plan {
   id: string;
@@ -15,9 +16,13 @@ interface Plan {
 // (the API also sends Cache-Control), so the pricing page renders instantly
 // from the server with no client-side fetch waterfall or loading spinner.
 async function getPlans(): Promise<Plan[]> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
   try {
-    const res = await fetch(`${apiUrl}/api/v1/plans`, {
+    // Throws on an empty/malformed/loopback-in-production value; the catch
+    // below keeps the marketing page rendering (with no plans) rather than
+    // 500-ing. The build-time gate in next.config.ts is what fails a bad
+    // deployment. See src/lib/api-base.ts.
+    const apiOrigin = resolveApiOrigin();
+    const res = await fetch(`${apiOrigin}/api/v1/plans`, {
       next: { revalidate: 300 },
     });
     if (!res.ok) return [];

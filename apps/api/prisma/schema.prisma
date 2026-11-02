@@ -82,6 +82,10 @@ model User {
   role                Role      @default(STUDENT)
   isActive            Boolean   @default(true)
   isEmailVerified     Boolean   @default(false)
+  // Faculty anatomy editors are TEACHER accounts. Every teacher receives this
+  // flag by default; it can be revoked per account with the anatomy:reviewer
+  // script. ADMIN/SUPER_ADMIN are never reviewers.
+  isAnatomyReviewer   Boolean   @default(false)
   emailVerifyToken    String?
   emailVerifyExpiry   DateTime?
   passwordResetToken  String?
@@ -109,6 +113,8 @@ model User {
   reports          Report[]
   notifications    Notification[]
   auditLogs        AuditLog[]
+  anatomyRevisions AnatomyStructureRevision[] @relation("AnatomyRevisionEditor")
+  reviewedStructures AnatomyStructure[]      @relation("AnatomyStructureReviewer")
 
   @@index([email])
   @@index([role])
@@ -607,14 +613,41 @@ model AnatomyStructure {
   references    String[] @default([])
   sortOrder     Int      @default(0)
   isReviewed    Boolean  @default(false)
+  // Set together when a faculty reviewer approves the row. Editing any
+  // teaching field clears both and sets isReviewed back to false.
+  reviewedAt    DateTime?
+  reviewedById  String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  system AnatomySystem @relation(fields: [systemId], references: [id], onDelete: Cascade)
+  system    AnatomySystem @relation(fields: [systemId], references: [id], onDelete: Cascade)
+  reviewedBy User?        @relation("AnatomyStructureReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  revisions  AnatomyStructureRevision[]
 
   @@unique([systemId, slug])
   @@unique([systemId, meshName])
   @@index([systemId, sortOrder])
+  @@index([reviewedById])
+}
+
+// One row per successful teaching-text save. `previous` and `new` hold only the
+// editable fields, so a reviewer can compare and restore a version without
+// exposing unrelated system metadata. Created in the same transaction as the
+// structure update.
+model AnatomyStructureRevision {
+  id          String   @id @default(cuid())
+  structureId String
+  editorId    String
+  createdAt   DateTime @default(now())
+  previous    Json
+  new         Json
+  note        String?
+
+  structure AnatomyStructure @relation(fields: [structureId], references: [id], onDelete: Cascade)
+  editor    User              @relation("AnatomyRevisionEditor", fields: [editorId], references: [id], onDelete: Cascade)
+
+  @@index([structureId, createdAt])
+  @@index([editorId])
 }
 
 // ─── FORUM REACTIONS & REPORTS ────────────────

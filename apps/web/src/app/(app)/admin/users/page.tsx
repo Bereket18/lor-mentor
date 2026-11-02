@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, Loader2, Shield, UserCheck, Trash2,
   ChevronUp, ChevronDown, Search, AlertTriangle,
+  ShieldCheck, ShieldOff,
 } from "lucide-react";
 import api from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
@@ -38,6 +39,7 @@ interface User {
   role: string;
   isActive: boolean;
   isEmailVerified: boolean;
+  isAnatomyReviewer?: boolean;
   createdAt: string;
   updatedAt: string;
   departmentId?: string | null;
@@ -89,11 +91,12 @@ export default function AdminUsersPage() {
     role: "TEACHER" as "STUDENT" | "TEACHER" | "ADMIN" | "SUPER_ADMIN",
     departmentId: "", academicYearId: "",
   });
-  const [createdResult,  setCreatedResult]  = useState<{ name: string; email: string; password: string; courses?: number } | null>(null);
+  const [createdResult,  setCreatedResult]  = useState<{ name: string; email: string; invitationSent: boolean; setupUrl?: string; courses?: number } | null>(null);
   const [cleanupConfirm, setCleanupConfirm] = useState(false);
   const [cleaning,       setCleaning]       = useState(false);
   const [cleanupResult,  setCleanupResult]  = useState<string | null>(null);
   const [deletingId,     setDeletingId]     = useState<string | null>(null);
+  const [reviewerBusyId, setReviewerBusyId] = useState<string | null>(null);
 
   // Teacher course pre-assignment (create panel)
   const [courses,           setCourses]           = useState<Course[]>([]);
@@ -227,7 +230,8 @@ export default function AdminUsersPage() {
       setCreatedResult({
         name: res.data.user.fullName,
         email: res.data.user.email,
-        password: res.data.temporaryPassword,
+        invitationSent: res.data.invitationSent !== false,
+        setupUrl: res.data.setupUrl as string | undefined,
         courses: newStaff.role === "TEACHER" ? selectedCourseIds.length : 0,
       });
       setNewStaff({ fullName: "", email: "", role: "TEACHER", departmentId: "", academicYearId: "" });
@@ -273,11 +277,59 @@ export default function AdminUsersPage() {
 
   async function handleRoleChange(userId: string, role: string) {
     try {
-      await api.patch(`/users/${userId}/role`, { role });
-      setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, role } : u));
+      const res = await api.patch(`/users/${userId}/role`, { role });
+      // The API keeps isAnatomyReviewer in sync with the role (all teachers
+      // have it, everyone else does not), so mirror the returned value.
+      const nextFlag =
+        res.data?.user?.isAnatomyReviewer ?? role === "TEACHER";
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === userId ? { ...u, role, isAnatomyReviewer: nextFlag } : u,
+        ),
+      );
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       toast.error(err?.response?.data?.message ?? "Failed to change role");
+    }
+  }
+
+  // Grant or revoke a teacher's anatomy reviewer access. Revoking is
+  // destructive to that teacher's workflow (they can no longer approve
+  // structures), so it asks for confirmation first.
+  async function handleReviewerToggle(target: User) {
+    const next = !target.isAnatomyReviewer;
+    if (!next) {
+      const confirmed = await confirm({
+        title: "Revoke anatomy reviewer access?",
+        description: `${target.fullName} will no longer be able to review or approve anatomy structures. Approvals they already gave are not affected.`,
+        confirmLabel: "Revoke access",
+        destructive: true,
+      });
+      if (!confirmed) return;
+    }
+    setReviewerBusyId(target.id);
+    try {
+      const res = await api.patch(`/users/${target.id}/anatomy-reviewer`, {
+        isAnatomyReviewer: next,
+      });
+      const value = res.data?.user?.isAnatomyReviewer ?? next;
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === target.id ? { ...u, isAnatomyReviewer: value } : u,
+        ),
+      );
+      toast.success(
+        value
+          ? "Anatomy reviewer access granted"
+          : "Anatomy reviewer access revoked",
+      );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.message ?? "Failed to update reviewer access",
+      );
+    } finally {
+      setReviewerBusyId(null);
     }
   }
 
@@ -442,10 +494,20 @@ export default function AdminUsersPage() {
                 <div className="rounded-xl p-4 text-sm" style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)" }}>
                   <p className="font-semibold mb-1" style={{ color: "#10B981" }}>✅ Account created — {createdResult.name}</p>
                   <p className="text-secondary text-xs">Email: <span className="font-medium text-primary">{createdResult.email}</span></p>
-                  <p className="text-secondary text-xs mt-0.5">
-                    Temporary password: <span className="font-mono font-bold text-primary px-1.5 py-0.5 rounded" style={{ background: "rgba(45,212,191,0.1)" }}>{createdResult.password}</span>
-                  </p>
-                  <p className="text-muted text-xs mt-1.5">Share this with the staff member — they should change it on first login.</p>
+                  {createdResult.invitationSent ? (
+                    <p className="text-muted text-xs mt-1.5">
+                      📧 An invitation was emailed to {createdResult.email}. They choose their own
+                      password through a one-time link that expires in 48 hours — no password is
+                      shown here or sent to you.
+                    </p>
+                  ) : (
+                    <p className="text-muted text-xs mt-1.5">
+                      📧 The invitation email could not be sent. Share this secure link with them
+                      directly — it lets them set a password once and expires in 48 hours:
+                      <br />
+                      <span className="font-mono text-[11px] break-all">{createdResult.setupUrl}</span>
+                    </p>
+                  )}
                   {createdResult.courses !== undefined && (
                     <p className="text-muted text-xs mt-1">
                       {createdResult.courses > 0
@@ -872,6 +934,38 @@ export default function AdminUsersPage() {
                         <option key={r} value={r}>{ROLE_BADGE[r]?.label ?? r}</option>
                       ))}
                     </select>
+                    {/* Anatomy reviewer access — TEACHER-only capability.
+                        Every teacher gets it by default; admins can revoke. */}
+                    {user.role === "TEACHER" && canModify(user) && (
+                      <button
+                        type="button"
+                        onClick={() => handleReviewerToggle(user)}
+                        disabled={reviewerBusyId === user.id}
+                        aria-pressed={Boolean(user.isAnatomyReviewer)}
+                        title={
+                          user.isAnatomyReviewer
+                            ? "Anatomy reviewer access granted — click to revoke"
+                            : "Anatomy reviewer access revoked — click to grant"
+                        }
+                        className="mt-1 flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md transition-all disabled:opacity-50"
+                        style={
+                          user.isAnatomyReviewer
+                            ? { background: "rgba(45,212,191,0.12)", color: "#2DD4BF" }
+                            : { background: "rgba(100,116,139,0.12)", color: "#94A3B8" }
+                        }
+                        onMouseEnter={(e) => { if (reviewerBusyId !== user.id) (e.currentTarget as HTMLElement).style.opacity = "0.75"; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
+                      >
+                        {reviewerBusyId === user.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : user.isAnatomyReviewer ? (
+                          <ShieldCheck className="h-3 w-3" />
+                        ) : (
+                          <ShieldOff className="h-3 w-3" />
+                        )}
+                        {user.isAnatomyReviewer ? "Reviewer" : "No review"}
+                      </button>
+                    )}
                   </div>
 
                   {/* Actions */}

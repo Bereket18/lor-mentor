@@ -1,0 +1,125 @@
+{
+  "version": 2,
+  "system": "endocrine",
+  "title": "LOR Mentor endocrine system anatomy model",
+  "output": {
+    "model": "endocrine.v1.glb",
+    "manifest": "endocrine.v1.manifest.json"
+  },
+  "sources": [
+    {
+      "tree": "PART-OF",
+      "dataset": "BodyParts3D 4.0",
+      "polygonReduction": "99%",
+      "archive": "partof_BP3D_4.0_obj_99.zip",
+      "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_BP3D_4.0_obj_99.zip",
+      "archiveBytes": 64888505,
+      "archiveEtag": "\"3de1eb9-4dd48e9fe8d00\"",
+      "archiveLastModified": "Wed, 22 May 2013 06:45:40 GMT",
+      "archiveSha256": "9fbc713fffeee924a5a657d9813d84d7eb957bded63adb854931dd5e3eb61c97",
+      "extractedObjFiles": 1258,
+      "usedFor": "endocrine v1 build: 3 PART-OF source files.",
+      "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "licenseUpdated": "2025-02-27",
+      "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
+      "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
+    },
+    {
+      "tree": "IS-A",
+      "dataset": "BodyParts3D 4.0",
+      "polygonReduction": "99%",
+      "archive": "isa_BP3D_4.0_obj_99.zip",
+      "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/isa_BP3D_4.0_obj_99.zip",
+      "archiveBytes": 142903898,
+      "archiveEtag": "\"8848a5a-4dd48ec9df000\"",
+      "archiveLastModified": "Wed, 22 May 2013 06:46:24 GMT",
+      "archiveSha256": "40665852c49f218326590e204db91064a1ecfc3c6f8cbd7bbbcaac62c7cd409e",
+      "extractedObjFiles": 2234,
+      "usedFor": "endocrine v1 build: no IS-A files used.",
+      "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "licenseUpdated": "2025-02-27",
+      "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
+      "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
+    }
+  ],
+  "transform": {
+    "sourceUnits": "millimetres",
+    "sourceUpAxis": "Z",
+    "targetUnits": "metres",
+    "targetUpAxis": "Y",
+    "mapping": "x/1000, z/1000, -y/1000; then centre on the combined bounding box"
+  },
+  "viewerOrientation": "Camera looks from +Z toward the origin; patient left is +X (the viewer's right). The viewer renders no on-screen orientation marker.",
+  "recordTransformDetails": true,
+  "changes": [
+    "Selected 3 source OBJ files from the official BodyParts3D 4.0 tables.",
+    "Merged each structure's source parts into one selectable mesh: 3 selectable nodes.",
+    "Converted millimetres and the Z-up axis to metres and Y-up, centred the combined model, and recomputed vertex normals.",
+    "Exported one uncompressed GLB with stable mesh names. No source colours or textures are used; surface colours are ours.",
+    "No teaching text is stored in the model or seed; the module is unpublished pending faculty review."
+  ],
+  "adaptations": [
+    "Grouped source files by the OBJ header Concept ID and English name so each named structure is one selectable node.",
+    "Large FMA systems are split into independently seeded modules because the viewer supports one GLB per system and each GLB must stay below the release budget."
+  ],
+  "orientationChecks": [
+    {
+      "left": "left_adrenal_gland",
+      "right": "right_adrenal_gland"
+    }
+  ],
+  "structures": [
+    {
+      "slug": "pituitary-gland",
+      "meshName": "pituitary_gland",
+      "layer": "pituitary",
+      "color": "#c96b6b",
+      "files": [
+        {
+          "id": "FJ1796",
+          "archive": "PART-OF",
+          "concept": "FMA13889",
+          "name": "Pituitary gland",
+          "sha256": "f4dfe89a92a5af3f9a2de4f3221c45978a2a8308ef465b780684ab839aeab21b",
+          "triangles": 1164
+        }
+      ]
+    },
+    {
+      "slug": "left-adrenal-gland",
+      "meshName": "left_adrenal_gland",
+      "layer": "adrenal",
+      "color": "#b95757",
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ3129",
+          "archive": "PART-OF",
+          "concept": "FMA15630",
+          "name": "Left adrenal gland",
+          "sha256": "ba5fd50b54d62d8d6e99ce7c2fb19b13979173619ec78c223e01227142943c47",
+          "triangles": 3996
+        }
+      ]
+    },
+    {
+      "slug": "right-adrenal-gland",
+      "meshName": "right_adrenal_gland",
+      "layer": "adrenal",
+      "color": "#b95757",
+      "laterality": "right",
+      "files": [
+        {
+          "id": "FJ3130",
+          "archive": "PART-OF",
+          "concept": "FMA15629",
+          "name": "Right adrenal gland",
+          "sha256": "919d7260f7109f19b8d443b167b8e25d55112ff3a0c437f327d260d71c6a0b4e",
+          "triangles": 2294
+        }
+      ]
+    }
+  ],
+  "textOnly": [],
+  "totalTriangles": 7454
+}

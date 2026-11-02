@@ -12,6 +12,8 @@ const secureProductionConfig = {
   API_PUBLIC_URL: 'https://api.example.com',
   WEB_PUBLIC_URL: 'https://app.example.com',
   CORS_ORIGIN: 'https://app.example.com',
+  // The web and API hosts differ, so the split-host cookie domain is required.
+  COOKIE_DOMAIN: '.example.com',
 };
 
 describe('validateEnv', () => {
@@ -231,6 +233,106 @@ describe('validateEnv', () => {
         COOKIE_DOMAIN: cookieDomain,
       }),
     ).toThrow(/COOKIE_DOMAIN must be a bare hostname/);
+  });
+
+  it('requires a shared cookie domain for a split-host production deployment', () => {
+    const { COOKIE_DOMAIN: _omitted, ...withoutCookieDomain } =
+      secureProductionConfig;
+
+    expect(() => validateEnv({ ...withoutCookieDomain })).toThrow(
+      /COOKIE_DOMAIN is required in production when the web and API hosts differ/,
+    );
+  });
+
+  it('accepts a single-host production deployment without a cookie domain', () => {
+    const config = {
+      ...secureProductionConfig,
+      API_PUBLIC_URL: 'https://lormentor.com',
+      WEB_PUBLIC_URL: 'https://lormentor.com',
+      CORS_ORIGIN: 'https://lormentor.com',
+      COOKIE_DOMAIN: '',
+    };
+
+    expect(validateEnv({ ...config })).toEqual(config);
+  });
+
+  it('accepts a shared cookie domain that covers both hosts', () => {
+    const config = {
+      ...secureProductionConfig,
+      COOKIE_DOMAIN: 'example.com', // leading dot is optional
+    };
+
+    expect(validateEnv({ ...config })).toEqual(config);
+  });
+
+  it('rejects a cookie domain that does not cover the API host', () => {
+    expect(() =>
+      validateEnv({
+        ...secureProductionConfig,
+        COOKIE_DOMAIN: '.app.example.com',
+      }),
+    ).toThrow(
+      /COOKIE_DOMAIN \(\.app\.example\.com\) must be a parent domain of API_PUBLIC_URL \(api\.example\.com\)/,
+    );
+  });
+
+  it('rejects a cookie domain that does not cover the web host', () => {
+    // `.api.lormentor.com` covers the API host but not the web host, so the
+    // browser would never send the session cookie to the web origin.
+    expect(() =>
+      validateEnv({
+        ...secureProductionConfig,
+        API_PUBLIC_URL: 'https://api.lormentor.com',
+        WEB_PUBLIC_URL: 'https://app.lormentor.com',
+        CORS_ORIGIN: 'https://app.lormentor.com',
+        COOKIE_DOMAIN: '.api.lormentor.com',
+      }),
+    ).toThrow(
+      /COOKIE_DOMAIN \(\.api\.lormentor\.com\) must be a parent domain of WEB_PUBLIC_URL \(app\.lormentor\.com\)/,
+    );
+  });
+
+  it('matches on label boundaries, not a bare suffix', () => {
+    // "notexample.com" ends with "example.com" as a string but is an unrelated
+    // site; a naive endsWith() check would have handed it the auth cookies.
+    expect(() =>
+      validateEnv({
+        ...secureProductionConfig,
+        API_PUBLIC_URL: 'https://api.notexample.com',
+        WEB_PUBLIC_URL: 'https://app.notexample.com',
+        CORS_ORIGIN: 'https://app.notexample.com',
+        COOKIE_DOMAIN: 'example.com',
+      }),
+    ).toThrow(/must be a parent domain of/);
+  });
+
+  it.each(['com', 'localhost', 'internal'])(
+    'rejects a single-label cookie domain in production (%s)',
+    (cookieDomain) => {
+      expect(() =>
+        validateEnv({
+          ...secureProductionConfig,
+          API_PUBLIC_URL: 'https://api.internal',
+          WEB_PUBLIC_URL: 'https://app.internal',
+          CORS_ORIGIN: 'https://app.internal',
+          COOKIE_DOMAIN: cookieDomain,
+        }),
+      ).toThrow(/at least two labels/);
+    },
+  );
+
+  it('does not enforce the cookie domain outside production (staging keeps working)', () => {
+    const config = {
+      NODE_ENV: 'staging',
+      JWT_ACCESS_SECRET: 'staging-access-secret',
+      JWT_REFRESH_SECRET: 'staging-refresh-secret',
+      DATABASE_URL: 'postgresql://user:pass@db:5432/lor_mentor',
+      API_PUBLIC_URL: 'https://api.staging.example.com',
+      WEB_PUBLIC_URL: 'https://staging.example.com',
+      CORS_ORIGIN: 'https://staging.example.com',
+    };
+
+    expect(validateEnv({ ...config })).toEqual(config);
   });
 
   it('validates the optional receipt-verifier timeout range', () => {

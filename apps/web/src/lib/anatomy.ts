@@ -41,7 +41,10 @@ export function orderedLayers(structures: AnatomyStructure[]): string[] {
 }
 
 export function matchesStructureQuery(
-  structure: AnatomyStructure,
+  structure: Pick<
+    AnatomyStructure,
+    "name" | "latinName" | "summary" | "layer"
+  >,
   query: string,
 ): boolean {
   const needle = query.trim().toLowerCase();

@@ -23,7 +23,11 @@ Liveness + the list of supported banks.
 
 ### `POST /extract`
 
-Header `x-verifier-token: <VERIFIER_SHARED_TOKEN>` (when configured).
+Header `x-verifier-token: <VERIFIER_SHARED_TOKEN>` — **required, always**. The
+header is compared in constant time. A missing, empty or wrong value gets
+`401 { "detail": { "code": "UNAUTHORIZED" } }`, and the service refuses to
+start at all if `VERIFIER_SHARED_TOKEN` is unset or blank (see
+[Authentication](#authentication)).
 
 ```jsonc
 // CBE by FT number + account (last 8 digits or full)
@@ -66,6 +70,54 @@ caller switches on:
 | `EXTRACT_FAILED`                                                      | scraper/parse error (bank changed page?) | fall back to manual admin review |
 | `BAD_INPUT` / `MISSING_ACCOUNT` / `URL_REQUIRED` / `UNSUPPORTED_BANK` | bad request                              | surface validation error         |
 | `UNAUTHORIZED`                                                        | wrong/missing token                      | fix config                       |
+
+## Authentication
+
+`/extract` is **fail-closed** in two independent places, so it can never be
+reached anonymously even if one of them is misconfigured or bypassed:
+
+1. **Startup gate.** `main.py` loads the shared token at import time via
+   `security.load_shared_token()`. If `VERIFIER_SHARED_TOKEN` is missing, empty
+   or whitespace-only the process raises and never begins serving requests. A
+   blank variable (`VERIFIER_SHARED_TOKEN=`) is treated exactly like an unset
+   one — there is no configuration in which the check is silently disabled.
+2. **Per-request check.** Every `/extract` call runs
+   `security.is_authorized(SHARED_TOKEN, x_verifier_token)`, which uses
+   `hmac.compare_digest` on the UTF-8 bytes and returns `False` for a missing,
+   empty or incorrect credential.
+
+The token is never logged and never echoed in an error body — a failure returns
+only `{"detail": {"code": "UNAUTHORIZED"}}`. `GET /health` stays open: it is the
+container healthcheck target, is not proxied by nginx, and exposes no secret.
+
+This is a defence in depth, not a substitute for network isolation. The service
+still publishes no host port in Compose, and the API additionally refuses to
+start when `RECEIPT_VERIFIER_URL` is set without a `RECEIPT_VERIFIER_TOKEN` of
+at least 32 characters (`apps/api/src/config/env.validation.ts`).
+
+### Module layout
+
+`security.py` holds the pure, dependency-light helpers — token loading and
+comparison, request validation, bank URL allow-listing. Both `main.py` and the
+tests import from it, which keeps the test suite runnable without installing
+`ethiobank-receipts` and its Selenium/Chromium stack (the cause of the CI
+`ModuleNotFoundError`). `main.py` owns the FastAPI routes and the extractor
+call. The startup gate itself is covered by a subprocess test that stubs the
+extractor package.
+
+## Tests
+
+```bash
+python -m py_compile normalize.py cbe_links.py security.py main.py
+python test_normalize.py
+python test_cbe_links.py
+python test_security.py
+```
+
+`test_security.py` covers both gates: missing/empty/whitespace configured token,
+missing/empty/incorrect/correct presented token, non-ASCII credentials, bank
+URL allow-listing, and the process refusing to start without a token. It needs
+only `requests`, `fastapi` and `pydantic`.
 
 ## ⚠️ Deployment constraints
 

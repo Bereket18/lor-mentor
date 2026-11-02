@@ -1,7 +1,17 @@
 import { BadRequestException } from '@nestjs/common';
+import type { ConfigService } from '@nestjs/config';
 import type { PrismaService } from '../../prisma/prisma.service';
+import type { MailService } from '../mail/mail.service';
 import { UsersService } from './users.service';
 import type { CreateUserDto } from './dto/create-user.dto';
+
+const sendStaffInvitation = jest.fn();
+const mail = { sendStaffInvitation } as unknown as MailService;
+const config = {
+  get: jest.fn((key: string) =>
+    key === 'WEB_PUBLIC_URL' ? 'https://app.example.test' : undefined,
+  ),
+} as unknown as ConfigService;
 
 /**
  * Regression coverage for audit finding A1: creating a teacher with a program
@@ -34,7 +44,7 @@ describe('UsersService.createUser — teacher course pre-assignment', () => {
     $transaction: transaction,
   } as unknown as PrismaService;
 
-  const service = new UsersService(prisma);
+  const service = new UsersService(prisma, mail, config);
 
   const teacherDto: CreateUserDto = {
     fullName: 'Dr. Test',
@@ -55,6 +65,55 @@ describe('UsersService.createUser — teacher course pre-assignment', () => {
     findUserByEmail.mockResolvedValue(null);
     createUser.mockResolvedValue(createdUser);
     updateManyCourses.mockResolvedValue({ count: 2 });
+    sendStaffInvitation.mockResolvedValue(undefined);
+  });
+
+  it('emails a single-use setup link instead of returning a password', async () => {
+    await service.createUser('ADMIN', teacherDto);
+
+    const data = (
+      createUser.mock.calls[0] as [{ data: Record<string, unknown> }]
+    )[0].data;
+    const token = data.passwordResetToken as string;
+    const expiry = data.passwordResetExpiry as Date;
+
+    expect(token).toMatch(/^[0-9a-f]{64}$/);
+    // 48-hour window, with slack for the test's own runtime.
+    const hours = (expiry.getTime() - Date.now()) / 3_600_000;
+    expect(hours).toBeGreaterThan(47);
+    expect(hours).toBeLessThanOrEqual(48);
+
+    expect(sendStaffInvitation).toHaveBeenCalledTimes(1);
+    const [to, fullName, setupUrl, role] = sendStaffInvitation.mock
+      .calls[0] as [string, string, string, string];
+    expect(to).toBe(createdUser.email);
+    expect(fullName).toBe(createdUser.fullName);
+    expect(role).toBe('TEACHER');
+    expect(setupUrl).toBe(
+      `https://app.example.test/reset-password?token=${token}`,
+    );
+  });
+
+  it('hands the setup link to the admin when the invitation email cannot be sent', async () => {
+    sendStaffInvitation.mockRejectedValue(
+      new Error('Email service is not configured right now'),
+    );
+
+    const result = await service.createUser('ADMIN', teacherDto);
+
+    const data = (
+      createUser.mock.calls[0] as [{ data: Record<string, unknown> }]
+    )[0].data;
+    const token = data.passwordResetToken as string;
+
+    expect(result.invitationSent).toBe(false);
+    expect(result.setupUrl).toBe(
+      `https://app.example.test/reset-password?token=${token}`,
+    );
+    // Still never a password, and never the raw token on its own.
+    expect(result).not.toHaveProperty('temporaryPassword');
+    expect(result).not.toHaveProperty('password');
+    expect(Object.values(result)).not.toContain(token);
   });
 
   it('assigns the selected courses atomically with the new teacher account', async () => {
@@ -69,13 +128,18 @@ describe('UsersService.createUser — teacher course pre-assignment', () => {
     });
 
     expect(result.user).toEqual(createdUser);
-    expect(result.temporaryPassword).toMatch(/^[0-9a-f]{12}$/);
+    // The endpoint used to hand back a plaintext temporary password. It must
+    // never do that again: no password ever leaves this method.
+    expect(result).not.toHaveProperty('temporaryPassword');
+    expect(result).not.toHaveProperty('password');
+    expect(result.invitationSent).toBe(true);
+    expect(result).not.toHaveProperty('setupUrl');
     expect(transaction).toHaveBeenCalledTimes(1);
-    expect(createUser).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ role: 'TEACHER' }),
-      }),
-    );
+    const [{ data: createData }] = createUser.mock.calls[0] as [
+      { data: Record<string, unknown> },
+    ];
+    expect(createData.role).toBe('TEACHER');
+    expect(createData.isAnatomyReviewer).toBe(true);
     expect(updateManyCourses).toHaveBeenCalledWith({
       where: {
         id: { in: ['course-a', 'course-b'] },
@@ -224,6 +288,7 @@ describe('UsersService — user list filters and admin program rules', () => {
   const findAcademicYear = jest.fn();
   const findCourse = jest.fn();
   const updateManyCourses = jest.fn();
+  const createAudit = jest.fn();
   const transactionMock = jest.fn();
 
   const prisma = {
@@ -236,15 +301,17 @@ describe('UsersService — user list filters and admin program rules', () => {
     department: { findUnique: findDepartment },
     academicYear: { findUnique: findAcademicYear },
     course: { findMany: findCourse, updateMany: updateManyCourses },
+    auditLog: { create: createAudit },
     $transaction: transactionMock,
   } as unknown as PrismaService;
 
-  const service = new UsersService(prisma);
+  const service = new UsersService(prisma, mail, config);
 
   beforeEach(() => {
     jest.clearAllMocks();
     findManyUsers.mockResolvedValue([]);
     countUsers.mockResolvedValue(0);
+    createAudit.mockResolvedValue({});
   });
 
   describe('findAll filters', () => {
@@ -362,6 +429,165 @@ describe('UsersService — user list filters and admin program rules', () => {
           data: { departmentId: 'dept-1', academicYearId: null },
         }),
       );
+    });
+  });
+
+  describe('changeRole reviewer flag', () => {
+    it('grants anatomy review access when a user becomes a teacher', async () => {
+      findUser.mockResolvedValue({ role: 'STUDENT' });
+      updateUser.mockResolvedValue({
+        id: 'user-1',
+        email: 'user@example.com',
+        fullName: 'New Teacher',
+        role: 'TEACHER',
+        isAnatomyReviewer: true,
+      });
+
+      await service.changeRole('user-1', 'TEACHER', 'actor-1', 'SUPER_ADMIN');
+
+      expect(updateUser).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { role: 'TEACHER', isAnatomyReviewer: true },
+        }),
+      );
+    });
+
+    it('clears anatomy review access when a teacher leaves the role', async () => {
+      findUser.mockResolvedValue({ role: 'TEACHER' });
+      updateUser.mockResolvedValue({
+        id: 'user-1',
+        email: 'user@example.com',
+        fullName: 'Former Teacher',
+        role: 'ADMIN',
+        isAnatomyReviewer: false,
+      });
+
+      await service.changeRole('user-1', 'ADMIN', 'actor-1', 'SUPER_ADMIN');
+
+      expect(updateUser).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { role: 'ADMIN', isAnatomyReviewer: false },
+        }),
+      );
+    });
+  });
+
+  describe('setAnatomyReviewer admin control', () => {
+    it('grants reviewer access to a teacher and audits the grant', async () => {
+      findUser.mockResolvedValue({
+        id: 'teacher-1',
+        email: 't1@example.com',
+        fullName: 'Dr. One',
+        role: 'TEACHER',
+        isAnatomyReviewer: false,
+      });
+      updateUser.mockResolvedValue({
+        id: 'teacher-1',
+        email: 't1@example.com',
+        fullName: 'Dr. One',
+        role: 'TEACHER',
+        isAnatomyReviewer: true,
+      });
+
+      const result = await service.setAnatomyReviewer(
+        'teacher-1',
+        true,
+        'admin-1',
+        'ADMIN',
+      );
+
+      expect(updateUser).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'teacher-1' },
+          data: { isAnatomyReviewer: true },
+        }),
+      );
+      expect(createAudit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            actorId: 'admin-1',
+            action: 'ANATOMY_REVIEWER_GRANT',
+            entityType: 'User',
+            entityId: 'teacher-1',
+          }),
+        }),
+      );
+      expect(result.changed).toBe(true);
+      expect(result.user.isAnatomyReviewer).toBe(true);
+    });
+
+    it('revokes reviewer access from a teacher and audits the revoke', async () => {
+      findUser.mockResolvedValue({
+        id: 'teacher-2',
+        email: 't2@example.com',
+        fullName: 'Dr. Two',
+        role: 'TEACHER',
+        isAnatomyReviewer: true,
+      });
+      updateUser.mockResolvedValue({
+        id: 'teacher-2',
+        email: 't2@example.com',
+        fullName: 'Dr. Two',
+        role: 'TEACHER',
+        isAnatomyReviewer: false,
+      });
+
+      const result = await service.setAnatomyReviewer(
+        'teacher-2',
+        false,
+        'super-1',
+        'SUPER_ADMIN',
+      );
+
+      expect(createAudit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'ANATOMY_REVIEWER_REVOKE',
+            entityId: 'teacher-2',
+          }),
+        }),
+      );
+      expect(result.message).toBe('Anatomy reviewer access revoked');
+      expect(result.user.isAnatomyReviewer).toBe(false);
+    });
+
+    it('refuses to change reviewer access for a non-teacher target', async () => {
+      findUser.mockResolvedValue({
+        id: 'admin-2',
+        email: 'a2@example.com',
+        fullName: 'Admin Two',
+        role: 'ADMIN',
+        isAnatomyReviewer: false,
+      });
+
+      await expect(
+        service.setAnatomyReviewer('admin-2', true, 'admin-1', 'ADMIN'),
+      ).rejects.toThrow(
+        'Anatomy reviewer access can only be changed for teacher accounts',
+      );
+      expect(updateUser).not.toHaveBeenCalled();
+      expect(createAudit).not.toHaveBeenCalled();
+    });
+
+    it('is a no-op when the flag already matches the request', async () => {
+      findUser.mockResolvedValue({
+        id: 'teacher-3',
+        email: 't3@example.com',
+        fullName: 'Dr. Three',
+        role: 'TEACHER',
+        isAnatomyReviewer: true,
+      });
+
+      const result = await service.setAnatomyReviewer(
+        'teacher-3',
+        true,
+        'admin-1',
+        'ADMIN',
+      );
+
+      expect(result.changed).toBe(false);
+      expect(updateUser).not.toHaveBeenCalled();
+      expect(createAudit).not.toHaveBeenCalled();
     });
   });
 

@@ -5,8 +5,9 @@
  *   npm run validate:anatomy-model --workspace=apps/web
  *   node scripts/validate-anatomy-model.mjs --system urinary
  *
- * By default this checks the live heart v2 asset. Pass a GLB and manifest pair
- * to validate a candidate release without touching the live model:
+ * Other systems default to public/models/anatomy/<system>.v1.glb and
+ * <system>.v1.manifest.json. Pass a GLB and manifest pair to validate a
+ * candidate release without touching the live model:
  *
  *   node scripts/validate-anatomy-model.mjs --system urinary \
  *     --glb path/to/candidate.glb \
@@ -26,7 +27,7 @@ const modelDir = resolve(scriptDir, "../public/models/anatomy");
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_TRIANGLES = 150_000;
-const SYSTEMS = new Set(["heart", "urinary"]);
+const SYSTEM_SLUG_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const PUBLISHED_MODELS_FILE = "published-models.json";
 // Immutable-cache-safe name: <stem>.v<positive integer>.glb
 const VERSIONED_GLB_PATTERN = /^[a-z0-9][a-z0-9-]*\.v[1-9][0-9]*\.glb$/;
@@ -38,15 +39,16 @@ function check(condition, message) {
 }
 
 function defaultAssets(system) {
-  return system === "urinary"
-    ? {
-        glb: join(modelDir, "urinary.v1.glb"),
-        manifest: join(modelDir, "urinary.v1.manifest.json"),
-      }
-    : {
-        glb: join(modelDir, "heart.v2.glb"),
-        manifest: join(modelDir, "manifest.json"),
-      };
+  if (system === "heart") {
+    return {
+      glb: join(modelDir, "heart.v2.glb"),
+      manifest: join(modelDir, "manifest.json"),
+    };
+  }
+  return {
+    glb: join(modelDir, `${system}.v1.glb`),
+    manifest: join(modelDir, `${system}.v1.manifest.json`),
+  };
 }
 
 function parseArgs(argv) {
@@ -61,9 +63,9 @@ function parseArgs(argv) {
     else throw new Error(`Unknown argument: ${arg}`);
   }
 
-  if (!SYSTEMS.has(args.system)) {
+  if (!SYSTEM_SLUG_PATTERN.test(args.system)) {
     throw new Error(
-      `Unknown system "${args.system}". Expected one of: ${[...SYSTEMS].join(", ")}`,
+      `Unknown system "${args.system}". Use a lower-case kebab-case slug.`,
     );
   }
 
@@ -75,9 +77,10 @@ function parseArgs(argv) {
 
 function usage() {
   return [
-    "Usage: node scripts/validate-anatomy-model.mjs [--system heart|urinary] [--glb <name>.vN.glb] [--manifest <path>]",
+    "Usage: node scripts/validate-anatomy-model.mjs [--system <slug>] [--glb <name>.vN.glb] [--manifest <path>]",
     "",
-    "Defaults to the live heart v2 asset. --system urinary checks urinary.v1.",
+    "Defaults to the live heart v2 asset. Other systems default to",
+    "<slug>.v1.glb and <slug>.v1.manifest.json.",
     "Any --glb filename must be versioned as <name>.vN.glb (N >= 1).",
   ].join("\n");
 }

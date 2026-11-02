@@ -79,10 +79,21 @@ jobs:
         with:
           python-version: "3.12"
 
-      # normalize.py + its tests are stdlib-only, so no pip install needed for
-      # the unit tests. (main.py's heavy deps are validated by the Docker build.)
-      - name: Byte-compile normalizer
-        run: python -m py_compile normalize.py
+      # normalize.py + its tests are stdlib-only. cbe_links.py needs `requests`;
+      # the validation/auth helpers live in security.py so the security tests do
+      # not import main.py's Selenium/Chromium stack. main.py's real dependency
+      # stack is validated by the Docker build.
+      - name: Install test dependencies
+        run: pip install requests fastapi
+
+      - name: Byte-compile verifier modules
+        run: python -m py_compile normalize.py cbe_links.py security.py main.py
 
       - name: Normalizer tests
         run: python test_normalize.py
+
+      - name: Receipt-link tests
+        run: python test_cbe_links.py
+
+      - name: Security and authentication tests
+        run: python test_security.py

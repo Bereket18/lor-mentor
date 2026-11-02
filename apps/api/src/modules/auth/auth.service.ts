@@ -21,12 +21,32 @@ interface RefreshPayload {
   sub: string;
   jti?: string;
   exp?: number;
+  /** Issued-at, epoch seconds. Assigned by jsonwebtoken on every token. */
+  iat?: number;
 }
 
 // Brute-force lockout policy: after MAX_FAILED consecutive failures the account
 // is locked for LOCKOUT_MINUTES. The counter resets on any successful login.
 const MAX_FAILED_LOGINS = 5;
 const LOCKOUT_MINUTES = 15;
+
+/**
+ * Parse a JWT-style duration (`s`, `m`, `h`, `d`; bare number = seconds).
+ * Returns null when the value is not understood.
+ */
+function parseDurationSeconds(value: string): number | null {
+  const match = /^\s*(\d+)\s*([smhd]?)\s*$/i.exec(value);
+  if (!match) return null;
+  const amount = Number(match[1]);
+  const unit = (match[2] || 's').toLowerCase();
+  const multipliers: Record<string, number> = {
+    s: 1,
+    m: 60,
+    h: 3_600,
+    d: 86_400,
+  };
+  return amount * (multipliers[unit] ?? 1);
+}
 
 @Injectable()
 export class AuthService {
@@ -39,7 +59,20 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
     private readonly denylist: TokenDenylistService,
-  ) {}
+  ) {
+    // How long the "sessions revoked at T" marker must survive: at least as
+    // long as a refresh token can live, plus a day of slack so clock skew or a
+    // slow restart cannot expire the marker before the tokens it governs. When
+    // JWT_REFRESH_EXPIRES_IN is unparseable we keep the marker for 30 days —
+    // erring long only costs one Redis key per reset.
+    const refreshTtl = parseDurationSeconds(
+      this.config.get<string>('JWT_REFRESH_EXPIRES_IN') ?? '7d',
+    );
+    this.refreshRevocationTtlSeconds = (refreshTtl ?? 30 * 86_400) + 86_400;
+  }
+
+  /** TTL for the per-user session-revocation marker (see revokeUserSessions). */
+  private readonly refreshRevocationTtlSeconds: number;
 
   // ── REGISTER ──────────────────────────────────────────
   async register(dto: RegisterDto) {
@@ -247,6 +280,7 @@ export class AuthService {
         email: user.email,
         fullName: user.fullName,
         role: user.role,
+        isAnatomyReviewer: user.isAnatomyReviewer,
       },
       ...tokens,
     };
@@ -308,7 +342,19 @@ export class AuthService {
   }
 
   /** Reject a refresh token that was revoked (logout) or already rotated. */
-  async assertRefreshTokenActive(jti: string | undefined): Promise<void> {
+  async assertRefreshTokenActive(
+    jti: string | undefined,
+    userId?: string,
+    issuedAt?: number,
+  ): Promise<void> {
+    // A password reset revokes every refresh token issued before it, so a
+    // token that was already stolen stops working even though its `jti` was
+    // never individually denied. Tokens minted after the reset still pass.
+    if (await this.denylist.isSessionRevoked(userId, issuedAt)) {
+      throw new UnauthorizedException(
+        'Session has been revoked. Please sign in again.',
+      );
+    }
     if (await this.denylist.isDenied(jti)) {
       throw new UnauthorizedException('Refresh token has been revoked');
     }
@@ -367,14 +413,21 @@ export class AuthService {
     // Atomic claim: one UPDATE that matches the token AND checks expiry.
     // Eliminates the TOCTOU race in the old findByResetToken + updatePassword
     // two-trip flow that caused "new password doesn't work after reset".
-    const updated = await this.usersService.claimResetToken(
-      token,
-      passwordHash,
-    );
+    const userId = await this.usersService.claimResetToken(token, passwordHash);
 
-    if (!updated) {
+    if (!userId) {
       throw new BadRequestException('Invalid or expired reset link');
     }
+
+    // Changing the password ends every session that existed before it. The
+    // user id comes back from the claim so this only ever runs for the account
+    // that actually consumed a valid token. Refresh tokens minted from here on
+    // (`iat` after this instant) keep working; anything older is rejected by
+    // AuthService.assertRefreshTokenActive.
+    await this.denylist.revokeUserSessions(
+      userId,
+      this.refreshRevocationTtlSeconds,
+    );
 
     return { message: 'Password reset successful. You can now log in.' };
   }

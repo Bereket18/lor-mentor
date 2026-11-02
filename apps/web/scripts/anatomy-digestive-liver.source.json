@@ -1,0 +1,205 @@
+{
+  "version": 2,
+  "system": "digestive-liver",
+  "title": "LOR Mentor digestive system - liver anatomy model",
+  "output": {
+    "model": "digestive-liver.v1.glb",
+    "manifest": "digestive-liver.v1.manifest.json"
+  },
+  "sources": [
+    {
+      "tree": "PART-OF",
+      "dataset": "BodyParts3D 4.0",
+      "polygonReduction": "99%",
+      "archive": "partof_BP3D_4.0_obj_99.zip",
+      "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_BP3D_4.0_obj_99.zip",
+      "archiveBytes": 64888505,
+      "archiveEtag": "\"3de1eb9-4dd48e9fe8d00\"",
+      "archiveLastModified": "Wed, 22 May 2013 06:45:40 GMT",
+      "archiveSha256": "9fbc713fffeee924a5a657d9813d84d7eb957bded63adb854931dd5e3eb61c97",
+      "extractedObjFiles": 1258,
+      "usedFor": "digestive-liver v1 build: 9 PART-OF source files.",
+      "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "licenseUpdated": "2025-02-27",
+      "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
+      "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
+    },
+    {
+      "tree": "IS-A",
+      "dataset": "BodyParts3D 4.0",
+      "polygonReduction": "99%",
+      "archive": "isa_BP3D_4.0_obj_99.zip",
+      "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/isa_BP3D_4.0_obj_99.zip",
+      "archiveBytes": 142903898,
+      "archiveEtag": "\"8848a5a-4dd48ec9df000\"",
+      "archiveLastModified": "Wed, 22 May 2013 06:46:24 GMT",
+      "archiveSha256": "40665852c49f218326590e204db91064a1ecfc3c6f8cbd7bbbcaac62c7cd409e",
+      "extractedObjFiles": 2234,
+      "usedFor": "digestive-liver v1 build: no IS-A files used.",
+      "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "licenseUpdated": "2025-02-27",
+      "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
+      "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
+    }
+  ],
+  "transform": {
+    "sourceUnits": "millimetres",
+    "sourceUpAxis": "Z",
+    "targetUnits": "metres",
+    "targetUpAxis": "Y",
+    "mapping": "x/1000, z/1000, -y/1000; then centre on the combined bounding box"
+  },
+  "viewerOrientation": "Camera looks from +Z toward the origin; patient left is +X (the viewer's right). The viewer renders no on-screen orientation marker.",
+  "recordTransformDetails": true,
+  "changes": [
+    "Selected 9 source OBJ files from the official BodyParts3D 4.0 tables.",
+    "Merged each structure's source parts into one selectable mesh: 8 selectable nodes.",
+    "Converted millimetres and the Z-up axis to metres and Y-up, centred the combined model, and recomputed vertex normals.",
+    "Exported one uncompressed GLB with stable mesh names. No source colours or textures are used; surface colours are ours.",
+    "No teaching text is stored in the model or seed; the module is unpublished pending faculty review."
+  ],
+  "adaptations": [
+    "Grouped source files by the OBJ header Concept ID and English name so each named structure is one selectable node.",
+    "Large FMA systems are split into independently seeded modules because the viewer supports one GLB per system and each GLB must stay below the release budget."
+  ],
+  "structures": [
+    {
+      "slug": "hepatovenous-segment-viii",
+      "meshName": "hepatovenous_segment_viii",
+      "layer": "liver",
+      "color": "#c96b6b",
+      "files": [
+        {
+          "id": "FJ2823",
+          "archive": "PART-OF",
+          "concept": "FMA15746",
+          "name": "Hepatovenous segment VIII",
+          "sha256": "a89dd2a52ffee337e9777376d1235330463577331fc7f18a40ccf8bc6c99a8d0",
+          "triangles": 19156
+        },
+        {
+          "id": "FJ2824",
+          "archive": "PART-OF",
+          "concept": "FMA15746",
+          "name": "Hepatovenous segment VIII",
+          "sha256": "2f5e34fceea6c8b718bd3f50a125bf24c434ae7eb3d925b9795b0585272c1349",
+          "triangles": 21592
+        }
+      ]
+    },
+    {
+      "slug": "hepatovenous-segment-vi",
+      "meshName": "hepatovenous_segment_vi",
+      "layer": "liver",
+      "color": "#c96b6b",
+      "files": [
+        {
+          "id": "FJ2822",
+          "archive": "PART-OF",
+          "concept": "FMA15744",
+          "name": "Hepatovenous segment VI",
+          "sha256": "8f64d0c177586089610214a5a32a189a6a659ca2770b15d193c9255667c8afd2",
+          "triangles": 19450
+        }
+      ]
+    },
+    {
+      "slug": "hepatovenous-segment-iv",
+      "meshName": "hepatovenous_segment_iv",
+      "layer": "liver",
+      "color": "#c96b6b",
+      "files": [
+        {
+          "id": "FJ2820",
+          "archive": "PART-OF",
+          "concept": "FMA15742",
+          "name": "Hepatovenous segment IV",
+          "sha256": "af49d0747496fb3008b7b33be23ea1c169bb4667ccfad0fa0208d42390737c22",
+          "triangles": 17942
+        }
+      ]
+    },
+    {
+      "slug": "hepatovenous-segment-ii",
+      "meshName": "hepatovenous_segment_ii",
+      "layer": "liver",
+      "color": "#c96b6b",
+      "files": [
+        {
+          "id": "FJ2818",
+          "archive": "PART-OF",
+          "concept": "FMA15739",
+          "name": "Hepatovenous segment II",
+          "sha256": "773b11b267fd680f399e0dbc71217aef981c6f8ee2a2273723481edc5864ee8a",
+          "triangles": 14326
+        }
+      ]
+    },
+    {
+      "slug": "hepatovenous-segment-v",
+      "meshName": "hepatovenous_segment_v",
+      "layer": "liver",
+      "color": "#c96b6b",
+      "files": [
+        {
+          "id": "FJ2821",
+          "archive": "PART-OF",
+          "concept": "FMA15743",
+          "name": "Hepatovenous segment V",
+          "sha256": "13886d9c2d473e121e27083fa03218fe22e4a75aab3402dcf53754a1375948f9",
+          "triangles": 11442
+        }
+      ]
+    },
+    {
+      "slug": "hepatovenous-segment-iii",
+      "meshName": "hepatovenous_segment_iii",
+      "layer": "liver",
+      "color": "#c96b6b",
+      "files": [
+        {
+          "id": "FJ2819",
+          "archive": "PART-OF",
+          "concept": "FMA15741",
+          "name": "Hepatovenous segment III",
+          "sha256": "ba7174ecd641887a57116848661d56c2c377659cc3aca4235132e8f548bbd8b9",
+          "triangles": 10326
+        }
+      ]
+    },
+    {
+      "slug": "hepatovenous-segment-vii",
+      "meshName": "hepatovenous_segment_vii",
+      "layer": "liver",
+      "color": "#c96b6b",
+      "files": [
+        {
+          "id": "FJ2409",
+          "archive": "PART-OF",
+          "concept": "FMA15745",
+          "name": "Hepatovenous segment VII",
+          "sha256": "4662aac785711a9b0ca91b860720d018f4e61e8457e919722b68ce814bc27e84",
+          "triangles": 8534
+        }
+      ]
+    },
+    {
+      "slug": "caudate-lobe-of-liver",
+      "meshName": "caudate_lobe_of_liver",
+      "layer": "liver",
+      "color": "#c96b6b",
+      "files": [
+        {
+          "id": "FJ2816",
+          "archive": "PART-OF",
+          "concept": "FMA13365",
+          "name": "Caudate lobe of liver",
+          "sha256": "81c86ccdd356c27a960f957f49b4ea883d22d7e75fef29aa794e154d4f5da51e",
+          "triangles": 5020
+        }
+      ]
+    }
+  ],
+  "textOnly": [],
+  "totalTriangles": 127788
+}

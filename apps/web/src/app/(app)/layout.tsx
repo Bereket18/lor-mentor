@@ -24,11 +24,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   // The mobile drawer re-uses the full desktop sidebar. Close it whenever
   // the route changes (including tapping the item for the current page).
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+  //
+  // This adjusts state during render instead of in an effect: an effect would
+  // commit the new route with the drawer still open and only close it on a
+  // second pass, and calling setState synchronously in an effect body is what
+  // `react-hooks/set-state-in-effect` flags. Comparing against the last route
+  // this state was reconciled with — rather than just "did the pathname
+  // change" — also stops the drawer reappearing if the user navigates back to
+  // the route it was opened on.
+  const [drawerRoute, setDrawerRoute] = useState(pathname);
+  if (drawerRoute !== pathname) {
+    setDrawerRoute(pathname);
     setMobileMenuOpen(false);
-  }, [pathname]);
+  }
 
   useEffect(() => {
     if (!mobileMenuOpen) return;
@@ -74,10 +82,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="flex flex-col items-center gap-3">
           <div
             className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin"
-            style={{
-              borderColor: "var(--teal)",
-              borderTopColor: "transparent",
-            }}
+            style={{ borderColor: "var(--teal)", borderTopColor: "transparent" }}
           />
           <p className="text-sm text-muted">Loading…</p>
         </div>
@@ -182,15 +187,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               className="absolute right-2 top-[22px] z-20 flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
               style={{ color: "var(--text-muted)" }}
               onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.background =
-                  "var(--teal-dim)";
-                (e.currentTarget as HTMLElement).style.color =
-                  "var(--text-primary)";
+                (e.currentTarget as HTMLElement).style.background = "var(--teal-dim)";
+                (e.currentTarget as HTMLElement).style.color = "var(--text-primary)";
               }}
               onMouseLeave={(e) => {
                 (e.currentTarget as HTMLElement).style.background = "";
-                (e.currentTarget as HTMLElement).style.color =
-                  "var(--text-muted)";
+                (e.currentTarget as HTMLElement).style.color = "var(--text-muted)";
               }}
             >
               <X className="h-4 w-4" />

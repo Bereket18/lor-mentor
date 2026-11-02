@@ -42,9 +42,20 @@ export function Topbar({ onMenuToggle, drawerOpen = false }: TopbarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Close the account menu on navigation or on an outside click / Escape.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => setMenuOpen(false), [pathname]);
+  // Close the account menu on navigation. This adjusts state during render
+  // rather than in an effect: an effect would commit the new route with the
+  // menu still open and only close it on a second pass, and calling setState
+  // synchronously in an effect body is what `react-hooks/set-state-in-effect`
+  // flags. Comparing against the last route this state was reconciled with —
+  // rather than just "did the pathname change" — also stops the menu popping
+  // back open if the user navigates away and returns to the same route.
+  const [menuRoute, setMenuRoute] = useState(pathname);
+  if (menuRoute !== pathname) {
+    setMenuRoute(pathname);
+    setMenuOpen(false);
+  }
+
+  // Close it on an outside click or Escape.
   useEffect(() => {
     if (!menuOpen) return;
     function onPointerDown(event: PointerEvent) {
@@ -66,12 +77,7 @@ export function Topbar({ onMenuToggle, drawerOpen = false }: TopbarProps) {
     (pathname.startsWith("/anatomy/") ? "Anatomy Lab" : "Lor Mentor");
 
   function getInitials(name: string) {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .slice(0, 2)
-      .join("")
-      .toUpperCase();
+    return name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
   }
 
   return (
@@ -100,15 +106,12 @@ export function Topbar({ onMenuToggle, drawerOpen = false }: TopbarProps) {
             className="lg:hidden -ml-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl transition-colors"
             style={{ color: "var(--text-secondary)" }}
             onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.background =
-                "var(--teal-dim)";
-              (e.currentTarget as HTMLElement).style.color =
-                "var(--text-primary)";
+              (e.currentTarget as HTMLElement).style.background = "var(--teal-dim)";
+              (e.currentTarget as HTMLElement).style.color = "var(--text-primary)";
             }}
             onMouseLeave={(e) => {
               (e.currentTarget as HTMLElement).style.background = "";
-              (e.currentTarget as HTMLElement).style.color =
-                "var(--text-secondary)";
+              (e.currentTarget as HTMLElement).style.color = "var(--text-secondary)";
             }}
           >
             <Menu className="h-5 w-5" />

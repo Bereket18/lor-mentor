@@ -1,4 +1,15 @@
-ethiobank-receipts>=0.1.0
-fastapi>=0.110,<1.0
-uvicorn[standard]>=0.29,<1.0
-pydantic>=2.6,<3.0
+# Pinned to the exact versions the bundled test suite was validated against
+# (the working set in services/receipt-verifier/.venv). Exact pins keep
+# production builds reproducible: an unpinned range would silently pull a new
+# major at build time on the VPS.
+#
+# selenium is pinned explicitly even though ethiobank-receipts declares it,
+# because the BOA extractor drives Chromium and the driver/browser pairing is
+# version-sensitive — a silent major bump would break receipt verification.
+#
+# To refresh these, update the venv, re-run the tests, and re-pin.
+ethiobank-receipts==0.1.1
+fastapi==0.140.0
+uvicorn[standard]==0.51.0
+pydantic==2.13.4
+selenium==4.46.0

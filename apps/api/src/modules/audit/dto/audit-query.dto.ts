@@ -35,6 +35,11 @@ export class AuditQueryDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(40)
+  actionPrefix?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(80)
   entityType?: string;
 

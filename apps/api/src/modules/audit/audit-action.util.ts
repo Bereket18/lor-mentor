@@ -121,6 +121,14 @@ const LEGACY_LABELS: Record<string, string> = {
   PAYMENT_APPROVED: 'Payment approved',
   PAYMENT_REJECTED: 'Payment rejected',
   PAYMENT_REVERSED: 'Payment reversed',
+  ANATOMY_STRUCTURE_UPDATE: 'Anatomy structure edited',
+  ANATOMY_STRUCTURE_REVIEW: 'Anatomy structure reviewed',
+  ANATOMY_STRUCTURE_REVOKE: 'Anatomy review revoked',
+  ANATOMY_SYSTEM_REVIEW: 'Anatomy system reviewed',
+  ANATOMY_SYSTEM_PUBLISH: 'Anatomy system published',
+  ANATOMY_SYSTEM_UNPUBLISH: 'Anatomy system unpublished',
+  ANATOMY_REVIEWER_GRANT: 'Anatomy reviewer access granted',
+  ANATOMY_REVIEWER_REVOKE: 'Anatomy reviewer access revoked',
 };
 
 export function isAdminRole(role: string | null | undefined): boolean {

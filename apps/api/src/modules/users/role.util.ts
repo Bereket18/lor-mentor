@@ -50,3 +50,15 @@ export function canDeleteRole(actorRole: string, targetRole: string): boolean {
   }
   return false;
 }
+
+// Whether an actor may grant or revoke a user's anatomy reviewer access.
+// Reviewer access is a TEACHER-only capability, so admins (including
+// super-admins) may only manage the flag on teacher accounts. Admins never
+// review anatomy themselves.
+export function canManageReviewerAccess(
+  actorRole: string,
+  targetRole: string,
+): boolean {
+  if (!isPrivileged(actorRole)) return false;
+  return targetRole === 'TEACHER';
+}

@@ -17,6 +17,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { SetAnatomyReviewerDto } from './dto/set-anatomy-reviewer.dto';
 
 import type { RequestUser } from '../../common/types/request-user';
 
@@ -94,6 +95,27 @@ export class UsersController {
   @Roles('ADMIN', 'SUPER_ADMIN')
   deleteUser(@Param('id') id: string, @CurrentUser() actor: RequestUser) {
     return this.usersService.deleteUser(id, actor.id, actor.role);
+  }
+
+  // Admin: grant or revoke a teacher's anatomy reviewer access. The service
+  // restricts the target to TEACHER and writes its own richer audit entry
+  // (ANATOMY_REVIEWER_GRANT / ANATOMY_REVIEWER_REVOKE), so skip the automatic
+  // one just like the status change above.
+  @Patch(':id/anatomy-reviewer')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @SkipAudit()
+  setAnatomyReviewer(
+    @Param('id') id: string,
+    @Body() body: SetAnatomyReviewerDto,
+    @CurrentUser() actor: RequestUser,
+  ) {
+    return this.usersService.setAnatomyReviewer(
+      id,
+      body.isAnatomyReviewer,
+      actor.id,
+      actor.role,
+    );
   }
 
   // changeStatus writes its own richer USER_ACTIVATED / USER_DEACTIVATED

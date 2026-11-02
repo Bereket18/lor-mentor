@@ -16,9 +16,9 @@
  *     --source-dir "PART-OF=C:\path\to\partof_BP3D_4.0_obj_99" \
  *     --source-dir "IS-A=C:\path\to\isa_BP3D_4.0_obj_99"
  *
- * --system selects the checked-in source map: anatomy-heart.source.json or
- * anatomy-urinary.source.json. The map drives the output names, title, change
- * log, text-only rows, and any orientation checks.
+ * --system selects the checked-in source map `anatomy-<system>.source.json`.
+ * The map drives the output names, title, change log, text-only rows, and any
+ * orientation checks.
  *
  * The script:
  *   - validates every source OBJ header against the checked-in source map
@@ -47,16 +47,17 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const webRoot = resolve(scriptDir, "..");
 const modelDir = join(webRoot, "public/models/anatomy");
 
-const SYSTEMS = new Set(["heart", "urinary"]);
+const SYSTEM_SLUG_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 
 function sourceMapPath(system) {
   return join(scriptDir, `anatomy-${system}.source.json`);
 }
 
 function defaultOutput(system) {
-  return system === "urinary"
-    ? { model: "urinary.v1.glb", manifest: "urinary.v1.manifest.json" }
-    : { model: "heart.v2.glb", manifest: "manifest.json" };
+  if (system === "heart") {
+    return { model: "heart.v2.glb", manifest: "manifest.json" };
+  }
+  return { model: `${system}.v1.glb`, manifest: `${system}.v1.manifest.json` };
 }
 
 function outputFileName(value, fallback, label) {
@@ -87,9 +88,14 @@ function parseArgs(argv) {
     else if (arg === "--help" || arg === "-h") args.help = true;
     else throw new Error(`Unknown argument: ${arg}`);
   }
-  if (!SYSTEMS.has(args.system)) {
+  if (!SYSTEM_SLUG_PATTERN.test(args.system)) {
     throw new Error(
-      `Unknown system "${args.system}". Expected one of: ${[...SYSTEMS].join(", ")}`,
+      `Unknown system "${args.system}". Use a lower-case kebab-case slug with a matching anatomy-<slug>.source.json file.`,
+    );
+  }
+  if (!existsSync(sourceMapPath(args.system))) {
+    throw new Error(
+      `No source map for "${args.system}". Expected ${basename(sourceMapPath(args.system))}.`,
     );
   }
   if (args.sourceDirs.length === 0 && process.env.BODYPARTS3D_SOURCE_DIR) {
@@ -100,10 +106,11 @@ function parseArgs(argv) {
 
 function usage() {
   return [
-    "Usage: node scripts/build-anatomy-model.mjs [--system heart|urinary] --source-dir <dir> [--source-dir <dir> ...]",
+    "Usage: node scripts/build-anatomy-model.mjs [--system <slug>] --source-dir <dir> [--source-dir <dir> ...]",
     "",
     "Options:",
-    "  --system <name>          Source map to build: heart (default) or urinary.",
+    "  --system <name>          Source map to build (default: heart). Reads",
+    "                           scripts/anatomy-<name>.source.json.",
     "  --source-dir <dir>       Extracted BodyParts3D 4.0 archive, or a",
     "                           directory containing the selected FJ*.obj files.",
     "                           Repeat for multiple archives. Prefix a directory",
@@ -124,12 +131,14 @@ function walk(dir, result = []) {
 }
 
 function indexObjFiles(sourceDir) {
+  // BodyParts3D IDs are FJ followed by digits. Derived regional files append a
+  // region letter (for example FJ2810U) so the two partitions stay distinct.
   const files = walk(sourceDir).filter((file) =>
-    /[\\/]FJ\d+\.obj$/i.test(file),
+    /[\\/]FJ\d+[A-Z]?\.obj$/i.test(file),
   );
   const byId = new Map();
   for (const file of files) {
-    const id = file.match(/(FJ\d+)\.obj$/i)?.[1]?.toUpperCase();
+    const id = file.match(/(FJ\d+[A-Z]?)\.obj$/i)?.[1]?.toUpperCase();
     if (id) byId.set(id, file);
   }
   return byId;

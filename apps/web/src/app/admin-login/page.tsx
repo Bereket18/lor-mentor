@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -8,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Eye, EyeOff, Loader2, ArrowRight } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { useHydrated } from "@/hooks/use-hydrated";
 import { BrandLogo } from "@/components/shared/brand-logo";
 
 const schema = z.object({
@@ -26,9 +27,7 @@ export default function AdminLoginPage() {
   // Keep submit disabled until React has hydrated. Otherwise a tap on a slow
   // phone falls back to the browser's native form submit and puts the
   // credentials in the URL as a GET query string.
-  const [mounted, setMounted] = useState(false);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => setMounted(true), []);
+  const mounted = useHydrated();
 
   const {
     register,
@@ -94,16 +93,9 @@ export default function AdminLoginPage() {
           </div>
         )}
 
-        <form
-          onSubmit={handleSubmit(onSubmit)}
-          method="post"
-          className="space-y-4"
-        >
+        <form onSubmit={handleSubmit(onSubmit)} method="post" className="space-y-4">
           <div>
-            <label
-              htmlFor="admin-email"
-              className="block text-xs font-medium text-secondary mb-2 tracking-wide"
-            >
+            <label htmlFor="admin-email" className="block text-xs font-medium text-secondary mb-2 tracking-wide">
               EMAIL ADDRESS
             </label>
             <input
@@ -118,17 +110,12 @@ export default function AdminLoginPage() {
                 focus:ring-accent/20 transition-all"
             />
             {errors.email && (
-              <p className="text-error text-xs mt-1.5">
-                {errors.email.message}
-              </p>
+              <p className="text-error text-xs mt-1.5">{errors.email.message}</p>
             )}
           </div>
 
           <div>
-            <label
-              htmlFor="admin-password"
-              className="block text-xs font-medium text-secondary mb-2 tracking-wide"
-            >
+            <label htmlFor="admin-password" className="block text-xs font-medium text-secondary mb-2 tracking-wide">
               PASSWORD
             </label>
             <div className="relative">

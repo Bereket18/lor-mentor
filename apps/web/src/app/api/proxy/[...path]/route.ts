@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { resolveApiOrigin } from "../../../../lib/api-base";
 
 /**
  * API proxy route — forwards requests to the NestJS backend
@@ -18,8 +19,20 @@ import { type NextRequest, NextResponse } from "next/server";
  * returns 401. See apps/web/src/proxy.ts for the edge-guard equivalent.
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-const API_ORIGIN = new URL(API_BASE).origin;
+const API_ORIGIN = (() => {
+  try {
+    return resolveApiOrigin();
+  } catch (error) {
+    // Resolved once at module load. A bad configuration must not crash the
+    // route with an opaque 500 — the handler answers 503 with a clear server
+    // log instead. The message is not returned to the client (it can name
+    // an internal host).
+    console.error(
+      `[api/proxy] ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return null;
+  }
+})();
 
 export async function GET(
   req: NextRequest,
@@ -27,10 +40,18 @@ export async function GET(
 ) {
   const { path } = await params;
 
+  const apiOrigin = API_ORIGIN;
+  if (!apiOrigin) {
+    return NextResponse.json(
+      { message: "API proxy is not configured on this server" },
+      { status: 503 },
+    );
+  }
+
   // SSRF hardening: reject any segment that could break out of the fixed API
   // path (traversal, backslashes, protocol-relative // authority, embedded
   // credentials). Then resolve against a URL object and assert the origin is
-  // still our backend — defence in depth even though API_BASE is a constant.
+  // still our backend — defence in depth even though API_ORIGIN is a constant.
   const unsafe = path.some(
     (seg) =>
       seg.includes("..") ||
@@ -43,10 +64,10 @@ export async function GET(
   }
 
   const target = new URL(
-    `${API_ORIGIN}/api/v1/${path.map(encodeURIComponent).join("/")}`,
+    `${apiOrigin}/api/v1/${path.map(encodeURIComponent).join("/")}`,
   );
   target.search = req.nextUrl.search;
-  if (target.origin !== API_ORIGIN) {
+  if (target.origin !== apiOrigin) {
     return NextResponse.json({ message: "Invalid path" }, { status: 400 });
   }
   const targetUrl = target.toString();

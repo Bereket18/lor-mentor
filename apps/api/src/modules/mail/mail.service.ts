@@ -69,6 +69,51 @@ export class MailService {
     });
   }
 
+  /**
+   * Invitation for a staff account created by an administrator.
+   *
+   * The account is created without a usable password; this link is the only
+   * way in, it expires in 48 hours, and it is invalidated the first time it is
+   * used (the reset-token claim nulls it). The message never contains a
+   * password because no password exists yet.
+   */
+  async sendStaffInvitation(
+    to: string,
+    fullName: string,
+    setupUrl: string,
+    role: string,
+  ): Promise<void> {
+    const appName = this.config.get<string>('APP_NAME') ?? 'Lor Mentor';
+    const college =
+      this.config.get<string>('COLLEGE_NAME') ?? 'Lorcan Medical College';
+    const roleLabel = role.toLowerCase();
+
+    await this.sendMail({
+      to,
+      subject: `Your ${appName} account is ready — set your password`,
+      text:
+        `Hello ${fullName},\n\n` +
+        `An administrator created a ${roleLabel} account for you at ${appName}.\n\n` +
+        `Open this link to choose your password:\n${setupUrl}\n\n` +
+        `This link expires in 48 hours and can be used once. If you were not expecting this, contact the college administrator.\n\n` +
+        `${college}`,
+      html: `
+        <div style="font-family:Arial,sans-serif;line-height:1.5;color:#0f172a">
+          <h2 style="margin:0 0 12px">Your ${appName} account is ready</h2>
+          <p>Hello ${fullName},</p>
+          <p>An administrator created a ${roleLabel} account for you. Choose a password to activate it.</p>
+          <p>
+            <a href="${setupUrl}" style="display:inline-block;background:#147878;color:white;text-decoration:none;padding:10px 16px;border-radius:8px">
+              Set your password
+            </a>
+          </p>
+          <p style="font-size:13px;color:#64748b">This link expires in 48 hours and can be used once. If you were not expecting this, contact the college administrator.</p>
+          <p style="font-size:13px;color:#64748b">${college}</p>
+        </div>
+      `,
+    });
+  }
+
   private async sendMail(message: {
     to: string;
     subject: string;

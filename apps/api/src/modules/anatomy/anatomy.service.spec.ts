@@ -1,4 +1,8 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { GeminiService } from '../ai/gemini.service';
 import type { SubscriptionsService } from '../subscriptions/subscriptions.service';
@@ -219,6 +223,17 @@ describe('AnatomyService', () => {
     expect(findStructures).toHaveBeenCalledWith({
       where: { systemId: 'system-1' },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      include: {
+        reviewedBy: { select: { fullName: true } },
+        revisions: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: {
+            createdAt: true,
+            editor: { select: { fullName: true } },
+          },
+        },
+      },
     });
   });
 
@@ -291,6 +306,43 @@ describe('AnatomyService', () => {
     expect(result.structures[1].related).toEqual([
       { slug: 'aorta', name: 'Aorta' },
     ]);
+  });
+
+  it('exposes the latest revision editor and timestamp', async () => {
+    findSystem.mockResolvedValue({
+      id: 'system-1',
+      slug: 'heart',
+      name: 'Heart and circulation',
+      isPublished: true,
+      isSample: true,
+    });
+    const editedAt = new Date('2026-11-01T08:30:00.000Z');
+    findStructures.mockResolvedValue([
+      {
+        id: 'structure-1',
+        slug: 'aorta',
+        name: 'Aorta',
+        relatedSlugs: [],
+        sortOrder: 1,
+        isReviewed: true,
+        reviewedAt: new Date('2026-11-01T09:00:00.000Z'),
+        reviewedBy: { fullName: 'Dr Reviewer' },
+        revisions: [
+          {
+            createdAt: editedAt,
+            editor: { fullName: 'Dr Editor' },
+          },
+        ],
+      },
+    ]);
+
+    const result = await service.getSystem(student, 'heart');
+
+    expect(result.structures[0]).toMatchObject({
+      reviewedByName: 'Dr Reviewer',
+      lastEditedByName: 'Dr Editor',
+      lastEditedAt: editedAt,
+    });
   });
 
   it('requires an active subscription before loading structure text for AI', async () => {
@@ -384,6 +436,60 @@ describe('AnatomyService', () => {
     expect(generateAnatomyQuiz).toHaveBeenCalledWith(
       expect.objectContaining({ structureName: 'Aorta' }),
     );
+  });
+
+  it('refuses AI explain for a row with empty teaching text', async () => {
+    findSystem.mockResolvedValue({
+      id: 'system-3',
+      slug: 'respiratory',
+      name: 'Respiratory system',
+      isPublished: true,
+      isSample: false,
+    });
+    findStructure.mockResolvedValue({
+      ...aorta,
+      id: 'structure-empty',
+      slug: 'trachea',
+      name: 'Trachea',
+      summary: '',
+      location: '',
+      function: '',
+      bloodSupply: '',
+      clinicalNotes: '',
+    });
+    ensureActiveForStudent.mockResolvedValue(undefined);
+
+    await expect(
+      service.explainStructure(student, 'respiratory', 'trachea', {}),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(explainAnatomyStructure).not.toHaveBeenCalled();
+  });
+
+  it('refuses AI quiz generation for a row with empty teaching text', async () => {
+    findSystem.mockResolvedValue({
+      id: 'system-3',
+      slug: 'respiratory',
+      name: 'Respiratory system',
+      isPublished: true,
+      isSample: false,
+    });
+    findStructure.mockResolvedValue({
+      ...aorta,
+      id: 'structure-empty',
+      slug: 'trachea',
+      name: 'Trachea',
+      summary: '',
+      location: '',
+      function: '',
+      bloodSupply: '',
+      clinicalNotes: '',
+    });
+    ensureActiveForStudent.mockResolvedValue(undefined);
+
+    await expect(
+      service.generateStructureQuiz(student, 'respiratory', 'trachea'),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(generateAnatomyQuiz).not.toHaveBeenCalled();
   });
 
   it('throws NotFound when the structure does not exist', async () => {

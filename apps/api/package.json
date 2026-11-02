@@ -16,6 +16,8 @@
     "db:seed": "ts-node prisma/seed.ts",
     "db:seed:anatomy": "ts-node prisma/seed-anatomy.ts",
     "anatomy:review": "ts-node prisma/review-anatomy.ts",
+    "anatomy:reviewer": "ts-node prisma/anatomy-reviewer.ts",
+    "anatomy:publish": "ts-node prisma/publish-anatomy.ts",
     "db:reset": "prisma migrate reset --force && npm run db:seed",
     "test": "jest",
     "test:watch": "jest --watch",

@@ -13,5 +13,6 @@ import { AuditService } from './audit.service';
       useClass: AuditInterceptor,
     },
   ],
+  exports: [AuditService],
 })
 export class AuditModule {}

@@ -1,0 +1,546 @@
+{
+  "schemaVersion": 2,
+  "system": "nervous-left",
+  "model": {
+    "file": "nervous-left.v1.glb",
+    "bytes": 2051568,
+    "sha256": "ec8962caf5b73aac3c577cd332b985d9d08580b4fb55e676eb4cc9d51989e44a",
+    "triangles": 104652,
+    "structures": 21,
+    "textOnlyStructures": 0,
+    "totalStructures": 21
+  },
+  "sources": [
+    {
+      "tree": "PART-OF",
+      "dataset": "BodyParts3D 4.0",
+      "polygonReduction": "99%",
+      "archive": "partof_BP3D_4.0_obj_99.zip",
+      "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_BP3D_4.0_obj_99.zip",
+      "archiveBytes": 64888505,
+      "archiveEtag": "\"3de1eb9-4dd48e9fe8d00\"",
+      "archiveLastModified": "Wed, 22 May 2013 06:45:40 GMT",
+      "archiveSha256": "9fbc713fffeee924a5a657d9813d84d7eb957bded63adb854931dd5e3eb61c97",
+      "extractedObjFiles": 1258,
+      "usedFor": "nervous-left v1 build: 21 PART-OF source files.",
+      "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "licenseUpdated": "2025-02-27",
+      "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
+      "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
+    },
+    {
+      "tree": "IS-A",
+      "dataset": "BodyParts3D 4.0",
+      "polygonReduction": "99%",
+      "archive": "isa_BP3D_4.0_obj_99.zip",
+      "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/isa_BP3D_4.0_obj_99.zip",
+      "archiveBytes": 142903898,
+      "archiveEtag": "\"8848a5a-4dd48ec9df000\"",
+      "archiveLastModified": "Wed, 22 May 2013 06:46:24 GMT",
+      "archiveSha256": "40665852c49f218326590e204db91064a1ecfc3c6f8cbd7bbbcaac62c7cd409e",
+      "extractedObjFiles": 2234,
+      "usedFor": "nervous-left v1 build: no IS-A files used.",
+      "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "licenseUpdated": "2025-02-27",
+      "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
+      "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
+    }
+  ],
+  "transform": {
+    "sourceUnits": "millimetres",
+    "sourceUpAxis": "Z",
+    "targetUnits": "metres",
+    "targetUpAxis": "Y",
+    "mapping": "x/1000, z/1000, -y/1000; then centre on the combined bounding box",
+    "scale": 0.001,
+    "sourceCentreMm": [
+      34.16789,
+      -79.673852,
+      1571.98
+    ],
+    "offsetMetres": [
+      0.034168,
+      1.57198,
+      0.079674
+    ],
+    "offsetConvention": "bodyPosition = modelPosition + offsetMetres"
+  },
+  "changes": [
+    "Selected 21 source OBJ files from the official BodyParts3D 4.0 tables.",
+    "Merged each structure's source parts into one selectable mesh: 21 selectable nodes.",
+    "Converted millimetres and the Z-up axis to metres and Y-up, centred the combined model, and recomputed vertex normals.",
+    "Exported one uncompressed GLB with stable mesh names. No source colours or textures are used; surface colours are ours.",
+    "No teaching text is stored in the model or seed; the module is unpublished pending faculty review."
+  ],
+  "adaptations": [
+    "Grouped source files by the OBJ header Concept ID and English name so each named structure is one selectable node.",
+    "Large FMA systems are split into independently seeded modules because the viewer supports one GLB per system and each GLB must stay below the release budget."
+  ],
+  "license": {
+    "notice": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International",
+    "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+    "statements": [
+      {
+        "source": "BodyParts3D licence page (last updated 2025-02-27) and README_e.html",
+        "statement": "The license for this database is specified in the Creative Commons Attribution 4.0 International."
+      },
+      {
+        "source": "Header comment in all 3,492 distributed BodyParts3D 4.0 OBJ files",
+        "statement": "The license for this database is specified in the Creative Commons Attribution-Share Alike 2.1 Japan."
+      }
+    ],
+    "status": "Which licence applies is being clarified with the Database Center for Life Science (DBCLS).",
+    "adaptedModelTerms": "The adapted model file is offered under the same terms as the stricter statement, CC BY-SA 2.1 Japan."
+  },
+  "structures": [
+    {
+      "slug": "white-matter-of-left-cerebral-hemisphere",
+      "meshName": "white_matter_of_left_cerebral_hemisphere",
+      "layer": "cerebrum",
+      "color": "#c96b6b",
+      "triangles": 25542,
+      "fma": [
+        "FMA260794"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1758",
+          "archive": "PART-OF",
+          "concept": "FMA260794",
+          "name": "White matter of left cerebral hemisphere",
+          "sha256": "017e0c54769998fa71f65b60918a6f721bbc723e441bc22ea580284567e708a2",
+          "triangles": 25542
+        }
+      ]
+    },
+    {
+      "slug": "left-internal-capsule",
+      "meshName": "left_internal_capsule",
+      "layer": "cerebrum",
+      "color": "#c96b6b",
+      "triangles": 10740,
+      "fma": [
+        "FMA72907"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1750",
+          "archive": "PART-OF",
+          "concept": "FMA72907",
+          "name": "Left internal capsule",
+          "sha256": "ac3d98925d313c0db553ec22a26c20520657f3d9f78c07b0b3cc6d72c5837e93",
+          "triangles": 10740
+        }
+      ]
+    },
+    {
+      "slug": "left-superior-frontal-gyrus",
+      "meshName": "left_superior_frontal_gyrus",
+      "layer": "cerebrum",
+      "color": "#c96b6b",
+      "triangles": 6452,
+      "fma": [
+        "FMA72654"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1833",
+          "archive": "PART-OF",
+          "concept": "FMA72654",
+          "name": "Left superior frontal gyrus",
+          "sha256": "8f4548f67acff09574bc46bfc9c78c31ad8d4f16a34cfe28b95e19b640d2208c",
+          "triangles": 6452
+        }
+      ]
+    },
+    {
+      "slug": "left-superior-parietal-lobule",
+      "meshName": "left_superior_parietal_lobule",
+      "layer": "cerebrum",
+      "color": "#c96b6b",
+      "triangles": 5364,
+      "fma": [
+        "FMA72672"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1835",
+          "archive": "PART-OF",
+          "concept": "FMA72672",
+          "name": "Left superior parietal lobule",
+          "sha256": "d8c6c241f6e98a6b8bfa9cd97943173d18a91251a66029d9a5681fc09f691be4",
+          "triangles": 5364
+        }
+      ]
+    },
+    {
+      "slug": "left-occipital-lobe",
+      "meshName": "left_occipital_lobe",
+      "layer": "cerebrum",
+      "color": "#c96b6b",
+      "triangles": 4390,
+      "fma": [
+        "FMA72976"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1791",
+          "archive": "PART-OF",
+          "concept": "FMA72976",
+          "name": "Left occipital lobe",
+          "sha256": "b8f2b6ac30aaf72f9ef0e7c00892edd7d4b27b1a6589971d25c973a8894e09f2",
+          "triangles": 4390
+        }
+      ]
+    },
+    {
+      "slug": "left-precentral-gyrus",
+      "meshName": "left_precentral_gyrus",
+      "layer": "cerebrum",
+      "color": "#c96b6b",
+      "triangles": 4042,
+      "fma": [
+        "FMA72662"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1800",
+          "archive": "PART-OF",
+          "concept": "FMA72662",
+          "name": "Left precentral gyrus",
+          "sha256": "34c447cb8bf5e98493cfe52911af1fa9ebd0eaf32c7c5578457666575f5d8cc0",
+          "triangles": 4042
+        }
+      ]
+    },
+    {
+      "slug": "left-postcentral-gyrus",
+      "meshName": "left_postcentral_gyrus",
+      "layer": "cerebrum",
+      "color": "#c96b6b",
+      "triangles": 3604,
+      "fma": [
+        "FMA72666"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1797",
+          "archive": "PART-OF",
+          "concept": "FMA72666",
+          "name": "Left postcentral gyrus",
+          "sha256": "030dbec5dbfc8f29059727f18f867e962fc5debfeea4cab45883edc2c996ec6b",
+          "triangles": 3604
+        }
+      ]
+    },
+    {
+      "slug": "left-angular-gyrus",
+      "meshName": "left_angular_gyrus",
+      "layer": "cerebrum",
+      "color": "#c96b6b",
+      "triangles": 3588,
+      "fma": [
+        "FMA72670"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1732",
+          "archive": "PART-OF",
+          "concept": "FMA72670",
+          "name": "Left angular gyrus",
+          "sha256": "661e99ae245f0392bd7bfd63aa65074f61fb47e9c35641310f1804c9973acb9a",
+          "triangles": 3588
+        }
+      ]
+    },
+    {
+      "slug": "left-middle-frontal-gyrus",
+      "meshName": "left_middle_frontal_gyrus",
+      "layer": "cerebrum",
+      "color": "#c96b6b",
+      "triangles": 3416,
+      "fma": [
+        "FMA72656"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1787",
+          "archive": "PART-OF",
+          "concept": "FMA72656",
+          "name": "Left middle frontal gyrus",
+          "sha256": "9bc4568f6633e999f98ba932ac18608251aa36d689433fbbb536f72d6c4d3d6d",
+          "triangles": 3416
+        }
+      ]
+    },
+    {
+      "slug": "left-inferior-frontal-gyrus",
+      "meshName": "left_inferior_frontal_gyrus",
+      "layer": "cerebrum",
+      "color": "#c96b6b",
+      "triangles": 3290,
+      "fma": [
+        "FMA72658"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1744",
+          "archive": "PART-OF",
+          "concept": "FMA72658",
+          "name": "Left inferior frontal gyrus",
+          "sha256": "055774da0ba432560fb8e65b2b474ddaf5ac1a683f5b4fbcc1e8cac6e9536c25",
+          "triangles": 3290
+        }
+      ]
+    },
+    {
+      "slug": "left-inferior-temporal-gyrus",
+      "meshName": "left_inferior_temporal_gyrus",
+      "layer": "cerebrum",
+      "color": "#c96b6b",
+      "triangles": 2732,
+      "fma": [
+        "FMA72688"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1746",
+          "archive": "PART-OF",
+          "concept": "FMA72688",
+          "name": "Left inferior temporal gyrus",
+          "sha256": "4be36eec071bfe6d1878acfa535e74dbf91c773c351dea9bc9a4704e3db3fe2e",
+          "triangles": 2732
+        }
+      ]
+    },
+    {
+      "slug": "left-middle-temporal-gyrus",
+      "meshName": "left_middle_temporal_gyrus",
+      "layer": "cerebrum",
+      "color": "#c96b6b",
+      "triangles": 2710,
+      "fma": [
+        "FMA72686"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1789",
+          "archive": "PART-OF",
+          "concept": "FMA72686",
+          "name": "Left middle temporal gyrus",
+          "sha256": "4985721171ebf94eb7607822073dba045e42bec2428982a7befa96204b4b4c1a",
+          "triangles": 2710
+        }
+      ]
+    },
+    {
+      "slug": "left-insula",
+      "meshName": "left_insula",
+      "layer": "cerebrum",
+      "color": "#c96b6b",
+      "triangles": 2448,
+      "fma": [
+        "FMA72978"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1748",
+          "archive": "PART-OF",
+          "concept": "FMA72978",
+          "name": "Left insula",
+          "sha256": "deca1e77a904006224aa6cc34e3710c8d963d1fc89e474ac42258e1f2f3315fd",
+          "triangles": 2448
+        }
+      ]
+    },
+    {
+      "slug": "left-cingulate-gyrus",
+      "meshName": "left_cingulate_gyrus",
+      "layer": "cerebrum",
+      "color": "#c96b6b",
+      "triangles": 2416,
+      "fma": [
+        "FMA72718"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1739",
+          "archive": "PART-OF",
+          "concept": "FMA72718",
+          "name": "Left cingulate gyrus",
+          "sha256": "26feea54a830b6cf523926e9a50f64935591d30206511f2804cfe79bed423d11",
+          "triangles": 2416
+        }
+      ]
+    },
+    {
+      "slug": "left-supramarginal-gyrus",
+      "meshName": "left_supramarginal_gyrus",
+      "layer": "cerebrum",
+      "color": "#c96b6b",
+      "triangles": 2344,
+      "fma": [
+        "FMA72668"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1841",
+          "archive": "PART-OF",
+          "concept": "FMA72668",
+          "name": "Left supramarginal gyrus",
+          "sha256": "473636ae8d030582d4d7a76d6fa93d2fc785a415060411fe9b93ce63738ee2bf",
+          "triangles": 2344
+        }
+      ]
+    },
+    {
+      "slug": "left-fusiform-gyrus",
+      "meshName": "left_fusiform_gyrus",
+      "layer": "cerebrum",
+      "color": "#c96b6b",
+      "triangles": 1550,
+      "fma": [
+        "FMA72690"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1783",
+          "archive": "PART-OF",
+          "concept": "FMA72690",
+          "name": "Left fusiform gyrus",
+          "sha256": "2ea98ec904ba5de8229ed9aeff99c1b34f4030a080e758bdd063f8cc7e92d5f3",
+          "triangles": 1550
+        }
+      ]
+    },
+    {
+      "slug": "left-hippocampus",
+      "meshName": "left_hippocampus",
+      "layer": "cerebrum",
+      "color": "#c96b6b",
+      "triangles": 980,
+      "fma": [
+        "FMA72714"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1759",
+          "archive": "PART-OF",
+          "concept": "FMA72714",
+          "name": "Left hippocampus",
+          "sha256": "f64b3cea9f760a352cb8981f6cb577700a66392d8a8395ffb45dfebdccee7344",
+          "triangles": 980
+        }
+      ]
+    },
+    {
+      "slug": "left-parahippocampal-gyrus",
+      "meshName": "left_parahippocampal_gyrus",
+      "layer": "cerebrum",
+      "color": "#c96b6b",
+      "triangles": 740,
+      "fma": [
+        "FMA72706"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1785",
+          "archive": "PART-OF",
+          "concept": "FMA72706",
+          "name": "Left parahippocampal gyrus",
+          "sha256": "87db9ae2691ad71d47210ad27a8d56353fb3e9400f68f1b1350f59cfdf4880b4",
+          "triangles": 740
+        }
+      ]
+    },
+    {
+      "slug": "left-superior-colliculus",
+      "meshName": "left_superior_colliculus",
+      "layer": "brainstem",
+      "color": "#d08a5f",
+      "triangles": 180,
+      "fma": [
+        "FMA73423"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1779",
+          "archive": "PART-OF",
+          "concept": "FMA73423",
+          "name": "Left superior colliculus",
+          "sha256": "0fa8374655959d8e815c2d95105b3471d91a86fb9aa959d37522cab85c46c528",
+          "triangles": 180
+        }
+      ]
+    },
+    {
+      "slug": "left-inferior-colliculus",
+      "meshName": "left_inferior_colliculus",
+      "layer": "brainstem",
+      "color": "#d08a5f",
+      "triangles": 156,
+      "fma": [
+        "FMA73435"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1762",
+          "archive": "PART-OF",
+          "concept": "FMA73435",
+          "name": "Left inferior colliculus",
+          "sha256": "64a455fe3ae2f5adc06be7b407e50116f56102f9036a4eea3b6f6b7dae4b3b84",
+          "triangles": 156
+        }
+      ]
+    },
+    {
+      "slug": "left-lateral-ventricle",
+      "meshName": "left_lateral_ventricle",
+      "layer": "ventricles",
+      "color": "#c79a52",
+      "triangles": 17968,
+      "fma": [
+        "FMA78450"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ1767",
+          "archive": "PART-OF",
+          "concept": "FMA78450",
+          "name": "Left lateral ventricle",
+          "sha256": "17b278c20399a85a9d373ba6a934f9fe61901dd9c9480107baaef2b513f22ee3",
+          "triangles": 17968
+        }
+      ]
+    }
+  ],
+  "textOnly": [],
+  "checks": {
+    "uniqueMeshNames": true,
+    "uniqueSourceFiles": true,
+    "sourceHeadersVerified": true,
+    "sourceHashesVerified": true,
+    "unrepresentedStructures": "deferred; see docs/anatomy/provenance/README.md"
+  }
+}

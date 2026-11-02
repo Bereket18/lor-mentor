@@ -33,6 +33,30 @@ function isValidCookieDomain(value: unknown): boolean {
   return typeof value === 'string' && COOKIE_DOMAIN_PATTERN.test(value);
 }
 
+/** Hostname of an absolute URL, or null when the value is missing/malformed. */
+function hostnameOf(value: unknown): string | null {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  try {
+    return new URL(value.trim()).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Does `domain` cover `hostname` as a cookie domain?
+ *
+ * Compares on label boundaries, so `example.com` covers `api.example.com` but
+ * NOT `notexample.com`. A bare `hostname.endsWith(domain)` check would accept
+ * the latter and hand the parent-domain cookie to an unrelated site.
+ */
+function cookieDomainCovers(hostname: string, domain: string): boolean {
+  const host = hostname.toLowerCase().replace(/\.$/, '');
+  const bare = domain.toLowerCase().replace(/^\./, '').replace(/\.$/, '');
+  if (!bare) return false;
+  return host === bare || host.endsWith(`.${bare}`);
+}
+
 export function validateEnv(
   config: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -186,6 +210,51 @@ export function validateEnv(
         /localhost|127\.0\.0\.1/.test(value)
       ) {
         errors.push(`${key} must not point at localhost in production`);
+      }
+    }
+
+    // Split-host topology (web on <domain>, API on api.<domain>) only works
+    // when the auth cookies are issued for a parent domain BOTH hosts share.
+    // Without it the browser never sends the cookie to the web host, so the
+    // edge guard (apps/web/src/proxy.ts) and /api/proxy see no session and
+    // every protected page bounces to /login — a login loop that looks like a
+    // broken password. Fail at boot with an actionable message instead.
+    const webHost = hostnameOf(config.WEB_PUBLIC_URL);
+    const apiHost = hostnameOf(config.API_PUBLIC_URL);
+    const cookieDomainValue =
+      typeof config.COOKIE_DOMAIN === 'string'
+        ? config.COOKIE_DOMAIN.trim()
+        : '';
+    const cookieDomain = cookieDomainValue.replace(/^\./, '');
+    const isSplitHost = Boolean(webHost && apiHost && webHost !== apiHost);
+
+    if (isSplitHost && !cookieDomain) {
+      errors.push(
+        'COOKIE_DOMAIN is required in production when the web and API hosts differ ' +
+          `(WEB_PUBLIC_URL=${webHost}, API_PUBLIC_URL=${apiHost}); without a shared ` +
+          'parent domain the auth cookies are never sent to the web host and every ' +
+          'protected page redirects to /login',
+      );
+    }
+
+    if (cookieDomain) {
+      // A single label ("com", "localhost") is either a public suffix or not
+      // shared between two hosts — browsers reject such cookies outright.
+      if (!cookieDomain.includes('.')) {
+        errors.push(
+          'COOKIE_DOMAIN must be a registrable domain of at least two labels in production (not a single label such as "com" or "localhost")',
+        );
+      }
+      const hosts: Array<[string, string | null]> = [
+        ['WEB_PUBLIC_URL', webHost],
+        ['API_PUBLIC_URL', apiHost],
+      ];
+      for (const [key, host] of hosts) {
+        if (host && !cookieDomainCovers(host, cookieDomain)) {
+          errors.push(
+            `COOKIE_DOMAIN (${cookieDomainValue}) must be a parent domain of ${key} (${host})`,
+          );
+        }
       }
     }
   }

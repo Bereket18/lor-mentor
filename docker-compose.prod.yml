@@ -3,18 +3,35 @@
 # Run from the repo root on the VPS:
 #   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
 #
-# --env-file makes ${VAR} substitution below read from .env.production, and each
-# service also loads it via env_file for its container environment. web/api are
-# published ONLY on 127.0.0.1 — the host Nginx terminates TLS and proxies to
+# --env-file makes ${VAR} substitution below read from .env.production. web/api
+# are published ONLY on 127.0.0.1 — the host Nginx terminates TLS and proxies to
 # them. Postgres and Redis are never published to the host.
+#
+# SECRET SCOPE: each service receives only the variables it needs. `postgres` and
+# `verifier` deliberately do NOT load .env.production as an env_file — doing so
+# would hand them the JWT secrets, Chapa keys, SMTP password, Gemini key and
+# SUPER_ADMIN_PASSWORD they never use. The verifier is the least trusted service
+# here (it parses untrusted receipts and drives Chromium), so it gets exactly one
+# secret. Only `api` — the component that actually owns the application secrets —
+# loads the full file.
 
 name: lor-mentor
 
+# Bounded logs on every service. Without this the default json-file driver grows
+# without limit and a chatty service eventually fills the VPS disk.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   postgres:
-    image: postgres:16-alpine
+    # Digests pin the exact multi-arch image so a rebuild is reproducible and a
+    # silent upstream re-tag cannot change the database engine under us.
+    # Update deliberately: docker buildx imagetools inspect postgres:16-alpine
+    image: postgres:16-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab
     restart: unless-stopped
-    env_file: .env.production
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -26,10 +43,18 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    mem_limit: 512m
+    # Give Postgres time to complete a fast shutdown and flush its checkpoint;
+    # the 10s Docker default can interrupt that on a busy box.
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
     networks: [internal]
 
   redis:
-    image: redis:7-alpine
+    # Digest-pinned for reproducible builds; see the postgres note above.
+    image: redis:7-alpine@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f
     restart: unless-stopped
     command: ["redis-server", "--save", "60", "1", "--appendonly", "yes"]
     volumes:
@@ -39,6 +64,12 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    mem_limit: 256m
+    # Redis persists an AOF and saves on SIGTERM; let it finish.
+    stop_grace_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
     networks: [internal]
 
   verifier:
@@ -46,10 +77,20 @@ services:
       context: ./services/receipt-verifier
       dockerfile: Dockerfile
     restart: unless-stopped
-    env_file: .env.production
+    # tini reaps orphaned Chromium/chromedriver processes. Selenium starts and
+    # stops the browser per request; without an init process the container can
+    # accumulate zombies until it hits the PID limit.
+    init: true
     environment:
-      # Shared secret the API sends as x-verifier-token.
-      VERIFIER_SHARED_TOKEN: ${RECEIPT_VERIFIER_TOKEN}
+      # Shared secret the API sends as x-verifier-token. This is the ONLY
+      # secret this service receives — it does not load .env.production.
+      #
+      # `:?` is intentional. The verifier refuses to start without this value
+      # (fail-closed), so an unset variable would otherwise surface as a
+      # crash-looping container with a Python traceback. This turns it into a
+      # clear error at `docker compose up` time instead. The API requires the
+      # same value whenever RECEIPT_VERIFIER_URL is set (env.validation.ts).
+      VERIFIER_SHARED_TOKEN: ${RECEIPT_VERIFIER_TOKEN:?RECEIPT_VERIFIER_TOKEN must be set - it is the verifier shared token}
     healthcheck:
       test:
         ["CMD", "python", "-c", "import urllib.request,sys; urllib.request.urlopen('http://127.0.0.1:8000/health'); "]
@@ -57,6 +98,14 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+    mem_limit: 512m
+    stop_grace_period: 20s
+    # Chromium is driven here (boa.py). The library passes
+    # --disable-dev-shm-usage, so the default 64 MB /dev/shm is sufficient and no
+    # shm_size override is required.
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
     networks: [internal]
 
   api:
@@ -64,6 +113,11 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile
     restart: unless-stopped
+    # tini as PID 1 forwards SIGTERM to `node` and reaps zombies, so the
+    # stop_grace_period below actually reaches the server.
+    init: true
+    # The API is the component that legitimately owns the application secrets
+    # (JWT, Chapa, SMTP, Gemini, DATABASE_URL), so it loads the full file.
     env_file: .env.production
     environment:
       NODE_ENV: production
@@ -89,6 +143,12 @@ services:
       timeout: 5s
       retries: 5
       start_period: 40s
+    mem_limit: 640m
+    # Let in-flight requests and BullMQ jobs finish before SIGKILL.
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
     networks: [internal]
 
   web:
@@ -99,13 +159,17 @@ services:
         # Inlined into the client bundle at build time — must be the PUBLIC api URL.
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
     restart: unless-stopped
+    init: true
     environment:
       NODE_ENV: production
       PORT: "3000"
       # Server-side (rewrites/proxy) reads this at runtime too.
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
     depends_on:
-      api: { condition: service_started }
+      # The web server rewrites /api/v1/* to the API, so wait until the API is
+      # actually healthy rather than merely started — otherwise the first
+      # requests after a deploy race the API boot and return 502.
+      api: { condition: service_healthy }
     ports:
       - "127.0.0.1:3000:3000"
     healthcheck:
@@ -115,6 +179,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    mem_limit: 512m
+    stop_grace_period: 15s
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
     networks: [internal]
 
 volumes:

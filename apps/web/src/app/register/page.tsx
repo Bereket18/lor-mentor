@@ -11,6 +11,7 @@ import { Eye, EyeOff, Loader2, ArrowRight } from "lucide-react";
 import api from "@/lib/api";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { BrandLogo } from "@/components/shared/brand-logo";
+import { useHydrated } from "@/hooks/use-hydrated";
 
 const schema = z
   .object({
@@ -139,8 +140,7 @@ export default function RegisterPage() {
   // Keep submit disabled until React has hydrated. Otherwise a tap on a slow
   // phone falls back to the browser's native form submit and puts the
   // credentials in the URL as a GET query string.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useHydrated();
   const [departments,  setDepartments]  = useState<Department[]>([]);
   const [years,        setYears]        = useState<AcademicYear[]>([]);
   const [loadingDepts, setLoadingDepts] = useState(true);

@@ -7,10 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test:unit": "playwright test --config playwright.unit.config.ts",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
     "build:anatomy-model": "node scripts/build-anatomy-model.mjs",
-    "validate:anatomy-model": "node scripts/validate-anatomy-model.mjs"
+    "validate:anatomy-model": "node scripts/validate-anatomy-model.mjs",
+    "check:anatomy-orientation": "node scripts/check-anatomy-orientation.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",

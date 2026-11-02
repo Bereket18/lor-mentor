@@ -1,5 +1,6 @@
 import heartManifest from "../../public/models/anatomy/manifest.json";
 import urinaryManifest from "../../public/models/anatomy/urinary.v1.manifest.json";
+import { GENERATED_ANATOMY_ATTRIBUTION } from "./anatomy-attribution.generated";
 
 /**
  * Provenance data for each shipped Anatomy Lab model. Each entry points at that
@@ -106,6 +107,7 @@ export const ANATOMY_ATTRIBUTION: readonly AnatomyAttributionEntry[] = [
     status: "draft",
     manifest: urinaryManifest as unknown as AnatomyModelManifest,
   },
+  ...GENERATED_ANATOMY_ATTRIBUTION,
 ];
 
 export function getAnatomyAttribution(
@@ -114,7 +116,9 @@ export function getAnatomyAttribution(
   return ANATOMY_ATTRIBUTION.find((entry) => entry.slug === slug);
 }
 
-export function manifestSourceFileCount(manifest: AnatomyModelManifest): number {
+export function manifestSourceFileCount(
+  manifest: AnatomyModelManifest,
+): number {
   return manifest.structures.reduce(
     (total, structure) => total + structure.files.length,
     0,

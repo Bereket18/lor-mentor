@@ -1,0 +1,1205 @@
+{
+  "version": 2,
+  "system": "respiratory",
+  "title": "LOR Mentor respiratory system anatomy model",
+  "output": {
+    "model": "respiratory.v1.glb",
+    "manifest": "respiratory.v1.manifest.json"
+  },
+  "sources": [
+    {
+      "tree": "PART-OF",
+      "dataset": "BodyParts3D 4.0",
+      "polygonReduction": "99%",
+      "archive": "partof_BP3D_4.0_obj_99.zip",
+      "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_BP3D_4.0_obj_99.zip",
+      "archiveBytes": 64888505,
+      "archiveEtag": "\"3de1eb9-4dd48e9fe8d00\"",
+      "archiveLastModified": "Wed, 22 May 2013 06:45:40 GMT",
+      "archiveSha256": "9fbc713fffeee924a5a657d9813d84d7eb957bded63adb854931dd5e3eb61c97",
+      "extractedObjFiles": 1258,
+      "usedFor": "respiratory v1 build: 108 PART-OF source files.",
+      "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "licenseUpdated": "2025-02-27",
+      "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
+      "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
+    },
+    {
+      "tree": "IS-A",
+      "dataset": "BodyParts3D 4.0",
+      "polygonReduction": "99%",
+      "archive": "isa_BP3D_4.0_obj_99.zip",
+      "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/isa_BP3D_4.0_obj_99.zip",
+      "archiveBytes": 142903898,
+      "archiveEtag": "\"8848a5a-4dd48ec9df000\"",
+      "archiveLastModified": "Wed, 22 May 2013 06:46:24 GMT",
+      "archiveSha256": "40665852c49f218326590e204db91064a1ecfc3c6f8cbd7bbbcaac62c7cd409e",
+      "extractedObjFiles": 2234,
+      "usedFor": "respiratory v1 build: no IS-A files used.",
+      "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "licenseUpdated": "2025-02-27",
+      "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
+      "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
+    }
+  ],
+  "transform": {
+    "sourceUnits": "millimetres",
+    "sourceUpAxis": "Z",
+    "targetUnits": "metres",
+    "targetUpAxis": "Y",
+    "mapping": "x/1000, z/1000, -y/1000; then centre on the combined bounding box"
+  },
+  "viewerOrientation": "Camera looks from +Z toward the origin; patient left is +X (the viewer's right). The viewer renders no on-screen orientation marker.",
+  "recordTransformDetails": true,
+  "changes": [
+    "Selected 108 source OBJ files from the official BodyParts3D 4.0 tables.",
+    "Merged each structure's source parts into one selectable mesh: 26 selectable nodes.",
+    "Converted millimetres and the Z-up axis to metres and Y-up, centred the combined model, and recomputed vertex normals.",
+    "Exported one uncompressed GLB with stable mesh names. No source colours or textures are used; surface colours are ours.",
+    "No teaching text is stored in the model or seed; the module is unpublished pending faculty review."
+  ],
+  "adaptations": [
+    "Grouped source files by the OBJ header Concept ID and English name so each named structure is one selectable node.",
+    "Large FMA systems are split into independently seeded modules because the viewer supports one GLB per system and each GLB must stay below the release budget."
+  ],
+  "orientationChecks": [
+    {
+      "left": "left_anterior_segmental_bronchial_tree",
+      "right": "right_anterior_segmental_bronchial_tree"
+    },
+    {
+      "left": "left_posterior_basal_segmental_bronchial_tree",
+      "right": "right_posterior_basal_segmental_bronchial_tree"
+    },
+    {
+      "left": "left_apical_segmental_bronchial_tree",
+      "right": "right_apical_segmental_bronchial_tree"
+    },
+    {
+      "left": "left_superior_segmental_bronchial_tree",
+      "right": "right_superior_segmental_bronchial_tree"
+    },
+    {
+      "left": "left_lateral_basal_segmental_bronchial_tree",
+      "right": "right_lateral_basal_segmental_bronchial_tree"
+    },
+    {
+      "left": "left_medial_basal_segmental_bronchial_tree",
+      "right": "right_medial_basal_segmental_bronchial_tree"
+    },
+    {
+      "left": "left_anterior_basal_segmental_bronchial_tree",
+      "right": "right_anterior_basal_segmental_bronchial_tree"
+    },
+    {
+      "left": "left_posterior_segmental_bronchial_tree",
+      "right": "right_posterior_segmental_bronchial_tree"
+    }
+  ],
+  "structures": [
+    {
+      "slug": "trachea",
+      "meshName": "trachea",
+      "layer": "trachea",
+      "color": "#c96b6b",
+      "files": [
+        {
+          "id": "FJ2541",
+          "archive": "PART-OF",
+          "concept": "FMA7394",
+          "name": "Trachea",
+          "sha256": "f4c8cd3c70d212b09db6319e3b218b35aecfa02f53678d6886484a31aaa11cd9",
+          "triangles": 4996
+        }
+      ]
+    },
+    {
+      "slug": "right-main-bronchus-proper",
+      "meshName": "right_main_bronchus_proper",
+      "layer": "bronchi",
+      "color": "#b95757",
+      "laterality": "right",
+      "files": [
+        {
+          "id": "FJ2539",
+          "archive": "PART-OF",
+          "concept": "FMA68418",
+          "name": "Right main bronchus proper",
+          "sha256": "0e1e4dc8c326263c21819c3c48a3e2e41e72fa92425983876d4902fa5dcc3074",
+          "triangles": 4468
+        }
+      ]
+    },
+    {
+      "slug": "left-main-bronchus",
+      "meshName": "left_main_bronchus",
+      "layer": "bronchi",
+      "color": "#b95757",
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ2450",
+          "archive": "PART-OF",
+          "concept": "FMA7396",
+          "name": "Left main bronchus",
+          "sha256": "e7741f9d9f72b13ef5ccc5204df336713f48b02cf73baa73ca7a0be2816cde19",
+          "triangles": 4136
+        }
+      ]
+    },
+    {
+      "slug": "inferior-lingular-bronchial-tree",
+      "meshName": "inferior_lingular_bronchial_tree",
+      "layer": "bronchi",
+      "color": "#b95757",
+      "files": [
+        {
+          "id": "FJ2441",
+          "archive": "PART-OF",
+          "concept": "FMA68227",
+          "name": "Inferior lingular bronchial tree",
+          "sha256": "64b373dbea8fea4f475219800087b0bdec736471a640e2660a9a9cac5f35b3ec",
+          "triangles": 1134
+        },
+        {
+          "id": "FJ2475",
+          "archive": "PART-OF",
+          "concept": "FMA68227",
+          "name": "Inferior lingular bronchial tree",
+          "sha256": "76ce29f348ed8ba738f35a9cfb7c1b087ead1e734ef4358aca789e45b667c749",
+          "triangles": 214
+        }
+      ]
+    },
+    {
+      "slug": "superior-lingular-bronchial-tree",
+      "meshName": "superior_lingular_bronchial_tree",
+      "layer": "bronchi",
+      "color": "#b95757",
+      "files": [
+        {
+          "id": "FJ2476",
+          "archive": "PART-OF",
+          "concept": "FMA68226",
+          "name": "Superior lingular bronchial tree",
+          "sha256": "7ca6f318aa98dc428c3f5b5237b5cd11744ca0b2ad54e2c23ee4585c1ce8508e",
+          "triangles": 136
+        },
+        {
+          "id": "FJ2477",
+          "archive": "PART-OF",
+          "concept": "FMA68226",
+          "name": "Superior lingular bronchial tree",
+          "sha256": "153faedcab2867f0731b9b56727e375b8de11aae2e4e16c72a74f335b8094400",
+          "triangles": 74
+        },
+        {
+          "id": "FJ2478",
+          "archive": "PART-OF",
+          "concept": "FMA68226",
+          "name": "Superior lingular bronchial tree",
+          "sha256": "159053dc8c5f1d4bf5021548dc0ff79d2ca980a3108e910a77b828604523aa15",
+          "triangles": 88
+        },
+        {
+          "id": "FJ2540",
+          "archive": "PART-OF",
+          "concept": "FMA68226",
+          "name": "Superior lingular bronchial tree",
+          "sha256": "034abcb466e8f71def0d77707f6266d1fcdbceae26a0dcc0dfd92ec6b5ecb076",
+          "triangles": 366
+        }
+      ]
+    },
+    {
+      "slug": "right-superior-segmental-bronchial-tree",
+      "meshName": "right_superior_segmental_bronchial_tree",
+      "layer": "segmental-bronchi",
+      "color": "#d08a5f",
+      "laterality": "right",
+      "files": [
+        {
+          "id": "FJ2459",
+          "archive": "PART-OF",
+          "concept": "FMA68216",
+          "name": "Right superior segmental bronchial tree",
+          "sha256": "c93561e1dff5a7ea360a95cd7600f1d7306bfd12e10c4dccd36dfc34c7fba83e",
+          "triangles": 516
+        },
+        {
+          "id": "FJ2495",
+          "archive": "PART-OF",
+          "concept": "FMA68216",
+          "name": "Right superior segmental bronchial tree",
+          "sha256": "05cd679bcc9bdf096f8225fc912629ca7e9d8ac5bdfd953aa035d7f5febdeca0",
+          "triangles": 866
+        },
+        {
+          "id": "FJ2496",
+          "archive": "PART-OF",
+          "concept": "FMA68216",
+          "name": "Right superior segmental bronchial tree",
+          "sha256": "1c25619334e8c82d823706ca5c95bb9466eb65a00b82e38305cb51e370ceecbb",
+          "triangles": 2752
+        },
+        {
+          "id": "FJ2497",
+          "archive": "PART-OF",
+          "concept": "FMA68216",
+          "name": "Right superior segmental bronchial tree",
+          "sha256": "45f451850b731505fd33b5cb853181290b8ecf2cdb6e9eb38bf4ed45fae06feb",
+          "triangles": 294
+        },
+        {
+          "id": "FJ2498",
+          "archive": "PART-OF",
+          "concept": "FMA68216",
+          "name": "Right superior segmental bronchial tree",
+          "sha256": "397d42ba5f2579cabf2de58ba365482ddf92c93e74390e74026a06eee0f33da8",
+          "triangles": 660
+        },
+        {
+          "id": "FJ2499",
+          "archive": "PART-OF",
+          "concept": "FMA68216",
+          "name": "Right superior segmental bronchial tree",
+          "sha256": "dcdf9aa446ea578d1a5029e0ea8354369b0dfb74c98ea6f6f690cac8c26cec8e",
+          "triangles": 1456
+        },
+        {
+          "id": "FJ2500",
+          "archive": "PART-OF",
+          "concept": "FMA68216",
+          "name": "Right superior segmental bronchial tree",
+          "sha256": "30055ea7c3210934af6473ea76fc21e2d491344dde3db588ceed344528e8d3ee",
+          "triangles": 266
+        },
+        {
+          "id": "FJ2501",
+          "archive": "PART-OF",
+          "concept": "FMA68216",
+          "name": "Right superior segmental bronchial tree",
+          "sha256": "6b6f46acabe02d28557b4313300f496c9c360da605645e60a33053aadc855e49",
+          "triangles": 554
+        },
+        {
+          "id": "FJ2502",
+          "archive": "PART-OF",
+          "concept": "FMA68216",
+          "name": "Right superior segmental bronchial tree",
+          "sha256": "98e5e5a7e774f2c70a97883365137d700b512ef142b0a8f616fd35a8e2dbf65b",
+          "triangles": 352
+        }
+      ]
+    },
+    {
+      "slug": "right-anterior-segmental-bronchial-tree",
+      "meshName": "right_anterior_segmental_bronchial_tree",
+      "layer": "segmental-bronchi",
+      "color": "#d08a5f",
+      "laterality": "right",
+      "files": [
+        {
+          "id": "FJ2453",
+          "archive": "PART-OF",
+          "concept": "FMA68212",
+          "name": "Right anterior segmental bronchial tree",
+          "sha256": "4753a2f69f7ca376a149db4fd659ec2ea1f86884a59ce92c51635697bb455843",
+          "triangles": 390
+        },
+        {
+          "id": "FJ2509",
+          "archive": "PART-OF",
+          "concept": "FMA68212",
+          "name": "Right anterior segmental bronchial tree",
+          "sha256": "1714bc450b7fadc5735099fdd7bc6ea03f35b591a96c7c63e12e93d5c9ba7aa5",
+          "triangles": 2350
+        },
+        {
+          "id": "FJ2510",
+          "archive": "PART-OF",
+          "concept": "FMA68212",
+          "name": "Right anterior segmental bronchial tree",
+          "sha256": "cf2c2acd29c67b6890894472099c3c3387a970fdf6c75496c9dccd38e33cdeaf",
+          "triangles": 836
+        },
+        {
+          "id": "FJ2511",
+          "archive": "PART-OF",
+          "concept": "FMA68212",
+          "name": "Right anterior segmental bronchial tree",
+          "sha256": "edc3b11467d2b2bf91a9691d5f738526b94d7bdde39fa7809d164dec8a2f5505",
+          "triangles": 286
+        },
+        {
+          "id": "FJ2512",
+          "archive": "PART-OF",
+          "concept": "FMA68212",
+          "name": "Right anterior segmental bronchial tree",
+          "sha256": "96f6c4bf177237f27bd0694c6c818f1f5227b5ece8884eacdb9f447592010c2e",
+          "triangles": 340
+        },
+        {
+          "id": "FJ2513",
+          "archive": "PART-OF",
+          "concept": "FMA68212",
+          "name": "Right anterior segmental bronchial tree",
+          "sha256": "4b261ffedf0954bc7e9119c8bae7edf8779cc2114291b8c631f1a487a0045114",
+          "triangles": 770
+        },
+        {
+          "id": "FJ2514",
+          "archive": "PART-OF",
+          "concept": "FMA68212",
+          "name": "Right anterior segmental bronchial tree",
+          "sha256": "9404eb550bacf8b5bab8fc09675717576a8fa7dfb27b9cf5d714172b58f9ae68",
+          "triangles": 636
+        }
+      ]
+    },
+    {
+      "slug": "medial-segmental-bronchial-tree",
+      "meshName": "medial_segmental_bronchial_tree",
+      "layer": "segmental-bronchi",
+      "color": "#d08a5f",
+      "files": [
+        {
+          "id": "FJ2451",
+          "archive": "PART-OF",
+          "concept": "FMA68214",
+          "name": "Medial segmental bronchial tree",
+          "sha256": "5c1771d3c4837b5b69e74441236e1cd1f505bf967e6a81e0c1e17445032eec1e",
+          "triangles": 514
+        },
+        {
+          "id": "FJ2506",
+          "archive": "PART-OF",
+          "concept": "FMA68214",
+          "name": "Medial segmental bronchial tree",
+          "sha256": "cef0aded90ec711f89d9f133187555ffd6b235718855c7c4df2673f1e41b0dc4",
+          "triangles": 2482
+        },
+        {
+          "id": "FJ2507",
+          "archive": "PART-OF",
+          "concept": "FMA68214",
+          "name": "Medial segmental bronchial tree",
+          "sha256": "5566feecce7363209e4d8f3910e0699ad93789b50f812008cc5eac427f491a3b",
+          "triangles": 1516
+        },
+        {
+          "id": "FJ2508",
+          "archive": "PART-OF",
+          "concept": "FMA68214",
+          "name": "Medial segmental bronchial tree",
+          "sha256": "8a6145969f6ece99bc5ebc7bbd8db44178016b5527f0036c1e55d0b187967124",
+          "triangles": 834
+        }
+      ]
+    },
+    {
+      "slug": "lateral-segmental-bronchial-tree",
+      "meshName": "lateral_segmental_bronchial_tree",
+      "layer": "segmental-bronchi",
+      "color": "#d08a5f",
+      "files": [
+        {
+          "id": "FJ2449",
+          "archive": "PART-OF",
+          "concept": "FMA68215",
+          "name": "Lateral segmental bronchial tree",
+          "sha256": "0b17bf783e9229d279c86e9322b6f6e243b841de14a0409a1fa96456a8a6fd04",
+          "triangles": 858
+        },
+        {
+          "id": "FJ2503",
+          "archive": "PART-OF",
+          "concept": "FMA68215",
+          "name": "Lateral segmental bronchial tree",
+          "sha256": "c0b528632a04c5f1f6e64e4a5b1c5f7f931eeac04809be955f367165747c4913",
+          "triangles": 734
+        },
+        {
+          "id": "FJ2504",
+          "archive": "PART-OF",
+          "concept": "FMA68215",
+          "name": "Lateral segmental bronchial tree",
+          "sha256": "ca40945d3428c057e62be35150bd7569d5749e9d01809da3c57f98fee783fc06",
+          "triangles": 2456
+        },
+        {
+          "id": "FJ2505",
+          "archive": "PART-OF",
+          "concept": "FMA68215",
+          "name": "Lateral segmental bronchial tree",
+          "sha256": "3bba26b9b0d2d0138e227a5e6e3b53226e0e12cceac13014d0e0800a5c314c49",
+          "triangles": 472
+        }
+      ]
+    },
+    {
+      "slug": "right-apical-segmental-bronchial-tree",
+      "meshName": "right_apical_segmental_bronchial_tree",
+      "layer": "segmental-bronchi",
+      "color": "#d08a5f",
+      "laterality": "right",
+      "files": [
+        {
+          "id": "FJ2454",
+          "archive": "PART-OF",
+          "concept": "FMA68211",
+          "name": "Right apical segmental bronchial tree",
+          "sha256": "88123cad730989bea78f4f0c9d1c278763ae0936fc463832dab147c86fa78e34",
+          "triangles": 388
+        },
+        {
+          "id": "FJ2520",
+          "archive": "PART-OF",
+          "concept": "FMA68211",
+          "name": "Right apical segmental bronchial tree",
+          "sha256": "39e86b28fd18cb4f9ed2ffbb4a29935d4891000e6b5242b298b6b1755f4d5715",
+          "triangles": 1794
+        },
+        {
+          "id": "FJ2521",
+          "archive": "PART-OF",
+          "concept": "FMA68211",
+          "name": "Right apical segmental bronchial tree",
+          "sha256": "4d07b383a6d4e1a604c7ec0c6677e030cdc609b4065251410a3cae38ff7024be",
+          "triangles": 600
+        },
+        {
+          "id": "FJ2522",
+          "archive": "PART-OF",
+          "concept": "FMA68211",
+          "name": "Right apical segmental bronchial tree",
+          "sha256": "b19bcb13f7f8dbf8a0fe755c449839689c4addb7e08156a678c7eb6616a8018a",
+          "triangles": 882
+        },
+        {
+          "id": "FJ2523",
+          "archive": "PART-OF",
+          "concept": "FMA68211",
+          "name": "Right apical segmental bronchial tree",
+          "sha256": "85675485c514feb3c8627923fd7c3a7ac50335ff3824211da29ec21d336c3bb7",
+          "triangles": 208
+        },
+        {
+          "id": "FJ2524",
+          "archive": "PART-OF",
+          "concept": "FMA68211",
+          "name": "Right apical segmental bronchial tree",
+          "sha256": "a2942179f276ca4450e87736a3d3316aa27b655d2bdf9db730ad269712238d37",
+          "triangles": 286
+        },
+        {
+          "id": "FJ2525",
+          "archive": "PART-OF",
+          "concept": "FMA68211",
+          "name": "Right apical segmental bronchial tree",
+          "sha256": "68cdd6f1c1b22f5fb4546b9bc645b07cf62da3d0537d5328aa0b1ab9bd25f7b9",
+          "triangles": 176
+        },
+        {
+          "id": "FJ2526",
+          "archive": "PART-OF",
+          "concept": "FMA68211",
+          "name": "Right apical segmental bronchial tree",
+          "sha256": "5fea18655f20183f11295ecdfdc019277ff395486360a7a0fda16c2621c159f9",
+          "triangles": 170
+        }
+      ]
+    },
+    {
+      "slug": "right-posterior-segmental-bronchial-tree",
+      "meshName": "right_posterior_segmental_bronchial_tree",
+      "layer": "segmental-bronchi",
+      "color": "#d08a5f",
+      "laterality": "right",
+      "files": [
+        {
+          "id": "FJ2458",
+          "archive": "PART-OF",
+          "concept": "FMA68213",
+          "name": "Right posterior segmental bronchial tree",
+          "sha256": "311b93c7abf1c094c045c18c2eb7f17963b0d60ad2c874a823f57fb2f11187c6",
+          "triangles": 510
+        },
+        {
+          "id": "FJ2515",
+          "archive": "PART-OF",
+          "concept": "FMA68213",
+          "name": "Right posterior segmental bronchial tree",
+          "sha256": "0b69795c5ad5bc506e7f51327e4a52032b6ca49d631fff0160317dd608a60966",
+          "triangles": 2204
+        },
+        {
+          "id": "FJ2516",
+          "archive": "PART-OF",
+          "concept": "FMA68213",
+          "name": "Right posterior segmental bronchial tree",
+          "sha256": "826b1bc8c191768f3cb8c490511ebedcb8b97454383ba5719c2bc878f7ae0ce9",
+          "triangles": 882
+        },
+        {
+          "id": "FJ2517",
+          "archive": "PART-OF",
+          "concept": "FMA68213",
+          "name": "Right posterior segmental bronchial tree",
+          "sha256": "bedfdb3f698ab46309118fa7ffa5761308f51ca88f7f2467e4657c3a767b2377",
+          "triangles": 302
+        },
+        {
+          "id": "FJ2518",
+          "archive": "PART-OF",
+          "concept": "FMA68213",
+          "name": "Right posterior segmental bronchial tree",
+          "sha256": "3a7e31fde656404844fc4c4c4e4f79b136586a8a3272fe481176a23530771e4c",
+          "triangles": 210
+        },
+        {
+          "id": "FJ2519",
+          "archive": "PART-OF",
+          "concept": "FMA68213",
+          "name": "Right posterior segmental bronchial tree",
+          "sha256": "f599ba9c13ec90e64ffb445b9ff02cfd56bb83ab721256399e2cbd9cff03cb72",
+          "triangles": 228
+        }
+      ]
+    },
+    {
+      "slug": "right-posterior-basal-segmental-bronchial-tree",
+      "meshName": "right_posterior_basal_segmental_bronchial_tree",
+      "layer": "segmental-bronchi",
+      "color": "#d08a5f",
+      "laterality": "right",
+      "files": [
+        {
+          "id": "FJ2457",
+          "archive": "PART-OF",
+          "concept": "FMA68221",
+          "name": "Right posterior basal segmental bronchial tree",
+          "sha256": "9693f23e864bc668c5705df406d99f911d65b2dd184d6cf50d923b2046af9a75",
+          "triangles": 654
+        },
+        {
+          "id": "FJ2470",
+          "archive": "PART-OF",
+          "concept": "FMA68221",
+          "name": "Right posterior basal segmental bronchial tree",
+          "sha256": "ff2aade1295ecc04ea46f39181b2c6688a9320b374bd98ce45e5e24979d660e4",
+          "triangles": 846
+        },
+        {
+          "id": "FJ2481",
+          "archive": "PART-OF",
+          "concept": "FMA68221",
+          "name": "Right posterior basal segmental bronchial tree",
+          "sha256": "92669323b5b0c67ab73db4d2e0708c812b356cdcc7695cea86ccd3d9a4c82aa1",
+          "triangles": 344
+        },
+        {
+          "id": "FJ2486",
+          "archive": "PART-OF",
+          "concept": "FMA68221",
+          "name": "Right posterior basal segmental bronchial tree",
+          "sha256": "24a05a87546c554c7ca8ead6b83d101075c034bcca4bbd565f6555b0546436cd",
+          "triangles": 248
+        },
+        {
+          "id": "FJ2487",
+          "archive": "PART-OF",
+          "concept": "FMA68221",
+          "name": "Right posterior basal segmental bronchial tree",
+          "sha256": "92b1374c9c5fd44c7c9b30d56ceebe335f04dea0246cc4e7e39931db9a7cf499",
+          "triangles": 1448
+        },
+        {
+          "id": "FJ2489",
+          "archive": "PART-OF",
+          "concept": "FMA68221",
+          "name": "Right posterior basal segmental bronchial tree",
+          "sha256": "4da7026ff7c343f8ba453e3bf6f8b9d6a3ed3951dc912e3cb1bdfd8ef8898778",
+          "triangles": 618
+        }
+      ]
+    },
+    {
+      "slug": "right-lateral-basal-segmental-bronchial-tree",
+      "meshName": "right_lateral_basal_segmental_bronchial_tree",
+      "layer": "segmental-bronchi",
+      "color": "#d08a5f",
+      "laterality": "right",
+      "files": [
+        {
+          "id": "FJ2455",
+          "archive": "PART-OF",
+          "concept": "FMA68220",
+          "name": "Right lateral basal segmental bronchial tree",
+          "sha256": "7758820e2beb33284de3276d986ecfe2947f8a7869d8ad939b54e337f5590743",
+          "triangles": 650
+        },
+        {
+          "id": "FJ2490",
+          "archive": "PART-OF",
+          "concept": "FMA68220",
+          "name": "Right lateral basal segmental bronchial tree",
+          "sha256": "b4f90915d8bab4bbdc709eb3cfc2ee5f69747a55e7c49e192d901dbc754af57c",
+          "triangles": 566
+        },
+        {
+          "id": "FJ2491",
+          "archive": "PART-OF",
+          "concept": "FMA68220",
+          "name": "Right lateral basal segmental bronchial tree",
+          "sha256": "70cf62a3f2795a31d105a4529501e35f7d6cac81918b3daa67efa2066c312490",
+          "triangles": 1440
+        },
+        {
+          "id": "FJ2492",
+          "archive": "PART-OF",
+          "concept": "FMA68220",
+          "name": "Right lateral basal segmental bronchial tree",
+          "sha256": "09f07da0cbb3e991fbd11acc3b7972e53322ffc8943a0fddeb6206b43ba314dd",
+          "triangles": 272
+        }
+      ]
+    },
+    {
+      "slug": "right-anterior-basal-segmental-bronchial-tree",
+      "meshName": "right_anterior_basal_segmental_bronchial_tree",
+      "layer": "segmental-bronchi",
+      "color": "#d08a5f",
+      "laterality": "right",
+      "files": [
+        {
+          "id": "FJ2452",
+          "archive": "PART-OF",
+          "concept": "FMA68321",
+          "name": "Right anterior basal segmental bronchial tree",
+          "sha256": "13a428c6691e43fc62b70f055061518ef59e25bc39f7ff4ba29b72d120ffbaab",
+          "triangles": 528
+        },
+        {
+          "id": "FJ2493",
+          "archive": "PART-OF",
+          "concept": "FMA68321",
+          "name": "Right anterior basal segmental bronchial tree",
+          "sha256": "316057eefe3951378a54a8be78a812ef770cb840fcd3510652488e2a6f01bf10",
+          "triangles": 1428
+        },
+        {
+          "id": "FJ2494",
+          "archive": "PART-OF",
+          "concept": "FMA68321",
+          "name": "Right anterior basal segmental bronchial tree",
+          "sha256": "ad18d80f4adfefac9e28afc3e92977ff3a2b91363442125eb1b76ef79dc5198b",
+          "triangles": 304
+        }
+      ]
+    },
+    {
+      "slug": "left-anterior-segmental-bronchial-tree",
+      "meshName": "left_anterior_segmental_bronchial_tree",
+      "layer": "segmental-bronchi",
+      "color": "#d08a5f",
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ2443",
+          "archive": "PART-OF",
+          "concept": "FMA68222",
+          "name": "Left anterior segmental bronchial tree",
+          "sha256": "d9ecc1c75a9021f68a186433dd6f7e6cbe5058459f4c0b94aff3239e0dcff4fd",
+          "triangles": 440
+        },
+        {
+          "id": "FJ2467",
+          "archive": "PART-OF",
+          "concept": "FMA68222",
+          "name": "Left anterior segmental bronchial tree",
+          "sha256": "adb6e9730a4f48ab4976216c5bc9b28fb2077b9a213f1ca9f6b23d91077c6683",
+          "triangles": 418
+        },
+        {
+          "id": "FJ2468",
+          "archive": "PART-OF",
+          "concept": "FMA68222",
+          "name": "Left anterior segmental bronchial tree",
+          "sha256": "4b97d114f6af1274ae2b07fc7fb1ff426808012b061c20998b3ec75f305f583e",
+          "triangles": 208
+        },
+        {
+          "id": "FJ2469",
+          "archive": "PART-OF",
+          "concept": "FMA68222",
+          "name": "Left anterior segmental bronchial tree",
+          "sha256": "d0ba96fa139c3e4aa58ccfe3e5bbc601845ddb95aeebe15c3e52ba3720b5b4ed",
+          "triangles": 84
+        },
+        {
+          "id": "FJ2471",
+          "archive": "PART-OF",
+          "concept": "FMA68222",
+          "name": "Left anterior segmental bronchial tree",
+          "sha256": "65042bb74a06d48d9fc6adb7d0d33167db7e0195199a6af741acc5a81c9e2bbc",
+          "triangles": 108
+        },
+        {
+          "id": "FJ2472",
+          "archive": "PART-OF",
+          "concept": "FMA68222",
+          "name": "Left anterior segmental bronchial tree",
+          "sha256": "46c5f757ade14ef9d0b4629fbd360ac52d992fa1e3f22a9c4ff986482ddfe0e8",
+          "triangles": 116
+        },
+        {
+          "id": "FJ2473",
+          "archive": "PART-OF",
+          "concept": "FMA68222",
+          "name": "Left anterior segmental bronchial tree",
+          "sha256": "c6db14ca2d3f5ba038b1a64ea29df192cbc5f2319d524214b491b571dc4506a3",
+          "triangles": 116
+        },
+        {
+          "id": "FJ2474",
+          "archive": "PART-OF",
+          "concept": "FMA68222",
+          "name": "Left anterior segmental bronchial tree",
+          "sha256": "bb8e119c4518f5238026a2e37a73faffaeca4958a8f137aeaf27eab89f77dcdd",
+          "triangles": 136
+        }
+      ]
+    },
+    {
+      "slug": "left-posterior-basal-segmental-bronchial-tree",
+      "meshName": "left_posterior_basal_segmental_bronchial_tree",
+      "layer": "segmental-bronchi",
+      "color": "#d08a5f",
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ2446",
+          "archive": "PART-OF",
+          "concept": "FMA68233",
+          "name": "Left posterior basal segmental bronchial tree",
+          "sha256": "56338429270073446704a97d17c52719f8eee320393658d9f1774a645d2908d9",
+          "triangles": 722
+        },
+        {
+          "id": "FJ2527",
+          "archive": "PART-OF",
+          "concept": "FMA68233",
+          "name": "Left posterior basal segmental bronchial tree",
+          "sha256": "2812f475d2c482cd23064de0aa5f2b59c6b72058814d652a45845aa2b0fb0676",
+          "triangles": 210
+        },
+        {
+          "id": "FJ2528",
+          "archive": "PART-OF",
+          "concept": "FMA68233",
+          "name": "Left posterior basal segmental bronchial tree",
+          "sha256": "bf677fabc8c85fa8b35718048e9138582680a578e1be670ccde9108a14e9be11",
+          "triangles": 256
+        },
+        {
+          "id": "FJ2529",
+          "archive": "PART-OF",
+          "concept": "FMA68233",
+          "name": "Left posterior basal segmental bronchial tree",
+          "sha256": "cff5d941d69aae1ccfe21bd2cd775a294bea6cd53f3f9239f866811e223bcf33",
+          "triangles": 106
+        },
+        {
+          "id": "FJ2530",
+          "archive": "PART-OF",
+          "concept": "FMA68233",
+          "name": "Left posterior basal segmental bronchial tree",
+          "sha256": "09eb35909d8fbf647b0e52385ced1e895aa8b8e5e225118cd1fe89fca7571a08",
+          "triangles": 108
+        },
+        {
+          "id": "FJ2531",
+          "archive": "PART-OF",
+          "concept": "FMA68233",
+          "name": "Left posterior basal segmental bronchial tree",
+          "sha256": "169a4dbc6947dcfd98bb0bcf5f4ffb437ecbf2a7ee51d93944d3ca58252251fd",
+          "triangles": 58
+        }
+      ]
+    },
+    {
+      "slug": "left-apical-segmental-bronchial-tree",
+      "meshName": "left_apical_segmental_bronchial_tree",
+      "layer": "segmental-bronchi",
+      "color": "#d08a5f",
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ2444",
+          "archive": "PART-OF",
+          "concept": "FMA68223",
+          "name": "Left apical segmental bronchial tree",
+          "sha256": "4fa463ea77c7aaea2b44ac26272a9fb10711d1d000b1464662a7a5389c8e6104",
+          "triangles": 572
+        },
+        {
+          "id": "FJ2460",
+          "archive": "PART-OF",
+          "concept": "FMA68223",
+          "name": "Left apical segmental bronchial tree",
+          "sha256": "33b697f2b0996c6d5ff6723d62573e2b515f657cf675776bf7aab3da35db2856",
+          "triangles": 214
+        },
+        {
+          "id": "FJ2461",
+          "archive": "PART-OF",
+          "concept": "FMA68223",
+          "name": "Left apical segmental bronchial tree",
+          "sha256": "da15dca4d16db1ddd3b51ddf46ccbb3e7b2780920a09665d0ea321cb1021bf0b",
+          "triangles": 136
+        },
+        {
+          "id": "FJ2462",
+          "archive": "PART-OF",
+          "concept": "FMA68223",
+          "name": "Left apical segmental bronchial tree",
+          "sha256": "654b5b6e95817618bf7b186c363ffe8336abdbde9b305fcaefc3e4fbdedecea9",
+          "triangles": 126
+        },
+        {
+          "id": "FJ2463",
+          "archive": "PART-OF",
+          "concept": "FMA68223",
+          "name": "Left apical segmental bronchial tree",
+          "sha256": "4f3659eab7252936df40eb3029836834ed563797ebd5b1fe081a2d1303853e05",
+          "triangles": 114
+        },
+        {
+          "id": "FJ2464",
+          "archive": "PART-OF",
+          "concept": "FMA68223",
+          "name": "Left apical segmental bronchial tree",
+          "sha256": "6eae8179f9a5a765d9a1f2353a6b35342a15665bb3c52000dd10fb7efc5a9c87",
+          "triangles": 64
+        }
+      ]
+    },
+    {
+      "slug": "left-superior-segmental-bronchial-tree",
+      "meshName": "left_superior_segmental_bronchial_tree",
+      "layer": "segmental-bronchi",
+      "color": "#d08a5f",
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ2448",
+          "archive": "PART-OF",
+          "concept": "FMA68228",
+          "name": "Left superior segmental bronchial tree",
+          "sha256": "9b95d3c4d9115b2b5dfb36ecb5ca7a66953a5f87fe4c7f58a6d486c352cfc183",
+          "triangles": 444
+        },
+        {
+          "id": "FJ2479",
+          "archive": "PART-OF",
+          "concept": "FMA68228",
+          "name": "Left superior segmental bronchial tree",
+          "sha256": "53574009c39352a0fd2a6dd84b68845690b77d652b6b2a8de784ad92aa6c4551",
+          "triangles": 208
+        },
+        {
+          "id": "FJ2480",
+          "archive": "PART-OF",
+          "concept": "FMA68228",
+          "name": "Left superior segmental bronchial tree",
+          "sha256": "7e07ea18e778db8f00142c69b4b2bb0ee415d294044dc332b138055f902ef4f8",
+          "triangles": 108
+        },
+        {
+          "id": "FJ2482",
+          "archive": "PART-OF",
+          "concept": "FMA68228",
+          "name": "Left superior segmental bronchial tree",
+          "sha256": "5722b7698bedb29cf076888f776811b1c7d1d729f5ec14f9d51dac8057389e8c",
+          "triangles": 104
+        },
+        {
+          "id": "FJ2483",
+          "archive": "PART-OF",
+          "concept": "FMA68228",
+          "name": "Left superior segmental bronchial tree",
+          "sha256": "37cee30d3fd34853e8be332261ecebf4a3f2a95170cf414a97d6151ed6c6d22c",
+          "triangles": 92
+        },
+        {
+          "id": "FJ2484",
+          "archive": "PART-OF",
+          "concept": "FMA68228",
+          "name": "Left superior segmental bronchial tree",
+          "sha256": "859d772c3a7e053109365d3aa777b064d1f6ef7a266d4266405fb1af84cb8196",
+          "triangles": 128
+        },
+        {
+          "id": "FJ2485",
+          "archive": "PART-OF",
+          "concept": "FMA68228",
+          "name": "Left superior segmental bronchial tree",
+          "sha256": "2f43d9288d325e57de763d458717f04fabd06fc697c337a1fe7d0ae043726f44",
+          "triangles": 60
+        }
+      ]
+    },
+    {
+      "slug": "left-lateral-basal-segmental-bronchial-tree",
+      "meshName": "left_lateral_basal_segmental_bronchial_tree",
+      "layer": "segmental-bronchi",
+      "color": "#d08a5f",
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ2445",
+          "archive": "PART-OF",
+          "concept": "FMA68232",
+          "name": "Left lateral basal segmental bronchial tree",
+          "sha256": "e38bac437798a86e2ec37730443443134c0923ef9532c75b428dc530b81df32a",
+          "triangles": 626
+        },
+        {
+          "id": "FJ2532",
+          "archive": "PART-OF",
+          "concept": "FMA68232",
+          "name": "Left lateral basal segmental bronchial tree",
+          "sha256": "bf30a052e36f1a984fb9cca54df188a6995875dba5bf07bf7b2b6548dcd1461e",
+          "triangles": 278
+        },
+        {
+          "id": "FJ2533",
+          "archive": "PART-OF",
+          "concept": "FMA68232",
+          "name": "Left lateral basal segmental bronchial tree",
+          "sha256": "3f033d99e01946940c4191019fc0c174d1d5fa9b28dddc1426968feb61e6d9de",
+          "triangles": 154
+        },
+        {
+          "id": "FJ2534",
+          "archive": "PART-OF",
+          "concept": "FMA68232",
+          "name": "Left lateral basal segmental bronchial tree",
+          "sha256": "461e5c6c3dc5de63c38dc937e6128fb4889c8605c50a15807037addaae12e79a",
+          "triangles": 68
+        }
+      ]
+    },
+    {
+      "slug": "right-medial-basal-segmental-bronchial-tree",
+      "meshName": "right_medial_basal_segmental_bronchial_tree",
+      "layer": "segmental-bronchi",
+      "color": "#d08a5f",
+      "laterality": "right",
+      "files": [
+        {
+          "id": "FJ2456",
+          "archive": "PART-OF",
+          "concept": "FMA68218",
+          "name": "Right medial basal segmental bronchial tree",
+          "sha256": "98b2b20bb08530aca323ac07b2c2d35eeb001fffd4a587f47de825349c09dc26",
+          "triangles": 170
+        },
+        {
+          "id": "FJ2488",
+          "archive": "PART-OF",
+          "concept": "FMA68218",
+          "name": "Right medial basal segmental bronchial tree",
+          "sha256": "0c13f3775d83c97e3680cdcd21dd6a08aaa88e27f3ec194c46656ba3fec86856",
+          "triangles": 732
+        }
+      ]
+    },
+    {
+      "slug": "left-medial-basal-segmental-bronchial-tree",
+      "meshName": "left_medial_basal_segmental_bronchial_tree",
+      "layer": "segmental-bronchi",
+      "color": "#d08a5f",
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ2442",
+          "archive": "PART-OF",
+          "concept": "FMA68230",
+          "name": "Left medial basal segmental bronchial tree",
+          "sha256": "49fbe8509027d1d8e9d572b31de9a3741a02de9eca1ee65a6f1d96b79b35fd57",
+          "triangles": 730
+        },
+        {
+          "id": "FJ2537",
+          "archive": "PART-OF",
+          "concept": "FMA68230",
+          "name": "Left medial basal segmental bronchial tree",
+          "sha256": "b71c206496ab91bab4988e857fb49d4b74daa3e05af02dcb1c7eb2d54defc461",
+          "triangles": 92
+        }
+      ]
+    },
+    {
+      "slug": "left-anterior-basal-segmental-bronchial-tree",
+      "meshName": "left_anterior_basal_segmental_bronchial_tree",
+      "layer": "segmental-bronchi",
+      "color": "#d08a5f",
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ2535",
+          "archive": "PART-OF",
+          "concept": "FMA68231",
+          "name": "Left anterior basal segmental bronchial tree",
+          "sha256": "4670a1458826c005d352d25bb2e9d029ba7c105f9c94ab1794e72c13fe0bf93d",
+          "triangles": 296
+        },
+        {
+          "id": "FJ2536",
+          "archive": "PART-OF",
+          "concept": "FMA68231",
+          "name": "Left anterior basal segmental bronchial tree",
+          "sha256": "d3ad0f299e740ab709a4d626a21f7e8fe15eb130de52ec293be518d7eb5cc8f9",
+          "triangles": 298
+        },
+        {
+          "id": "FJ2538",
+          "archive": "PART-OF",
+          "concept": "FMA68231",
+          "name": "Left anterior basal segmental bronchial tree",
+          "sha256": "1b0fbbabb7b834cf21554103793e3b6040cd040a4553522db38a0cd14a68dfdf",
+          "triangles": 138
+        }
+      ]
+    },
+    {
+      "slug": "left-posterior-segmental-bronchial-tree",
+      "meshName": "left_posterior_segmental_bronchial_tree",
+      "layer": "segmental-bronchi",
+      "color": "#d08a5f",
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ2447",
+          "archive": "PART-OF",
+          "concept": "FMA68225",
+          "name": "Left posterior segmental bronchial tree",
+          "sha256": "3550c217bbea847d0bff2cdbbebd8f10607247ac6cae96b2458641b18c3ecf06",
+          "triangles": 284
+        },
+        {
+          "id": "FJ2465",
+          "archive": "PART-OF",
+          "concept": "FMA68225",
+          "name": "Left posterior segmental bronchial tree",
+          "sha256": "e821c7b23402f6e64914d6c485b5a9e37c5e5d9bed386776b6c572486a5777ec",
+          "triangles": 92
+        },
+        {
+          "id": "FJ2466",
+          "archive": "PART-OF",
+          "concept": "FMA68225",
+          "name": "Left posterior segmental bronchial tree",
+          "sha256": "0fbb025940446f5a4c7a46f5e0aadd186b1ce0e14d83ed73f6581c2337143478",
+          "triangles": 64
+        }
+      ]
+    },
+    {
+      "slug": "inferior-lingular-artery",
+      "meshName": "inferior_lingular_artery",
+      "layer": "vessels",
+      "color": "#c79a52",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ2896",
+          "archive": "PART-OF",
+          "concept": "FMA8640",
+          "name": "Inferior lingular artery",
+          "sha256": "a71de7bfc5ecd1b331a63b8303df66c943d14bd285e77e937790ad6adc4834c7",
+          "triangles": 2112
+        },
+        {
+          "id": "FJ2897",
+          "archive": "PART-OF",
+          "concept": "FMA8640",
+          "name": "Inferior lingular artery",
+          "sha256": "c698f9bf423345605feea0d9d235a57ee7bd3d54d59b053c30759340b25bd64f",
+          "triangles": 486
+        }
+      ]
+    },
+    {
+      "slug": "superior-lingular-artery",
+      "meshName": "superior_lingular_artery",
+      "layer": "vessels",
+      "color": "#c79a52",
+      "sharedWith": [
+        "cardiovascular"
+      ],
+      "canonicalOwner": "cardiovascular",
+      "files": [
+        {
+          "id": "FJ2898",
+          "archive": "PART-OF",
+          "concept": "FMA8639",
+          "name": "Superior lingular artery",
+          "sha256": "0641fd4ca72a62ce5d5b2e977d4c3d85a4fa5d4ded1e564c39d36f7dc96ad4b7",
+          "triangles": 1084
+        },
+        {
+          "id": "FJ2899",
+          "archive": "PART-OF",
+          "concept": "FMA8639",
+          "name": "Superior lingular artery",
+          "sha256": "38925605225819b262b62e5c0dff100a5969c04ec3c9a042d87a813309c57cca",
+          "triangles": 84
+        },
+        {
+          "id": "FJ2900",
+          "archive": "PART-OF",
+          "concept": "FMA8639",
+          "name": "Superior lingular artery",
+          "sha256": "07ca5c4533537685d5cb5449f5d62a275360e004ad2b56145fc7b0cd693806a9",
+          "triangles": 210
+        },
+        {
+          "id": "FJ2901",
+          "archive": "PART-OF",
+          "concept": "FMA8639",
+          "name": "Superior lingular artery",
+          "sha256": "e4705150e8e90e71e494fd2366adad0b399c0f8bead1d11592521e41955c9b36",
+          "triangles": 200
+        }
+      ]
+    },
+    {
+      "slug": "diaphragm",
+      "meshName": "diaphragm",
+      "layer": "diaphragm",
+      "color": "#8fae6b",
+      "sharedWith": [
+        "musculoskeletal"
+      ],
+      "canonicalOwner": "musculoskeletal",
+      "files": [
+        {
+          "id": "FJ3131",
+          "archive": "PART-OF",
+          "concept": "FMA13295",
+          "name": "Diaphragm",
+          "sha256": "2a78d0f155249d4b8348e9656170af4caf2b41778c0e047fc8c1c6890878058b",
+          "triangles": 68522
+        }
+      ]
+    }
+  ],
+  "textOnly": [],
+  "totalTriangles": 139164
+}

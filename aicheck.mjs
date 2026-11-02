@@ -2,7 +2,11 @@ import { PrismaClient } from './node_modules/.prisma/client/index.js';
 import { PrismaPg } from './node_modules/@prisma/adapter-pg/dist/index.js';
 import pg from './node_modules/pg/lib/index.js';
 
-const pool = new pg.Pool({ connectionString: 'postgresql://postgres:Bereket@7548@localhost:5432/lor_mentor' });
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  throw new Error('DATABASE_URL is required (set it in the environment or run with node --env-file=.env)');
+}
+const pool = new pg.Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 

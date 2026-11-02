@@ -1,0 +1,195 @@
+{
+  "schemaVersion": 2,
+  "system": "lymphatic",
+  "model": {
+    "file": "lymphatic.v1.glb",
+    "bytes": 72276,
+    "sha256": "bc5aa5df3248dcb10fbd7c294bc2f193102ea201c6f6c86419be5735c91d7af2",
+    "triangles": 3410,
+    "structures": 3,
+    "textOnlyStructures": 0,
+    "totalStructures": 3
+  },
+  "sources": [
+    {
+      "tree": "PART-OF",
+      "dataset": "BodyParts3D 4.0",
+      "polygonReduction": "99%",
+      "archive": "partof_BP3D_4.0_obj_99.zip",
+      "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_BP3D_4.0_obj_99.zip",
+      "archiveBytes": 64888505,
+      "archiveEtag": "\"3de1eb9-4dd48e9fe8d00\"",
+      "archiveLastModified": "Wed, 22 May 2013 06:45:40 GMT",
+      "archiveSha256": "9fbc713fffeee924a5a657d9813d84d7eb957bded63adb854931dd5e3eb61c97",
+      "extractedObjFiles": 1258,
+      "usedFor": "lymphatic v1 build: 2 PART-OF source files.",
+      "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "licenseUpdated": "2025-02-27",
+      "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
+      "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
+    },
+    {
+      "tree": "IS-A",
+      "dataset": "BodyParts3D 4.0",
+      "polygonReduction": "99%",
+      "archive": "isa_BP3D_4.0_obj_99.zip",
+      "archiveUrl": "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/isa_BP3D_4.0_obj_99.zip",
+      "archiveBytes": 142903898,
+      "archiveEtag": "\"8848a5a-4dd48ec9df000\"",
+      "archiveLastModified": "Wed, 22 May 2013 06:46:24 GMT",
+      "archiveSha256": "40665852c49f218326590e204db91064a1ecfc3c6f8cbd7bbbcaac62c7cd409e",
+      "extractedObjFiles": 2234,
+      "usedFor": "lymphatic v1 build: 1 IS-A source files.",
+      "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+      "licenseUpdated": "2025-02-27",
+      "license": "CC BY 4.0 (current license page); source OBJ headers reference CC BY-SA 2.1 Japan",
+      "requiredCredit": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International."
+    }
+  ],
+  "transform": {
+    "sourceUnits": "millimetres",
+    "sourceUpAxis": "Z",
+    "targetUnits": "metres",
+    "targetUpAxis": "Y",
+    "mapping": "x/1000, z/1000, -y/1000; then centre on the combined bounding box",
+    "scale": 0.001,
+    "sourceCentreMm": [
+      44.556749,
+      -102.742551,
+      1190.679967
+    ],
+    "offsetMetres": [
+      0.044557,
+      1.19068,
+      0.102743
+    ],
+    "offsetConvention": "bodyPosition = modelPosition + offsetMetres"
+  },
+  "changes": [
+    "Selected 3 source OBJ files from the official BodyParts3D 4.0 tables.",
+    "Merged each structure's source parts into one selectable mesh: 3 selectable nodes.",
+    "Converted millimetres and the Z-up axis to metres and Y-up, centred the combined model, and recomputed vertex normals.",
+    "Exported one uncompressed GLB with stable mesh names. No source colours or textures are used; surface colours are ours.",
+    "No teaching text is stored in the model or seed; the module is unpublished pending faculty review."
+  ],
+  "adaptations": [
+    "Grouped source files by the OBJ header Concept ID and English name so each named structure is one selectable node.",
+    "Large FMA systems are split into independently seeded modules because the viewer supports one GLB per system and each GLB must stay below the release budget."
+  ],
+  "orientation": {
+    "sourceFrame": {
+      "units": "millimetres",
+      "upAxis": "Z",
+      "patientLeftAxis": "+X",
+      "centroidX": {
+        "left_lobe_of_thymus": 9.860066,
+        "right_lobe_of_thymus": -10.771264
+      }
+    },
+    "outputFrame": {
+      "units": "metres",
+      "upAxis": "Y",
+      "patientLeftAxis": "+X",
+      "centroidX": {
+        "left_lobe_of_thymus": -0.034697,
+        "right_lobe_of_thymus": -0.055328
+      }
+    },
+    "checks": [
+      {
+        "left": "left_lobe_of_thymus",
+        "right": "right_lobe_of_thymus"
+      }
+    ],
+    "viewer": "Camera looks from +Z toward the origin; patient left is +X (the viewer's right). The viewer renders no on-screen orientation marker."
+  },
+  "license": {
+    "notice": "BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International",
+    "licenseUrl": "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html",
+    "statements": [
+      {
+        "source": "BodyParts3D licence page (last updated 2025-02-27) and README_e.html",
+        "statement": "The license for this database is specified in the Creative Commons Attribution 4.0 International."
+      },
+      {
+        "source": "Header comment in all 3,492 distributed BodyParts3D 4.0 OBJ files",
+        "statement": "The license for this database is specified in the Creative Commons Attribution-Share Alike 2.1 Japan."
+      }
+    ],
+    "status": "Which licence applies is being clarified with the Database Center for Life Science (DBCLS).",
+    "adaptedModelTerms": "The adapted model file is offered under the same terms as the stricter statement, CC BY-SA 2.1 Japan."
+  },
+  "structures": [
+    {
+      "slug": "spleen",
+      "meshName": "spleen",
+      "layer": "spleen",
+      "color": "#c96b6b",
+      "triangles": 1330,
+      "fma": [
+        "FMA7196"
+      ],
+      "files": [
+        {
+          "id": "FJ2561",
+          "archive": "IS-A",
+          "concept": "FMA7196",
+          "name": "Spleen",
+          "sha256": "8dadb164d15392b61e0b08286625c9ea9f959a0f13d8f166b32d84abad4689bf",
+          "triangles": 1330
+        }
+      ]
+    },
+    {
+      "slug": "left-lobe-of-thymus",
+      "meshName": "left_lobe_of_thymus",
+      "layer": "thymus",
+      "color": "#b95757",
+      "triangles": 1050,
+      "fma": [
+        "FMA71195"
+      ],
+      "laterality": "left",
+      "files": [
+        {
+          "id": "FJ3150",
+          "archive": "PART-OF",
+          "concept": "FMA71195",
+          "name": "Left lobe of thymus",
+          "sha256": "54102c62c92c793d69b6900b7b8b5d5a130ff024767e25a50eaac6105cb0189d",
+          "triangles": 1050
+        }
+      ]
+    },
+    {
+      "slug": "right-lobe-of-thymus",
+      "meshName": "right_lobe_of_thymus",
+      "layer": "thymus",
+      "color": "#b95757",
+      "triangles": 1030,
+      "fma": [
+        "FMA71194"
+      ],
+      "laterality": "right",
+      "files": [
+        {
+          "id": "FJ3151",
+          "archive": "PART-OF",
+          "concept": "FMA71194",
+          "name": "Right lobe of thymus",
+          "sha256": "12da29f923a948d45b2eee05bd39805ec84bea612aeaa7056f13813986415d67",
+          "triangles": 1030
+        }
+      ]
+    }
+  ],
+  "textOnly": [],
+  "checks": {
+    "uniqueMeshNames": true,
+    "uniqueSourceFiles": true,
+    "sourceHeadersVerified": true,
+    "sourceHashesVerified": true,
+    "orientationVerified": true,
+    "unrepresentedStructures": "deferred; see docs/anatomy/provenance/README.md"
+  }
+}

@@ -12,12 +12,9 @@ Deployment notes (see README):
   - Protect with SHARED_TOKEN so only the API can call it.
 """
 
-import os
 from typing import Optional
-from urllib.parse import urlparse
 
 from fastapi import FastAPI, Header, HTTPException
-from pydantic import BaseModel, model_validator
 
 from ethiobank_receipts import extract_receipt
 from ethiobank_receipts.extractors.cbe import extract_cbe_receipt_info_from_ft
@@ -29,83 +26,29 @@ from cbe_links import (
 )
 from normalize import normalize
 
-SUPPORTED_BANKS = {"cbe", "dashen", "awash", "boa", "zemen", "tele"}
-RECEIPT_HOSTS = {
-    # CBE receipts exist in two generations: the legacy FT link and the new
-    # "mbreciept" short link (see cbe_links.py).
-    "cbe": {"apps.cbe.com.et", "mbreciept.cbe.com.et"},
-    "dashen": {"receipt.dashensuperapp.com"},
-    "awash": {"awashpay.awashbank.com"},
-    "boa": {"cs.bankofabyssinia.com"},
-    "zemen": {"share.zemenbank.com"},
-    "tele": {"transactioninfo.ethiotelecom.et"},
-}
+# Validation, reference-hint and authentication helpers live in security.py so
+# the test suite can exercise them without Selenium/Chromium. See that module
+# for why.
+from security import (
+    SUPPORTED_BANKS,
+    ExtractRequest,
+    VerifierError,
+    is_authorized,
+    load_shared_token,
+    reference_hint,
+    validate_receipt_url,
+)
 
-# Optional shared secret. When set, callers must send it as `x-verifier-token`.
-SHARED_TOKEN = os.environ.get("VERIFIER_SHARED_TOKEN", "").strip()
+# Shared secret every /extract caller must present as `x-verifier-token`.
+#
+# Fails CLOSED at import: an unset or empty token raises here, so the process
+# (and therefore the container) refuses to start rather than serving requests
+# unauthenticated. The previous behaviour checked the token only when it
+# happened to be set, which meant a misconfigured deployment was openly
+# reachable by anything that could reach the port.
+SHARED_TOKEN = load_shared_token()
 
 app = FastAPI(title="receipt-verifier", version="1.0.0")
-
-
-class ExtractRequest(BaseModel):
-    bank: str
-    # Provide EITHER a full receipt URL, OR a reference. For CBE, `reference`
-    # is the FT number and `account` is the last 8 digits (or full) account no.
-    url: Optional[str] = None
-    reference: Optional[str] = None
-    account: Optional[str] = None
-
-    @model_validator(mode="after")
-    def _require_input(self):
-        if not (self.url or self.reference):
-            raise ValueError("Provide either `url` or `reference`")
-        return self
-
-
-class VerifierError(Exception):
-    """Maps to a structured JSON error the Node side switches on."""
-
-    def __init__(self, code: str, message: str, http_status: int = 422):
-        self.code = code
-        self.message = message
-        self.http_status = http_status
-
-
-def _validate_receipt_url(bank: str, url: str) -> str:
-    """Restrict scraper traffic to the selected bank's real HTTPS host."""
-    try:
-        parsed = urlparse(url.strip())
-    except ValueError as exc:
-        raise VerifierError("BAD_INPUT", "Receipt URL is invalid.", 400) from exc
-
-    hostname = (parsed.hostname or "").lower().rstrip(".")
-    if (
-        parsed.scheme.lower() != "https"
-        or not hostname
-        or parsed.username
-        or parsed.password
-        or hostname not in RECEIPT_HOSTS[bank]
-    ):
-        raise VerifierError(
-            "BAD_INPUT",
-            f"Receipt URL must use the official {bank.upper()} receipt domain.",
-            400,
-        )
-    return url.strip()
-
-
-def _reference_hint(req: ExtractRequest) -> Optional[str]:
-    """Return a stable transaction ID rather than storing a full receipt URL."""
-    value = (req.reference or req.url or "").strip()
-    if req.bank.lower() == "tele" and value.lower().startswith("https://"):
-        return urlparse(value).path.rstrip("/").split("/")[-1] or None
-    if req.bank.lower() == "cbe" and req.url:
-        # Legacy CBE links carry the FT inside ?id=<FT><digits>. New-style
-        # mbreciept links expose their transaction id in the API payload only,
-        # so there is no hint to give here.
-        legacy = parse_legacy_receipt_url(req.url)
-        return legacy[0] if legacy else None
-    return req.reference
 
 
 def _run_extractor(req: ExtractRequest) -> dict:
@@ -128,7 +71,7 @@ def _run_extractor(req: ExtractRequest) -> dict:
     if bank == "cbe" and req.url:
         # Both CBE receipt generations are accepted when a student pastes a
         # link; the host allowlist is enforced before any network call.
-        url = _validate_receipt_url(bank, req.url)
+        url = validate_receipt_url(bank, req.url)
         token = extract_mbreciept_token(url)
         if token:
             raw = fetch_mbreciept_receipt(token)
@@ -156,11 +99,11 @@ def _run_extractor(req: ExtractRequest) -> dict:
         # Telebirr accepts the bare receipt id.
         reference = req.reference.strip()
         if reference.lower().startswith(("http://", "https://")):
-            reference = _validate_receipt_url(bank, reference)
+            reference = validate_receipt_url(bank, reference)
         return extract_receipt("tele", reference)
 
     if req.url:
-        return extract_receipt(bank, _validate_receipt_url(bank, req.url))
+        return extract_receipt(bank, validate_receipt_url(bank, req.url))
 
     raise VerifierError(
         "URL_REQUIRED",
@@ -171,12 +114,24 @@ def _run_extractor(req: ExtractRequest) -> dict:
 
 @app.get("/health")
 def health():
+    """Liveness only — used by the container healthcheck.
+
+    Deliberately unauthenticated (the healthcheck has no credential) and
+    deliberately free of any configuration or secret material.
+    """
     return {"status": "ok", "banks": sorted(SUPPORTED_BANKS)}
 
 
 @app.post("/extract")
 def extract(req: ExtractRequest, x_verifier_token: Optional[str] = Header(default=None)):
-    if SHARED_TOKEN and x_verifier_token != SHARED_TOKEN:
+    # Defence in depth. `load_shared_token()` already refused to start the
+    # process when no token is configured, so SHARED_TOKEN is non-empty by the
+    # time we get here; checking per request anyway means a future refactor
+    # that makes startup conditional cannot silently reopen the endpoint.
+    #
+    # The 401 body carries a code and nothing else: no token, no hint about
+    # the configured value, and no distinction between "missing" and "wrong".
+    if not is_authorized(SHARED_TOKEN, x_verifier_token):
         raise HTTPException(status_code=401, detail={"code": "UNAUTHORIZED"})
 
     bank = req.bank.lower()
@@ -188,7 +143,7 @@ def extract(req: ExtractRequest, x_verifier_token: Optional[str] = Header(defaul
 
     try:
         raw = _run_extractor(req)
-        result = normalize(bank, raw, reference_hint=_reference_hint(req))
+        result = normalize(bank, raw, reference_hint=reference_hint(req))
     except VerifierError as exc:
         raise HTTPException(
             status_code=exc.http_status,

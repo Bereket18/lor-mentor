@@ -1,10 +1,14 @@
 import {
   Injectable,
+  Logger,
   BadRequestException,
+  ConflictException,
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 import { Prisma, Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
@@ -12,15 +16,30 @@ import {
   canCreateRole,
   canChangeRole,
   canDeleteRole,
+  canManageReviewerAccess,
   isPrivileged,
 } from './role.util';
 import { CreateUserDto } from './dto/create-user.dto';
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   // PrismaService is injected automatically by NestJS
   // We do not create it with "new" — NestJS handles that
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mail: MailService,
+    private readonly config: ConfigService,
+  ) {}
+
+  private publicWebBase(): string {
+    const base =
+      this.config.get<string>('WEB_PUBLIC_URL') ??
+      this.config.get<string>('APP_URL') ??
+      'http://localhost:3000';
+    return base.replace(/\/$/, '');
+  }
 
   // Find a user by their email address
   // Used during login to check if the user exists
@@ -45,6 +64,7 @@ export class UsersService {
         avatarPath: true,
         isActive: true,
         isEmailVerified: true,
+        isAnatomyReviewer: true,
         createdAt: true,
       },
     });
@@ -129,9 +149,26 @@ export class UsersService {
   // without a prior SELECT — closes the TOCTOU race in the old 2-trip flow
   // where findByResetToken + updatePassword were separate round-trips that
   // caused "new password doesn't work after reset".
-  async claimResetToken(token: string, passwordHash: string): Promise<boolean> {
+  async claimResetToken(
+    token: string,
+    passwordHash: string,
+  ): Promise<string | null> {
+    if (!token) return null;
+
+    // Read the owner first only so the caller can revoke that account's
+    // sessions. This read is NOT the gate: the atomic update below still
+    // matches on the token and expiry, so a token consumed concurrently by
+    // another request yields count === 0 and this returns null.
+    // `passwordResetToken` is not a unique column, so this is findFirst.
+    const owner = await this.prisma.user.findFirst({
+      where: { passwordResetToken: token },
+      select: { id: true },
+    });
+    if (!owner) return null;
+
     const result = await this.prisma.user.updateMany({
       where: {
+        id: owner.id,
         passwordResetToken: token,
         passwordResetExpiry: { gt: new Date() },
       },
@@ -143,7 +180,7 @@ export class UsersService {
         passwordResetExpiry: null,
       },
     });
-    return result.count === 1;
+    return result.count === 1 ? owner.id : null;
   }
 
   // Find user by email verification token
@@ -216,6 +253,7 @@ export class UsersService {
           role: true,
           isActive: true,
           isEmailVerified: true,
+          isAnatomyReviewer: true,
           createdAt: true,
           updatedAt: true,
           departmentId: true,
@@ -270,19 +308,50 @@ export class UsersService {
 
     const ids = inactive.map((u) => u.id);
 
+    // Accounts with financial history are never swept away — same rule as
+    // deleteUser(). This is a bulk, unattended operation, so it must be the
+    // conservative one: skip (and leave deactivated) rather than destroy the
+    // college's accounting record.
+    const [paying, subscribed] = await Promise.all([
+      this.prisma.payment.findMany({
+        where: { userId: { in: ids } },
+        select: { userId: true },
+      }),
+      this.prisma.subscription.findMany({
+        where: { userId: { in: ids } },
+        select: { userId: true },
+      }),
+    ]);
+    const retained = new Set(
+      [...paying, ...subscribed].map((row) => row.userId),
+    );
+    const removable = ids.filter((id) => !retained.has(id));
+    const skipped = ids.length - removable.length;
+
+    if (removable.length === 0) {
+      return {
+        message: `No inactive accounts older than 12 months can be deleted (${skipped} retained for financial history)`,
+        deleted: 0,
+        retained: skipped,
+      };
+    }
+
     // Delete each account with the full FK cascade in one transaction. The old
     // version only cleared progress/notification/aiHistory and then failed with
     // a foreign-key violation for any user that had quiz attempts, forum posts,
     // payments, subscriptions, etc.
     await this.prisma.$transaction(async (tx) => {
-      for (const id of ids) {
+      for (const id of removable) {
         await this.cascadeDeleteUser(tx, id);
       }
     });
 
     return {
-      message: `Deleted ${ids.length} inactive account(s)`,
-      deleted: ids.length,
+      message:
+        `Deleted ${removable.length} inactive account(s)` +
+        (skipped > 0 ? `; retained ${skipped} with financial history` : ''),
+      deleted: removable.length,
+      retained: skipped,
       users: inactive,
     };
   }
@@ -314,14 +383,22 @@ export class UsersService {
       );
     }
 
+    // Every TEACHER account is an anatomy reviewer by default. The flag stays
+    // explicit so an individual teacher can still be revoked with the
+    // anatomy:reviewer CLI. Moving a user out of TEACHER clears it: ADMIN and
+    // SUPER_ADMIN are never allowed to review anatomy.
     const user = await this.prisma.user.update({
       where: { id: userId },
-      data: { role: role as 'STUDENT' | 'TEACHER' | 'ADMIN' | 'SUPER_ADMIN' },
+      data: {
+        role: role as 'STUDENT' | 'TEACHER' | 'ADMIN' | 'SUPER_ADMIN',
+        isAnatomyReviewer: role === 'TEACHER',
+      },
       select: {
         id: true,
         email: true,
         fullName: true,
         role: true,
+        isAnatomyReviewer: true,
       },
     });
 
@@ -419,6 +496,88 @@ export class UsersService {
     return { message: `Account ${status}`, user };
   }
 
+  // Grant or revoke a teacher's anatomy reviewer access. This flag is the only
+  // per-account gate on the anatomy review routes; approving individual
+  // structures is a separate action. Every TEACHER gets the flag by default
+  // (createUser / changeRole), and this is the admin-controlled way to take it
+  // away again. Reviewer access is TEACHER-only, so the service rejects any
+  // other target role even though the route already requires ADMIN/SUPER_ADMIN.
+  async setAnatomyReviewer(
+    userId: string,
+    isAnatomyReviewer: boolean,
+    actorId: string,
+    actorRole: string,
+  ) {
+    const target = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+        isAnatomyReviewer: true,
+      },
+    });
+    if (!target) throw new NotFoundException('User not found');
+
+    if (!canManageReviewerAccess(actorRole, target.role)) {
+      throw new ForbiddenException(
+        'Anatomy reviewer access can only be changed for teacher accounts',
+      );
+    }
+
+    // Idempotent: don't write a redundant audit entry for a no-op change.
+    if (target.isAnatomyReviewer === isAnatomyReviewer) {
+      return {
+        message: isAnatomyReviewer
+          ? 'Teacher already has anatomy reviewer access'
+          : 'Teacher does not have anatomy reviewer access',
+        changed: false,
+        user: target,
+      };
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { isAnatomyReviewer },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+        isAnatomyReviewer: true,
+      },
+    });
+
+    // Grant/revoke is a permission change — record who did it and to whom,
+    // reusing the action keys written by the anatomy:reviewer CLI so the
+    // audit trail reads consistently.
+    await this.prisma.auditLog.create({
+      data: {
+        actorId,
+        action: isAnatomyReviewer
+          ? 'ANATOMY_REVIEWER_GRANT'
+          : 'ANATOMY_REVIEWER_REVOKE',
+        entityType: 'User',
+        entityId: updated.id,
+        meta: {
+          email: updated.email,
+          fullName: updated.fullName,
+          isAnatomyReviewer: updated.isAnatomyReviewer,
+          source: 'admin-reviewer-access',
+        },
+      },
+    });
+
+    return {
+      message: isAnatomyReviewer
+        ? 'Anatomy reviewer access granted'
+        : 'Anatomy reviewer access revoked',
+      changed: true,
+      user: updated,
+    };
+  }
+
   // Create a user of any role the actor is permitted to create.
   // Students require department + academic year; staff are pre-verified.
   async createUser(actorRole: string, data: CreateUserDto) {
@@ -490,8 +649,17 @@ export class UsersService {
       }
     }
 
-    const temporaryPassword = crypto.randomBytes(6).toString('hex');
-    const passwordHash = await bcrypt.hash(temporaryPassword, 12);
+    // No password is generated, and none is ever returned or logged.
+    //
+    // The account is created with a hash of a random value nobody knows, so it
+    // cannot be signed into until the staff member sets a password. The
+    // single-use, 48-hour setup token below is delivered by email; it reuses
+    // the reset-token column and is invalidated by the same atomic claim, so
+    // there is no second token mechanism to keep secure.
+    const unusablePassword = crypto.randomBytes(32).toString('hex');
+    const passwordHash = await bcrypt.hash(unusablePassword, 12);
+    const setupToken = crypto.randomBytes(32).toString('hex');
+    const setupExpiry = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
     const user = await this.prisma.$transaction(async (tx) => {
       const created = await tx.user.create({
@@ -500,8 +668,13 @@ export class UsersService {
           passwordHash,
           fullName: data.fullName,
           role: data.role,
+          // New teachers receive anatomy review access automatically. The
+          // flag remains revocable per account; see the anatomy:reviewer CLI.
+          ...(data.role === 'TEACHER' ? { isAnatomyReviewer: true } : {}),
           isEmailVerified: true,
           isActive: true,
+          passwordResetToken: setupToken,
+          passwordResetExpiry: setupExpiry,
           ...(data.departmentId ? { departmentId: data.departmentId } : {}),
           ...(data.academicYearId
             ? { academicYearId: data.academicYearId }
@@ -532,7 +705,33 @@ export class UsersService {
       return created;
     });
 
-    return { user, temporaryPassword };
+    // Invite the staff member to set their own password. A mail outage must not
+    // strand an account that already exists, so the fallback hands the
+    // single-use link to the creating admin instead — still never a password,
+    // still expiring, still consumed on first use.
+    const setupUrl = `${this.publicWebBase()}/reset-password?token=${encodeURIComponent(setupToken)}`;
+    let invitationSent = false;
+    try {
+      await this.mail.sendStaffInvitation(
+        user.email,
+        user.fullName,
+        setupUrl,
+        data.role,
+      );
+      invitationSent = true;
+    } catch (error) {
+      this.logger.warn(
+        `Staff invitation email could not be sent for user ${user.id}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
+    return {
+      user,
+      invitationSent,
+      // Present only when the email could not be sent. The admin passes it on
+      // out of band; it expires in 48 hours and stops working once used.
+      ...(invitationSent ? {} : { setupUrl }),
+    };
   }
 
   // Validate a department + academic-year pair (year must belong to dept).
@@ -582,6 +781,25 @@ export class UsersService {
       if (supers <= 1) {
         throw new ForbiddenException('Cannot delete the last super admin');
       }
+    }
+
+    // Financial history is never destroyed with an account.
+    //
+    // AuditLog rows survive a delete (actorId is ON DELETE SET NULL), but
+    // Payment and Subscription rows are the college's accounting record: they
+    // back receipts already issued to the student and any reconciliation the
+    // college has to perform later. There is no approved retention policy and
+    // no archive table, so a hard delete would destroy that history with no
+    // way back. Refuse the delete and point the admin at deactivation, which
+    // already exists and keeps the account (and its records) intact.
+    const [paymentCount, subscriptionCount] = await Promise.all([
+      this.prisma.payment.count({ where: { userId } }),
+      this.prisma.subscription.count({ where: { userId } }),
+    ]);
+    if (paymentCount > 0 || subscriptionCount > 0) {
+      throw new ConflictException(
+        `This account has financial history (${paymentCount} payment(s), ${subscriptionCount} subscription(s)) and cannot be deleted. Deactivate the account instead — financial records must be retained.`,
+      );
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -754,9 +972,20 @@ export class UsersService {
 
   // Student updates their own profile
   async updateProfile(userId: string, data: { fullName?: string }) {
+    // Allow-list. This route's body is a type-only annotation, not a DTO
+    // class, so the global ValidationPipe (`whitelist` +
+    // `forbidNonWhitelisted`) does not strip anything here — it skips
+    // validation when it has no class metatype to validate against. Passing
+    // the body straight to prisma.user.update would therefore let a caller set
+    // any column, including `role`. Copy only the field this endpoint owns.
+    const update: { fullName?: string } = {};
+    if (typeof data?.fullName === 'string') {
+      update.fullName = data.fullName;
+    }
+
     const user = await this.prisma.user.update({
       where: { id: userId },
-      data,
+      data: update,
       select: {
         id: true,
         email: true,

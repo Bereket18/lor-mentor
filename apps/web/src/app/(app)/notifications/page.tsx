@@ -2,6 +2,7 @@
 
 import { Bell, Loader2, CheckCheck } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 
 interface Notification {
@@ -10,14 +11,23 @@ interface Notification {
   title: string;
   message: string;
   isRead: boolean;
+  meta?: unknown;
   createdAt: string;
 }
 
 const LIST_KEY = ["notifications", "list"] as const;
 const COUNT_KEY = ["notifications", "unread-count"] as const;
 
+function notificationHref(notification: Notification): string | null {
+  const meta = notification.meta;
+  if (!meta || typeof meta !== "object" || Array.isArray(meta)) return null;
+  const href = (meta as Record<string, unknown>).href;
+  return typeof href === "string" && href.startsWith("/") ? href : null;
+}
+
 export default function NotificationsPage() {
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   const { data: notifications = [], isPending } = useQuery({
     queryKey: LIST_KEY,
@@ -91,40 +101,49 @@ export default function NotificationsPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {notifications.map((n) => (
-            <button
-              key={n.id}
-              type="button"
-              onClick={() => !n.isRead && markRead.mutate(n.id)}
-              className="w-full text-left rounded-2xl px-4 py-3.5 transition-colors"
-              style={{
-                background: n.isRead
-                  ? "var(--bg-surface)"
-                  : "rgba(45,212,191,0.04)",
-                border: n.isRead
-                  ? "1px solid var(--border-default)"
-                  : "1px solid rgba(45,212,191,0.2)",
-                cursor: n.isRead ? "default" : "pointer",
-              }}
-            >
-              <div className="flex items-start gap-2">
-                {!n.isRead && (
-                  <span
-                    aria-hidden
-                    className="mt-1.5 w-2 h-2 rounded-full flex-shrink-0"
-                    style={{ background: "var(--teal)" }}
-                  />
-                )}
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-primary">{n.title}</p>
-                  <p className="text-xs text-secondary mt-0.5">{n.message}</p>
-                  <p className="text-[10px] text-muted mt-1">
-                    {new Date(n.createdAt).toLocaleString()}
-                  </p>
+          {notifications.map((n) => {
+            const href = notificationHref(n);
+            return (
+              <button
+                key={n.id}
+                type="button"
+                onClick={() => {
+                  if (!n.isRead) markRead.mutate(n.id);
+                  if (href) router.push(href);
+                }}
+                className="w-full text-left rounded-2xl px-4 py-3.5 transition-colors"
+                style={{
+                  background: n.isRead
+                    ? "var(--bg-surface)"
+                    : "rgba(45,212,191,0.04)",
+                  border: n.isRead
+                    ? "1px solid var(--border-default)"
+                    : "1px solid rgba(45,212,191,0.2)",
+                  cursor: n.isRead && !href ? "default" : "pointer",
+                }}
+              >
+                <div className="flex items-start gap-2">
+                  {!n.isRead && (
+                    <span
+                      aria-hidden
+                      className="mt-1.5 w-2 h-2 rounded-full flex-shrink-0"
+                      style={{ background: "var(--teal)" }}
+                    />
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-primary">
+                      {n.title}
+                    </p>
+                    <p className="text-xs text-secondary mt-0.5">{n.message}</p>
+                    <p className="text-[10px] text-muted mt-1">
+                      {new Date(n.createdAt).toLocaleString()}
+                      {href ? " · Open" : ""}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

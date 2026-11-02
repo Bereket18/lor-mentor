@@ -18,5 +18,6 @@ export interface RequestUser {
   avatarPath: string | null;
   isActive: boolean;
   isEmailVerified: boolean;
+  isAnatomyReviewer: boolean;
   createdAt: Date;
 }
