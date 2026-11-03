@@ -32,6 +32,9 @@ export const LOADED_TEACHING_TEXT_SYSTEMS = new Set([
   "body-surface-lower",
   "nervous-central",
   "male-reproductive",
+  "digestive-upper",
+  "digestive-lower",
+  "digestive-liver",
 ]);
 
 export const TEACHING_TEXT_FIELDS = [

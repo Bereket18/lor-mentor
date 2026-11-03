@@ -744,6 +744,9 @@ describe('Generated Step 3 seed-to-model contracts', () => {
     'body-surface-lower',
     'nervous-central',
     'male-reproductive',
+    'digestive-upper',
+    'digestive-lower',
+    'digestive-liver',
   ]);
 
   const generatedEntries = ANATOMY_SEED_REGISTRY.filter(
@@ -757,7 +760,7 @@ describe('Generated Step 3 seed-to-model contracts', () => {
     ).toBe(16);
   });
 
-  it('splits the generated modules into eight loaded and eight empty', () => {
+  it('splits the generated modules into eleven loaded and five empty', () => {
     const loaded = generatedEntries
       .map((entry) => entry.system.slug)
       .filter((slug) => SYSTEMS_WITH_LOADED_TEACHING_TEXT.has(slug));
@@ -768,6 +771,9 @@ describe('Generated Step 3 seed-to-model contracts', () => {
     expect(loaded.sort()).toEqual([
       'body-surface-lower',
       'body-surface-upper',
+      'digestive-liver',
+      'digestive-lower',
+      'digestive-upper',
       'endocrine',
       'lymphatic',
       'male-reproductive',
@@ -777,9 +783,6 @@ describe('Generated Step 3 seed-to-model contracts', () => {
     ]);
     expect(empty.sort()).toEqual([
       'digestive-hepatobiliary',
-      'digestive-liver',
-      'digestive-lower',
-      'digestive-upper',
       'nervous-left',
       'nervous-right',
       'sensory-eye-left',

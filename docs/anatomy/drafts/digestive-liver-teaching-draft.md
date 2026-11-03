@@ -1,0 +1,73 @@
+# MD-level teaching text: digestive-liver (8 structures)
+
+**Status: AI-drafted, pending faculty review.** Original wording, written from general anatomical knowledge, not copied from any textbook and not yet verified by faculty. Load as `isReviewed=false`.
+
+Field use: summary (structure, histology, embryology); location (levels and relations); function (physiology and innervation); bloodSupply (artery, vein, lymph); clinicalNotes (pathology, imaging, procedures). British spelling. Segments follow Couinaud numbering; the model labels them as hepatovenous segments. Reviewer to confirm each against the 3D model.
+
+Common to all segments: each segment has its own portal pedicle at its centre (portal vein branch, hepatic artery branch and bile duct, enclosed in the Glissonian sheath) and drains through hepatic veins at its periphery. The liver receives about 75 percent of its blood from the portal vein and 25 percent from the hepatic artery. Nerve supply is from the hepatic plexus (sympathetic T7 to T10, anterior vagal fibres), and the capsule (Glisson) is sensitive to stretch; the right phrenic nerve supplies the bare area and diaphragmatic surface. Lymph drains to hepatic nodes at the porta hepatis, then coeliac nodes; the bare area drains to diaphragmatic and mediastinal nodes. The liver develops from the hepatic diverticulum of the foregut endoderm with septum transversum mesenchyme in the fourth week.
+
+---
+
+### hepatovenous-segment-ii
+- latinName: Segmentum hepaticum II
+- summary: The posterior-superior segment of the left lateral section of the liver (left lateral superior), drained by the left hepatic vein.
+- location: Upper left part of the liver under the left hemidiaphragm, above and behind segment III and above the left portal vein branch; it lies close to the stomach and the heart across the diaphragm and is separated from segment IV by the falciform ligament and left hepatic vein plane.
+- function: Takes part in all hepatic functions: metabolism of carbohydrate, protein and lipid, synthesis of albumin and clotting factors, bile production, detoxification and storage. Hepatocytes are organised in lobules and zones (zone 1 periportal, zone 3 centrilobular, most vulnerable to ischaemia).
+- bloodSupply: Arterial: lateral superior branch of the left hepatic artery. Portal: the lateral superior (segment II) branch of the left portal vein. Venous: the left hepatic vein to the inferior vena cava. Biliary: the segment II duct joins the left hepatic duct.
+- clinicalNotes: Left lateral sectionectomy (segments II and III) is a common resection for lesions in the left lateral section and for living-donor paediatric transplantation. A left-sided pyogenic abscess may extend through the diaphragm to the pericardium. Segment II is visible on the left in the epigastrium on ultrasound.
+
+### hepatovenous-segment-iii
+- latinName: Segmentum hepaticum III
+- summary: The anterior-inferior segment of the left lateral section (left lateral inferior), below and in front of segment II.
+- location: Lower left part of the liver, in contact with the stomach and anterior abdominal wall, and lying to the left of the falciform ligament and fissure for the ligamentum teres.
+- function: Takes part in all hepatic functions: metabolism of carbohydrate, protein and lipid, synthesis of albumin and clotting factors, bile production, detoxification and storage. Hepatocytes are organised in lobules and zones (zone 1 periportal, zone 3 centrilobular, most vulnerable to ischaemia).
+- bloodSupply: Arterial: lateral inferior branch of the left hepatic artery. Portal: the lateral inferior (segment III) branch of the left portal vein. Venous: the left hepatic vein. Biliary: the segment III duct, a main tributary of the left hepatic duct.
+- clinicalNotes: The segment III duct is a common percutaneous access for left-sided biliary drainage because it is peripheral and accessible under ultrasound. It is removed with segment II in left lateral sectionectomy. Its anterior surface is vulnerable in blunt abdominal trauma.
+
+### hepatovenous-segment-iv
+- latinName: Segmentum hepaticum IV
+- summary: The medial segment of the left liver, between the falciform ligament and the middle hepatic vein (Cantlie line), subdivided into IVa (superior) and IVb (inferior, the quadrate lobe).
+- location: Centre of the liver, bounded on the right by the gallbladder fossa and middle hepatic vein, on the left by the umbilical fissure and falciform ligament, and behind by the porta hepatis. The quadrate lobe (IVb) lies in front of the porta hepatis, above the gallbladder neck and cystic duct.
+- function: Takes part in all hepatic functions: metabolism of carbohydrate, protein and lipid, synthesis of albumin and clotting factors, bile production, detoxification and storage. Hepatocytes are organised in lobules and zones (zone 1 periportal, zone 3 centrilobular, most vulnerable to ischaemia).
+- bloodSupply: Arterial: the medial branches (middle hepatic artery) of the left hepatic artery. Portal: the medial (IVa and IVb) branches of the left portal vein. Venous: the middle hepatic vein and the left hepatic vein. Biliary: IVa and IVb ducts join the left hepatic duct near the hilum.
+- clinicalNotes: Hilar cholangiocarcinoma often invades the pedicle of segment IV. Focal fatty change or focal fatty sparing in segment IVb near the falciform ligament and gallbladder fossa mimics a mass on imaging. Left hepatectomy and extended resections include this segment; the plane of the middle hepatic vein defines the boundary with segments V and VIII.
+
+### hepatovenous-segment-v
+- latinName: Segmentum hepaticum V
+- summary: The anterior-inferior segment of the right anterior section, drained by the middle hepatic vein.
+- location: Lower right part of the liver, next to the gallbladder fossa, anterior to segment VI and below segment VIII, in contact with the hepatic flexure of the colon and the duodenum.
+- function: Takes part in all hepatic functions: metabolism of carbohydrate, protein and lipid, synthesis of albumin and clotting factors, bile production, detoxification and storage. Hepatocytes are organised in lobules and zones (zone 1 periportal, zone 3 centrilobular, most vulnerable to ischaemia).
+- bloodSupply: Arterial: anterior inferior segmental branch of the right hepatic artery. Portal: the anterior inferior (segment V) branch of the right portal vein. Venous: the middle hepatic vein. Biliary: the segment V duct, a tributary of the right anterior sectoral duct.
+- clinicalNotes: Gallbladder cancer often invades segments IVb and V directly, so extended cholecystectomy includes a wedge resection of these segments. Because segment V borders the gallbladder fossa, bleeding or bile leak from the liver bed can complicate laparoscopic cholecystectomy, alongside cystic artery and bile duct injury.
+
+### hepatovenous-segment-vi
+- latinName: Segmentum hepaticum VI
+- summary: The posterior-inferior segment of the right posterior section, drained by the right hepatic vein.
+- location: Lower posterior right part of the liver, in contact with the right kidney, right adrenal gland, hepatic flexure and the lower right ribs; the liver's inferior edge is palpable here when enlarged.
+- function: Takes part in all hepatic functions: metabolism of carbohydrate, protein and lipid, synthesis of albumin and clotting factors, bile production, detoxification and storage. Hepatocytes are organised in lobules and zones (zone 1 periportal, zone 3 centrilobular, most vulnerable to ischaemia).
+- bloodSupply: Arterial: posterior inferior segmental branch of the right hepatic artery. Portal: the posterior inferior (segment VI) branch of the right portal vein. Venous: the right hepatic vein. Biliary: the segment VI duct, a tributary of the right posterior sectoral duct.
+- clinicalNotes: A well-placed site for percutaneous right intercostal liver biopsy and ablation. Right posterior sectionectomy includes segments VI and VII. The segment VI duct may join the left or cystic duct as an anatomical variant, an important hazard in cholecystectomy. It rests on the hepatorenal pouch (Morison pouch), where fluid collects.
+
+### hepatovenous-segment-vii
+- latinName: Segmentum hepaticum VII
+- summary: The posterior-superior segment of the right posterior section, drained by the right hepatic vein; it is the least accessible segment surgically.
+- location: Upper posterior right part of the liver beneath the diaphragm, adjacent to the bare area and the inferior vena cava, behind segment VIII and above segment VI.
+- function: Takes part in all hepatic functions: metabolism of carbohydrate, protein and lipid, synthesis of albumin and clotting factors, bile production, detoxification and storage. Hepatocytes are organised in lobules and zones (zone 1 periportal, zone 3 centrilobular, most vulnerable to ischaemia).
+- bloodSupply: Arterial: posterior superior segmental branch of the right hepatic artery. Portal: the posterior superior (segment VII) branch of the right portal vein. Venous: the right hepatic vein, with short veins near the inferior vena cava. Biliary: the segment VII duct, a tributary of the right posterior sectoral duct.
+- clinicalNotes: Deep and posterior, so segment VII lesions are difficult to resect or ablate and to see on ultrasound. Amoebic and pyogenic abscesses of the right lobe commonly involve segments VII and VIII and can rupture through the diaphragm into the pleura, causing effusion or empyema; the bare area allows spread to the retroperitoneum.
+
+### hepatovenous-segment-viii
+- latinName: Segmentum hepaticum VIII
+- summary: The anterior-superior segment of the right anterior section, drained by the middle and right hepatic veins.
+- location: Upper anterior right part of the liver directly beneath the right hemidiaphragm and dome, above segment V and in front of segment VII, near the right lung base.
+- function: Takes part in all hepatic functions: metabolism of carbohydrate, protein and lipid, synthesis of albumin and clotting factors, bile production, detoxification and storage. Hepatocytes are organised in lobules and zones (zone 1 periportal, zone 3 centrilobular, most vulnerable to ischaemia).
+- bloodSupply: Arterial: anterior superior segmental branch of the right hepatic artery. Portal: the anterior superior (segment VIII) branch of the right portal vein. Venous: the middle and right hepatic veins. Biliary: the segment VIII duct, a tributary of the right anterior sectoral duct.
+- clinicalNotes: The subdiaphragmatic position makes it a site of hydatid cysts and amoebic abscess, with right shoulder-tip pain from diaphragmatic irritation (phrenic nerve, C3 to C5) and right pleural effusion. It is a difficult site for thermal ablation because the diaphragm and lung lie directly above. Resection of the right anterior section includes segments V and VIII.
+
+### caudate-lobe-of-liver
+- latinName: Lobus caudatus (Segmentum I)
+- summary: The small autonomous segment on the posterior surface of the liver, with a caudate process linking it to the right lobe and a papillary process projecting to the left. It is functionally independent of the main hepatic venous and portal divisions.
+- location: Posterior liver, between the inferior vena cava (behind), the fissure for the ligamentum venosum (in front and to the left) and the porta hepatis (below). It lies in the superior recess of the lesser sac, behind the lesser omentum, and the papillary process can lie near the pancreas and mimic a lymph node.
+- function: Takes part in all hepatic functions: metabolism of carbohydrate, protein and lipid, synthesis of albumin and clotting factors, bile production, detoxification and storage. Hepatocytes are organised in lobules and zones (zone 1 periportal, zone 3 centrilobular, most vulnerable to ischaemia). It has its own venous drainage and receives input from both the left and right pedicles.
+- bloodSupply: Arterial: branches of both the left and right hepatic arteries. Portal: branches of both the left and right portal veins. Venous: short hepatic veins draining directly into the inferior vena cava, independent of the three main hepatic veins. Biliary: ducts drain to both the left and right hepatic ducts.
+- clinicalNotes: In Budd-Chiari syndrome (hepatic vein outflow obstruction) the caudate lobe often hypertrophies because its drainage to the inferior vena cava is spared; it also enlarges in cirrhosis. Caudate lobectomy is technically difficult because of the vena cava, and a papillary process can mimic a peripancreatic lymph node on CT. The inferior vena cava is preserved in the piggyback technique of liver transplantation.

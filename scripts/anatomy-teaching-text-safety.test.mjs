@@ -72,13 +72,13 @@ const BATCH_ONE_LOADED_SYSTEMS = [
   "body-surface-lower",
   "nervous-central",
   "male-reproductive",
+  "digestive-upper",
+  "digestive-lower",
+  "digestive-liver",
 ];
 
 const EMPTY_GENERATED_SYSTEMS = [
   "digestive-hepatobiliary",
-  "digestive-liver",
-  "digestive-lower",
-  "digestive-upper",
   "nervous-left",
   "nervous-right",
   "sensory-eye-left",
@@ -93,13 +93,13 @@ describe("loaded-teaching-text set", () => {
         `${slug} should be in LOADED_TEACHING_TEXT_SYSTEMS`,
       );
     }
-    assert.equal(LOADED_TEACHING_TEXT_SYSTEMS.size, 8);
+    assert.equal(LOADED_TEACHING_TEXT_SYSTEMS.size, 11);
   });
 
   test("recognises loaded and unloaded systems", () => {
     assert.equal(isLoadedTeachingTextSystem("respiratory"), true);
     assert.equal(isLoadedTeachingTextSystem("nervous-central"), true);
-    assert.equal(isLoadedTeachingTextSystem("digestive-upper"), false);
+    assert.equal(isLoadedTeachingTextSystem("nervous-left"), false);
   });
 });
 
@@ -110,10 +110,10 @@ describe("empty-text validator guard", () => {
   });
 
   test("is still emitted for a non-loaded system", () => {
-    const lines = emptyTeachingTextGuardLines("digestive-upper");
+    const lines = emptyTeachingTextGuardLines("nervous-left");
     assert.equal(lines.length, 3);
     assert.match(lines.join("\n"), /must not contain teaching text/);
-    assert.equal(shouldEmitEmptyTeachingTextGuard("digestive-upper"), true);
+    assert.equal(shouldEmitEmptyTeachingTextGuard("nervous-left"), true);
   });
 
   test("loads a different loaded-systems set when one is supplied", () => {
@@ -218,7 +218,7 @@ describe("preservedCuratedText", () => {
     const bySlug = extractCuratedText(
       seedModule({ slug: "trachea", summary: "Loaded" }),
     );
-    assert.equal(preservedCuratedText("digestive-upper", bySlug), null);
+    assert.equal(preservedCuratedText("nervous-left", bySlug), null);
   });
 });
 
@@ -230,17 +230,17 @@ describe("assertRegenerationSafe", () => {
     assert.throws(
       () =>
         assertRegenerationSafe({
-          slug: "digestive-upper",
+          slug: "nervous-left",
           existingBySlug,
-          dataPath: "anatomy-digestive-upper.data.ts",
+          dataPath: "anatomy-nervous-left.data.ts",
         }),
       (error) => {
         assert.match(
           error.message,
           /Refusing to overwrite curated teaching text/,
         );
-        assert.match(error.message, /anatomy-digestive-upper\.data\.ts/);
-        assert.match(error.message, /"digestive-upper"/);
+        assert.match(error.message, /anatomy-nervous-left\.data\.ts/);
+        assert.match(error.message, /"nervous-left"/);
         assert.match(error.message, /trachea/);
         assert.match(error.message, /LOADED_TEACHING_TEXT_SYSTEMS/);
         return true;
@@ -260,7 +260,7 @@ describe("assertRegenerationSafe", () => {
   test("allows a non-loaded system whose draft is empty", () => {
     const existingBySlug = extractCuratedText(seedModule({ slug: "trachea" }));
     assert.doesNotThrow(() =>
-      assertRegenerationSafe({ slug: "digestive-upper", existingBySlug }),
+      assertRegenerationSafe({ slug: "nervous-left", existingBySlug }),
     );
   });
 });
@@ -279,7 +279,7 @@ describe("seed header and description", () => {
 
   test("unloaded header still says the text is empty", () => {
     assert.match(
-      teachingTextHeaderLines("digestive-upper").join("\n"),
+      teachingTextHeaderLines("nervous-left").join("\n"),
       /intentionally empty/,
     );
   });
@@ -290,7 +290,7 @@ describe("seed header and description", () => {
       /Teaching notes are an AI draft pending faculty review/,
     );
     assert.match(
-      systemTeachingDescription("Digestive system", "digestive-upper"),
+      systemTeachingDescription("Nervous system", "nervous-left"),
       /Teaching notes are empty pending faculty review/,
     );
   });
@@ -306,6 +306,9 @@ describe("real generated seed modules", () => {
     ["body-surface-lower", 1],
     ["nervous-central", 12],
     ["male-reproductive", 10],
+    ["digestive-upper", 12],
+    ["digestive-lower", 19],
+    ["digestive-liver", 8],
   ]);
 
   test("the loaded set is exactly the fully curated systems", () => {
