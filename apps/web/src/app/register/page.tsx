@@ -312,12 +312,9 @@ export default function RegisterPage() {
           </div>
 
           {/* -- Heading ---------------------------------------- */}
-          <h1 className="text-primary text-xl font-bold text-center mb-1" style={{ letterSpacing: "-0.02em" }}>
+          <h1 className="text-primary text-xl font-bold text-center mb-7" style={{ letterSpacing: "-0.02em" }}>
             Create your account
           </h1>
-          <p className="text-center text-sm mb-7 text-secondary">
-            Join Ethiopia&apos;s most advanced medical learning platform
-          </p>
 
           {/* -- Server error ----------------------------------- */}
           {serverError && (
@@ -346,7 +343,6 @@ export default function RegisterPage() {
                 id="register-full-name"
                 {...register("fullName")}
                 type="text"
-                placeholder="Bereket Adamsseged"
                 disabled={isSubmitting}
                 hasError={!!errors.fullName}
               />
