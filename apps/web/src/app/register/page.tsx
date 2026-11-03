@@ -343,6 +343,7 @@ export default function RegisterPage() {
                 id="register-full-name"
                 {...register("fullName")}
                 type="text"
+                placeholder="Abebe Kebede"
                 disabled={isSubmitting}
                 hasError={!!errors.fullName}
               />
