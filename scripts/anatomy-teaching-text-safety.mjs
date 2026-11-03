@@ -159,9 +159,11 @@ export function teachingTextHeaderLines(
 ) {
   if (loadedSystems.has(slug)) {
     return [
-      " * Teaching text is curated and is preserved across regeneration. It is",
-      " * an unverified AI draft pending faculty review, so these rows stay",
-      " * unreviewed and the module stays unpublished.",
+      " * Teaching text is an AI draft loaded from",
+      ` * docs/anatomy/drafts/${slug}-teaching-draft.md by`,
+      " * scripts/apply-anatomy-teaching-draft.mjs. It is pending faculty review, so",
+      " * these rows stay unreviewed (isReviewed false) and the module stays",
+      " * unpublished.",
     ];
   }
   return [
@@ -177,7 +179,7 @@ export function systemTeachingDescription(
   loadedSystems = LOADED_TEACHING_TEXT_SYSTEMS,
 ) {
   const notes = loadedSystems.has(slug)
-    ? "Teaching notes include an AI draft pending faculty review"
+    ? "Teaching notes are an AI draft pending faculty review"
     : "Teaching notes are empty pending faculty review";
   return `${name} anatomy model derived from BodyParts3D 4.0. ${notes}; this module is not published. See the attribution page for credit and licence details.`;
 }

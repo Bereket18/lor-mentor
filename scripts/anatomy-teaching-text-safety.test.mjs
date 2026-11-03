@@ -269,7 +269,12 @@ describe("seed header and description", () => {
   test("loaded header does not claim the text is empty", () => {
     const joined = teachingTextHeaderLines("respiratory").join("\n");
     assert.doesNotMatch(joined, /intentionally empty/);
-    assert.match(joined, /preserved across regeneration/);
+    assert.match(joined, /Teaching text is an AI draft loaded from/);
+    assert.match(
+      joined,
+      /docs\/anatomy\/drafts\/respiratory-teaching-draft\.md/,
+    );
+    assert.match(joined, /apply-anatomy-teaching-draft\.mjs/);
   });
 
   test("unloaded header still says the text is empty", () => {
@@ -282,7 +287,7 @@ describe("seed header and description", () => {
   test("description reflects whether text is loaded", () => {
     assert.match(
       systemTeachingDescription("Respiratory system", "respiratory"),
-      /Teaching notes include an AI draft pending faculty review/,
+      /Teaching notes are an AI draft pending faculty review/,
     );
     assert.match(
       systemTeachingDescription("Digestive system", "digestive-upper"),
@@ -308,6 +313,31 @@ describe("real generated seed modules", () => {
       [...LOADED_TEACHING_TEXT_SYSTEMS].sort(),
       ["respiratory", ...BATCH_ONE_LOADED_SYSTEMS].sort(),
     );
+  });
+
+  test("loaded header and description match the helper output", () => {
+    for (const slug of loadedCounts.keys()) {
+      const path = seedPath(slug);
+      const content = readFileSync(path, "utf8").replace(/\r\n/g, "\n");
+
+      assert.ok(
+        content.includes(teachingTextHeaderLines(slug).join("\n")),
+        `${slug} header should match teachingTextHeaderLines`,
+      );
+
+      const name = content.match(/\n  name: '([^']+)',\n/)?.[1];
+      const description = content.match(
+        /\n  description:\n    '([^']*)',\n/,
+      )?.[1];
+      assert.ok(name, `${slug} should declare a system name`);
+      assert.ok(description, `${slug} should declare a description`);
+
+      assert.equal(
+        description,
+        systemTeachingDescription(name, slug),
+        `${slug} description should match systemTeachingDescription`,
+      );
+    }
   });
 
   test("every loaded system is fully curated", () => {
