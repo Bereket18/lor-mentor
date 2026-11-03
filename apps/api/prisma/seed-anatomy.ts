@@ -13,11 +13,20 @@
  * Safety rules:
  *   - Default mode is create-only. Existing systems and structures are never
  *     updated, so faculty edits and isReviewed values survive re-seeding.
- *   - `--reconcile` updates system metadata (including the versioned model URL),
- *     refreshes the derived citation, sort-order, and related-structure fields
- *     on existing structures, and creates missing structures. It never
- *     overwrites name, latinName, summary, location, function, bloodSupply,
- *     clinicalNotes, meshName, or isReviewed.
+ *   - `--reconcile` refreshes only structural fields on rows that already
+ *     exist (system name, Latin name, description, model URL, and order; each
+ *     structure's citations, sort order, and related slugs) and creates
+ *     missing structures.
+ *
+ *     It must never change publication or review state. It never writes
+ *     isPublished, isSample, contentRevision, or any publicationApproved*
+ *     field on a system, and never writes isReviewed, reviewedAt,
+ *     reviewedById, or reviewedRevisionId on a structure. It also never
+ *     overwrites teaching text (summary, location, function, bloodSupply,
+ *     clinicalNotes), a curated Latin name, name, meshName, or layer on an
+ *     existing row. The write payloads are allowlisted in
+ *     `prisma/anatomy-reconcile.ts` and covered by
+ *     `src/modules/anatomy/anatomy-reconcile.spec.ts`.
  *   - `--prune-stale` deletes structures that exist in the database but are not
  *     in the seed. It requires an explicit flag because it is destructive.
  *     Take a database backup first and review the printed list.
@@ -34,6 +43,10 @@ import {
   getAnatomySeedEntry,
   orderStructuresForSeed,
 } from './anatomy-registry';
+import {
+  reconcilableStructureFields,
+  reconcilableSystemFields,
+} from './anatomy-reconcile';
 
 import type { AnatomySeedEntry } from './anatomy-registry';
 
@@ -154,8 +167,13 @@ function printPlan(plans: SeedPlan[]): void {
     const { entry } = plan;
     const textOnly = entry.structures.length - meshCount(entry);
     console.log(`[${entry.system.slug}] ${entry.system.name}`);
+    const seedPublication = entry.system.isPublished
+      ? 'published'
+      : 'unpublished draft';
     console.log(
-      `  Publication: ${entry.system.isPublished ? 'published' : 'unpublished draft'}`,
+      plan.existingSystemId && reconcile
+        ? `  Publication: ${seedPublication} in the seed; the live row is left unchanged`
+        : `  Publication: ${seedPublication}`,
     );
     console.log(
       `  Seed structures: ${entry.structures.length} (${meshCount(entry)} mesh, ${textOnly} text-only)`,
@@ -225,10 +243,10 @@ async function applyPlan(plan: SeedPlan): Promise<void> {
     if (reconcile) {
       await prisma.anatomySystem.update({
         where: { id: systemId },
-        data: entry.system,
+        data: reconcilableSystemFields(entry.system),
       });
       console.log(
-        `[${entry.system.slug}] Reconciled system metadata (model URL ${entry.system.modelUrl}).`,
+        `[${entry.system.slug}] Reconciled system metadata (model URL ${entry.system.modelUrl}); publication state left unchanged.`,
       );
     } else {
       console.log(
@@ -262,17 +280,12 @@ async function applyPlan(plan: SeedPlan): Promise<void> {
       skipped += 1;
       // Citations, order, and related slugs are derived from the model and
       // navigation graph, not faculty writing, so reconcile may refresh them.
-      // Teaching text, names, meshName, and review state stay put. meshName is
-      // excluded on purpose: legacy text-only rows may still hold an old mesh
-      // name and a blanket update could collide with the unique index.
+      // Teaching text, names, meshName, layer, and review state stay put; the
+      // allowlist in reconcilableStructureFields makes that structural.
       if (reconcile) {
         await prisma.anatomyStructure.update({
           where: { id: existing.id },
-          data: {
-            references: structure.references,
-            sortOrder: index + 1,
-            relatedSlugs: structure.relatedSlugs,
-          },
+          data: reconcilableStructureFields(structure, index + 1),
         });
         reconciled += 1;
       }
