@@ -119,10 +119,14 @@ SMTP_FROM="Lor Mentor <no-reply@your-domain>"
 
 ### 2.4 What the application sends
 
-| Message | Trigger | Link lifetime |
+| Message | Trigger | Validity |
 |---|---|---|
-| Email verification | Registration / resend-verification | 24 hours |
-| Password reset | Forgot password | 1 hour |
+| Email verification | Registration / resend-verification | 6-digit code, **15 minutes** |
+| Password reset | Forgot password | Link, **1 hour** |
+
+The verification message carries a six-digit code the student types into the app;
+it contains no link. The password-reset message is unchanged and still carries a
+link.
 
 ### 2.5 Billing and usage
 

@@ -69,6 +69,19 @@ enum NotificationType {
   AI_COMPLETE
 }
 
+// What a short verification code was issued for. Stored as a column so a code
+// issued for one purpose is a different row from a code issued for another and
+// can never validate across purposes.
+//
+// PASSWORD_RESET is reserved: password reset still uses its own
+// `passwordResetToken`/`passwordResetExpiry` columns and an emailed link. The
+// value exists so the separation is explicit and testable, and so a future
+// move of password reset onto codes needs no schema change.
+enum VerificationPurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
 // ─── USERS ────────────────────────────────────
 model User {
   id                  String    @id @default(cuid())
@@ -87,6 +100,11 @@ model User {
   // through the "Manage Reviewer Access" admin screen. ADMIN/SUPER_ADMIN are
   // never reviewers.
   isAnatomyReviewer   Boolean   @default(false)
+  // Superseded by the VerificationCode table below. Email verification now
+  // issues a 6-digit code stored as a bcrypt hash in its own row; these two
+  // columns are no longer written by any code path. They are deliberately NOT
+  // dropped — production is forward-only and the drop has no benefit — so any
+  // in-flight value is simply left inert. Remove in a later, separate migration.
   emailVerifyToken    String?
   emailVerifyExpiry   DateTime?
   passwordResetToken  String?
@@ -117,9 +135,48 @@ model User {
   anatomyRevisions AnatomyStructureRevision[] @relation("AnatomyRevisionEditor")
   reviewedStructures AnatomyStructure[]      @relation("AnatomyStructureReviewer")
   publicationApprovals AnatomySystem[]       @relation("AnatomySystemPublicationApprover")
+  verificationCodes VerificationCode[]
 
   @@index([email])
   @@index([role])
+}
+
+// A short, single-use email verification code.
+//
+// Only a bcrypt hash of the 6-digit code is stored: the plaintext code is
+// generated, emailed, and then discarded, so a database read never yields a
+// usable code. A 6-digit code has only a 10^6 keyspace, which is why the rest
+// of the defences — a 15-minute expiry, a 5-attempt budget, single-use
+// consumption and rate limiting — carry the weight rather than the hash alone.
+//
+// Rows are never deleted on issue. Issuing a new code marks the previous active
+// row `supersededAt` and inserts a new one, so "a new code invalidates the old
+// one" is a fact about the data rather than a convention, and the rows remain
+// countable for the per-account issuance cap.
+model VerificationCode {
+  id           String              @id @default(cuid())
+  userId       String
+  purpose      VerificationPurpose
+  // bcrypt hash of the 6-digit code. Never the code itself.
+  codeHash     String
+  expiresAt    DateTime
+  // Wrong guesses against THIS row. At MAX the row is burned: the claim and
+  // increment statements both require attempts < MAX, so the cap is enforced by
+  // the database rather than by read-then-write arithmetic.
+  attempts     Int                 @default(0)
+  // Set when the code is successfully used. Single-use is enforced by requiring
+  // consumedAt IS NULL in the claiming UPDATE.
+  consumedAt   DateTime?
+  // Set when a newer code for the same user and purpose was issued.
+  supersededAt DateTime?
+  createdAt    DateTime            @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Serves both the active-row lookup and the rolling-window issuance count.
+  @@index([userId, purpose, createdAt])
+  // Supports sweeping expired rows without a sequential scan.
+  @@index([expiresAt])
 }
 
 // ─── SUBSCRIPTIONS ────────────────────────────

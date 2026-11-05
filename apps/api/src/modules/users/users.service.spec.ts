@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
+import { VerificationPurpose } from '@prisma/client';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { MailService } from '../mail/mail.service';
 import { UsersService } from './users.service';
@@ -643,6 +644,356 @@ describe('UsersService — user list filters and admin program rules', () => {
         role: 'TEACHER',
         departmentId: 'dept-1',
       });
+    });
+  });
+});
+
+/**
+ * Every anti-abuse property of the six-digit code — single use, expiry, the
+ * attempt budget, supersession and the issuance cap — is enforced by a
+ * condition in the WHERE clause of one statement, never by application
+ * arithmetic between two statements. That is what makes them hold when two
+ * requests run at once, and it is also why they are worth pinning here: there
+ * is no test database in this repo, so what these assert is the exact contract
+ * handed to Prisma for the database to enforce.
+ */
+describe('UsersService — verification code storage guards', () => {
+  const findUserByEmail = jest.fn();
+  const updateManyCodes = jest.fn();
+  const createCode = jest.fn();
+  const findFirstCode = jest.fn();
+  const countCodes = jest.fn();
+  const deleteManyCodes = jest.fn();
+  const updateUser = jest.fn();
+
+  const txClient = {
+    verificationCode: {
+      deleteMany: deleteManyCodes,
+      updateMany: updateManyCodes,
+    },
+  };
+
+  // The service uses both transaction forms: the array form when issuing, and
+  // the interactive callback form when restoring a superseded code.
+  const transactionImpl = (arg: unknown) =>
+    typeof arg === 'function'
+      ? (arg as (client: unknown) => Promise<unknown>)(txClient)
+      : Promise.all(arg as Array<Promise<unknown>>);
+  const transaction = jest.fn(transactionImpl);
+
+  const prisma = {
+    user: { findUnique: findUserByEmail, update: updateUser },
+    verificationCode: {
+      updateMany: updateManyCodes,
+      create: createCode,
+      findFirst: findFirstCode,
+      count: countCodes,
+    },
+    $transaction: transaction,
+  } as unknown as PrismaService;
+
+  const service = new UsersService(prisma, mail, config);
+
+  beforeEach(() => {
+    for (const mock of [
+      findUserByEmail,
+      updateManyCodes,
+      createCode,
+      findFirstCode,
+      countCodes,
+      deleteManyCodes,
+      updateUser,
+      transaction,
+    ]) {
+      mock.mockReset();
+    }
+    transaction.mockImplementation(transactionImpl);
+    updateManyCodes.mockResolvedValue({ count: 1 });
+    deleteManyCodes.mockResolvedValue({ count: 1 });
+  });
+
+  type Statement = { where: Record<string, unknown>; data?: Record<string, unknown> };
+
+  function firstCall(mock: jest.Mock): Statement {
+    return mock.mock.calls[0][0] as Statement;
+  }
+
+  function firstCodeCount(): { where: Record<string, unknown> } {
+    return countCodes.mock.calls[0][0] as { where: Record<string, unknown> };
+  }
+
+  it('supersedes the active code and inserts the new one in one transaction', async () => {
+    createCode.mockResolvedValue({ id: 'code-new' });
+    const expiresAt = new Date('2026-11-04T12:15:00.000Z');
+
+    const created = await service.issueVerificationCode({
+      userId: 'user-1',
+      purpose: VerificationPurpose.EMAIL_VERIFICATION,
+      codeHash: '$2b$10$stored-hash',
+      expiresAt,
+    });
+
+    expect(created).toEqual({ id: 'code-new' });
+    // Both halves in one transaction: superseding without inserting would leave
+    // the account with no usable code, and inserting without superseding would
+    // leave two codes valid at once.
+    expect(transaction).toHaveBeenCalledTimes(1);
+    expect(transaction.mock.calls[0][0]).toHaveLength(2);
+
+    const supersede = firstCall(updateManyCodes);
+    expect(supersede.where).toEqual({
+      userId: 'user-1',
+      purpose: VerificationPurpose.EMAIL_VERIFICATION,
+      consumedAt: null,
+      supersededAt: null,
+    });
+    expect(supersede.data?.supersededAt).toBeInstanceOf(Date);
+
+    expect(createCode).toHaveBeenCalledWith({
+      data: {
+        userId: 'user-1',
+        purpose: VerificationPurpose.EMAIL_VERIFICATION,
+        codeHash: '$2b$10$stored-hash',
+        expiresAt,
+      },
+    });
+  });
+
+  it('issues codes under the requested purpose and no other', async () => {
+    createCode.mockResolvedValue({ id: 'code-new' });
+
+    await service.issueVerificationCode({
+      userId: 'user-1',
+      purpose: VerificationPurpose.PASSWORD_RESET,
+      codeHash: '$2b$10$stored-hash',
+      expiresAt: new Date(),
+    });
+
+    const supersede = firstCall(updateManyCodes);
+    const create = firstCall(createCode);
+    // Purpose is part of both the supersede filter and the insert, so a code
+    // issued for one purpose can never be redeemed for the other.
+    expect(supersede.where.purpose).toBe(VerificationPurpose.PASSWORD_RESET);
+    expect(create.data?.purpose).toBe(VerificationPurpose.PASSWORD_RESET);
+  });
+
+  it('selects only live codes: unexpired, unused, unsuperseded, under budget', async () => {
+    findFirstCode.mockResolvedValue({ id: 'code-1' });
+
+    await service.findActiveVerificationCode({
+      userId: 'user-1',
+      purpose: VerificationPurpose.EMAIL_VERIFICATION,
+      maxAttempts: 5,
+    });
+
+    const { where, orderBy } = findFirstCode.mock.calls[0][0] as {
+      where: Record<string, unknown>;
+      orderBy: unknown;
+    };
+
+    expect(where).toMatchObject({
+      userId: 'user-1',
+      purpose: VerificationPurpose.EMAIL_VERIFICATION,
+      consumedAt: null,
+      supersededAt: null,
+      attempts: { lt: 5 },
+    });
+    // Every one of those four conditions has to be here rather than checked
+    // afterwards: an expired, used, superseded or burned code has to match
+    // "nothing to compare against".
+    expect((where.expiresAt as { gt: unknown }).gt).toBeInstanceOf(Date);
+    expect(orderBy).toEqual({ createdAt: 'desc' });
+  });
+
+  it('claims a code with the whole guard in the update itself', async () => {
+    updateManyCodes.mockResolvedValue({ count: 1 });
+
+    await expect(
+      service.claimVerificationCode({
+        id: 'code-1',
+        codeHash: '$2b$10$stored-hash',
+        maxAttempts: 5,
+      }),
+    ).resolves.toBe(true);
+
+    const { where, data } = firstCall(updateManyCodes);
+    // The hash is part of the match, so a row replaced between the caller's read
+    // and this write cannot be consumed by that stale read.
+    expect(where).toMatchObject({
+      id: 'code-1',
+      codeHash: '$2b$10$stored-hash',
+      consumedAt: null,
+      supersededAt: null,
+      attempts: { lt: 5 },
+    });
+    expect((where.expiresAt as { gt: unknown }).gt).toBeInstanceOf(Date);
+    expect(data?.consumedAt).toBeInstanceOf(Date);
+  });
+
+  it('reports a loss when the claim matches nothing', async () => {
+    // Someone else consumed it first, or it expired, or it is out of attempts.
+    updateManyCodes.mockResolvedValue({ count: 0 });
+
+    await expect(
+      service.claimVerificationCode({
+        id: 'code-1',
+        codeHash: '$2b$10$stored-hash',
+        maxAttempts: 5,
+      }),
+    ).resolves.toBe(false);
+  });
+
+  it('increments the miss counter only while the budget allows it', async () => {
+    await service.recordVerificationMiss({ id: 'code-1', maxAttempts: 5 });
+
+    const { where, data } = firstCall(updateManyCodes);
+    // The bound lives in the WHERE clause so parallel wrong guesses cannot all
+    // read the same starting count and push the total past the budget.
+    expect(where).toMatchObject({
+      id: 'code-1',
+      consumedAt: null,
+      supersededAt: null,
+      attempts: { lt: 5 },
+    });
+    expect(data).toEqual({ attempts: { increment: 1 } });
+  });
+
+  it('counts every code issued in the window, superseded ones included', async () => {
+    countCodes.mockResolvedValue(3);
+    const since = new Date('2026-11-04T11:00:00.000Z');
+
+    await expect(
+      service.countCodesIssuedSince({
+        userId: 'user-1',
+        purpose: VerificationPurpose.EMAIL_VERIFICATION,
+        since,
+      }),
+    ).resolves.toBe(3);
+
+    const { where } = firstCodeCount();
+    expect(where).toEqual({
+      userId: 'user-1',
+      purpose: VerificationPurpose.EMAIL_VERIFICATION,
+      createdAt: { gte: since },
+    });
+    // Deliberately unfiltered by state: the cap is on how often the account can
+    // be mailed. Excluding superseded rows would let a resend loop run
+    // unbounded while still passing its own check.
+    expect(where).not.toHaveProperty('consumedAt');
+    expect(where).not.toHaveProperty('supersededAt');
+  });
+
+  it('removes only the replacement it created and revives the code it replaced', async () => {
+    await service.restoreSupersededCode({
+      newCodeId: 'code-new',
+      expectedNewHash: '$2b$10$new-hash',
+      supersededId: 'code-old',
+    });
+
+    expect(firstCall(deleteManyCodes).where).toEqual({
+      id: 'code-new',
+      codeHash: '$2b$10$new-hash',
+      consumedAt: null,
+    });
+
+    const restore = firstCall(updateManyCodes);
+    expect(restore.where).toEqual({ id: 'code-old', consumedAt: null });
+    expect(restore.data).toEqual({ supersededAt: null });
+  });
+
+  it('revives nothing when the replacement was already used', async () => {
+    // count 0 means the row is gone or no longer untouched — a concurrent
+    // resend already moved on, and undoing that would clobber it.
+    deleteManyCodes.mockResolvedValue({ count: 0 });
+
+    await service.restoreSupersededCode({
+      newCodeId: 'code-new',
+      expectedNewHash: '$2b$10$new-hash',
+      supersededId: 'code-old',
+    });
+
+    expect(updateManyCodes).not.toHaveBeenCalled();
+  });
+
+  it('revives nothing when there was no previous code to restore', async () => {
+    await service.restoreSupersededCode({
+      newCodeId: 'code-new',
+      expectedNewHash: '$2b$10$new-hash',
+      supersededId: null,
+    });
+
+    expect(deleteManyCodes).toHaveBeenCalledTimes(1);
+    expect(updateManyCodes).not.toHaveBeenCalled();
+  });
+
+  it('retires the superseded legacy columns on a successful verification', async () => {
+    updateUser.mockResolvedValue({ id: 'user-1' });
+
+    await service.markEmailVerified('user-1');
+
+    expect(updateUser).toHaveBeenCalledWith({
+      where: { id: 'user-1' },
+      data: {
+        isEmailVerified: true,
+        emailVerifyToken: null,
+        emailVerifyExpiry: null,
+      },
+    });
+  });
+});
+
+/**
+ * Addresses are compared case-insensitively in practice but Postgres compares
+ * the `@unique` column case-sensitively. Registration now lowercases, so the
+ * lookup has to reach accounts stored either way — without changing how any
+ * existing account behaves.
+ */
+describe('UsersService.findByEmail — exact match first, then normalised', () => {
+  const findUserByEmail = jest.fn();
+  const prisma = {
+    user: { findUnique: findUserByEmail },
+  } as unknown as PrismaService;
+  const service = new UsersService(prisma, mail, config);
+
+  beforeEach(() => {
+    findUserByEmail.mockReset();
+  });
+
+  it('returns the exact match without a second query', async () => {
+    const account = { id: 'user-1', email: 'Abebe@X.com' };
+    findUserByEmail.mockResolvedValue(account);
+
+    await expect(service.findByEmail('Abebe@X.com')).resolves.toBe(account);
+    expect(findUserByEmail).toHaveBeenCalledTimes(1);
+    expect(findUserByEmail).toHaveBeenCalledWith({
+      where: { email: 'Abebe@X.com' },
+    });
+  });
+
+  it('falls back to the lowercased form registration now stores', async () => {
+    const account = { id: 'user-1', email: 'abebe@x.com' };
+    findUserByEmail.mockResolvedValueOnce(null).mockResolvedValueOnce(account);
+
+    await expect(service.findByEmail('Abebe@X.com')).resolves.toBe(account);
+    expect(findUserByEmail).toHaveBeenNthCalledWith(2, {
+      where: { email: 'abebe@x.com' },
+    });
+  });
+
+  it('does not query twice when the address is already lowercase', async () => {
+    findUserByEmail.mockResolvedValue(null);
+
+    await expect(service.findByEmail('abebe@x.com')).resolves.toBeNull();
+    expect(findUserByEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it('trims before the fallback lookup', async () => {
+    const account = { id: 'user-1', email: 'abebe@x.com' };
+    findUserByEmail.mockResolvedValueOnce(null).mockResolvedValueOnce(account);
+
+    await expect(service.findByEmail('  Abebe@X.com  ')).resolves.toBe(account);
+    expect(findUserByEmail).toHaveBeenNthCalledWith(2, {
+      where: { email: 'abebe@x.com' },
     });
   });
 });
