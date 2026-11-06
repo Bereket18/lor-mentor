@@ -4,7 +4,7 @@ import {
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import type { PaymentStatus, Prisma } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ReceiptService } from './receipt.service';
@@ -18,6 +18,7 @@ import type { VerifyReceiptDto } from './dto/verify-receipt.dto';
 import type { SetBankAccountDto } from './dto/manage-bank.dto';
 import { BANK_CATALOG, catalogBank } from './bank-catalog';
 import { PaymentStateMachine } from './payment-state-machine';
+import { PaymentEventType } from './payment-event.types';
 import { addMonthsUtc } from './date-math';
 import { formatETB, toDecimal } from './money';
 import { assertValidImageFile } from '../../common/utils/image-magic-bytes';
@@ -60,6 +61,8 @@ export class PaymentsService {
     'APPROVED',
     'REJECTED',
     'REVERSED',
+    'EXPIRED',
+    'CANCELLED',
   ] as const;
 
   /**
@@ -79,7 +82,9 @@ export class PaymentsService {
       NOT: {
         method: 'CHAPA',
         chapaRef: null,
-        status: { not: 'APPROVED' },
+        // Unconfirmed/abandoned CHAPA attempts stay out of the admin queue;
+        // EXPIRED and CANCELLED are terminal outcomes and remain visible.
+        status: { in: ['PENDING', 'REJECTED'] },
       },
     };
     if (
@@ -148,6 +153,8 @@ export class PaymentsService {
       APPROVED: 0,
       REJECTED: 0,
       REVERSED: 0,
+      EXPIRED: 0,
+      CANCELLED: 0,
     };
     for (const group of grouped) {
       counts[group.status] = group._count._all;
@@ -168,7 +175,9 @@ export class PaymentsService {
         NOT: {
           method: 'CHAPA',
           chapaRef: null,
-          status: { not: 'APPROVED' },
+          // A failed initialization is noise for the student, but an open or
+          // expired checkout is theirs to see (and to cancel).
+          status: 'REJECTED',
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -392,9 +401,7 @@ export class PaymentsService {
         where: { userId, status: 'PENDING', method: 'MANUAL' },
       });
       if (pending) {
-        throw new BadRequestException(
-          'You already have a payment awaiting review',
-        );
+        throw new BadRequestException(this.pendingPaymentMessage(pending));
       }
 
       await this.assertNoActiveSubscription(userId);
@@ -605,9 +612,7 @@ export class PaymentsService {
       where: { userId, status: 'PENDING', method: 'MANUAL' },
     });
     if (pending) {
-      throw new BadRequestException(
-        'You already have a payment awaiting review',
-      );
+      throw new BadRequestException(this.pendingPaymentMessage(pending));
     }
 
     await this.assertNoActiveSubscription(userId);
@@ -1290,6 +1295,27 @@ export class PaymentsService {
   }
 
   /**
+   * One-PENDING-per-user rule message: never block silently — name the
+   * payment, its method and its status, and say what the student should do.
+   */
+  private pendingPaymentMessage(payment: {
+    id: string;
+    method: string;
+    status: string;
+  }): string {
+    if (payment.method === 'MANUAL') {
+      return (
+        `You already have a MANUAL bank-receipt payment (id ${payment.id}, status ${payment.status}) awaiting admin review. ` +
+        'You will be notified when it is approved or rejected; you cannot start another payment until then.'
+      );
+    }
+    return (
+      `You already have a ${payment.method} payment (id ${payment.id}, status ${payment.status}) in progress. ` +
+      'Complete it, cancel it, or wait for it to expire before starting a new one.'
+    );
+  }
+
+  /**
    * Guard against paying twice: if the user already has an ACTIVE subscription
    * that hasn't expired, block a new payment. They can renew once it lapses.
    * Shared by the manual and Chapa entry points.
@@ -1306,6 +1332,57 @@ export class PaymentsService {
     }
   }
 
+  /**
+   * Student-facing cancel of their OWN pending online (Chapa) payment.
+   * Owner-checked, and the PENDING → CANCELLED move goes through the state
+   * machine (guarded update + PAYMENT_CANCELLED event) inside one transaction
+   * with the audit row, so a concurrent approval can never be overwritten.
+   * Bank-receipt (MANUAL) payments are admin-review items and cannot be
+   * cancelled here.
+   */
+  async cancelOwn(paymentId: string, userId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const payment = await tx.payment.findUnique({
+        where: { id: paymentId },
+        select: { id: true, userId: true, status: true, method: true, txRef: true },
+      });
+      if (!payment || payment.userId !== userId) {
+        throw new NotFoundException('Payment not found');
+      }
+      if (payment.status !== 'PENDING') {
+        throw new BadRequestException('Only a pending payment can be cancelled');
+      }
+      if (payment.method !== 'CHAPA') {
+        throw new BadRequestException(
+          'Bank-receipt payments are reviewed by an admin and cannot be cancelled here',
+        );
+      }
+
+      const won = await this.states.transition(tx, paymentId, {
+        from: ['PENDING'],
+        to: 'CANCELLED',
+        type: PaymentEventType.PAYMENT_CANCELLED,
+        actorId: userId,
+        reason: 'Cancelled by the student before completing the checkout',
+      });
+      if (!won) {
+        throw new BadRequestException('Payment is no longer pending');
+      }
+
+      await tx.auditLog.create({
+        data: {
+          actorId: userId,
+          action: 'PAYMENT_CANCELLED',
+          entityType: 'Payment',
+          entityId: paymentId,
+          meta: { method: payment.method, txRef: payment.txRef ?? null },
+        },
+      });
+
+      return { message: 'Payment cancelled' };
+    });
+  }
+
   /** MANUAL flow: an admin approves a pending receipt. */
   async approve(paymentId: string, adminId: string) {
     return this.finalizeApproval(paymentId, { reviewedBy: adminId });
@@ -1319,10 +1396,24 @@ export class PaymentsService {
    * record without re-activating anything (Chapa retries webhooks, and an admin
    * might double-click). The subscription activation + payment update happen in
    * one transaction; the PDF receipt and notification are produced afterwards.
+   *
+   * Late Chapa payments: a checkout may already be closed as EXPIRED (abandoned
+   * lazily) or CANCELLED (student cancelled) when Chapa confirms the money did
+   * move. `allowExpiredOrCancelled` is set ONLY by the verified gateway paths
+   * (webhook, callback, verify endpoint, lazy resolution) after an exact
+   * tx_ref/ETB/amount check. Admin manual approval never sets it, so a closed
+   * checkout can never be reopened from the dashboard. REJECTED and REVERSED
+   * stay fully terminal.
    */
   async finalizeApproval(
     paymentId: string,
-    opts: { reviewedBy?: string; chapaRef?: string; paidAt?: Date } = {},
+    opts: {
+      reviewedBy?: string;
+      chapaRef?: string;
+      paidAt?: Date;
+      /** Verified-gateway only: revive EXPIRED/CANCELLED. Never for admins. */
+      allowExpiredOrCancelled?: boolean;
+    } = {},
   ) {
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
@@ -1339,6 +1430,20 @@ export class PaymentsService {
     if (payment.status === 'REVERSED') {
       throw new BadRequestException('Payment has been reversed');
     }
+    const closed =
+      payment.status === 'EXPIRED' || payment.status === 'CANCELLED';
+    if (closed && !opts.allowExpiredOrCancelled) {
+      throw new BadRequestException(
+        `Payment is ${payment.status} and can only be approved by a verified gateway confirmation`,
+      );
+    }
+    // Defence in depth: even if a caller passed both flags, an admin review
+    // must never reopen a closed checkout.
+    if (closed && opts.reviewedBy) {
+      throw new BadRequestException(
+        'A closed payment cannot be approved by an admin',
+      );
+    }
     if (opts.reviewedBy) {
       await this.assertAdminApprovalAllowed(payment);
     }
@@ -1352,31 +1457,54 @@ export class PaymentsService {
     const receiptNumber = this.receipts.buildReceiptNumber(payment.id, now);
 
     const result = await this.prisma.$transaction(async (tx) => {
-      // Atomically CLAIM the PENDING → APPROVED transition through the state
-      // machine: guarded update (WHERE status = 'PENDING') + immutable
-      // PaymentEvent in the same transaction. Under READ COMMITTED a second
-      // concurrent caller (Chapa webhook retry while the browser callback
-      // also fires) blocks here, then matches 0 rows and bails — so
-      // activation, the notification, the audit log and the PDF are produced
-      // exactly once. This is the real idempotency guard; the early status
-      // check above is just a fast path.
+      // Re-read inside the transaction: the status may have moved since the
+      // fast-path read above (an abandoned checkout can be expired by a
+      // concurrent initialize). The guarded update below only fires for the
+      // status we just observed, so a late transition can never overwrite a
+      // newer one.
+      const current = await tx.payment.findUnique({
+        where: { id: paymentId },
+        select: { status: true },
+      });
+      if (!current) return null;
+      const late =
+        current.status === 'EXPIRED' || current.status === 'CANCELLED';
+      if (late && !opts.allowExpiredOrCancelled) return null;
+      if (current.status !== 'PENDING' && !late) return null;
+      const fromStatus = current.status as PaymentStatus;
+
+      // Atomically CLAIM the transition through the state machine: guarded
+      // update (WHERE status = fromStatus) + immutable PaymentEvent in the
+      // same transaction. Under READ COMMITTED a second concurrent caller
+      // (Chapa webhook retry while the browser callback also fires) blocks
+      // here, then matches 0 rows and bails — so activation, the
+      // notification, the audit log and the PDF are produced exactly once.
+      // This is the real idempotency guard; the early status checks above are
+      // just a fast path.
       const won = await this.states.transition(tx, paymentId, {
-        from: ['PENDING'],
+        from: [fromStatus],
         to: 'APPROVED',
-        type: 'PAYMENT_APPROVED',
+        type: late
+          ? PaymentEventType.PAYMENT_APPROVED_AFTER_EXPIRY
+          : PaymentEventType.PAYMENT_APPROVED,
         actorId: opts.reviewedBy ?? null,
+        reason: late
+          ? `Chapa verified the exact payment after it was ${fromStatus}`
+          : null,
         data: {
           receiptNumber,
           chapaRef: opts.chapaRef ?? payment.chapaRef,
           paidAt: now,
           reviewedBy: opts.reviewedBy ?? null,
           reviewedAt: now,
+          ...(late ? { recoveredFromStatus: fromStatus } : {}),
         },
         meta: {
           method: payment.method,
           receiptNumber,
           auto: !opts.reviewedBy,
           planName,
+          ...(late ? { recoveredFromStatus: fromStatus } : {}),
         },
       });
       if (!won) {
@@ -1407,15 +1535,26 @@ export class PaymentsService {
           userId: payment.userId,
           type: 'PAYMENT_APPROVED',
           title: 'Payment approved',
-          message: `Your ${planName} subscription is now active.`,
-          meta: { paymentId, receiptNumber },
+          // Plan names already include the word "subscription" (e.g.
+          // "6-month subscription"), so appending it again produced
+          // "Your 6-month subscription subscription is now active."
+          // Show plan/amount instead - it also tells the student what
+          // they paid for.
+          message: `Your ${planName.trim()}/${Number(payment.amount)} is now active.`,
+          meta: {
+            paymentId,
+            receiptNumber,
+            ...(late ? { recoveredFromStatus: fromStatus } : {}),
+          },
         },
       });
 
       await tx.auditLog.create({
         data: {
           actorId: opts.reviewedBy ?? payment.userId,
-          action: 'PAYMENT_APPROVED',
+          action: late
+            ? PaymentEventType.PAYMENT_APPROVED_AFTER_EXPIRY
+            : 'PAYMENT_APPROVED',
           entityType: 'Payment',
           entityId: paymentId,
           meta: {
@@ -1423,6 +1562,7 @@ export class PaymentsService {
             receiptNumber,
             auto: !opts.reviewedBy,
             planName,
+            ...(late ? { recoveredFromStatus: fromStatus } : {}),
           },
         },
       });
@@ -1432,7 +1572,18 @@ export class PaymentsService {
 
     // Another concurrent caller won the race and already finalized everything.
     if (!result) {
-      return { message: 'Payment already approved', alreadyApproved: true };
+      const fresh = await this.prisma.payment.findUnique({
+        where: { id: paymentId },
+        select: { status: true },
+      });
+      if (fresh?.status === 'APPROVED') {
+        return { message: 'Payment already approved', alreadyApproved: true };
+      }
+      return {
+        message: `Payment is ${fresh?.status ?? 'no longer approvable'}`,
+        approved: false,
+        status: fresh?.status ?? null,
+      };
     }
     const { startDate, endDate } = result;
 
@@ -1582,7 +1733,7 @@ export class PaymentsService {
       const ok = await this.states.transition(tx, paymentId, {
         from: ['PENDING'],
         to: 'REJECTED',
-        type: 'PAYMENT_REJECTED',
+        type: PaymentEventType.PAYMENT_REJECTED,
         actorId: adminId,
         reason: rejectionReason,
         data: { rejectionReason, reviewedBy: adminId, reviewedAt },
@@ -1658,7 +1809,7 @@ export class PaymentsService {
       const won = await this.states.transition(tx, paymentId, {
         from: ['APPROVED'],
         to: 'REVERSED',
-        type: 'PAYMENT_REVERSED',
+        type: PaymentEventType.PAYMENT_REVERSED,
         actorId: adminId,
         reason: trimmedReason,
         data: {
@@ -1688,7 +1839,7 @@ export class PaymentsService {
       await tx.notification.create({
         data: {
           userId: payment.userId,
-          type: 'PAYMENT_REVERSED',
+          type: PaymentEventType.PAYMENT_REVERSED,
           title: 'Payment reversed',
           message: accessRemoved
             ? `Your ${payment.plan.name} payment was reversed by the college and your access has been removed. Reason: ${trimmedReason}`

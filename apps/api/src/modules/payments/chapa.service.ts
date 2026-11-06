@@ -11,6 +11,7 @@ import * as crypto from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PaymentsService } from './payments.service';
 import { PaymentStateMachine } from './payment-state-machine';
+import { PaymentEventType } from './payment-event.types';
 import { amountsEqual, formatETB, toDecimal } from './money';
 
 interface ChapaInitResponse {
@@ -79,6 +80,14 @@ export class ChapaService {
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
 
+  /**
+   * A PENDING Chapa checkout younger than this is still "open": initialize()
+   * resumes it instead of expiring it. Older abandoned checkouts are expired
+   * lazily (PENDING → EXPIRED) so the one-PENDING-per-user index can never
+   * lock a student out of paying.
+   */
+  static readonly ABANDON_AFTER_MS = 30 * 60 * 1000;
+
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
@@ -131,6 +140,28 @@ export class ChapaService {
     // Don't let a user pay again while a subscription is still active.
     await this.payments.assertNoActiveSubscription(user.id);
 
+    // Lazy resolution: at most one PENDING payment per user (partial unique
+    // index), so before creating a new checkout, resolve any existing PENDING
+    // row. An abandoned Chapa checkout must never lock the student out.
+    const existing = await this.prisma.payment.findFirst({
+      where: { userId: user.id, status: 'PENDING' },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        method: true,
+        status: true,
+        txRef: true,
+        planId: true,
+        checkoutUrl: true,
+        amount: true,
+        createdAt: true,
+      },
+    });
+    if (existing) {
+      const resolved = await this.resolvePendingPayment(existing, planId);
+      if (resolved) return resolved;
+    }
+
     // Chapa permanently reserves tx_ref values, including references from a
     // failed or abandoned checkout, so every initialization uses a fresh
     // unguessable reference. At most one PENDING payment per user is allowed
@@ -153,7 +184,7 @@ export class ChapaService {
     } catch (err) {
       if (isUniqueViolation(err)) {
         throw new BadRequestException(
-          'You already have a payment in progress. Complete it, or contact the college if it is stuck.',
+          'You already have a payment in progress. If it is a bank receipt it is awaiting admin review; if it is an online checkout, complete it, cancel it, or wait for it to expire (30 minutes) before starting a new one.',
         );
       }
       throw err;
@@ -175,7 +206,12 @@ export class ChapaService {
       return_url: `${webBase}/pricing/payment/callback?tx=${txRef}`,
       customization: {
         title: 'Lor Mentor',
-        description: `${plan.name} subscription`.slice(0, 50),
+        // Shown on the hosted Chapa checkout page. The plan name already
+        // contains the word "subscription", so don't append it again.
+        // Chapa only allows letters/numbers/hyphens/underscores/spaces/dots
+        // in this field (a "/" is rejected), so plan/amount uses a hyphen:
+        // "6-month subscription - 500".
+        description: `${plan.name.trim()} - ${Number(plan.priceETB)}`.slice(0, 50),
       },
     };
 
@@ -231,10 +267,181 @@ export class ChapaService {
         `Chapa initialization failed: ${reason}`,
       );
       this.logger.error(`Chapa initialize failed for ${txRef}: ${reason}`);
-      throw new BadRequestException(reason);
+      // Never echo the gateway's raw error to the student — it can contain
+      // key/account details. The detailed reason stays on the payment row
+      // (admin queue) and in the server log.
+      throw new BadRequestException(
+        'Online payment could not be started right now. Please try again in a few minutes, or pay by bank transfer.',
+      );
     }
 
-    return { checkoutUrl: json.data.checkout_url, txRef };
+    // Remember the hosted page URL so a still-open checkout can be resumed by
+    // lazy resolution instead of duplicated (best-effort: never fail the
+    // checkout because the annotation write failed).
+    const checkoutUrl = json.data.checkout_url;
+    await this.prisma.payment
+      .update({ where: { id: payment.id }, data: { checkoutUrl } })
+      .catch((err) =>
+        this.logger.warn(
+          `Could not store checkoutUrl for ${txRef}: ${err instanceof Error ? err.message : String(err)}`,
+        ),
+      );
+
+    return { checkoutUrl, txRef };
+  }
+
+  /**
+   * Resolve an existing PENDING payment before starting a new checkout.
+   * Returns a response object when the caller should NOT create a new
+   * checkout (resumed URL / approval / informative error thrown), or null
+   * when the row was expired and a fresh checkout may proceed.
+   */
+  private async resolvePendingPayment(
+    payment: {
+      id: string;
+      method: string;
+      status: string;
+      txRef: string | null;
+      planId: string;
+      checkoutUrl: string | null;
+      amount: string | number | Prisma.Decimal | null;
+      createdAt: Date;
+    },
+    planId: string,
+  ) {
+    if (payment.method !== 'CHAPA' || !payment.txRef) {
+      // A PENDING bank receipt is an admin-review item — never silently
+      // blocked: name the payment, its method and status, and say what to do.
+      throw new BadRequestException(
+        `You already have a ${payment.method} bank-receipt payment (id ${payment.id}, status ${payment.status}) awaiting admin review. ` +
+          'You will be notified when it is approved or rejected; you cannot start another payment until then.',
+      );
+    }
+    return this.resolvePendingChapa({ ...payment, txRef: payment.txRef }, planId);
+  }
+
+  /**
+   * Ask Chapa about the existing checkout's txRef (same timeout as every other
+   * gateway call) and act on the answer:
+   *  - paid and exact  → finalize through the normal approve path (webhook was
+   *    lost, but the money moved — never start a duplicate checkout);
+   *  - unpaid/failed/unknown and older than 30 min → PENDING → EXPIRED via the
+   *    state machine (PAYMENT_EXPIRED, reason recorded), then continue with a
+   *    new checkout;
+   *  - unpaid and younger than 30 min → resume the stored checkout URL for the
+   *    same plan, or a clear message with the remaining wait;
+   *  - Chapa unreachable → never expire on a guess; clear retry message.
+   */
+  private async resolvePendingChapa(
+    payment: {
+      id: string;
+      txRef: string;
+      planId: string;
+      checkoutUrl: string | null;
+      amount: string | number | Prisma.Decimal | null;
+      createdAt: Date;
+    },
+    planId: string,
+  ) {
+    let json: ChapaVerifyResponse;
+    try {
+      const res = await this.fetchWithTimeout(
+        `${this.baseUrl}/transaction/verify/${encodeURIComponent(payment.txRef)}`,
+        { headers: { Authorization: `Bearer ${this.secretKey()}` } },
+      );
+      json = (await res.json()) as ChapaVerifyResponse;
+    } catch (err) {
+      await this.states
+        .recordEvent(this.prisma, payment.id, PaymentEventType.CHAPA_VERIFY_UNREACHABLE, {
+          fromStatus: 'PENDING',
+          toStatus: 'PENDING',
+          meta: {
+            context: 'initialize-retry',
+            error: err instanceof Error ? err.name : 'Error',
+          },
+        })
+        .catch(() => undefined);
+      throw new ServiceUnavailableException(
+        'We could not reach the payment gateway to check your previous checkout. It has NOT been expired — please try again in a minute.',
+      );
+    }
+
+    const data = json.data ?? undefined;
+    const paid = json.status === 'success' && data?.status === 'success';
+    const settled = toDecimal(data?.amount);
+    const expected = toDecimal(payment.amount);
+    const exact =
+      paid &&
+      data?.tx_ref === payment.txRef &&
+      typeof data?.currency === 'string' &&
+      data.currency.toUpperCase() === 'ETB' &&
+      Boolean(settled && expected && amountsEqual(settled, expected));
+
+    if (exact) {
+      await this.payments.finalizeApproval(payment.id, {
+        chapaRef: data?.reference ?? undefined,
+        paidAt: new Date(),
+        // Verified gateway confirmation of an exact payment may revive a
+        // checkout a concurrent request just closed as EXPIRED/CANCELLED.
+        allowExpiredOrCancelled: true,
+      });
+      return {
+        approved: true as const,
+        txRef: payment.txRef,
+        message:
+          'Your previous payment was confirmed by the gateway and is now approved — your subscription is active.',
+      };
+    }
+
+    const ageMs = Date.now() - new Date(payment.createdAt).getTime();
+    if (ageMs <= ChapaService.ABANDON_AFTER_MS) {
+      const remainingMin = Math.max(
+        1,
+        Math.ceil((ChapaService.ABANDON_AFTER_MS - ageMs) / 60000),
+      );
+      if (payment.planId === planId && payment.checkoutUrl) {
+        return {
+          checkoutUrl: payment.checkoutUrl,
+          txRef: payment.txRef,
+          resumed: true as const,
+        };
+      }
+      throw new BadRequestException(
+        `Your previous online checkout is still open — complete it within about ${remainingMin} min, or try again after it expires.`,
+      );
+    }
+
+    const reason = `Abandoned checkout expired after ${Math.floor(ageMs / 60000)} min; Chapa reported "${data?.status ?? json.status ?? 'unknown'}" for ${payment.txRef}`;
+    const expired = await this.prisma.$transaction((tx) =>
+      this.states.transition(tx, payment.id, {
+        from: ['PENDING'],
+        to: 'EXPIRED',
+        type: PaymentEventType.PAYMENT_EXPIRED,
+        reason,
+        data: { reviewedAt: new Date() },
+      }),
+    );
+    if (!expired) {
+      // Lost the race: another request resolved this row concurrently. If it
+      // was approved, say so; otherwise ask for a retry.
+      const fresh = await this.prisma.payment.findUnique({
+        where: { id: payment.id },
+        select: { status: true },
+      });
+      if (fresh?.status === 'APPROVED') {
+        return {
+          approved: true as const,
+          txRef: payment.txRef,
+          message:
+            'Your previous payment was confirmed and approved — your subscription is active.',
+        };
+      }
+      throw new BadRequestException(
+        'Your previous payment was just resolved by another request. Please try again.',
+      );
+    }
+    this.logger.warn(`Expired abandoned Chapa checkout ${payment.txRef}: ${reason}`);
+    return null; // fall through: create a fresh checkout
   }
 
   /** PENDING → REJECTED via the state machine (guarded + event, one tx). */
@@ -243,7 +450,7 @@ export class ChapaService {
       this.states.transition(tx, paymentId, {
         from: ['PENDING'],
         to: 'REJECTED',
-        type: 'CHAPA_INIT_FAILED',
+        type: PaymentEventType.CHAPA_INIT_FAILED,
         reason,
         data: { rejectionReason: reason, reviewedAt: new Date() },
       }),
@@ -316,7 +523,11 @@ export class ChapaService {
       throw new NotFoundException('Payment not found');
     }
 
-    if (payment.status === 'PENDING') {
+    if (
+      payment.status === 'PENDING' ||
+      payment.status === 'EXPIRED' ||
+      payment.status === 'CANCELLED'
+    ) {
       await this.confirmAndApprove(txRef);
     }
 
@@ -352,7 +563,7 @@ export class ChapaService {
       // Network error or timeout: leave PENDING, record the event, never throw
       // into the webhook path (Chapa will retry; the browser callback can too).
       await this.states
-        .recordEvent(this.prisma, payment.id, 'CHAPA_VERIFY_UNREACHABLE', {
+        .recordEvent(this.prisma, payment.id, PaymentEventType.CHAPA_VERIFY_UNREACHABLE, {
           fromStatus: payment.status,
           toStatus: payment.status,
           meta: { error: err instanceof Error ? err.name : 'Error' },
@@ -385,7 +596,7 @@ export class ChapaService {
           this.states.transition(tx, payment.id, {
             from: ['PENDING'],
             to: 'REJECTED',
-            type: 'CHAPA_PAYMENT_FAILED',
+            type: PaymentEventType.CHAPA_PAYMENT_FAILED,
             reason: `Chapa reported ${data?.status}`,
             data: {
               rejectionReason: `Chapa reported ${data?.status}`,
@@ -443,20 +654,73 @@ export class ChapaService {
             } as Prisma.InputJsonValue,
           },
         });
-        if (marked.count === 0) return;
-        await this.states.recordEvent(tx, payment.id, 'CHAPA_VERIFY_MISMATCH', {
-          fromStatus: payment.status,
-          toStatus: payment.status,
-          meta: {
-            fields: mismatches,
-            expected: expected?.toString() ?? null,
-            reported: settled?.toString() ?? null,
-            currency: typeof data?.currency === 'string' ? data.currency : null,
-          },
-        });
+        // An already-approved payment needs no exception; any other status
+        // (EXPIRED/CANCELLED/REJECTED/REVERSED) keeps its status but records
+        // the mismatch so a paid-but-inexact late transaction is not lost.
+        if (marked.count > 0) {
+          await this.states.recordEvent(
+            tx,
+            payment.id,
+            PaymentEventType.CHAPA_VERIFY_MISMATCH,
+            {
+              fromStatus: 'PENDING',
+              toStatus: 'PENDING',
+              meta: {
+                fields: mismatches,
+                expected: expected?.toString() ?? null,
+                reported: settled?.toString() ?? null,
+                currency:
+                  typeof data?.currency === 'string' ? data.currency : null,
+              },
+            },
+          );
+        } else if (payment.status !== 'APPROVED') {
+          await this.states.recordEvent(
+            tx,
+            payment.id,
+            PaymentEventType.CHAPA_VERIFY_MISMATCH,
+            {
+              fromStatus: payment.status,
+              toStatus: payment.status,
+              meta: {
+                fields: mismatches,
+                expected: expected?.toString() ?? null,
+                reported: settled?.toString() ?? null,
+                currency:
+                  typeof data?.currency === 'string' ? data.currency : null,
+              },
+            },
+          );
+        }
       });
       this.logger.warn(
-        `Chapa verify mismatch for ${txRef}: ${mismatches.join(',')} — payment stays PENDING for manual review`,
+        `Chapa verify mismatch for ${txRef}: ${mismatches.join(',')} — payment stays ${payment.status} for manual review`,
+      );
+      return;
+    }
+
+    // REJECTED and REVERSED are fully terminal: a late exact payment must not
+    // reopen them, but it must never be silently dropped either. Record the
+    // money on the immutable ledger so an admin can refund/reconcile.
+    if (payment.status === 'REVERSED' || payment.status === 'REJECTED') {
+      await this.states.recordEvent(
+        this.prisma,
+        payment.id,
+        PaymentEventType.CHAPA_LATE_PAYMENT_TERMINAL,
+        {
+          fromStatus: payment.status,
+          toStatus: payment.status,
+          reason: `Chapa verified an exact payment after the payment was ${payment.status}; terminal status kept for refund review`,
+          meta: {
+            txRef,
+            chapaRef: data?.reference ?? null,
+            amount: settled?.toString() ?? null,
+            currency: 'ETB',
+          },
+        },
+      );
+      this.logger.error(
+        `Late Chapa payment on ${payment.status} payment ${payment.id} (tx ${txRef}) — manual refund review required`,
       );
       return;
     }
@@ -464,6 +728,8 @@ export class ChapaService {
     await this.payments.finalizeApproval(payment.id, {
       chapaRef: data?.reference ?? undefined,
       paidAt: new Date(),
+      // Only the verified gateway path may revive EXPIRED/CANCELLED.
+      allowExpiredOrCancelled: true,
     });
   }
 

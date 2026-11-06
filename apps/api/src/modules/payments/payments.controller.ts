@@ -242,6 +242,15 @@ export class PaymentsController {
     return this.chapa.verifyByTxRef(txRef, user.id);
   }
 
+  // ── Student: cancel their own PENDING online (Chapa) payment ──
+  // Owner-checked in the service; writes its own PAYMENT_CANCELLED audit row.
+  @Post(':id/cancel')
+  @UseGuards(JwtAuthGuard)
+  @SkipAudit()
+  cancelMine(@Param('id') id: string, @CurrentUser() user: RequestUser) {
+    return this.service.cancelOwn(id, user.id);
+  }
+
   // These handlers write their own PAYMENT_* audit records with review
   // metadata, so suppress the generic interceptor entry.
   @Patch(':id/approve')
