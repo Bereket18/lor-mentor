@@ -76,6 +76,7 @@ describe('PaymentsService bank verification security', () => {
     payment: {
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       update: jest.fn().mockResolvedValue({}),
+      findUnique: findPayment,
     },
     subscription: {
       findUnique: jest.fn().mockResolvedValue(null),
@@ -192,7 +193,7 @@ describe('PaymentsService bank verification security', () => {
     extract.mockReset();
   });
 
-  it('keeps unconfirmed Chapa checkouts out of the admin review queue', async () => {
+  it('keeps unconfirmed Chapa checkouts out of the admin review queue, but keeps terminal outcomes visible', async () => {
     await service.findAllAdmin();
 
     expect(findPayments).toHaveBeenCalledWith(
@@ -201,7 +202,10 @@ describe('PaymentsService bank verification security', () => {
           NOT: {
             method: 'CHAPA',
             chapaRef: null,
-            status: { not: 'APPROVED' },
+            // PENDING (open checkout) and REJECTED (failed init) Chapa rows
+            // without a gateway reference are not admin-review items;
+            // EXPIRED / CANCELLED are terminal and stay visible.
+            status: { in: ['PENDING', 'REJECTED'] },
           },
         },
       }),
@@ -224,7 +228,7 @@ describe('PaymentsService bank verification security', () => {
           NOT: {
             method: 'CHAPA',
             chapaRef: null,
-            status: { not: 'APPROVED' },
+            status: { in: ['PENDING', 'REJECTED'] },
           },
           status: 'REJECTED',
         },
@@ -236,6 +240,8 @@ describe('PaymentsService bank verification security', () => {
       APPROVED: 5,
       REJECTED: 0,
       REVERSED: 1,
+      EXPIRED: 0,
+      CANCELLED: 0,
     });
   });
 
@@ -248,7 +254,7 @@ describe('PaymentsService bank verification security', () => {
           NOT: {
             method: 'CHAPA',
             chapaRef: null,
-            status: { not: 'APPROVED' },
+            status: { in: ['PENDING', 'REJECTED'] },
           },
         },
       }),
@@ -298,14 +304,14 @@ describe('PaymentsService bank verification security', () => {
           NOT: {
             method: 'CHAPA',
             chapaRef: null,
-            status: { not: 'APPROVED' },
+            status: { in: ['PENDING', 'REJECTED'] },
           },
         },
       }),
     );
   });
 
-  it('hides an unconfirmed Chapa checkout from the student payment history', async () => {
+  it('hides only failed Chapa initializations from the student history; open/expired/cancelled checkouts stay visible', async () => {
     await service.findMine('student-1');
 
     expect(findPayments).toHaveBeenCalledWith(
@@ -315,7 +321,7 @@ describe('PaymentsService bank verification security', () => {
           NOT: {
             method: 'CHAPA',
             chapaRef: null,
-            status: { not: 'APPROVED' },
+            status: 'REJECTED',
           },
         },
       }),
@@ -633,8 +639,9 @@ describe('PaymentsService bank verification security', () => {
       });
       findPayment
         .mockResolvedValueOnce(null) // assertReferenceUnused: not used yet
-        .mockResolvedValueOnce({
-          // finalizeApproval loads the payment
+        .mockResolvedValue({
+          // finalizeApproval loads the payment; the same value also serves the
+          // in-transaction status re-read inside $transaction.
           id: 'payment-1',
           status: 'PENDING',
           userId: 'student-1',
@@ -904,8 +911,9 @@ describe('PaymentsService bank verification security', () => {
       (receipts.buildReceiptNumber as jest.Mock).mockReturnValue('LM-TEST-OCR');
       findPayment
         .mockResolvedValueOnce(null) // assertReferenceUnused: not used yet
-        .mockResolvedValueOnce({
-          // finalizeApproval loads the payment
+        .mockResolvedValue({
+          // finalizeApproval loads the payment; the same value also serves the
+          // in-transaction status re-read inside $transaction.
           id: 'payment-1',
           status: 'PENDING',
           userId: 'student-1',
@@ -1419,6 +1427,115 @@ describe('PaymentsService.reverse — super-admin payment reversal', () => {
   });
 });
 
+describe('PaymentsService.cancelOwn — student cancels their own PENDING online payment', () => {
+  const findPayment = jest.fn<Promise<unknown>, [unknown]>();
+  const transition = jest.fn<Promise<boolean>, [unknown, unknown, unknown]>();
+  const audit = jest.fn<Promise<unknown>, [unknown]>();
+
+  const tx = {
+    payment: { findUnique: findPayment },
+    auditLog: { create: audit },
+  };
+
+  const prisma = {
+    payment: { findUnique: findPayment },
+    $transaction: jest.fn((fn: (client: unknown) => Promise<unknown>) =>
+      fn(tx),
+    ),
+  } as unknown as PrismaService;
+
+  const states = {
+    transition,
+    recordEvent: jest.fn(),
+  } as unknown as PaymentStateMachine;
+
+  const service = new PaymentsService(
+    prisma,
+    {} as unknown as ReceiptService,
+    {} as unknown as ConfigService,
+    {} as unknown as ReceiptVerifierService,
+    {} as unknown as ChekiService,
+    states,
+  );
+
+  const pendingChapa = {
+    id: 'pay-1',
+    userId: 'student-1',
+    status: 'PENDING',
+    method: 'CHAPA',
+    txRef: 'lm-pay-1',
+  };
+
+  beforeEach(() => {
+    findPayment.mockReset().mockResolvedValue(pendingChapa);
+    transition.mockReset().mockResolvedValue(true);
+    audit.mockReset().mockResolvedValue({});
+  });
+
+  it('cancels via the state machine (PENDING → CANCELLED, PAYMENT_CANCELLED) and writes an audit row', async () => {
+    const result = await service.cancelOwn('pay-1', 'student-1');
+
+    expect(result).toEqual({ message: 'Payment cancelled' });
+    expect(transition).toHaveBeenCalledWith(
+      tx,
+      'pay-1',
+      expect.objectContaining({
+        from: ['PENDING'],
+        to: 'CANCELLED',
+        type: 'PAYMENT_CANCELLED',
+        actorId: 'student-1',
+      }),
+    );
+    const auditArgs = audit.mock.calls[0][0] as {
+      data: Record<string, unknown>;
+    };
+    expect(auditArgs.data).toMatchObject({
+      action: 'PAYMENT_CANCELLED',
+      actorId: 'student-1',
+      entityType: 'Payment',
+      entityId: 'pay-1',
+      meta: { method: 'CHAPA', txRef: 'lm-pay-1' },
+    });
+  });
+
+  it('hides another student’s payment behind a not-found', async () => {
+    findPayment.mockResolvedValue({ ...pendingChapa, userId: 'student-2' });
+
+    await expect(service.cancelOwn('pay-1', 'student-1')).rejects.toThrow(
+      NotFoundException,
+    );
+    expect(transition).not.toHaveBeenCalled();
+    expect(audit).not.toHaveBeenCalled();
+  });
+
+  it('refuses to cancel a payment that is not pending', async () => {
+    findPayment.mockResolvedValue({ ...pendingChapa, status: 'APPROVED' });
+
+    await expect(service.cancelOwn('pay-1', 'student-1')).rejects.toThrow(
+      /Only a pending payment can be cancelled/,
+    );
+    expect(transition).not.toHaveBeenCalled();
+  });
+
+  it('refuses to cancel a MANUAL bank-receipt payment (admin-review item)', async () => {
+    findPayment.mockResolvedValue({ ...pendingChapa, method: 'MANUAL' });
+
+    await expect(service.cancelOwn('pay-1', 'student-1')).rejects.toThrow(
+      /admin and cannot be cancelled here/,
+    );
+    expect(transition).not.toHaveBeenCalled();
+  });
+
+  it('lost race (concurrent approval won): refuses instead of overwriting', async () => {
+    transition.mockResolvedValue(false);
+
+    await expect(service.cancelOwn('pay-1', 'student-1')).rejects.toThrow(
+      /no longer pending/,
+    );
+    expect(audit).not.toHaveBeenCalled();
+  });
+});
+
 describe('PaymentsService plan snapshots on approval', () => {
   const findPayment = jest.fn();
   const findSubscription = jest.fn();
@@ -1433,7 +1550,7 @@ describe('PaymentsService plan snapshots on approval', () => {
 
   const tx = {
     $executeRaw: jest.fn().mockResolvedValue(1),
-    payment: { update: txPaymentUpdate },
+    payment: { update: txPaymentUpdate, findUnique: findPayment },
     subscription: {
       findUnique: findSubscription,
       create: txSubscriptionCreate,
@@ -1539,9 +1656,7 @@ describe('PaymentsService plan snapshots on approval', () => {
     const notif = txNotificationCreate.mock.calls[0][0] as {
       data: { message: string };
     };
-    expect(notif.data.message).toBe(
-      'Your Semester 2026 subscription is now active.',
-    );
+    expect(notif.data.message).toBe('Your Semester 2026/1000 is now active.');
     const audit = txAuditCreate.mock.calls[0][0] as {
       data: { meta: { planName: string } };
     };
@@ -1628,5 +1743,119 @@ describe('PaymentsService plan snapshots on approval', () => {
     expect(updateArgs.data.endDate.toISOString()).toBe(
       '2026-02-15T08:00:00.000Z',
     );
+  });
+
+  it('revives an EXPIRED payment on a verified Chapa confirmation and records the previous status', async () => {
+    findPayment.mockResolvedValue({
+      ...snapshotPayment,
+      status: 'EXPIRED',
+      method: 'CHAPA',
+      receiptPath: null,
+      bankReference: null,
+    });
+
+    await service.finalizeApproval('pay-1', {
+      allowExpiredOrCancelled: true,
+      chapaRef: 'chapa-ref-1',
+      paidAt,
+    });
+
+    const transitionArgs = transition.mock.calls[0][2] as {
+      from: string[];
+      to: string;
+      type: string;
+      reason: string;
+      data: { recoveredFromStatus?: string };
+    };
+    expect(transitionArgs.from).toEqual(['EXPIRED']);
+    expect(transitionArgs.to).toBe('APPROVED');
+    expect(transitionArgs.type).toBe('PAYMENT_APPROVED_AFTER_EXPIRY');
+    expect(transitionArgs.reason).toContain('EXPIRED');
+    expect(transitionArgs.data.recoveredFromStatus).toBe('EXPIRED');
+
+    // Normal activation, receipt and student notification still happen once.
+    expect(txSubscriptionCreate).toHaveBeenCalledTimes(1);
+    expect(generateReceipt).toHaveBeenCalledTimes(1);
+    const notif = txNotificationCreate.mock.calls[0][0] as {
+      data: { message: string; meta: { recoveredFromStatus?: string } };
+    };
+    expect(notif.data.message).toBe('Your Semester 2026/1000 is now active.');
+    expect(notif.data.meta.recoveredFromStatus).toBe('EXPIRED');
+    const audit = txAuditCreate.mock.calls[0][0] as {
+      data: { action: string; meta: { recoveredFromStatus?: string } };
+    };
+    expect(audit.data.action).toBe('PAYMENT_APPROVED_AFTER_EXPIRY');
+    expect(audit.data.meta.recoveredFromStatus).toBe('EXPIRED');
+  });
+
+  it('revives a CANCELLED payment on a verified Chapa confirmation', async () => {
+    findPayment.mockResolvedValue({
+      ...snapshotPayment,
+      status: 'CANCELLED',
+      method: 'CHAPA',
+      receiptPath: null,
+      bankReference: null,
+    });
+
+    await service.finalizeApproval('pay-1', {
+      allowExpiredOrCancelled: true,
+      paidAt,
+    });
+
+    const transitionArgs = transition.mock.calls[0][2] as {
+      from: string[];
+      type: string;
+      reason: string;
+    };
+    expect(transitionArgs.from).toEqual(['CANCELLED']);
+    expect(transitionArgs.type).toBe('PAYMENT_APPROVED_AFTER_EXPIRY');
+    expect(transitionArgs.reason).toContain('CANCELLED');
+    expect(txSubscriptionCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it('never lets an admin reopen an EXPIRED or CANCELLED payment', async () => {
+    for (const status of ['EXPIRED', 'CANCELLED']) {
+      jest.clearAllMocks();
+      findPayment.mockResolvedValue({
+        ...snapshotPayment,
+        status,
+        method: 'CHAPA',
+      });
+
+      await expect(
+        service.finalizeApproval('pay-1', { reviewedBy: 'admin-1' }),
+      ).rejects.toThrow(/verified gateway confirmation/);
+
+      // Even a caller that passes both flags cannot mix admin review with a
+      // revival.
+      await expect(
+        service.finalizeApproval('pay-1', {
+          reviewedBy: 'admin-1',
+          allowExpiredOrCancelled: true,
+        }),
+      ).rejects.toThrow(/cannot be approved by an admin/);
+
+      expect(transition).not.toHaveBeenCalled();
+    }
+  });
+
+  it('keeps REJECTED and REVERSED terminal even with the gateway flag', async () => {
+    for (const status of ['REJECTED', 'REVERSED']) {
+      jest.clearAllMocks();
+      findPayment.mockResolvedValue({
+        ...snapshotPayment,
+        status,
+        method: 'CHAPA',
+      });
+
+      await expect(
+        service.finalizeApproval('pay-1', { allowExpiredOrCancelled: true }),
+      ).rejects.toThrow(
+        status === 'REJECTED'
+          ? /already been rejected/
+          : /has been reversed/,
+      );
+      expect(transition).not.toHaveBeenCalled();
+    }
   });
 });

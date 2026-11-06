@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import type { PrismaService } from '../../prisma/prisma.service';
@@ -25,6 +25,7 @@ interface PaymentCreateArgs {
 describe('ChapaService', () => {
   const webhookSecret = 'webhook-test-secret';
   const findUnique = jest.fn();
+  const findFirst = jest.fn();
   const findPlan = jest.fn();
   const create = jest.fn<Promise<{ id: string }>, [PaymentCreateArgs]>();
   const update = jest.fn<unknown, [PaymentUpdateArgs]>();
@@ -53,7 +54,7 @@ describe('ChapaService', () => {
   const tx = { payment: { updateMany } };
   const prisma = {
     subscriptionPlan: { findUnique: findPlan },
-    payment: { findUnique, create, update, updateMany },
+    payment: { findUnique, findFirst, create, update, updateMany },
     $transaction: jest.fn((fn: (client: unknown) => Promise<unknown>) =>
       fn(tx),
     ),
@@ -81,9 +82,10 @@ describe('ChapaService', () => {
   beforeEach(() => {
     jest.useRealTimers();
     findUnique.mockReset();
+    findFirst.mockReset().mockResolvedValue(null);
     findPlan.mockReset();
     create.mockReset();
-    update.mockReset();
+    update.mockReset().mockResolvedValue({});
     updateMany.mockReset().mockResolvedValue({ count: 1 });
     transition.mockReset().mockResolvedValue(true);
     recordEvent.mockReset().mockResolvedValue(undefined);
@@ -173,6 +175,8 @@ describe('ChapaService', () => {
     );
     expect(body.amount).toBe('1000.50');
     expect(body.currency).toBe('ETB');
+    // Hosted checkout page shows plan/amount, not "<plan> subscription".
+    expect(body.customization.description).toBe('Semester - 1000.5');
   });
 
   it('fails a second concurrent checkout cleanly (one PENDING per user)', async () => {
@@ -587,6 +591,78 @@ describe('ChapaService', () => {
     );
   });
 
+  it('revives an EXPIRED row through the verified verify endpoint (allowExpiredOrCancelled)', async () => {
+    findUnique
+      .mockReset()
+      .mockResolvedValueOnce({
+        id: 'payment-1',
+        userId: 'student-1',
+        status: 'EXPIRED',
+        receiptNumber: null,
+      })
+      .mockResolvedValueOnce({
+        id: 'payment-1',
+        status: 'EXPIRED',
+        amount: '1000',
+      })
+      .mockResolvedValueOnce({
+        id: 'payment-1',
+        status: 'APPROVED',
+        receiptNumber: 'LM-0001',
+      });
+    mockVerifyResponse({
+      status: 'success',
+      amount: '1000.00',
+      currency: 'ETB',
+      tx_ref: 'lm-payment-1',
+      reference: 'chapa-reference',
+    });
+
+    await expect(
+      service.verifyByTxRef('lm-payment-1', 'student-1'),
+    ).resolves.toMatchObject({ status: 'APPROVED', receiptNumber: 'LM-0001' });
+
+    expect(finalizeApproval).toHaveBeenCalledWith(
+      'payment-1',
+      expect.objectContaining({
+        chapaRef: 'chapa-reference',
+        allowExpiredOrCancelled: true,
+      }),
+    );
+  });
+
+  it('keeps a REVERSED row terminal but logs the late exact payment', async () => {
+    findUnique.mockReset().mockResolvedValueOnce({
+      id: 'payment-1',
+      status: 'REVERSED',
+      amount: '1000',
+    });
+    mockVerifyResponse({
+      status: 'success',
+      amount: '1000.00',
+      currency: 'ETB',
+      tx_ref: 'lm-payment-1',
+      reference: 'chapa-reference',
+    });
+
+    const body = Buffer.from('{"tx_ref":"lm-payment-1"}');
+    await expect(
+      service.handleWebhook(body, { payloadSignature: signPayload(body) }),
+    ).resolves.toEqual({ received: true });
+
+    expect(finalizeApproval).not.toHaveBeenCalled();
+    expect(recordEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      'payment-1',
+      'CHAPA_LATE_PAYMENT_TERMINAL',
+      expect.objectContaining({
+        fromStatus: 'REVERSED',
+        toStatus: 'REVERSED',
+        reason: expect.stringContaining('REVERSED'),
+      }),
+    );
+  });
+
   it('rejects a 1-cent amount difference (no float tolerance)', async () => {
     mockPendingPaymentThen('PENDING');
     mockVerifyResponse({
@@ -620,5 +696,215 @@ describe('ChapaService', () => {
     await expect(
       service.verifyByTxRef('lm-payment-1', 'student-1'),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  describe('lazy resolution of an existing PENDING payment at initialize', () => {
+    const user = {
+      id: 'student-1',
+      email: 's@example.com',
+      fullName: 'Test Student',
+    };
+    const plan = {
+      id: 'plan-1',
+      name: 'Semester',
+      priceETB: '1000',
+      durationMonths: 6,
+      isActive: true,
+    };
+
+    function pendingChapa(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 'old-payment',
+        method: 'CHAPA',
+        status: 'PENDING',
+        txRef: 'lm-old',
+        planId: 'plan-1',
+        checkoutUrl: 'https://checkout.chapa.test/old',
+        amount: '1000',
+        // abandoned: older than the 30-minute window
+        createdAt: new Date(Date.now() - 31 * 60 * 1000),
+        ...overrides,
+      };
+    }
+
+    function mockVerifyThenInitialize(
+      verifyPayload: unknown,
+      verifyOk = false,
+    ) {
+      jest.spyOn(global, 'fetch').mockImplementation((url) => {
+        const u = String(url);
+        if (u.includes('/transaction/verify/')) {
+          return Promise.resolve({
+            ok: verifyOk,
+            status: verifyOk ? 200 : 404,
+            json: () => Promise.resolve(verifyPayload),
+          } as unknown as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              status: 'success',
+              data: { checkout_url: 'https://checkout.chapa.test/new' },
+            }),
+        } as unknown as Response);
+      });
+    }
+
+    beforeEach(() => {
+      findPlan.mockResolvedValue(plan);
+      create.mockResolvedValue({ id: 'new-payment' });
+    });
+
+    it('expires an abandoned checkout (>30 min, Chapa unpaid) via PAYMENT_EXPIRED and starts a fresh one', async () => {
+      findFirst.mockResolvedValue(pendingChapa());
+      mockVerifyThenInitialize({
+        status: 'failed',
+        message: 'Payment not paid yet',
+        data: null,
+      });
+
+      const res = await service.initialize(user, 'plan-1');
+
+      expect(transition).toHaveBeenCalledWith(
+        tx,
+        'old-payment',
+        expect.objectContaining({
+          from: ['PENDING'],
+          to: 'EXPIRED',
+          type: 'PAYMENT_EXPIRED',
+          reason: expect.stringContaining('lm-old'),
+        }),
+      );
+      expect(create).toHaveBeenCalledTimes(1);
+      expect(res).toMatchObject({ checkoutUrl: 'https://checkout.chapa.test/new' });
+      expect(finalizeApproval).not.toHaveBeenCalled();
+    });
+
+    it('approves a paid-but-webhook-lost checkout instead of creating a duplicate', async () => {
+      findFirst.mockResolvedValue(pendingChapa());
+      mockVerifyThenInitialize(
+        {
+          status: 'success',
+          data: {
+            status: 'success',
+            amount: '1000',
+            currency: 'ETB',
+            tx_ref: 'lm-old',
+            reference: 'chapa-ref-1',
+          },
+        },
+        true,
+      );
+
+      const res = await service.initialize(user, 'plan-1');
+
+      expect(finalizeApproval).toHaveBeenCalledWith(
+        'old-payment',
+        expect.objectContaining({ chapaRef: 'chapa-ref-1' }),
+      );
+      expect(create).not.toHaveBeenCalled();
+      expect(transition).not.toHaveBeenCalled();
+      expect(res).toMatchObject({ approved: true, txRef: 'lm-old' });
+    });
+
+    it('resumes a still-open checkout (<30 min) for the same plan', async () => {
+      findFirst.mockResolvedValue(
+        pendingChapa({ createdAt: new Date(Date.now() - 5 * 60 * 1000) }),
+      );
+      mockVerifyThenInitialize({ status: 'failed', data: null });
+
+      const res = await service.initialize(user, 'plan-1');
+
+      expect(res).toMatchObject({
+        checkoutUrl: 'https://checkout.chapa.test/old',
+        txRef: 'lm-old',
+        resumed: true,
+      });
+      expect(create).not.toHaveBeenCalled();
+      expect(transition).not.toHaveBeenCalled();
+    });
+
+    it('tells the student the remaining wait when the open checkout is for another plan', async () => {
+      findFirst.mockResolvedValue(
+        pendingChapa({
+          planId: 'plan-2',
+          createdAt: new Date(Date.now() - 5 * 60 * 1000),
+        }),
+      );
+      mockVerifyThenInitialize({ status: 'failed', data: null });
+
+      await expect(service.initialize(user, 'plan-1')).rejects.toThrow(
+        /still open — complete it within about \d+ min/,
+      );
+      expect(create).not.toHaveBeenCalled();
+      expect(transition).not.toHaveBeenCalled();
+    });
+
+    it('never expires when Chapa is unreachable — clear retry message, row untouched', async () => {
+      findFirst.mockResolvedValue(pendingChapa());
+      jest
+        .spyOn(global, 'fetch')
+        .mockRejectedValue(new Error('connect ECONNREFUSED'));
+
+      await expect(service.initialize(user, 'plan-1')).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
+      await expect(service.initialize(user, 'plan-1')).rejects.toThrow(
+        /could not reach the payment gateway/i,
+      );
+      expect(transition).not.toHaveBeenCalled();
+      expect(create).not.toHaveBeenCalled();
+      expect(recordEvent).toHaveBeenCalledWith(
+        expect.anything(),
+        'old-payment',
+        'CHAPA_VERIFY_UNREACHABLE',
+        expect.objectContaining({
+          meta: expect.objectContaining({ context: 'initialize-retry' }),
+        }),
+      );
+    });
+
+    it('names a PENDING bank-receipt payment (id, method, status) instead of blocking silently', async () => {
+      findFirst.mockResolvedValue({
+        id: 'receipt-1',
+        method: 'MANUAL',
+        status: 'PENDING',
+        txRef: null,
+        planId: 'plan-1',
+        checkoutUrl: null,
+        amount: '1000',
+        createdAt: new Date(),
+      });
+
+      await expect(service.initialize(user, 'plan-1')).rejects.toThrow(
+        /MANUAL bank-receipt payment \(id receipt-1, status PENDING\) awaiting admin review/,
+      );
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it('lost race on expiry: if the concurrent request approved the payment, report approval', async () => {
+      findFirst.mockResolvedValue(pendingChapa());
+      mockVerifyThenInitialize({ status: 'failed', data: null });
+      transition.mockResolvedValue(false); // guarded update matched 0 rows
+      findUnique.mockResolvedValue({ status: 'APPROVED' });
+
+      const res = await service.initialize(user, 'plan-1');
+
+      expect(res).toMatchObject({ approved: true, txRef: 'lm-old' });
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it('lost race on expiry: if the row moved to a non-approved status, ask for a retry', async () => {
+      findFirst.mockResolvedValue(pendingChapa());
+      mockVerifyThenInitialize({ status: 'failed', data: null });
+      transition.mockResolvedValue(false);
+      findUnique.mockResolvedValue({ status: 'EXPIRED' });
+
+      await expect(service.initialize(user, 'plan-1')).rejects.toThrow(
+        /just resolved by another request/,
+      );
+      expect(create).not.toHaveBeenCalled();
+    });
   });
 });

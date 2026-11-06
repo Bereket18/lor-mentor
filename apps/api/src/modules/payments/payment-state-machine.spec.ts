@@ -77,4 +77,68 @@ describe('PaymentStateMachine', () => {
       }),
     });
   });
+
+  it('allows PENDING → EXPIRED/CANCELLED and the verified late-approval edges', async () => {
+    const { tx } = makeTx(1);
+
+    await expect(
+      sm.transition(tx, 'pay-1', {
+        from: ['PENDING'],
+        to: 'EXPIRED',
+        type: 'PAYMENT_EXPIRED',
+        reason: 'abandoned checkout',
+      }),
+    ).resolves.toBe(true);
+    await expect(
+      sm.transition(tx, 'pay-1', {
+        from: ['PENDING'],
+        to: 'CANCELLED',
+        type: 'PAYMENT_CANCELLED',
+      }),
+    ).resolves.toBe(true);
+
+    // A verified Chapa payment may revive a closed checkout. The service
+    // restricts these edges to the gateway paths; the map only says the edge
+    // exists.
+    await expect(
+      sm.transition(tx, 'pay-1', {
+        from: ['EXPIRED'],
+        to: 'APPROVED',
+        type: 'PAYMENT_APPROVED_AFTER_EXPIRY',
+        reason: 'Chapa verified the exact payment after it was EXPIRED',
+      }),
+    ).resolves.toBe(true);
+    await expect(
+      sm.transition(tx, 'pay-1', {
+        from: ['CANCELLED'],
+        to: 'APPROVED',
+        type: 'PAYMENT_APPROVED_AFTER_EXPIRY',
+        reason: 'Chapa verified the exact payment after it was CANCELLED',
+      }),
+    ).resolves.toBe(true);
+  });
+
+  it('keeps REJECTED and REVERSED terminal and refuses other closed-state moves', async () => {
+    const { tx, updateMany, eventCreate } = makeTx(1);
+
+    await expect(
+      sm.transition(tx, 'pay-1', { from: ['REJECTED'], to: 'APPROVED' }),
+    ).rejects.toThrow('Illegal payment transition');
+    await expect(
+      sm.transition(tx, 'pay-1', { from: ['REVERSED'], to: 'APPROVED' }),
+    ).rejects.toThrow('Illegal payment transition');
+    await expect(
+      sm.transition(tx, 'pay-1', { from: ['REJECTED'], to: 'PENDING' }),
+    ).rejects.toThrow('Illegal payment transition');
+    await expect(
+      sm.transition(tx, 'pay-1', { from: ['EXPIRED'], to: 'PENDING' }),
+    ).rejects.toThrow('Illegal payment transition');
+    await expect(
+      sm.transition(tx, 'pay-1', { from: ['APPROVED'], to: 'EXPIRED' }),
+    ).rejects.toThrow('Illegal payment transition');
+
+    // An illegal attempt must not touch the row or the ledger.
+    expect(updateMany).not.toHaveBeenCalled();
+    expect(eventCreate).not.toHaveBeenCalled();
+  });
 });
