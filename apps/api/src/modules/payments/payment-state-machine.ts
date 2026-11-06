@@ -18,6 +18,29 @@ export interface TransitionOptions {
 type Db = Prisma.TransactionClient | PrismaService;
 
 /**
+ * Allowed-transition map — the only status moves the state machine permits.
+ * `transition()` refuses anything not listed here, so every new edge must be
+ * registered explicitly.
+ *
+ * Terminal states: REJECTED and REVERSED have no outgoing edges. EXPIRED and
+ * CANCELLED may only be revived to APPROVED by a *verified Chapa* confirmation
+ * of an exact payment (webhook/callback/verify/lazy resolution). That path is
+ * gated in PaymentsService.finalizeApproval by `allowExpiredOrCancelled`;
+ * admin manual approval never sets it and is rejected before reaching the map.
+ */
+export const ALLOWED_TRANSITIONS: Record<
+  PaymentStatus,
+  readonly PaymentStatus[]
+> = {
+  PENDING: ['APPROVED', 'REJECTED', 'EXPIRED', 'CANCELLED'],
+  APPROVED: ['REVERSED'],
+  REJECTED: [],
+  REVERSED: [],
+  EXPIRED: ['APPROVED'],
+  CANCELLED: ['APPROVED'],
+};
+
+/**
  * Single source of truth for payment status writes. Every transition is a
  * guarded UPDATE (WHERE id AND status IN (from…)) plus an immutable
  * PaymentEvent row, both in the caller's transaction — so a lost race matches
@@ -37,6 +60,14 @@ export class PaymentStateMachine {
     paymentId: string,
     opts: TransitionOptions,
   ): Promise<boolean> {
+    const legal = opts.from.some((from) =>
+      ALLOWED_TRANSITIONS[from]?.includes(opts.to),
+    );
+    if (!legal) {
+      throw new Error(
+        `Illegal payment transition: [${opts.from.join(', ')}] -> ${opts.to}`,
+      );
+    }
     const claim = await tx.payment.updateMany({
       where: { id: paymentId, status: { in: opts.from } },
       data: { status: opts.to, ...opts.data },
