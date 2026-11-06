@@ -27,7 +27,7 @@ import {
 
 import { toast } from "sonner";
 
-type PaymentStatus = "PENDING" | "APPROVED" | "REJECTED" | "REVERSED";
+type PaymentStatus = "PENDING" | "APPROVED" | "REJECTED" | "REVERSED" | "EXPIRED" | "CANCELLED";
 // "ALL" is a client-side convenience value: it simply omits the status query
 // parameter, so the server returns every payment in the queue.
 type PaymentFilter = PaymentStatus | "ALL";
@@ -63,6 +63,8 @@ interface Payment {
   bankReference?: string | null;
   verification?: Verification | null;
   reversalReason?: string | null;
+  // Set by the API when a verified Chapa payment revived a closed checkout.
+  recoveredFromStatus?: "EXPIRED" | "CANCELLED" | null;
   user: {
     fullName: string;
     email: string;
@@ -79,6 +81,8 @@ const statusColors: Record<PaymentStatus, string> = {
   APPROVED: "text-green-400 bg-green-500/10",
   REJECTED: "text-red-400 bg-red-500/10",
   REVERSED: "text-orange-400 bg-orange-500/10",
+  EXPIRED: "text-gray-400 bg-gray-500/10",
+  CANCELLED: "text-gray-400 bg-gray-500/10",
 };
 
 // Status buckets for the counts and the per-status empty states. The page
@@ -90,6 +94,8 @@ const TABS: { key: PaymentStatus; label: string; empty: string }[] = [
   { key: "APPROVED", label: "Approved", empty: "No approved payments yet." },
   { key: "REJECTED", label: "Rejected", empty: "No rejected payments." },
   { key: "REVERSED", label: "Reversed", empty: "No reversed payments." },
+  { key: "EXPIRED", label: "Expired", empty: "No expired payments." },
+  { key: "CANCELLED", label: "Cancelled", empty: "No cancelled payments." },
 ];
 
 const EMPTY_COUNTS: Record<PaymentStatus, number> = {
@@ -97,6 +103,8 @@ const EMPTY_COUNTS: Record<PaymentStatus, number> = {
   APPROVED: 0,
   REJECTED: 0,
   REVERSED: 0,
+  EXPIRED: 0,
+  CANCELLED: 0,
 };
 
 // Renders the data extracted from a bank receipt so an admin can eyeball it.
@@ -488,6 +496,14 @@ export default function AdminPaymentsPage() {
                     >
                       {payment.status}
                     </span>
+                    {payment.recoveredFromStatus && (
+                      <span
+                        className="ml-1 inline-flex items-center rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-400"
+                        title={`Chapa verified this payment after the checkout was ${payment.recoveredFromStatus}`}
+                      >
+                        Recovered from {payment.recoveredFromStatus.toLowerCase()}
+                      </span>
+                    )}
                     {payment.status === "REVERSED" &&
                       payment.reversalReason && (
                         <p

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
+import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 
 interface Plan {
@@ -177,7 +178,14 @@ function SubscribeContent() {
     setError("");
     try {
       const res = await api.post("/payments/chapa/initialize", { planId });
-      // Hand off to Chapa's hosted checkout page.
+      if (res.data?.approved) {
+        // Lazy resolution found the previous checkout already paid by the
+        // gateway: approved through the normal path, no new checkout.
+        toast.success(res.data.message ?? "Your payment is approved.");
+        router.push("/profile");
+        return;
+      }
+      // Hand off to Chapa's hosted checkout page (fresh or resumed checkout).
       window.location.href = res.data.checkoutUrl;
     } catch (err: unknown) {
       const message =

@@ -62,11 +62,12 @@ export interface Course {
 
 // -- Full profile (GET /users/me/full) ------------------------
 export type SubscriptionStatus = "PENDING" | "ACTIVE" | "EXPIRED" | "CANCELLED";
-export type PaymentStatus = "PENDING" | "APPROVED" | "REJECTED";
+export type PaymentStatus = "PENDING" | "APPROVED" | "REJECTED" | "REVERSED" | "EXPIRED" | "CANCELLED";
 
 export interface ProfilePayment {
   id: string;
   status: PaymentStatus;
+  method?: "MANUAL" | "CHAPA";
   createdAt: string;
   rejectionReason?: string | null;
   plan?: { name: string; priceETB: string | number } | null;
