@@ -38,6 +38,12 @@ enum PaymentStatus {
   // student, refunded, fraudulent receipt found after review). Only APPROVED
   // rows can be reversed; the original approval fields stay intact.
   REVERSED
+  // Terminal: an abandoned/failed Chapa checkout older than the abandonment
+  // window, expired lazily at the next initialize attempt (PAYMENT_EXPIRED).
+  EXPIRED
+  // Terminal: the student cancelled their own PENDING online checkout
+  // (PAYMENT_CANCELLED).
+  CANCELLED
 }
 
 // How a payment was made:
@@ -184,6 +190,9 @@ model Payment {
   txRef    String?   @unique
   chapaRef String?
   paidAt   DateTime?
+  // Hosted checkout page URL returned at initialize, so a still-open checkout
+  // can be resumed instead of starting a duplicate one.
+  checkoutUrl String?
 
   // ── Bank-transfer auto-verification fields (MANUAL method) ──
   // Populated when a student submits a transaction reference we verify against
@@ -203,6 +212,10 @@ model Payment {
   rejectionReason String?
   reviewedBy      String? // admin userId for MANUAL; null for CHAPA auto-approval
   reviewedAt      DateTime?
+  // Set when a verified Chapa payment revived an EXPIRED/CANCELLED checkout
+  // (EXPIRED or CANCELLED). Null for every normal approval; surfaced as a
+  // "recovered" marker in the admin payment queue.
+  recoveredFromStatus String?
 
   // ── Reversal fields (APPROVED → REVERSED) ──
   // Set when a super admin reverses a previously approved payment. The
