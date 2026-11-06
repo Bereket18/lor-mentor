@@ -168,6 +168,16 @@ model Payment {
   amount   Decimal?
   currency String   @default("ETB")
 
+  // Plan snapshot (nullable so existing rows stay untouched — no backfill).
+  // Written at creation; receipts, endDate maths and audit use these when
+  // present and fall back to the live plan only for pre-migration rows.
+  planName           String?
+  planDurationMonths Int?
+
+  // Bank-receipt overpayment: excess over the snapshotted plan price, recorded
+  // when the receipt is queued for manual review (never auto-approved).
+  excessAmount Decimal?
+
   // ── Chapa gateway fields (null for MANUAL payments) ──
   // txRef is OUR unique reference sent to Chapa (idempotency key for webhooks).
   // chapaRef is Chapa's own transaction reference returned on verification.
@@ -206,9 +216,31 @@ model Payment {
   user         User             @relation(fields: [userId], references: [id])
   plan         SubscriptionPlan @relation(fields: [planId], references: [id])
   subscription Subscription?    @relation(fields: [subscriptionId], references: [id])
+  events       PaymentEvent[]
 
   @@index([userId, status])
   @@index([status])
+}
+
+// Immutable ledger of everything that happens to a payment: every status
+// transition and every notable verification outcome. Written in the same
+// transaction as the status change (see PaymentStateMachine), so the ledger
+// and the row can never diverge.
+model PaymentEvent {
+  id         String   @id @default(cuid())
+  paymentId  String
+  type       String
+  fromStatus String?
+  toStatus   String?
+  actorId    String?
+  reason     String?
+  meta       Json?
+  createdAt  DateTime @default(now())
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId, createdAt])
+  @@index([type, createdAt])
 }
 
 /**
