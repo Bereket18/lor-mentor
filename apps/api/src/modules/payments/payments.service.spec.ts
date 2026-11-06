@@ -11,6 +11,7 @@ import type {
 } from './receipt-verifier.service';
 import type { ChekiService } from './cheki.service';
 import { PaymentsService } from './payments.service';
+import type { PaymentStateMachine } from './payment-state-machine';
 import type { VerifyReceiptDto } from './dto/verify-receipt.dto';
 
 // The upload path validates the file's magic bytes from disk; unit tests use
@@ -65,11 +66,13 @@ describe('PaymentsService bank verification security', () => {
       deleteMany: deleteBanks,
     },
     $transaction: jest.fn(
-      (fn: (client: unknown) => Promise<unknown>): Promise<unknown> => fn(txMock),
+      (fn: (client: unknown) => Promise<unknown>): Promise<unknown> =>
+        fn(txMock),
     ),
   } as unknown as PrismaService;
 
   const txMock = {
+    $executeRaw: jest.fn().mockResolvedValue(1),
     payment: {
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       update: jest.fn().mockResolvedValue({}),
@@ -104,12 +107,18 @@ describe('PaymentsService bank verification security', () => {
     verify: jest.fn(),
   } as unknown as ChekiService;
 
+  const states = {
+    transition: jest.fn().mockResolvedValue(true),
+    recordEvent: jest.fn().mockResolvedValue(undefined),
+  } as unknown as PaymentStateMachine;
+
   const service = new PaymentsService(
     prisma,
     receipts,
     config,
     verifier,
     cheki,
+    states,
   );
 
   // A second instance with Cheki acting as the primary source.
@@ -125,6 +134,7 @@ describe('PaymentsService bank verification security', () => {
     config,
     verifier,
     chekiEnabled,
+    states,
   );
 
   const plan = {
@@ -165,10 +175,11 @@ describe('PaymentsService bank verification security', () => {
     findSubscription.mockReset().mockResolvedValue(null);
     // Every catalog bank is enabled by default in these tests; individual
     // cases override this to exercise the disabled/unknown path.
-    findBank.mockReset().mockImplementation(
-      ({ where }: { where: { code: string } }) =>
+    findBank
+      .mockReset()
+      .mockImplementation(({ where }: { where: { code: string } }) =>
         Promise.resolve({ code: where.code, isActive: true }),
-    );
+      );
     // No admin-managed accounts by default; the env fallback in the config
     // mock still provides the standard college account.
     findBanks.mockReset().mockResolvedValue([]);
@@ -351,7 +362,27 @@ describe('PaymentsService bank verification security', () => {
     expect(createdData.bankReference).toBe('TX-123');
   });
 
-  it('routes an overpayment to manual review instead of auto-approving it', async () => {
+  it('rejects an underpayment with the exact expected/received/shortfall amounts', async () => {
+    extract.mockResolvedValue({
+      ok: true,
+      receipt: { ...validReceipt, amount: 850.5 },
+    });
+
+    await expect(
+      service.verifyAndSubmit('student-1', dashenDto),
+    ).rejects.toThrow(
+      'Amount paid (850.50 ETB) is less than the plan price (1000.00 ETB); shortfall 149.50 ETB.',
+    );
+
+    expect(createdData.status).toBe('REJECTED');
+    expect(String(createdData.rejectionReason)).toContain(
+      'shortfall 149.50 ETB',
+    );
+    // no manual-review excess on a hard reject
+    expect(createdData.excessAmount).toBeUndefined();
+  });
+
+  it('routes an overpayment to manual review, records the excess on the payment and tells the student', async () => {
     extract.mockResolvedValue({
       ok: true,
       receipt: { ...validReceipt, amount: 1001 },
@@ -368,11 +399,14 @@ describe('PaymentsService bank verification security', () => {
     );
     expect(createdData.status).toBeUndefined(); // defaults to PENDING
     expect(createdData.bankReference).toBe('TX-123');
+    // excess is recorded on the payment for the college to refund or credit
+    expect((createdData.excessAmount as Prisma.Decimal).toString()).toBe('1');
     const verification = createdData.verification as Record<string, unknown>;
-    expect(String(verification.reviewNote)).toMatch(
-      /greater than the plan price/,
-    );
+    expect(String(verification.reviewNote)).toContain('excess 1.00 ETB');
     expect(verification.amount).toBe(1001);
+    // the plan is snapshotted on the payment at creation (not read live later)
+    expect(createdData.planName).toBe('Semester');
+    expect(createdData.planDurationMonths).toBe(6);
   });
 
   it('preserves submitted evidence when the verifier is unreachable', async () => {
@@ -627,9 +661,9 @@ describe('PaymentsService bank verification security', () => {
       expect(extract).not.toHaveBeenCalled();
       expect(chekiVerify).toHaveBeenCalledTimes(1);
       expect(createdData.amount).toEqual(new Prisma.Decimal(1000));
-      expect(
-        (createdData.verification as Record<string, unknown>).source,
-      ).toBe('cheki');
+      expect((createdData.verification as Record<string, unknown>).source).toBe(
+        'cheki',
+      );
       expect(result).toMatchObject({
         status: 'APPROVED',
         autoApproved: true,
@@ -906,9 +940,9 @@ describe('PaymentsService bank verification security', () => {
       });
       expect(extract).not.toHaveBeenCalled();
       expect(createdData.receiptPath).toBe('upload-x.png');
-      expect(
-        (createdData.verification as Record<string, unknown>).ocr,
-      ).toEqual({ via: 'cheki-ocr', bankCode: 'cbe' });
+      expect((createdData.verification as Record<string, unknown>).ocr).toEqual(
+        { via: 'cheki-ocr', bankCode: 'cbe' },
+      );
       expect(result).toMatchObject({
         status: 'APPROVED',
         autoApproved: true,
@@ -951,7 +985,10 @@ describe('PaymentsService bank verification security', () => {
       const verification = createdData.verification as Record<string, unknown>;
       expect(verification.chekiCode).toBe('RATE_LIMITED');
       expect(verification.verifierCode).toBe('UNREACHABLE');
-      expect(verification.ocr).toEqual({ via: 'cheki-ocr', bankCode: 'dashen' });
+      expect(verification.ocr).toEqual({
+        via: 'cheki-ocr',
+        bankCode: 'dashen',
+      });
     });
 
     it('blocks a replayed QR receipt exactly like the reference flow', async () => {
@@ -1218,6 +1255,7 @@ describe('PaymentsService bank verification security', () => {
         envOnlyConfig,
         verifier,
         cheki,
+        states,
       );
 
       findBanks.mockResolvedValueOnce([]);
@@ -1230,13 +1268,13 @@ describe('PaymentsService bank verification security', () => {
 describe('PaymentsService.reverse — super-admin payment reversal', () => {
   const findPayment = jest.fn<Promise<unknown>, [unknown]>();
   const countApproved = jest.fn<Promise<number>, [unknown]>();
-  const claimUpdate = jest.fn<Promise<{ count: number }>, [unknown]>();
+  const transition = jest.fn<Promise<boolean>, [unknown, unknown, unknown]>();
   const cancelSubs = jest.fn<Promise<{ count: number }>, [unknown]>();
   const notify = jest.fn<Promise<unknown>, [unknown]>();
   const audit = jest.fn<Promise<unknown>, [unknown]>();
 
   const tx = {
-    payment: { updateMany: claimUpdate, count: countApproved },
+    payment: { count: countApproved },
     subscription: { updateMany: cancelSubs },
     notification: { create: notify },
     auditLog: { create: audit },
@@ -1249,12 +1287,18 @@ describe('PaymentsService.reverse — super-admin payment reversal', () => {
     ),
   } as unknown as PrismaService;
 
+  const states = {
+    transition,
+    recordEvent: jest.fn(),
+  } as unknown as PaymentStateMachine;
+
   const service = new PaymentsService(
     prisma,
     {} as unknown as ReceiptService,
     {} as unknown as ConfigService,
     {} as unknown as ReceiptVerifierService,
     {} as unknown as ChekiService,
+    states,
   );
 
   const approvedPayment = {
@@ -1267,7 +1311,7 @@ describe('PaymentsService.reverse — super-admin payment reversal', () => {
 
   beforeEach(() => {
     findPayment.mockReset().mockResolvedValue(approvedPayment);
-    claimUpdate.mockReset().mockResolvedValue({ count: 1 });
+    transition.mockReset().mockResolvedValue(true);
     countApproved.mockReset().mockResolvedValue(0);
     cancelSubs.mockReset().mockResolvedValue({ count: 1 });
     notify.mockReset().mockResolvedValue({});
@@ -1281,16 +1325,19 @@ describe('PaymentsService.reverse — super-admin payment reversal', () => {
       'Refunded — duplicate payment',
     );
 
-    expect(claimUpdate).toHaveBeenCalledTimes(1);
-    const claimArgs = claimUpdate.mock.calls[0][0] as {
-      where: Record<string, unknown>;
+    expect(transition).toHaveBeenCalledTimes(1);
+    const transitionArgs = transition.mock.calls[0][2] as {
+      from: string[];
+      to: string;
       data: Record<string, unknown>;
     };
-    expect(claimArgs.where).toEqual({ id: 'pay-1', status: 'APPROVED' });
-    expect(claimArgs.data.status).toBe('REVERSED');
-    expect(claimArgs.data.reversalReason).toBe('Refunded — duplicate payment');
-    expect(claimArgs.data.reversedBy).toBe('super-1');
-    expect(claimArgs.data.reversedAt).toBeInstanceOf(Date);
+    expect(transitionArgs.from).toEqual(['APPROVED']);
+    expect(transitionArgs.to).toBe('REVERSED');
+    expect(transitionArgs.data.reversalReason).toBe(
+      'Refunded — duplicate payment',
+    );
+    expect(transitionArgs.data.reversedBy).toBe('super-1');
+    expect(transitionArgs.data.reversedAt).toBeInstanceOf(Date);
 
     expect(cancelSubs).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1329,7 +1376,7 @@ describe('PaymentsService.reverse — super-admin payment reversal', () => {
     await expect(service.reverse('pay-1', 'super-1', '   ')).rejects.toThrow(
       BadRequestException,
     );
-    expect(claimUpdate).not.toHaveBeenCalled();
+    expect(transition).not.toHaveBeenCalled();
   });
 
   it('rejects reversing a payment that is not approved', async () => {
@@ -1338,7 +1385,7 @@ describe('PaymentsService.reverse — super-admin payment reversal', () => {
     await expect(service.reverse('pay-1', 'super-1', 'reason')).rejects.toThrow(
       BadRequestException,
     );
-    expect(claimUpdate).not.toHaveBeenCalled();
+    expect(transition).not.toHaveBeenCalled();
   });
 
   it('reports an already-reversed payment without touching it again', async () => {
@@ -1350,11 +1397,11 @@ describe('PaymentsService.reverse — super-admin payment reversal', () => {
       message: 'Payment has already been reversed',
       alreadyReversed: true,
     });
-    expect(claimUpdate).not.toHaveBeenCalled();
+    expect(transition).not.toHaveBeenCalled();
   });
 
   it('reports a concurrent reversal as already reversed (lost the race)', async () => {
-    claimUpdate.mockResolvedValue({ count: 0 });
+    transition.mockResolvedValue(false);
 
     const result = await service.reverse('pay-1', 'super-1', 'race');
 
@@ -1368,6 +1415,218 @@ describe('PaymentsService.reverse — super-admin payment reversal', () => {
 
     await expect(service.reverse('pay-1', 'super-1', 'reason')).rejects.toThrow(
       NotFoundException,
+    );
+  });
+});
+
+describe('PaymentsService plan snapshots on approval', () => {
+  const findPayment = jest.fn();
+  const findSubscription = jest.fn();
+  const transition = jest.fn();
+  const txPaymentUpdate = jest.fn();
+  const txSubscriptionCreate = jest.fn();
+  const txSubscriptionUpdate = jest.fn();
+  const txNotificationCreate = jest.fn();
+  const txAuditCreate = jest.fn();
+  const buildReceiptNumber = jest.fn();
+  const generateReceipt = jest.fn();
+
+  const tx = {
+    $executeRaw: jest.fn().mockResolvedValue(1),
+    payment: { update: txPaymentUpdate },
+    subscription: {
+      findUnique: findSubscription,
+      create: txSubscriptionCreate,
+      update: txSubscriptionUpdate,
+    },
+    notification: { create: txNotificationCreate },
+    auditLog: { create: txAuditCreate },
+  };
+
+  const prisma = {
+    payment: { findUnique: findPayment },
+    $transaction: jest.fn((fn: (client: unknown) => Promise<unknown>) =>
+      fn(tx),
+    ),
+  } as unknown as PrismaService;
+
+  const states = {
+    transition,
+    recordEvent: jest.fn(),
+  } as unknown as PaymentStateMachine;
+
+  const service = new PaymentsService(
+    prisma,
+    {
+      buildReceiptNumber,
+      generate: generateReceipt,
+    } as unknown as ReceiptService,
+    {} as unknown as ConfigService,
+    {} as unknown as ReceiptVerifierService,
+    {} as unknown as ChekiService,
+    states,
+  );
+
+  // A payment captured while the plan was called "Semester 2026" for 1 month,
+  // priced 1000 ETB. The live plan has since been renamed, repriced to 1500
+  // and lengthened to 12 months.
+  const snapshotPayment = {
+    id: 'pay-1',
+    userId: 'student-1',
+    planId: 'plan-1',
+    status: 'PENDING',
+    method: 'MANUAL',
+    amount: new Prisma.Decimal('1000'),
+    currency: 'ETB',
+    chapaRef: null,
+    receiptNumber: null,
+    receiptPath: 'receipt.png',
+    bankReference: 'TX-1',
+    verification: null,
+    planName: 'Semester 2026',
+    planDurationMonths: 1,
+    plan: {
+      name: 'Semester 2027 (renamed)',
+      durationMonths: 12,
+      priceETB: new Prisma.Decimal('1500'),
+    },
+    user: {
+      fullName: 'Test Student',
+      email: 's@example.com',
+      phoneNumber: null,
+    },
+  };
+
+  const paidAt = new Date(Date.UTC(2026, 0, 31, 10, 0, 0));
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    findPayment.mockResolvedValue(snapshotPayment);
+    findSubscription.mockResolvedValue(null);
+    transition.mockResolvedValue(true);
+    buildReceiptNumber.mockReturnValue('LM-2026-1');
+    generateReceipt.mockResolvedValue(undefined);
+    txSubscriptionCreate.mockResolvedValue({ id: 'sub-1' });
+  });
+
+  it('uses the snapshot name/duration/amount when the live plan changed after payment', async () => {
+    await service.finalizeApproval('pay-1', {
+      reviewedBy: 'admin-1',
+      paidAt,
+    });
+
+    // Jan 31 + the snapshot's 1 month, clamped to Feb 28 — not the live 12 months.
+    const subArgs = txSubscriptionCreate.mock.calls[0][0] as {
+      data: { startDate: Date; endDate: Date };
+    };
+    expect(subArgs.data.startDate.toISOString()).toBe(
+      '2026-01-31T10:00:00.000Z',
+    );
+    expect(subArgs.data.endDate.toISOString()).toBe('2026-02-28T10:00:00.000Z');
+
+    // Receipt uses the snapshot name/duration/amount, never the live plan.
+    const receiptArgs = generateReceipt.mock.calls[0][1] as {
+      amount: string;
+      plan: { name: string; durationMonths: number };
+    };
+    expect(receiptArgs.amount).toBe('1000.00');
+    expect(receiptArgs.plan).toEqual({
+      name: 'Semester 2026',
+      durationMonths: 1,
+    });
+
+    // Notification and audit carry the snapshot name too.
+    const notif = txNotificationCreate.mock.calls[0][0] as {
+      data: { message: string };
+    };
+    expect(notif.data.message).toBe(
+      'Your Semester 2026 subscription is now active.',
+    );
+    const audit = txAuditCreate.mock.calls[0][0] as {
+      data: { meta: { planName: string } };
+    };
+    expect(audit.data.meta.planName).toBe('Semester 2026');
+  });
+
+  it('falls back to the live plan for old rows with no snapshot (no backfill)', async () => {
+    findPayment.mockResolvedValue({
+      ...snapshotPayment,
+      planName: null,
+      planDurationMonths: null,
+    });
+
+    await service.finalizeApproval('pay-1', { reviewedBy: 'admin-1', paidAt });
+
+    const subArgs = txSubscriptionCreate.mock.calls[0][0] as {
+      data: { endDate: Date };
+    };
+    expect(subArgs.data.endDate.toISOString()).toBe('2027-01-31T10:00:00.000Z');
+
+    const receiptArgs = generateReceipt.mock.calls[0][1] as {
+      plan: { name: string; durationMonths: number };
+    };
+    expect(receiptArgs.plan).toEqual({
+      name: 'Semester 2027 (renamed)',
+      durationMonths: 12,
+    });
+
+    const audit = txAuditCreate.mock.calls[0][0] as {
+      data: { meta: { planName: string } };
+    };
+    expect(audit.data.meta.planName).toBe('Semester 2027 (renamed)');
+  });
+
+  it('extends an ACTIVE subscription from its current endDate with UTC end-of-month clamping', async () => {
+    findSubscription.mockResolvedValue({
+      id: 'sub-existing',
+      status: 'ACTIVE',
+      startDate: new Date(Date.UTC(2025, 6, 31, 10, 0, 0)),
+      endDate: new Date(Date.UTC(2026, 0, 31, 10, 0, 0)),
+    });
+    txSubscriptionUpdate.mockResolvedValue({ id: 'sub-existing' });
+
+    await service.finalizeApproval('pay-1', {
+      reviewedBy: 'admin-1',
+      paidAt: new Date(Date.UTC(2026, 0, 10, 9, 0, 0)),
+    });
+
+    // Not overwritten from "now": the current endDate (Jan 31) is the base,
+    // +1 snapshot month clamps to Feb 28 in a non-leap year.
+    const updateArgs = txSubscriptionUpdate.mock.calls[0][0] as {
+      where: { id: string };
+      data: { startDate: Date; endDate: Date; status: string };
+    };
+    expect(updateArgs.where).toEqual({ id: 'sub-existing' });
+    expect(updateArgs.data.startDate.toISOString()).toBe(
+      '2025-07-31T10:00:00.000Z',
+    );
+    expect(updateArgs.data.endDate.toISOString()).toBe(
+      '2026-02-28T10:00:00.000Z',
+    );
+    expect(updateArgs.data.status).toBe('ACTIVE');
+    expect(txSubscriptionCreate).not.toHaveBeenCalled();
+  });
+
+  it('starts a new term from now when the existing subscription already expired', async () => {
+    findSubscription.mockResolvedValue({
+      id: 'sub-expired',
+      status: 'ACTIVE',
+      startDate: new Date(Date.UTC(2024, 0, 1, 0, 0, 0)),
+      endDate: new Date(Date.UTC(2024, 6, 1, 0, 0, 0)),
+    });
+    txSubscriptionUpdate.mockResolvedValue({ id: 'sub-expired' });
+
+    const now = new Date(Date.UTC(2026, 0, 15, 8, 0, 0));
+    await service.finalizeApproval('pay-1', {
+      reviewedBy: 'admin-1',
+      paidAt: now,
+    });
+
+    const updateArgs = txSubscriptionUpdate.mock.calls[0][0] as {
+      data: { endDate: Date };
+    };
+    expect(updateArgs.data.endDate.toISOString()).toBe(
+      '2026-02-15T08:00:00.000Z',
     );
   });
 });

@@ -10,6 +10,8 @@ import type { Prisma } from '@prisma/client';
 import * as crypto from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PaymentsService } from './payments.service';
+import { PaymentStateMachine } from './payment-state-machine';
+import { amountsEqual, formatETB, toDecimal } from './money';
 
 interface ChapaInitResponse {
   status: string;
@@ -17,6 +19,14 @@ interface ChapaInitResponse {
   data?: { checkout_url?: string };
 }
 
+/**
+ * Chapa verify response (per developer.chapa.co/integrations/responses):
+ * data carries currency, amount, charge (Chapa's fee), status, reference,
+ * tx_ref. `amount` is the settled transaction amount — it stays equal to the
+ * initialized amount even when the customer bears the fee (the fee shows up
+ * separately as `charge`), so `amount` is the correct field to compare
+ * against our snapshot. 404 means "payment not paid yet / unknown tx_ref".
+ */
 interface ChapaVerifyResponse {
   status: string;
   message?: string;
@@ -25,12 +35,22 @@ interface ChapaVerifyResponse {
     reference?: string;
     tx_ref?: string;
     amount?: string | number;
+    currency?: string;
+    charge?: string | number;
   } | null;
 }
 
 interface ChapaWebhookSignatures {
   chapaSignature?: string;
   payloadSignature?: string;
+}
+
+function isUniqueViolation(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    (err as { code?: string }).code === 'P2002'
+  );
 }
 
 /**
@@ -42,19 +62,34 @@ interface ChapaWebhookSignatures {
  *  3. Chapa calls our webhook AND redirects the browser to our callback page.
  *  4. handleWebhook() / verifyByTxRef() confirm with Chapa's verify endpoint
  *     and hand off to PaymentsService.finalizeApproval (idempotent).
+ *
+ * Hardening rules (owner-approved policy):
+ *  - the verified amount must equal the snapshotted amount EXACTLY, and the
+ *    verify response's tx_ref and currency (ETB) must match; any mismatch
+ *    keeps the payment PENDING, writes a PaymentEvent and leaves it visible
+ *    in the admin queue as an exception — never auto-approved;
+ *  - every Chapa call has a timeout; a failed/timed-out verify leaves the
+ *    payment PENDING (the browser callback or a later webhook retries);
+ *  - every status write goes through PaymentStateMachine (guarded update +
+ *    immutable event in one transaction).
  */
 @Injectable()
 export class ChapaService {
   private readonly logger = new Logger(ChapaService.name);
   private readonly baseUrl: string;
+  private readonly timeoutMs: number;
 
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
     private readonly payments: PaymentsService,
+    private readonly states: PaymentStateMachine,
   ) {
     this.baseUrl =
       this.config.get<string>('CHAPA_BASE_URL') ?? 'https://api.chapa.co/v1';
+    this.timeoutMs = Number(
+      this.config.get<string>('CHAPA_TIMEOUT_MS') ?? '15000',
+    );
   }
 
   private secretKey(): string {
@@ -66,6 +101,14 @@ export class ChapaService {
       );
     }
     return key;
+  }
+
+  /** fetch with a hard timeout so a hung gateway never hangs a request. */
+  private fetchWithTimeout(
+    url: string,
+    init: RequestInit = {},
+  ): Promise<Response> {
+    return fetch(url, { ...init, signal: AbortSignal.timeout(this.timeoutMs) });
   }
 
   /** Build a checkout session for a plan and return the hosted-page URL. */
@@ -89,26 +132,39 @@ export class ChapaService {
     await this.payments.assertNoActiveSubscription(user.id);
 
     // Chapa permanently reserves tx_ref values, including references from a
-    // failed or abandoned checkout. Every initialization must therefore create
-    // a fresh attempt instead of reusing a local PENDING payment.
+    // failed or abandoned checkout, so every initialization uses a fresh
+    // unguessable reference. At most one PENDING payment per user is allowed
+    // (partial unique index) — a second concurrent checkout fails on insert.
     const txRef = `lm-${crypto.randomUUID()}`;
-    const payment = await this.prisma.payment.create({
-      data: {
-        userId: user.id,
-        planId,
-        method: 'CHAPA',
-        amount: plan.priceETB,
-        currency: 'ETB',
-        txRef,
-      },
-    });
+    let payment: { id: string };
+    try {
+      payment = await this.prisma.payment.create({
+        data: {
+          userId: user.id,
+          planId,
+          method: 'CHAPA',
+          amount: plan.priceETB,
+          currency: 'ETB',
+          txRef,
+          planName: plan.name,
+          planDurationMonths: plan.durationMonths,
+        },
+      });
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        throw new BadRequestException(
+          'You already have a payment in progress. Complete it, or contact the college if it is stuck.',
+        );
+      }
+      throw err;
+    }
 
     const apiBase = this.publicApiBase();
     const webBase = this.publicWebBase();
     const [firstName, ...rest] = user.fullName.trim().split(/\s+/);
 
     const body = {
-      amount: Number(plan.priceETB).toFixed(2),
+      amount: formatETB(plan.priceETB),
       currency: 'ETB',
       email: user.email,
       first_name: firstName || 'Student',
@@ -126,14 +182,17 @@ export class ChapaService {
     let res: Response;
     let json: ChapaInitResponse;
     try {
-      res = await fetch(`${this.baseUrl}/transaction/initialize`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${this.secretKey()}`,
-          'Content-Type': 'application/json',
+      res = await this.fetchWithTimeout(
+        `${this.baseUrl}/transaction/initialize`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${this.secretKey()}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
         },
-        body: JSON.stringify(body),
-      });
+      );
       json = (await res.json()) as ChapaInitResponse;
     } catch (error) {
       await this.rejectInitialization(
@@ -178,15 +237,17 @@ export class ChapaService {
     return { checkoutUrl: json.data.checkout_url, txRef };
   }
 
+  /** PENDING → REJECTED via the state machine (guarded + event, one tx). */
   private async rejectInitialization(paymentId: string, reason: string) {
-    await this.prisma.payment.updateMany({
-      where: { id: paymentId, status: 'PENDING' },
-      data: {
-        status: 'REJECTED',
-        rejectionReason: reason,
-        reviewedAt: new Date(),
-      },
-    });
+    await this.prisma.$transaction((tx) =>
+      this.states.transition(tx, paymentId, {
+        from: ['PENDING'],
+        to: 'REJECTED',
+        type: 'CHAPA_INIT_FAILED',
+        reason,
+        data: { rejectionReason: reason, reviewedAt: new Date() },
+      }),
+    );
   }
 
   /**
@@ -280,15 +341,33 @@ export class ChapaService {
     if (!payment) throw new NotFoundException('Payment not found');
     if (payment.status === 'APPROVED') return; // idempotent
 
-    const res = await fetch(
-      `${this.baseUrl}/transaction/verify/${encodeURIComponent(txRef)}`,
-      { headers: { Authorization: `Bearer ${this.secretKey()}` } },
-    );
-    const json = (await res.json()) as ChapaVerifyResponse;
+    let json: ChapaVerifyResponse;
+    try {
+      const res = await this.fetchWithTimeout(
+        `${this.baseUrl}/transaction/verify/${encodeURIComponent(txRef)}`,
+        { headers: { Authorization: `Bearer ${this.secretKey()}` } },
+      );
+      json = (await res.json()) as ChapaVerifyResponse;
+    } catch (err) {
+      // Network error or timeout: leave PENDING, record the event, never throw
+      // into the webhook path (Chapa will retry; the browser callback can too).
+      await this.states
+        .recordEvent(this.prisma, payment.id, 'CHAPA_VERIFY_UNREACHABLE', {
+          fromStatus: payment.status,
+          toStatus: payment.status,
+          meta: { error: err instanceof Error ? err.name : 'Error' },
+        })
+        .catch(() => undefined);
+      this.logger.warn(
+        `Chapa verify call failed for ${txRef}: ${err instanceof Error ? err.name : String(err)} — payment stays PENDING`,
+      );
+      return;
+    }
 
-    const ok = json.status === 'success' && json.data?.status === 'success';
+    const data = json.data ?? undefined;
+    const ok = json.status === 'success' && data?.status === 'success';
     if (!ok) {
-      const chapaStatus = json.data?.status?.toLowerCase();
+      const chapaStatus = data?.status?.toLowerCase();
       const terminalFailure =
         json.status === 'success' &&
         Boolean(
@@ -299,54 +378,91 @@ export class ChapaService {
         );
 
       if (terminalFailure) {
-        await this.prisma.payment.update({
-          where: { id: payment.id },
-          data: {
-            status: 'REJECTED',
-            rejectionReason: `Chapa reported ${json.data?.status}`,
-            chapaRef: json.data?.reference ?? undefined,
-            reviewedAt: new Date(),
-          },
-        });
+        // Guarded PENDING → REJECTED: if another caller already approved the
+        // payment, this matches 0 rows and changes nothing (fixes the
+        // approve-vs-failure race).
+        await this.prisma.$transaction((tx) =>
+          this.states.transition(tx, payment.id, {
+            from: ['PENDING'],
+            to: 'REJECTED',
+            type: 'CHAPA_PAYMENT_FAILED',
+            reason: `Chapa reported ${data?.status}`,
+            data: {
+              rejectionReason: `Chapa reported ${data?.status}`,
+              chapaRef: data?.reference ?? undefined,
+              reviewedAt: new Date(),
+            },
+          }),
+        );
       }
 
       this.logger.warn(
-        `Chapa verify not successful for ${txRef}: ${json.data?.status ?? json.message ?? 'unknown status'}`,
+        `Chapa verify not successful for ${txRef}: ${data?.status ?? json.message ?? 'unknown status'}`,
       );
       return;
     }
 
-    // Defence in depth: confirm the amount Chapa actually settled matches the
-    // server-side price we snapshotted at initialize(). Never activate a
-    // subscription on an underpayment — refuse and leave the payment PENDING
-    // for manual investigation rather than trusting the success flag alone.
-    const expected = Number(payment.amount ?? 0);
-    const settled = Number(json.data?.amount ?? NaN);
-    if (Number.isFinite(settled) && expected > 0 && settled + 0.01 < expected) {
-      this.logger.error(
-        `Chapa amount mismatch for ${txRef}: settled ${settled} < expected ${expected}. Not approving.`,
-      );
-      // Mark the row as gateway-confirmed but underpaid. It stays PENDING for
-      // manual reconciliation, and chapaRef makes it visible to admins —
-      // unlike an initialized checkout, which has no chapaRef.
-      await this.prisma.payment.update({
-        where: { id: payment.id },
-        data: {
-          chapaRef: json.data?.reference ?? txRef,
-          verification: {
-            reviewNote: `Chapa confirmed ${settled} ETB but the selected plan is ${expected} ETB. Manual review required.`,
-            decision: 'REVIEW',
-            source: 'chapa',
-            reference: json.data?.reference ?? txRef,
-            amount: settled,
-          } as Prisma.InputJsonValue,
-        },
+    // Exactness: the settled transaction must match our snapshot exactly.
+    // Chapa's verify response reports `amount` (settled amount) separately
+    // from `charge` (Chapa's fee — present when the customer bears the fee,
+    // but NOT part of the amount we initialized), so `amount` is compared,
+    // never `charge`. Any mismatch keeps the payment PENDING as an admin
+    // exception — Chapa under/overpayment is never auto-approved and never
+    // messaged to the customer with amounts.
+    const mismatches: string[] = [];
+    if (data?.tx_ref !== txRef) mismatches.push('tx_ref');
+    if (
+      typeof data?.currency !== 'string' ||
+      data.currency.toUpperCase() !== 'ETB'
+    ) {
+      mismatches.push('currency');
+    }
+    const settled = toDecimal(data?.amount);
+    const expected = toDecimal(payment.amount);
+    if (!settled || !expected || !amountsEqual(settled, expected)) {
+      mismatches.push('amount');
+    }
+
+    if (mismatches.length > 0) {
+      const ref = data?.reference ?? txRef;
+      await this.prisma.$transaction(async (tx) => {
+        // Guarded: only annotate a payment that is still PENDING. If another
+        // caller approved it in the race window, leave the approval intact.
+        const marked = await tx.payment.updateMany({
+          where: { id: payment.id, status: 'PENDING' },
+          data: {
+            chapaRef: ref,
+            verification: {
+              reviewNote:
+                'Chapa verification mismatch (amount/currency/tx_ref); manual review required.',
+              decision: 'REVIEW',
+              source: 'chapa',
+              reference: ref,
+              mismatchFields: mismatches,
+              exception: true,
+            } as Prisma.InputJsonValue,
+          },
+        });
+        if (marked.count === 0) return;
+        await this.states.recordEvent(tx, payment.id, 'CHAPA_VERIFY_MISMATCH', {
+          fromStatus: payment.status,
+          toStatus: payment.status,
+          meta: {
+            fields: mismatches,
+            expected: expected?.toString() ?? null,
+            reported: settled?.toString() ?? null,
+            currency: typeof data?.currency === 'string' ? data.currency : null,
+          },
+        });
       });
+      this.logger.warn(
+        `Chapa verify mismatch for ${txRef}: ${mismatches.join(',')} — payment stays PENDING for manual review`,
+      );
       return;
     }
 
     await this.payments.finalizeApproval(payment.id, {
-      chapaRef: json.data?.reference ?? undefined,
+      chapaRef: data?.reference ?? undefined,
       paidAt: new Date(),
     });
   }
