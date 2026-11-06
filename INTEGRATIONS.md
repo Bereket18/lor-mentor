@@ -233,17 +233,45 @@ must already be live.
 ### 4.5 How a payment is verified
 
 1. Student clicks Pay → `POST /api/v1/payments/chapa/initialize` creates a
-   `PENDING` payment with `tx_ref = lm-<paymentId>` and returns Chapa's hosted
-   checkout URL.
+   `PENDING` payment with `tx_ref = lm-<uuid>` (a fresh random UUID per
+   checkout — **not** the payment id; Chapa permanently reserves a `tx_ref`,
+   including abandoned attempts, so it can never be reused) and returns Chapa's
+   hosted checkout URL. At most one `PENDING` payment per user is allowed; a
+   second concurrent checkout is refused.
 2. Student pays on Chapa.
 3. Chapa POSTs the webhook. The API verifies the HMAC-SHA256 signature over the
    raw body with `CHAPA_WEBHOOK_SECRET`, using a timing-safe comparison, then
-   activates the subscription and generates the PDF receipt. Activation is
-   **idempotent** — duplicate webhooks and the browser return cannot
-   double-activate.
+   confirms the transaction with Chapa's verify endpoint before activating the
+   subscription and generating the PDF receipt. Activation is **idempotent** —
+   duplicate webhooks and the browser return cannot double-activate.
 4. The browser returns to the web app, which calls
    `GET /api/v1/payments/chapa/verify/:txRef`; the API re-checks with Chapa's
    verify endpoint. The UI never trusts the redirect alone.
+
+**Amount verification (exact).** Chapa fixes the amount at checkout, so an
+under- or overpayment is not a normal outcome. The verify response is compared
+against the snapshot stored on the payment:
+
+- `tx_ref` must be present and exactly equal to our reference;
+- `currency` must be present and `ETB`;
+- `amount` must be present and exactly equal to the snapshotted amount —
+  compared as a decimal (`decimal.js`), never `Number()` and never with a float
+  tolerance. A one-cent difference is a mismatch.
+
+If any check fails, the payment **stays `PENDING`**, a `PaymentEvent`
+(`CHAPA_VERIFY_MISMATCH`) is written, the row is flagged as an admin-queue
+exception, and a secret-free warning is logged. It is never auto-approved and
+never receives a customer-facing under/overpayment message. A 404 / "payment
+not paid yet" and network failures/timeouts also leave it `PENDING` (a later
+webhook or the browser callback can retry); every Chapa call has a timeout
+(`CHAPA_TIMEOUT_MS`, default 15000 ms).
+
+**Fee/charge semantics.** Chapa's verify `data` carries both `amount` (the
+settled transaction amount) and `charge` (Chapa's fee; present when the payer
+bears the fee). We compare `amount`, never `charge`: when the customer pays the
+fee, `charge` is reported separately and does not change `amount`. Confirm the
+account's fee-bearer setting in the Chapa dashboard; changing it does not
+require a code change because the comparison is on `amount` only.
 
 A missing or invalid signature is rejected before any state changes.
 
