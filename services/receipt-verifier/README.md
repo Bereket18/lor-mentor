@@ -172,5 +172,5 @@ docker compose -f docker-compose.prod.yml exec verifier \
   python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/health').read().decode())"
 ```
 
-For a complete setup and test matrix, see
-`docs/deploy/receipt-verifier.md`.
+For a complete setup and test matrix, see `docs/deploy/payments.md` (§2,
+bank-receipt rail).

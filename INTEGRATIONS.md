@@ -211,7 +211,15 @@ the college, not to the deployment engineer.
 | Webhook secret | Dashboard → Settings → Webhooks | `CHAPA_WEBHOOK_SECRET` |
 
 Never mix a test key with live traffic. Staging uses test keys; production uses
-live keys.
+live keys. Production **refuses to boot** if `CHAPA_SECRET_KEY` looks like a
+test key (Chapa test keys contain `TEST`, e.g. `CHASECK_TEST-…`).
+
+**Mode is enforced.** Chapa's verify response reports `mode` (`test` or `live`).
+When the field is present it must match the environment — `live` in production,
+`test` elsewhere — or the payment is treated as a verification mismatch
+(`CHAPA_VERIFY_MISMATCH`, field `mode`) and left for admin review instead of
+being approved. When the field is absent the check is skipped rather than
+guessing a value.
 
 ### 4.4 URLs to register
 
@@ -230,6 +238,19 @@ those two variables must be correct and public.
 The webhook must be reachable over HTTPS, which means DNS and the certificate
 must already be live.
 
+**Dashboard settings to configure:**
+
+| Setting | Value / action | Why it matters |
+|---|---|---|
+| **Webhook URL** | `https://api.your-domain/api/v1/payments/chapa/webhook` | Server-to-server source of truth. |
+| **Webhook secret hash** | A long random value; store the same value in `CHAPA_WEBHOOK_SECRET` | Chapa signs every delivery with it. Rotating it means updating both sides together. |
+| **Webhook retry interval** | Chapa's default: every 10 minutes, up to 10 attempts over 72 hours | Our endpoint returns `200` only when the event is durably handled or deterministically ignorable, `5xx` on transient failures (so Chapa retries), and `400` on a bad signature. |
+| **Checkout / retry timeout** | 60 minutes (or whatever the dashboard uses) | Set `CHAPA_RETRY_WINDOW_MINUTES` to the same value. A payment younger than this is never treated as abandoned. |
+| **Customer-paid fees** | On or off, per the college's commercial choice | Verified `amount` stays the settled transaction amount; Chapa's fee is reported separately as `charge` and is never compared. |
+
+Do not change the webhook URL or secret without updating `.env.production` and
+redeploying the API: a mismatch makes every delivery fail signature validation.
+
 ### 4.5 How a payment is verified
 
 1. Student clicks Pay → `POST /api/v1/payments/chapa/initialize` creates a
@@ -243,7 +264,11 @@ must already be live.
    raw body with `CHAPA_WEBHOOK_SECRET`, using a timing-safe comparison, then
    confirms the transaction with Chapa's verify endpoint before activating the
    subscription and generating the PDF receipt. Activation is **idempotent** —
-   duplicate webhooks and the browser return cannot double-activate.
+   duplicate webhooks and the browser return cannot double-activate. Chapa
+   retries every 10 minutes (up to 10 attempts over 72 hours), so the endpoint
+   answers `200` only for durably handled/ignorable events, `5xx` for transient
+   failures (verify timeout/unreachable, database error), and `400` for a bad
+   signature or malformed body.
 4. The browser returns to the web app, which calls
    `GET /api/v1/payments/chapa/verify/:txRef`; the API re-checks with Chapa's
    verify endpoint. The UI never trusts the redirect alone.
@@ -256,7 +281,8 @@ against the snapshot stored on the payment:
 - `currency` must be present and `ETB`;
 - `amount` must be present and exactly equal to the snapshotted amount —
   compared as a decimal (`decimal.js`), never `Number()` and never with a float
-  tolerance. A one-cent difference is a mismatch.
+  tolerance. A one-cent difference is a mismatch;
+- `mode`, when present, must be `live` in production and `test` elsewhere.
 
 If any check fails, the payment **stays `PENDING`**, a `PaymentEvent`
 (`CHAPA_VERIFY_MISMATCH`) is written, the row is flagged as an admin-queue
@@ -273,22 +299,67 @@ fee, `charge` is reported separately and does not change `amount`. Confirm the
 account's fee-bearer setting in the Chapa dashboard; changing it does not
 require a code change because the comparison is on `amount` only.
 
+**A single failed attempt is not terminal.** Chapa's documentation does not
+define what verify returns between retry attempts, so a verify response that
+reports `failed`/`cancelled` does **not** move a `PENDING` payment to
+`REJECTED`. The API records a `CHAPA_ATTEMPT_FAILED` `PaymentEvent` with the
+reported status and keeps the payment `PENDING`; the customer may still retry
+inside the retry window. The row ends only through expiry after a confirmed
+Chapa cancel (§ retry window) or through a verified late/terminal outcome.
+
 A missing or invalid signature is rejected before any state changes.
+
+**Signature headers.** Chapa documents two headers and either is sufficient:
+`chapa-signature` (HMAC-SHA256 of the webhook secret, keyed with itself) and
+`x-chapa-signature` (HMAC-SHA256 of the raw event body, keyed with the
+secret). The API accepts both and compares in constant time. The signature
+only proves the request came from someone holding the secret: **the
+server-side verify call is the real control**, and no payment is ever approved
+from a webhook body alone.
+
+**Retry window and cancellation.** A `PENDING` checkout younger than
+`CHAPA_RETRY_WINDOW_MINUTES` (default 60, matching the dashboard) is still open:
+a retry resumes the stored checkout URL instead of creating a duplicate. Past
+that window the API first calls `PUT /v1/transaction/cancel/<tx_ref>` (bearer
+secret, timeout). Only a confirmed dead link is expired locally
+(`PENDING → EXPIRED`, `PAYMENT_EXPIRED`). If Chapa reports the checkout was
+already paid, the normal verify-and-approve path runs instead; if Chapa is
+unreachable or refuses, **nothing changes** and the student gets a clear retry
+message. A student cancelling their own checkout goes through the same
+cancel-at-Chapa check before the local `PENDING → CANCELLED` transition.
+
+**Refunds, reversals and failures.** Documented webhook events
+`charge.refunded` (status `refunding` or `refunded`), `charge.reversed`, and
+`charge.failed` (or a `cancelled` status) always write a `PaymentEvent`
+(`CHAPA_REFUND_RECEIVED`, `CHAPA_REVERSAL_RECEIVED`,
+`CHAPA_FAILED_OR_CANCELLED`). A refund or reversal on an `APPROVED` payment is
+flagged in the admin queue for human review; the subscription is **never**
+auto-cancelled and the payment status is not changed automatically. A
+failed/cancelled event changes no state beyond the ledger entry. Refunds and
+chargebacks are still executed in the Chapa dashboard.
 
 ### 4.6 End-to-end test
 
 1. With **test** keys, run a checkout using Chapa's test cards.
 2. Confirm `PENDING → webhook received → subscription ACTIVE → PDF receipt`.
-3. POST to the webhook without a valid signature and confirm it is rejected.
-4. Switch to **live** keys, take one small real payment, confirm settlement
-   appears in the Chapa balance, then refund or reconcile.
+3. POST to the webhook without a valid signature and confirm it is rejected
+   (`400`).
+4. Start another checkout, cancel it from the student UI, and confirm Chapa's
+   checkout link is dead before the row becomes `CANCELLED`. Then confirm a
+   retry can start a fresh checkout.
+5. Switch to **live** keys (production refuses test keys at boot), take one
+   small real payment, confirm settlement appears in the Chapa balance, then
+   refund or reconcile. A refund webhook should flag the approved payment in
+   the admin queue without cancelling access.
 
 ### 4.7 Billing and usage
 
 - Chapa charges a per-transaction fee; confirm the current rate and settlement
   schedule in the dashboard — do not rely on figures quoted elsewhere.
 - Settlement goes to the account registered during KYC.
-- Refunds and chargebacks are handled in the Chapa dashboard, not in the app.
+- Refunds and chargebacks are executed in the Chapa dashboard. The app records
+  the webhook event and flags an approved payment for review, but never moves
+  money or cancels a subscription automatically.
 - The app records each payment and generates a receipt PDF; reconcile those
   against Chapa's settlement report monthly.
 
