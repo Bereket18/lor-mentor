@@ -1,99 +1,145 @@
-name: CI
+name: Lora Mentor CI/CD
 
-# The `origin` remote is GitLab and now has .gitlab-ci.yml, which ports this
-# workflow and adds Docker / nginx / dependency-audit jobs. This GitHub
-# workflow remains for the `github-old` remote. Keep the two in sync whenever
-# the test matrix changes.
 on:
   push:
-    branches: ["main", "integration/**", "feature/**"]
+    branches: [ main ]
   pull_request:
-    branches: ["main", "integration/**", "feature/**"]
-
-# Cancel superseded runs on the same ref to save minutes.
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+    branches: [ main ]
 
 jobs:
-  # ── API + Web (Node monorepo) ─────────────────────────────────────
-  node:
+  # ── API Jobs ────────────────────────────────────────────────────────
+  api-build-and-test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: lor_ci
+          POSTGRES_PASSWORD: lor_ci_password
+          POSTGRES_DB: lor_mentor_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+    env:
+      DATABASE_URL: postgresql://lor_ci:lor_ci_password@localhost:5432/lor_mentor_ci
+      REDIS_HOST: localhost
+      REDIS_PORT: "6379"
+      NPM_CONFIG_FUND: "false"
+      NPM_CONFIG_AUDIT: "false"
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
-          cache: npm
-
-      - name: Install (workspaces)
-        run: npm ci
-
-      # API: Prisma client is needed for the TS build to type-check.
-      - name: Prisma generate
-        working-directory: apps/api
-        run: npx prisma generate
-
-      - name: API build
-        run: npm run build:api
-
-      - name: API tests
-        working-directory: apps/api
-        run: npx jest --ci
-
-      - name: API e2e tests
-        working-directory: apps/api
-        run: npm run test:e2e
-
-      - name: Anatomy model validators
-        working-directory: apps/web
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci
+      
+      # Prisma generate & build
+      - name: API Build & Migrate
         run: |
-          node scripts/validate-anatomy-model.mjs --system heart
-          node scripts/validate-anatomy-model.mjs --system urinary
+          cd apps/api
+          npx prisma generate
+          npx prisma migrate deploy
+          npm run build
 
-      # Report-only for now: there is pre-existing lint debt (react-hooks
-      # rules) unrelated to CI. Build + tests below are the hard gates; tighten
-      # this to a blocking step once the existing warnings/errors are paid down.
-      - name: Web lint (report-only)
-        working-directory: apps/web
-        run: npx eslint .
-        continue-on-error: true
+      # API Unit & E2E Tests
+      - name: Run API Tests
+        run: |
+          cd apps/api
+          npx jest --ci
+          npm run test:e2e
 
-      - name: Web build
-        run: npm run build:web
-        env:
-          NEXT_PUBLIC_API_URL: https://api.example.com
-          NEXT_TELEMETRY_DISABLED: "1"
-
-  # ── Receipt-verifier (Python) ─────────────────────────────────────
-  verifier:
+  prisma-validate:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: services/receipt-verifier
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci
+      - run: npx prisma validate --schema apps/api/prisma/schema.prisma
 
+  api-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci
+      - run: |
+          cd apps/api
+          npx prisma generate
+      - run: npx tsc -p apps/api/tsconfig.json --noEmit
+
+  # ── Anatomy Model Validators ────────────────────────────────────────
+  anatomy-validators:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci
+      - run: |
+          cd apps/web
+          node scripts/validate-anatomy-model.mjs --system heart
+          node scripts/validate-anatomy-model.mjs --system urinary
+      - run: npm run test:scripts
+
+  # ── Web Jobs ────────────────────────────────────────────────────────
+  web-ci:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_API_URL: https://api.example.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci
+      
+      - name: Web Lint
+        run: cd apps/web && npx eslint .
+
+      - name: Web Build & Typegen
+        run: |
+          cd apps/web
+          npx next typegen
+          npm run build
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.com
+
+      - name: Web Unit Tests
+        run: npm run test:unit --workspace=apps/web
+
+  # ── Verifier Tests (Python) ─────────────────────────────────────────
+  verifier-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-
-      # normalize.py + its tests are stdlib-only. cbe_links.py needs `requests`;
-      # the validation/auth helpers live in security.py so the security tests do
-      # not import main.py's Selenium/Chromium stack. main.py's real dependency
-      # stack is validated by the Docker build.
-      - name: Install test dependencies
-        run: pip install requests fastapi
-
-      - name: Byte-compile verifier modules
-        run: python -m py_compile normalize.py cbe_links.py security.py main.py
-
-      - name: Normalizer tests
-        run: python test_normalize.py
-
-      - name: Receipt-link tests
-        run: python test_cbe_links.py
-
-      - name: Security and authentication tests
-        run: python test_security.py
+          python-version: '3.12'
+      - name: Install Python Dependencies
+        run: pip install requests==2.34.2 fastapi==0.140.0
+      - name: Run Verifier Tests
+        run: |
+          cd services/receipt-verifier
+          python -m py_compile normalize.py cbe_links.py security.py main.py
+          python test_normalize.py
+          python test_cbe_links.py
+          python test_security.py
