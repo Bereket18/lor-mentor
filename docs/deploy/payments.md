@@ -289,6 +289,21 @@ auto-cancelled and the payment status is not changed automatically. A
 failed/cancelled webhook changes no state beyond the ledger entry. Refunds and
 chargebacks are still executed in the Chapa dashboard.
 
+**A redelivered lifecycle event is a no-op.** Chapa redelivers a webhook every
+~10 minutes for up to 72 hours until it sees a `2xx`, so a refund, reversal or
+failed event can arrive many times — and under either accepted signature header
+(`chapa-signature` and `x-chapa-signature` are both still accepted; accepting a
+valid signature is never what deduplicates it). Before anything is written, the
+service looks up the events already recorded for that payment **of that type**
+(`tx_ref` + event kind) and compares Chapa's own id for the event
+(`reference`, falling back to `id`/`event_id`). A match means the redelivery is
+acknowledged and nothing happens: no second ledger row, no repeated admin
+exception flag, no duplicated notification. When neither payload carries an
+event id it is treated as a replay of the most recent event of that kind, since
+Chapa repeats the body verbatim. A genuinely different refund (a different
+`reference`) is still recorded, and a reversal is never mistaken for an earlier
+refund.
+
 ### 1.7 Security checklist
 
 - Keys live in `.env.production` (server env), never in the repo or a client

@@ -27,6 +27,41 @@ function asJsonObject(
     : {};
 }
 
+/**
+ * Chapa's own id for a lifecycle event. Recognised under the documented
+ * `reference` field and, when the payload omits it, under `id`/`event_id`.
+ */
+function lifecycleReference(event: Record<string, unknown>): string | null {
+  for (const key of ['reference', 'id', 'event_id']) {
+    const value = event[key];
+    if (typeof value === 'string' && value) return value;
+  }
+  return null;
+}
+
+/** The reference an already-recorded lifecycle event carried, if any. */
+function recordedLifecycleReference(
+  meta: Prisma.JsonValue | null,
+): string | null {
+  const reference = asJsonObject(meta).reference;
+  return typeof reference === 'string' && reference ? reference : null;
+}
+
+/**
+ * A redelivered lifecycle event must add nothing to the append-only ledger:
+ * same payment, same kind of event, same gateway reference. When either side
+ * carries no reference at all (Chapa redelivers the body verbatim) it is a
+ * replay of the most recent event of that kind, not a second occurrence.
+ */
+function isReplayedLifecycleEvent(
+  meta: Prisma.JsonValue | null,
+  reference: string | null,
+): boolean {
+  const recorded = recordedLifecycleReference(meta);
+  if (reference === null || recorded === null) return true;
+  return recorded === reference;
+}
+
 interface ChapaInitResponse {
   status: string;
   message?: string | Record<string, unknown>;
@@ -896,6 +931,8 @@ export class ChapaService {
       return;
     }
 
+    const reference = lifecycleReference(event);
+
     const meta = {
       txRef,
       event: typeof event.event === 'string' ? event.event : null,
@@ -907,9 +944,33 @@ export class ChapaService {
       currency:
         typeof event.currency === 'string' ? event.currency : null,
       mode: typeof event.mode === 'string' ? event.mode : null,
-      reference:
-        typeof event.reference === 'string' ? event.reference : null,
+      reference,
     } as Prisma.InputJsonValue;
+
+    const type =
+      kind === 'REFUND'
+        ? PaymentEventType.CHAPA_REFUND_RECEIVED
+        : kind === 'REVERSED'
+          ? PaymentEventType.CHAPA_REVERSAL_RECEIVED
+          : PaymentEventType.CHAPA_FAILED_OR_CANCELLED;
+
+    // Chapa redelivers a webhook every ~10 minutes until it sees a 2xx (up to
+    // 72 h), so the same refund/reversal/failed event can arrive many times —
+    // and under either accepted signature header. The ledger is append-only, so
+    // a duplicate is recognised *before* anything is written: no second row, no
+    // second exception flag, no repeated admin noise.
+    const recorded = await this.prisma.paymentEvent.findMany({
+      where: { paymentId: payment.id, type },
+      select: { id: true, meta: true },
+      orderBy: { createdAt: 'desc' },
+      take: 25,
+    });
+    if (recorded.some((row) => isReplayedLifecycleEvent(row.meta, reference))) {
+      this.logger.warn(
+        `Duplicate Chapa ${kind} webhook for ${txRef} (reference ${reference ?? 'absent'}) — already recorded, nothing written`,
+      );
+      return;
+    }
 
     if (kind === 'FAILED') {
       // Requirement: a failed/cancelled webhook changes no state beyond the
@@ -917,7 +978,7 @@ export class ChapaService {
       await this.states.recordEvent(
         this.prisma,
         payment.id,
-        PaymentEventType.CHAPA_FAILED_OR_CANCELLED,
+        type,
         {
           fromStatus: payment.status,
           toStatus: payment.status,
@@ -929,10 +990,6 @@ export class ChapaService {
       return;
     }
 
-    const type =
-      kind === 'REFUND'
-        ? PaymentEventType.CHAPA_REFUND_RECEIVED
-        : PaymentEventType.CHAPA_REVERSAL_RECEIVED;
     const label = kind === 'REFUND' ? 'refund' : 'reversal';
     const flagException = payment.status === 'APPROVED';
 

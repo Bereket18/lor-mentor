@@ -26,6 +26,7 @@ describe('ChapaService', () => {
   const webhookSecret = 'webhook-test-secret';
   const findUnique = jest.fn();
   const findFirst = jest.fn();
+  const findEvents = jest.fn();
   const findPlan = jest.fn();
   const create = jest.fn<Promise<{ id: string }>, [PaymentCreateArgs]>();
   const update = jest.fn<Promise<unknown>, [PaymentUpdateArgs]>();
@@ -56,6 +57,7 @@ describe('ChapaService', () => {
   const prisma = {
     subscriptionPlan: { findUnique: findPlan },
     payment: { findUnique, findFirst, create, update, updateMany },
+    paymentEvent: { findMany: findEvents },
     $transaction: jest.fn((fn: (client: unknown) => Promise<unknown>) =>
       fn(tx),
     ),
@@ -89,6 +91,7 @@ describe('ChapaService', () => {
     create.mockReset();
     update.mockReset().mockResolvedValue({});
     updateMany.mockReset().mockResolvedValue({ count: 1 });
+    findEvents.mockReset().mockResolvedValue([]);
     transition.mockReset().mockResolvedValue(true);
     recordEvent.mockReset().mockResolvedValue(undefined);
     assertNoActiveSubscription.mockReset();
@@ -1336,6 +1339,158 @@ describe('ChapaService', () => {
         received: true,
       });
       expect(recordEvent).not.toHaveBeenCalled();
+    });
+
+    // Chapa redelivers a webhook every ~10 minutes for up to 72 hours until it
+    // sees a 2xx, so every lifecycle event can arrive many times.
+    describe('redelivery of the same lifecycle event', () => {
+      const refund = {
+        event: 'charge.refunded',
+        status: 'refunded',
+        tx_ref: 'lm-payment-1',
+        amount: 1000,
+        currency: 'ETB',
+        reference: 'chapa-refund-1',
+      };
+      const approved = {
+        id: 'payment-1',
+        status: 'APPROVED',
+        verification: { source: 'chapa' },
+        chapaRef: 'chapa-reference',
+      };
+
+      function redeliver(event: Record<string, unknown>) {
+        const body = Buffer.from(JSON.stringify(event));
+        // The retry is signed with the OTHER accepted header: deduplication
+        // must not depend on rejecting a valid signature.
+        return service.handleWebhook(body, {
+          chapaSignature: signSecret(),
+        });
+      }
+
+      it('records a redelivered refund only once and flags the payment once', async () => {
+        findUnique.mockResolvedValue(approved);
+        findEvents
+          .mockResolvedValueOnce([])
+          .mockResolvedValue([
+            {
+              id: 'event-1',
+              meta: { txRef: 'lm-payment-1', reference: 'chapa-refund-1' },
+            },
+          ]);
+
+        const first = signed(refund);
+        await expect(service.handleWebhook(first.body, first.signatures)).resolves.toEqual({
+          received: true,
+        });
+        await expect(redeliver(refund)).resolves.toEqual({ received: true });
+
+        expect(recordEvent).toHaveBeenCalledTimes(1);
+        expect(updateMany).toHaveBeenCalledTimes(1);
+      });
+
+      it('records a redelivered reversal only once', async () => {
+        findUnique.mockResolvedValue(approved);
+        const reversal = {
+          event: 'charge.reversed',
+          status: 'reversed',
+          tx_ref: 'lm-payment-1',
+          reference: 'chapa-reversal-1',
+        };
+        findEvents
+          .mockResolvedValueOnce([])
+          .mockResolvedValue([
+            { id: 'event-1', meta: { reference: 'chapa-reversal-1' } },
+          ]);
+
+        const first = signed(reversal);
+        await service.handleWebhook(first.body, first.signatures);
+        await redeliver(reversal);
+
+        expect(recordEvent).toHaveBeenCalledTimes(1);
+        expect(updateMany).toHaveBeenCalledTimes(1);
+      });
+
+      it('records a redelivered failed/cancelled event only once', async () => {
+        findUnique.mockResolvedValue({ ...approved, status: 'PENDING' });
+        const failed = {
+          event: 'charge.failed',
+          status: 'failed',
+          tx_ref: 'lm-payment-1',
+          reference: 'chapa-failed-1',
+        };
+        findEvents
+          .mockResolvedValueOnce([])
+          .mockResolvedValue([
+            { id: 'event-1', meta: { reference: 'chapa-failed-1' } },
+          ]);
+
+        const first = signed(failed);
+        await service.handleWebhook(first.body, first.signatures);
+        await redeliver(failed);
+
+        expect(recordEvent).toHaveBeenCalledTimes(1);
+      });
+
+      it('still records a second refund that carries a different gateway reference', async () => {
+        findUnique.mockResolvedValue(approved);
+        findEvents.mockResolvedValue([
+          { id: 'event-1', meta: { reference: 'chapa-refund-1' } },
+        ]);
+
+        const second = signed({ ...refund, reference: 'chapa-refund-2' });
+        await service.handleWebhook(second.body, second.signatures);
+
+        expect(recordEvent).toHaveBeenCalledTimes(1);
+        expect(recordEvent).toHaveBeenCalledWith(
+          expect.anything(),
+          'payment-1',
+          'CHAPA_REFUND_RECEIVED',
+          expect.objectContaining({
+            meta: expect.objectContaining({ reference: 'chapa-refund-2' }),
+          }),
+        );
+      });
+
+      it('does not treat a reversal as a duplicate of an earlier refund', async () => {
+        findUnique.mockResolvedValue(approved);
+        findEvents.mockResolvedValue([]);
+
+        const reversal = signed({
+          event: 'charge.reversed',
+          status: 'reversed',
+          tx_ref: 'lm-payment-1',
+          reference: 'chapa-refund-1',
+        });
+        await service.handleWebhook(reversal.body, reversal.signatures);
+
+        expect(recordEvent).toHaveBeenCalledWith(
+          expect.anything(),
+          'payment-1',
+          'CHAPA_REVERSAL_RECEIVED',
+          expect.anything(),
+        );
+      });
+
+      it('deduplicates a redelivery that carries no gateway reference either', async () => {
+        findUnique.mockResolvedValue(approved);
+        const noRef = {
+          event: 'charge.refunded',
+          status: 'refunded',
+          tx_ref: 'lm-payment-1',
+          amount: 1000,
+        };
+        findEvents
+          .mockResolvedValueOnce([])
+          .mockResolvedValue([{ id: 'event-1', meta: { txRef: 'lm-payment-1' } }]);
+
+        const first = signed(noRef);
+        await service.handleWebhook(first.body, first.signatures);
+        await redeliver(noRef);
+
+        expect(recordEvent).toHaveBeenCalledTimes(1);
+        expect(updateMany).toHaveBeenCalledTimes(1);
+      });
     });
   });
 
