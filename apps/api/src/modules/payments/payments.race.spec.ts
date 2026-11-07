@@ -229,6 +229,8 @@ describeWithDb('Payments concurrency (real Postgres)', () => {
     verifyOk?: boolean;
     initializeUrl?: string;
     initializeFails?: boolean;
+    cancel?: (txRef: string) => unknown;
+    cancelOk?: boolean;
   }) {
     const initializeUrl =
       opts.initializeUrl ?? 'https://checkout.chapa.test/session';
@@ -249,6 +251,25 @@ describeWithDb('Payments concurrency (real Postgres)', () => {
                     status: 'failed',
                     message: 'Payment not paid yet',
                     data: null,
+                  },
+            ),
+        } as Response);
+      }
+      if (u.includes('/transaction/cancel/')) {
+        const txRef = decodeURIComponent(
+          u.split('/transaction/cancel/')[1] ?? '',
+        );
+        return Promise.resolve({
+          ok: opts.cancelOk ?? true,
+          status: (opts.cancelOk ?? true) ? 200 : 400,
+          json: () =>
+            Promise.resolve(
+              opts.cancel
+                ? opts.cancel(txRef)
+                : {
+                    status: 'success',
+                    message: 'Checkout link expired successfully',
+                    data: { tx_ref: txRef },
                   },
             ),
         } as Response);
@@ -280,9 +301,9 @@ describeWithDb('Payments concurrency (real Postgres)', () => {
     });
   }
 
-  /** Backdate a payment so it looks abandoned (> 30 minutes old). */
+  /** Backdate a payment so it looks abandoned (> 60-minute retry window). */
   async function makeAbandoned(paymentId: string) {
-    const createdAt = new Date(Date.now() - 31 * 60 * 1000);
+    const createdAt = new Date(Date.now() - 61 * 60 * 1000);
     await prisma.payment.update({
       where: { id: paymentId },
       data: { createdAt },
@@ -698,6 +719,72 @@ describeWithDb('Payments concurrency (real Postgres)', () => {
         await prisma.subscription.count({ where: { userId: student.id } }),
       ).toBe(1);
     }
+  });
+
+  it('student cancel at Chapa vs webhook approval: the paid money wins and activates exactly once', async () => {
+    const student = await createStudent('cancel-at-chapa-vs-webhook');
+    const txRef = `lm-${crypto.randomUUID()}`;
+    const payment = await createPayment(student.id, {
+      method: 'CHAPA',
+      txRef,
+      receiptPath: null,
+      bankReference: null,
+    });
+    mockGateway({
+      verify: (ref) => ({
+        status: 'success',
+        data: {
+          status: 'success',
+          amount: '1000.00',
+          currency: 'ETB',
+          tx_ref: ref,
+          reference: `chapa-${ref}`,
+          mode: 'test',
+        },
+      }),
+      verifyOk: true,
+      cancel: () => ({
+        status: 'success',
+        message: 'Checkout link expired successfully',
+        data: {},
+      }),
+    });
+
+    const body = webhookBody(txRef);
+    const results = await Promise.allSettled([
+      chapa.cancelByStudent(payment.id, student.id),
+      chapa.handleWebhook(body, signWebhook(body)),
+    ]);
+
+    // The cancel may lose to the approval; it must fail cleanly, never corrupt.
+    for (const r of results) {
+      if (r.status === 'rejected') {
+        expect(r.reason).toBeInstanceOf(BadRequestException);
+      }
+    }
+
+    const final = await prisma.payment.findUniqueOrThrow({
+      where: { id: payment.id },
+    });
+    expect(final.status).toBe('APPROVED');
+    expect(final.subscriptionId).not.toBeNull();
+
+    expect(
+      await prisma.subscription.count({ where: { userId: student.id } }),
+    ).toBe(1);
+    expect(
+      await prisma.paymentEvent.count({
+        where: {
+          paymentId: payment.id,
+          type: { in: ['PAYMENT_APPROVED', 'PAYMENT_APPROVED_AFTER_EXPIRY'] },
+        },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.notification.count({
+        where: { userId: student.id, type: 'PAYMENT_APPROVED' },
+      }),
+    ).toBe(1);
   });
 
   it('two paid payments for one user: approvals extend one subscription instead of racing it', async () => {

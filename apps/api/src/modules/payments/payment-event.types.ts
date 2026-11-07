@@ -24,8 +24,31 @@ export const PaymentEventType = {
   CHAPA_LATE_PAYMENT_TERMINAL: 'CHAPA_LATE_PAYMENT_TERMINAL',
   CHAPA_INIT_FAILED: 'CHAPA_INIT_FAILED',
   CHAPA_PAYMENT_FAILED: 'CHAPA_PAYMENT_FAILED',
+  /**
+   * A verify call reported the attempt as failed/cancelled. This is NOT
+   * terminal: the payment stays PENDING and may still succeed inside the retry
+   * window. It ends by expiry after a confirmed Chapa cancel.
+   */
+  CHAPA_ATTEMPT_FAILED: 'CHAPA_ATTEMPT_FAILED',
   CHAPA_VERIFY_UNREACHABLE: 'CHAPA_VERIFY_UNREACHABLE',
   CHAPA_VERIFY_MISMATCH: 'CHAPA_VERIFY_MISMATCH',
+  /** Chapa refused/was unreachable when we tried to cancel a stale checkout. */
+  CHAPA_CANCEL_FAILED: 'CHAPA_CANCEL_FAILED',
+  /**
+   * Chapa reported a refund (refunding/refunded). The payment status is kept;
+   * an APPROVED payment is flagged in the admin queue for refund review.
+   */
+  CHAPA_REFUND_RECEIVED: 'CHAPA_REFUND_RECEIVED',
+  /**
+   * Chapa reported a reversal. The payment status is kept (never auto-reversed
+   * or auto-cancelled) and an APPROVED payment is flagged for admin review.
+   */
+  CHAPA_REVERSAL_RECEIVED: 'CHAPA_REVERSAL_RECEIVED',
+  /**
+   * Chapa reported a failed/cancelled transaction. Recorded for the ledger
+   * only: no payment/subscription state changes.
+   */
+  CHAPA_FAILED_OR_CANCELLED: 'CHAPA_FAILED_OR_CANCELLED',
 } as const;
 
 export type PaymentEventTypeValue =
