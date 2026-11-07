@@ -4,7 +4,7 @@ import {
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import type { PaymentStatus, Prisma } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ReceiptService } from './receipt.service';
@@ -17,6 +17,10 @@ import type { ChekiScanOutcome } from './cheki.service';
 import type { VerifyReceiptDto } from './dto/verify-receipt.dto';
 import type { SetBankAccountDto } from './dto/manage-bank.dto';
 import { BANK_CATALOG, catalogBank } from './bank-catalog';
+import { PaymentStateMachine } from './payment-state-machine';
+import { PaymentEventType } from './payment-event.types';
+import { addMonthsUtc } from './date-math';
+import { formatETB, toDecimal } from './money';
 import { assertValidImageFile } from '../../common/utils/image-magic-bytes';
 import {
   extractLegacyCbeLinkDigits,
@@ -28,7 +32,7 @@ import * as path from 'path';
 
 type ReceiptDecision =
   | { outcome: 'APPROVE' }
-  | { outcome: 'REVIEW' | 'REJECT'; reason: string };
+  | { outcome: 'REVIEW' | 'REJECT'; reason: string; excess?: Prisma.Decimal };
 
 export interface BankAccountView {
   bankCode: string | null;
@@ -48,6 +52,7 @@ export class PaymentsService {
     private readonly config: ConfigService,
     private readonly verifier: ReceiptVerifierService,
     private readonly cheki: ChekiService,
+    private readonly states: PaymentStateMachine,
   ) {}
 
   /** Statuses the admin payment queue can be filtered by (tab mapping). */
@@ -56,6 +61,8 @@ export class PaymentsService {
     'APPROVED',
     'REJECTED',
     'REVERSED',
+    'EXPIRED',
+    'CANCELLED',
   ] as const;
 
   /**
@@ -75,7 +82,9 @@ export class PaymentsService {
       NOT: {
         method: 'CHAPA',
         chapaRef: null,
-        status: { not: 'APPROVED' },
+        // Unconfirmed/abandoned CHAPA attempts stay out of the admin queue;
+        // EXPIRED and CANCELLED are terminal outcomes and remain visible.
+        status: { in: ['PENDING', 'REJECTED'] },
       },
     };
     if (
@@ -144,6 +153,8 @@ export class PaymentsService {
       APPROVED: 0,
       REJECTED: 0,
       REVERSED: 0,
+      EXPIRED: 0,
+      CANCELLED: 0,
     };
     for (const group of grouped) {
       counts[group.status] = group._count._all;
@@ -164,7 +175,9 @@ export class PaymentsService {
         NOT: {
           method: 'CHAPA',
           chapaRef: null,
-          status: { not: 'APPROVED' },
+          // A failed initialization is noise for the student, but an open or
+          // expired checkout is theirs to see (and to cancel).
+          status: 'REJECTED',
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -388,9 +401,7 @@ export class PaymentsService {
         where: { userId, status: 'PENDING', method: 'MANUAL' },
       });
       if (pending) {
-        throw new BadRequestException(
-          'You already have a payment awaiting review',
-        );
+        throw new BadRequestException(this.pendingPaymentMessage(pending));
       }
 
       await this.assertNoActiveSubscription(userId);
@@ -424,6 +435,8 @@ export class PaymentsService {
               planId: plan.id,
               method: 'MANUAL',
               amount: plan.priceETB,
+              planName: plan.name,
+              planDurationMonths: plan.durationMonths,
               receiptPath: file.filename,
               bankName: attempt.dto.bank,
               bankReference: attempt.bankRef,
@@ -457,6 +470,8 @@ export class PaymentsService {
               planId: plan.id,
               method: 'MANUAL',
               amount: plan.priceETB,
+              planName: plan.name,
+              planDurationMonths: plan.durationMonths,
               receiptPath: file.filename,
               bankName: attempt.dto.bank,
               bankReference: attempt.bankRef,
@@ -492,6 +507,7 @@ export class PaymentsService {
               verifierCode: attempt.verifierCode,
               receiptPath: file.filename,
               ocr: this.ocrMeta(scan),
+              excess: attempt.excess ?? null,
             },
           );
           paymentCreated = true;
@@ -508,6 +524,8 @@ export class PaymentsService {
           planId,
           method: 'MANUAL',
           amount: plan.priceETB,
+          planName: plan.name,
+          planDurationMonths: plan.durationMonths,
           receiptPath: file.filename,
           verification: {
             reviewNote: 'Uploaded receipt is awaiting manual review.',
@@ -594,9 +612,7 @@ export class PaymentsService {
       where: { userId, status: 'PENDING', method: 'MANUAL' },
     });
     if (pending) {
-      throw new BadRequestException(
-        'You already have a payment awaiting review',
-      );
+      throw new BadRequestException(this.pendingPaymentMessage(pending));
     }
 
     await this.assertNoActiveSubscription(userId);
@@ -757,10 +773,7 @@ export class PaymentsService {
       await this.assertReferenceUnused(bankRef);
     }
 
-    const decision = await this.assessReceipt(
-      receipt,
-      Number(plan.priceETB),
-    );
+    const decision = await this.assessReceipt(receipt, plan.priceETB);
     if (decision.outcome === 'REJECT') {
       await this.createRejectedVerification(userId, dto, plan, receipt, {
         reason: decision.reason,
@@ -774,6 +787,7 @@ export class PaymentsService {
         reason: decision.reason,
         bankReference: bankRef,
         chekiCode: chekiCode ?? undefined,
+        excess: decision.excess ?? null,
       });
     }
 
@@ -788,6 +802,8 @@ export class PaymentsService {
           planId: dto.planId,
           method: 'MANUAL',
           amount: plan.priceETB,
+          planName: plan.name,
+          planDurationMonths: plan.durationMonths,
           bankName: dto.bank,
           bankReference: bankRef,
           verification: this.buildVerification(receipt, dto, {
@@ -837,7 +853,12 @@ export class PaymentsService {
    */
   private async attemptExtractedReceipt(
     plan: { id: string; priceETB: Prisma.Decimal; name: string },
-    scan: { bank: string | null; bankCode: string; reference: string; text: string },
+    scan: {
+      bank: string | null;
+      bankCode: string;
+      reference: string;
+      text: string;
+    },
   ): Promise<
     | {
         outcome: 'APPROVED';
@@ -860,6 +881,7 @@ export class PaymentsService {
         chekiCode?: string;
         verifierCode?: string;
         reason: string;
+        excess?: Prisma.Decimal | null;
       }
   > {
     if (!scan.bank) {
@@ -961,10 +983,7 @@ export class PaymentsService {
       await this.assertReferenceUnused(bankRef);
     }
 
-    const decision = await this.assessReceipt(
-      receipt,
-      Number(plan.priceETB),
-    );
+    const decision = await this.assessReceipt(receipt, plan.priceETB);
     if (decision.outcome === 'REJECT') {
       return {
         outcome: 'REJECTED',
@@ -982,6 +1001,7 @@ export class PaymentsService {
         bankRef,
         chekiCode,
         reason: decision.reason,
+        excess: decision.excess ?? null,
       };
     }
     return { outcome: 'APPROVED', dto, receipt, bankRef };
@@ -1009,7 +1029,7 @@ export class PaymentsService {
    */
   private async assessReceipt(
     receipt: NormalizedReceipt,
-    planPrice: number,
+    planPrice: Prisma.Decimal,
   ): Promise<ReceiptDecision> {
     if (receipt.statusKnown && receipt.statusOk === false) {
       return {
@@ -1032,16 +1052,21 @@ export class PaymentsService {
         reason: 'Payment was not made to the college receiving account.',
       };
     }
-    if (receipt.amount != null && receipt.amount + 0.01 < planPrice) {
+    // Decimal-safe comparison: no float arithmetic, no tolerance band.
+    const paid = toDecimal(receipt.amount);
+    if (paid && paid.lt(planPrice)) {
+      const shortfall = planPrice.minus(paid);
       return {
         outcome: 'REJECT',
-        reason: `Amount paid (${receipt.amount} ETB) is less than the plan price (${planPrice} ETB). Please upload a receipt for the selected plan amount or contact the college.`,
+        reason: `Amount paid (${paid.toFixed(2)} ETB) is less than the plan price (${planPrice.toFixed(2)} ETB); shortfall ${shortfall.toFixed(2)} ETB. Please pay the full plan amount or contact the college.`,
       };
     }
-    if (receipt.amount != null && receipt.amount > planPrice + 0.01) {
+    if (paid && paid.gt(planPrice)) {
+      const excess = paid.minus(planPrice);
       return {
         outcome: 'REVIEW',
-        reason: `Amount paid (${receipt.amount} ETB) is greater than the plan price (${planPrice} ETB). Please contact the college or choose the plan that matches your payment; this receipt needs manual review.`,
+        excess,
+        reason: `Amount paid (${paid.toFixed(2)} ETB) is greater than the plan price (${planPrice.toFixed(2)} ETB); excess ${excess.toFixed(2)} ETB recorded for the college to refund or credit. This receipt needs manual review.`,
       };
     }
     if (!receipt.receiverAccount) {
@@ -1090,7 +1115,9 @@ export class PaymentsService {
 
   /** Legacy env-configured accounts, normalised to digits. */
   private envAccountRows(): { accountNumber: string; label: string }[] {
-    const labels = (this.config.get<string>('COMPANY_BANK_ACCOUNT_LABELS') ?? '')
+    const labels = (
+      this.config.get<string>('COMPANY_BANK_ACCOUNT_LABELS') ?? ''
+    )
       .split(',')
       .map((label) => label.trim());
     return (this.config.get<string>('COMPANY_BANK_ACCOUNTS') ?? '')
@@ -1121,7 +1148,12 @@ export class PaymentsService {
   private async createPendingForReview(
     userId: string,
     dto: VerifyReceiptDto,
-    plan: { id: string; priceETB: Prisma.Decimal; name: string },
+    plan: {
+      id: string;
+      priceETB: Prisma.Decimal;
+      name: string;
+      durationMonths: number;
+    },
     receipt: NormalizedReceipt | null,
     opts: {
       reason: string;
@@ -1132,6 +1164,8 @@ export class PaymentsService {
       receiptPath?: string;
       /** OCR provenance (e.g. which QR was read) for the verification JSON. */
       ocr?: Prisma.InputJsonValue;
+      /** Overpayment excess recorded on the payment (manual review, never auto-approved). */
+      excess?: Prisma.Decimal | null;
     },
   ) {
     try {
@@ -1141,8 +1175,11 @@ export class PaymentsService {
           planId: plan.id,
           method: 'MANUAL',
           amount: plan.priceETB,
+          planName: plan.name,
+          planDurationMonths: plan.durationMonths,
           bankName: dto.bank,
           bankReference: opts.bankReference ?? null,
+          excessAmount: opts.excess ?? null,
           rejectionReason: null,
           ...(opts.receiptPath ? { receiptPath: opts.receiptPath } : {}),
           verification: this.buildVerification(receipt, dto, {
@@ -1175,7 +1212,12 @@ export class PaymentsService {
   private async createRejectedVerification(
     userId: string,
     dto: VerifyReceiptDto,
-    plan: { id: string; priceETB: Prisma.Decimal; name: string },
+    plan: {
+      id: string;
+      priceETB: Prisma.Decimal;
+      name: string;
+      durationMonths: number;
+    },
     receipt: NormalizedReceipt,
     opts: { reason: string; bankReference: string | null | undefined },
   ) {
@@ -1186,6 +1228,8 @@ export class PaymentsService {
           planId: plan.id,
           method: 'MANUAL',
           amount: plan.priceETB,
+          planName: plan.name,
+          planDurationMonths: plan.durationMonths,
           bankName: dto.bank,
           bankReference: opts.bankReference ?? null,
           status: 'REJECTED',
@@ -1251,6 +1295,27 @@ export class PaymentsService {
   }
 
   /**
+   * One-PENDING-per-user rule message: never block silently — name the
+   * payment, its method and its status, and say what the student should do.
+   */
+  private pendingPaymentMessage(payment: {
+    id: string;
+    method: string;
+    status: string;
+  }): string {
+    if (payment.method === 'MANUAL') {
+      return (
+        `You already have a MANUAL bank-receipt payment (id ${payment.id}, status ${payment.status}) awaiting admin review. ` +
+        'You will be notified when it is approved or rejected; you cannot start another payment until then.'
+      );
+    }
+    return (
+      `You already have a ${payment.method} payment (id ${payment.id}, status ${payment.status}) in progress. ` +
+      'Complete it, cancel it, or wait for it to expire before starting a new one.'
+    );
+  }
+
+  /**
    * Guard against paying twice: if the user already has an ACTIVE subscription
    * that hasn't expired, block a new payment. They can renew once it lapses.
    * Shared by the manual and Chapa entry points.
@@ -1267,6 +1332,57 @@ export class PaymentsService {
     }
   }
 
+  /**
+   * Student-facing cancel of their OWN pending online (Chapa) payment.
+   * Owner-checked, and the PENDING → CANCELLED move goes through the state
+   * machine (guarded update + PAYMENT_CANCELLED event) inside one transaction
+   * with the audit row, so a concurrent approval can never be overwritten.
+   * Bank-receipt (MANUAL) payments are admin-review items and cannot be
+   * cancelled here.
+   */
+  async cancelOwn(paymentId: string, userId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const payment = await tx.payment.findUnique({
+        where: { id: paymentId },
+        select: { id: true, userId: true, status: true, method: true, txRef: true },
+      });
+      if (!payment || payment.userId !== userId) {
+        throw new NotFoundException('Payment not found');
+      }
+      if (payment.status !== 'PENDING') {
+        throw new BadRequestException('Only a pending payment can be cancelled');
+      }
+      if (payment.method !== 'CHAPA') {
+        throw new BadRequestException(
+          'Bank-receipt payments are reviewed by an admin and cannot be cancelled here',
+        );
+      }
+
+      const won = await this.states.transition(tx, paymentId, {
+        from: ['PENDING'],
+        to: 'CANCELLED',
+        type: PaymentEventType.PAYMENT_CANCELLED,
+        actorId: userId,
+        reason: 'Cancelled by the student before completing the checkout',
+      });
+      if (!won) {
+        throw new BadRequestException('Payment is no longer pending');
+      }
+
+      await tx.auditLog.create({
+        data: {
+          actorId: userId,
+          action: 'PAYMENT_CANCELLED',
+          entityType: 'Payment',
+          entityId: paymentId,
+          meta: { method: payment.method, txRef: payment.txRef ?? null },
+        },
+      });
+
+      return { message: 'Payment cancelled' };
+    });
+  }
+
   /** MANUAL flow: an admin approves a pending receipt. */
   async approve(paymentId: string, adminId: string) {
     return this.finalizeApproval(paymentId, { reviewedBy: adminId });
@@ -1280,10 +1396,24 @@ export class PaymentsService {
    * record without re-activating anything (Chapa retries webhooks, and an admin
    * might double-click). The subscription activation + payment update happen in
    * one transaction; the PDF receipt and notification are produced afterwards.
+   *
+   * Late Chapa payments: a checkout may already be closed as EXPIRED (abandoned
+   * lazily) or CANCELLED (student cancelled) when Chapa confirms the money did
+   * move. `allowExpiredOrCancelled` is set ONLY by the verified gateway paths
+   * (webhook, callback, verify endpoint, lazy resolution) after an exact
+   * tx_ref/ETB/amount check. Admin manual approval never sets it, so a closed
+   * checkout can never be reopened from the dashboard. REJECTED and REVERSED
+   * stay fully terminal.
    */
   async finalizeApproval(
     paymentId: string,
-    opts: { reviewedBy?: string; chapaRef?: string; paidAt?: Date } = {},
+    opts: {
+      reviewedBy?: string;
+      chapaRef?: string;
+      paidAt?: Date;
+      /** Verified-gateway only: revive EXPIRED/CANCELLED. Never for admins. */
+      allowExpiredOrCancelled?: boolean;
+    } = {},
   ) {
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
@@ -1297,49 +1427,109 @@ export class PaymentsService {
     if (payment.status === 'REJECTED') {
       throw new BadRequestException('Payment has already been rejected');
     }
+    if (payment.status === 'REVERSED') {
+      throw new BadRequestException('Payment has been reversed');
+    }
+    const closed =
+      payment.status === 'EXPIRED' || payment.status === 'CANCELLED';
+    if (closed && !opts.allowExpiredOrCancelled) {
+      throw new BadRequestException(
+        `Payment is ${payment.status} and can only be approved by a verified gateway confirmation`,
+      );
+    }
+    // Defence in depth: even if a caller passed both flags, an admin review
+    // must never reopen a closed checkout.
+    if (closed && opts.reviewedBy) {
+      throw new BadRequestException(
+        'A closed payment cannot be approved by an admin',
+      );
+    }
     if (opts.reviewedBy) {
       await this.assertAdminApprovalAllowed(payment);
     }
 
     const now = opts.paidAt ?? new Date();
-    const endDate = new Date(now);
-    endDate.setMonth(endDate.getMonth() + payment.plan.durationMonths);
+    // Plan snapshot: values captured at payment creation (all new rows);
+    // fall back to the live plan only for pre-migration rows.
+    const planName = payment.planName ?? payment.plan.name;
+    const durationMonths =
+      payment.planDurationMonths ?? payment.plan.durationMonths;
     const receiptNumber = this.receipts.buildReceiptNumber(payment.id, now);
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      // Atomically CLAIM the PENDING → APPROVED transition. Under READ
-      // COMMITTED a second concurrent caller (Chapa retries its webhook while
-      // the browser callback also fires) blocks here, then matches 0 rows and
-      // bails — so activation, the notification, the audit log and the PDF are
-      // produced exactly once. This is the real idempotency guard; the early
-      // status check above is just a fast path.
-      const claim = await tx.payment.updateMany({
-        where: { id: paymentId, status: 'PENDING' },
+    let result: { startDate: Date; endDate: Date } | null;
+    for (let attempt = 0; ; attempt++) {
+      result = await this.prisma.$transaction(async (tx) => {
+        // Re-read inside the transaction: the status may have moved since the
+        // fast-path read above (an abandoned checkout can be expired by a
+        // concurrent initialize). The guarded update below only fires for the
+        // status we just observed, so a late transition can never overwrite a
+        // newer one.
+      const current = await tx.payment.findUnique({
+        where: { id: paymentId },
+        select: { status: true },
+      });
+      if (!current) return null;
+      const late =
+        current.status === 'EXPIRED' || current.status === 'CANCELLED';
+      if (late && !opts.allowExpiredOrCancelled) return null;
+      if (current.status !== 'PENDING' && !late) return null;
+      const fromStatus = current.status as PaymentStatus;
+
+      // Atomically CLAIM the transition through the state machine: guarded
+      // update (WHERE status = fromStatus) + immutable PaymentEvent in the
+      // same transaction. Under READ COMMITTED a second concurrent caller
+      // (Chapa webhook retry while the browser callback also fires) blocks
+      // here, then matches 0 rows and bails — so activation, the
+      // notification, the audit log and the PDF are produced exactly once.
+      // This is the real idempotency guard; the early status checks above are
+      // just a fast path.
+      const won = await this.states.transition(tx, paymentId, {
+        from: [fromStatus],
+        to: 'APPROVED',
+        type: late
+          ? PaymentEventType.PAYMENT_APPROVED_AFTER_EXPIRY
+          : PaymentEventType.PAYMENT_APPROVED,
+        actorId: opts.reviewedBy ?? null,
+        reason: late
+          ? `Chapa verified the exact payment after it was ${fromStatus}`
+          : null,
         data: {
-          status: 'APPROVED',
           receiptNumber,
           chapaRef: opts.chapaRef ?? payment.chapaRef,
           paidAt: now,
           reviewedBy: opts.reviewedBy ?? null,
           reviewedAt: now,
+          ...(late ? { recoveredFromStatus: fromStatus } : {}),
+        },
+        meta: {
+          method: payment.method,
+          receiptNumber,
+          auto: !opts.reviewedBy,
+          planName,
+          ...(late ? { recoveredFromStatus: fromStatus } : {}),
         },
       });
-      if (claim.count === 0) {
-        // Lost the race — another transaction already approved this payment.
+      if (!won) {
+        // Lost the race — another transaction already changed this payment.
         return null;
       }
 
-      const subscriptionId = await this.activateSubscription(
+      // Serialize subscription activation per user: two different paid
+      // payments for the same user finalized at the same moment must extend
+      // one subscription in sequence, not race the unique userId index.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('payment-activation'), hashtext(${payment.userId}))`;
+
+      const sub = await this.activateSubscription(
         tx,
         payment.userId,
         payment.planId,
         now,
-        endDate,
+        durationMonths,
       );
 
       await tx.payment.update({
         where: { id: paymentId },
-        data: { subscriptionId },
+        data: { subscriptionId: sub.id },
       });
 
       await tx.notification.create({
@@ -1347,33 +1537,76 @@ export class PaymentsService {
           userId: payment.userId,
           type: 'PAYMENT_APPROVED',
           title: 'Payment approved',
-          message: `Your ${payment.plan.name} subscription is now active.`,
-          meta: { paymentId, receiptNumber },
+          // Plan names already include the word "subscription" (e.g.
+          // "6-month subscription"), so appending it again produced
+          // "Your 6-month subscription subscription is now active."
+          // Show plan/amount instead - it also tells the student what
+          // they paid for.
+          message: `Your ${planName.trim()}/${Number(payment.amount)} is now active.`,
+          meta: {
+            paymentId,
+            receiptNumber,
+            ...(late ? { recoveredFromStatus: fromStatus } : {}),
+          },
         },
       });
 
       await tx.auditLog.create({
         data: {
           actorId: opts.reviewedBy ?? payment.userId,
-          action: 'PAYMENT_APPROVED',
+          action: late
+            ? PaymentEventType.PAYMENT_APPROVED_AFTER_EXPIRY
+            : 'PAYMENT_APPROVED',
           entityType: 'Payment',
           entityId: paymentId,
           meta: {
             method: payment.method,
             receiptNumber,
             auto: !opts.reviewedBy,
+            planName,
+            ...(late ? { recoveredFromStatus: fromStatus } : {}),
           },
         },
       });
 
-      return { startDate: now };
-    });
+      return { startDate: sub.startDate, endDate: sub.endDate };
+      });
+
+      // Claimed: activate the receipt/PDF path below exactly once.
+      if (result) break;
+
+      // Lost the guarded claim: another transaction moved this row first. If a
+      // concurrent student/lazy cancel closed it as EXPIRED/CANCELLED *after*
+      // we read `current.status`, the money Chapa just confirmed would be
+      // dropped silently — so re-read and revive on the next pass instead.
+      const after = await this.prisma.payment.findUnique({
+        where: { id: paymentId },
+        select: { status: true },
+      });
+      if (after?.status === 'APPROVED') {
+        return { message: 'Payment already approved', alreadyApproved: true };
+      }
+      const revivable =
+        after?.status === 'EXPIRED' || after?.status === 'CANCELLED';
+      if (!revivable || !opts.allowExpiredOrCancelled || attempt >= 2) break;
+    }
 
     // Another concurrent caller won the race and already finalized everything.
     if (!result) {
-      return { message: 'Payment already approved', alreadyApproved: true };
+      const fresh = await this.prisma.payment.findUnique({
+        where: { id: paymentId },
+        select: { status: true },
+      });
+      if (fresh?.status === 'APPROVED') {
+        return { message: 'Payment already approved', alreadyApproved: true };
+      }
+      return {
+        message: `Payment is ${fresh?.status ?? 'no longer approvable'}`,
+        approved: false,
+        status: fresh?.status ?? null,
+      };
     }
-    const { startDate } = result;
+    const { startDate, endDate } = result;
 
     // Generate the PDF outside the DB transaction — a slow/failed file write
     // must never roll back an activated subscription.
@@ -1381,7 +1614,7 @@ export class PaymentsService {
       receiptNumber,
       paidAt: now,
       method: payment.method,
-      amount: Number(payment.amount ?? payment.plan.priceETB),
+      amount: formatETB(payment.amount ?? payment.plan.priceETB),
       currency: payment.currency,
       chapaRef: opts.chapaRef ?? payment.chapaRef,
       payer: {
@@ -1390,8 +1623,8 @@ export class PaymentsService {
         phoneNumber: payment.user.phoneNumber,
       },
       plan: {
-        name: payment.plan.name,
-        durationMonths: payment.plan.durationMonths,
+        name: planName,
+        durationMonths,
       },
       subscription: { startDate, endDate },
     });
@@ -1439,7 +1672,7 @@ export class PaymentsService {
     if (this.looksLikeNormalizedReceipt(verification)) {
       const decision = await this.assessReceipt(
         verification,
-        Number(payment.plan.priceETB),
+        payment.plan.priceETB,
       );
       if (decision.outcome === 'REJECT') {
         throw new BadRequestException(
@@ -1468,26 +1701,39 @@ export class PaymentsService {
     );
   }
 
-  /** Upsert a user's subscription to ACTIVE within a transaction. */
+  /**
+   * Upsert a user's subscription to ACTIVE within a transaction.
+   * Renewal while ACTIVE extends from the current endDate (never shortens
+   * it); month maths is done in UTC with end-of-month clamping
+   * (Jan 31 + 1 month = Feb 28/29).
+   */
   private async activateSubscription(
     tx: Prisma.TransactionClient,
     userId: string,
     planId: string,
-    startDate: Date,
-    endDate: Date,
-  ): Promise<string> {
+    now: Date,
+    durationMonths: number,
+  ): Promise<{ id: string; startDate: Date; endDate: Date }> {
     const existing = await tx.subscription.findUnique({ where: { userId } });
     if (existing) {
+      const stillActive =
+        existing.status === 'ACTIVE' &&
+        existing.endDate !== null &&
+        existing.endDate > now;
+      const base = stillActive && existing.endDate ? existing.endDate : now;
+      const startDate = existing.startDate ?? now;
+      const endDate = addMonthsUtc(base, durationMonths);
       const updated = await tx.subscription.update({
         where: { id: existing.id },
         data: { planId, status: 'ACTIVE', startDate, endDate },
       });
-      return updated.id;
+      return { id: updated.id, startDate, endDate };
     }
+    const endDate = addMonthsUtc(now, durationMonths);
     const created = await tx.subscription.create({
-      data: { userId, planId, status: 'ACTIVE', startDate, endDate },
+      data: { userId, planId, status: 'ACTIVE', startDate: now, endDate },
     });
-    return created.id;
+    return { id: created.id, startDate: now, endDate };
   }
 
   async reject(paymentId: string, adminId: string, reason?: string) {
@@ -1500,25 +1746,34 @@ export class PaymentsService {
       throw new BadRequestException('Payment has already been reviewed');
     }
 
-    await this.prisma.payment.update({
-      where: { id: paymentId },
-      data: {
-        status: 'REJECTED',
-        rejectionReason: reason ?? 'Receipt could not be verified',
-        reviewedBy: adminId,
-        reviewedAt: new Date(),
-      },
-    });
-
-    await this.prisma.auditLog.create({
-      data: {
+    // Guarded transition + audit row in one transaction: an admin reject
+    // racing a webhook approval can no longer overwrite APPROVED → REJECTED.
+    const rejectionReason = reason ?? 'Receipt could not be verified';
+    const reviewedAt = new Date();
+    const won = await this.prisma.$transaction(async (tx) => {
+      const ok = await this.states.transition(tx, paymentId, {
+        from: ['PENDING'],
+        to: 'REJECTED',
+        type: PaymentEventType.PAYMENT_REJECTED,
         actorId: adminId,
-        action: 'PAYMENT_REJECTED',
-        entityType: 'Payment',
-        entityId: paymentId,
-        meta: { reason: reason ?? null },
-      },
+        reason: rejectionReason,
+        data: { rejectionReason, reviewedBy: adminId, reviewedAt },
+      });
+      if (!ok) return false;
+      await tx.auditLog.create({
+        data: {
+          actorId: adminId,
+          action: 'PAYMENT_REJECTED',
+          entityType: 'Payment',
+          entityId: paymentId,
+          meta: { reason: rejectionReason ?? null },
+        },
+      });
+      return true;
     });
+    if (!won) {
+      throw new BadRequestException('Payment has already been reviewed');
+    }
 
     return { message: 'Payment rejected' };
   }
@@ -1568,19 +1823,23 @@ export class PaymentsService {
 
     const now = new Date();
     const result = await this.prisma.$transaction(async (tx) => {
-      // Atomically CLAIM APPROVED → REVERSED so two concurrent reversals can
-      // never both cancel access or double-notify. The second caller matches 0
-      // rows and reports the payment as already reversed.
-      const claim = await tx.payment.updateMany({
-        where: { id: paymentId, status: 'APPROVED' },
+      // Atomically CLAIM APPROVED → REVERSED via the state machine (guarded
+      // update + immutable event) so two concurrent reversals can never both
+      // cancel access or double-notify. The second caller matches 0 rows and
+      // reports the payment as already reversed.
+      const won = await this.states.transition(tx, paymentId, {
+        from: ['APPROVED'],
+        to: 'REVERSED',
+        type: PaymentEventType.PAYMENT_REVERSED,
+        actorId: adminId,
+        reason: trimmedReason,
         data: {
-          status: 'REVERSED',
           reversalReason: trimmedReason,
           reversedBy: adminId,
           reversedAt: now,
         },
       });
-      if (claim.count === 0) return null;
+      if (!won) return null;
 
       // Remove access only when this was the student's last approved payment.
       const otherApproved = await tx.payment.count({
@@ -1601,7 +1860,7 @@ export class PaymentsService {
       await tx.notification.create({
         data: {
           userId: payment.userId,
-          type: 'PAYMENT_REVERSED',
+          type: PaymentEventType.PAYMENT_REVERSED,
           title: 'Payment reversed',
           message: accessRemoved
             ? `Your ${payment.plan.name} payment was reversed by the college and your access has been removed. Reason: ${trimmedReason}`

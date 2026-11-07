@@ -51,6 +51,54 @@ describe('validateEnv', () => {
     ).toThrow(/CHAPA_WEBHOOK_SECRET is required once Chapa is enabled/);
   });
 
+  it('refuses a Chapa test key at production boot', () => {
+    expect(() =>
+      validateEnv({
+        ...secureProductionConfig,
+        CHAPA_SECRET_KEY: 'CHASECK_TEST-xxxxxxxxxxxxxxxx',
+        CHAPA_WEBHOOK_SECRET: 'webhook-secret',
+      }),
+    ).toThrow(/CHAPA_SECRET_KEY looks like a Chapa test key/);
+  });
+
+  it('accepts live Chapa keys in production and test keys elsewhere', () => {
+    const production = {
+      ...secureProductionConfig,
+      CHAPA_SECRET_KEY: 'CHASECK-abcdef0123456789',
+      CHAPA_WEBHOOK_SECRET: 'webhook-secret',
+    };
+    expect(validateEnv({ ...production })).toEqual(production);
+
+    const staging = {
+      NODE_ENV: 'test',
+      JWT_ACCESS_SECRET: 'test-access',
+      JWT_REFRESH_SECRET: 'test-refresh',
+      DATABASE_URL: 'postgresql://localhost/test',
+      CHAPA_SECRET_KEY: 'CHASECK_TEST-xxxxxxxxxxxxxxxx',
+      CHAPA_WEBHOOK_SECRET: 'webhook-secret',
+    };
+    expect(validateEnv({ ...staging })).toEqual(staging);
+  });
+
+  it('validates CHAPA_RETRY_WINDOW_MINUTES when set', () => {
+    for (const value of ['0', '-1', '1.5', 'abc', '1441']) {
+      expect(() =>
+        validateEnv({
+          ...secureProductionConfig,
+          CHAPA_RETRY_WINDOW_MINUTES: value,
+        }),
+      ).toThrow(
+        /CHAPA_RETRY_WINDOW_MINUTES must be an integer between 1 and 1440/,
+      );
+    }
+    expect(
+      validateEnv({
+        ...secureProductionConfig,
+        CHAPA_RETRY_WINDOW_MINUTES: '60',
+      }).CHAPA_RETRY_WINDOW_MINUTES,
+    ).toBe('60');
+  });
+
   it('allows receipt verification without legacy env accounts because DB accounts are primary', () => {
     const config = {
       NODE_ENV: 'test',

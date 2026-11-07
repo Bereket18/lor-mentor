@@ -11,6 +11,7 @@ import type {
 } from './receipt-verifier.service';
 import type { ChekiService } from './cheki.service';
 import { PaymentsService } from './payments.service';
+import type { PaymentStateMachine } from './payment-state-machine';
 import type { VerifyReceiptDto } from './dto/verify-receipt.dto';
 
 // The upload path validates the file's magic bytes from disk; unit tests use
@@ -65,14 +66,17 @@ describe('PaymentsService bank verification security', () => {
       deleteMany: deleteBanks,
     },
     $transaction: jest.fn(
-      (fn: (client: unknown) => Promise<unknown>): Promise<unknown> => fn(txMock),
+      (fn: (client: unknown) => Promise<unknown>): Promise<unknown> =>
+        fn(txMock),
     ),
   } as unknown as PrismaService;
 
   const txMock = {
+    $executeRaw: jest.fn().mockResolvedValue(1),
     payment: {
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       update: jest.fn().mockResolvedValue({}),
+      findUnique: findPayment,
     },
     subscription: {
       findUnique: jest.fn().mockResolvedValue(null),
@@ -104,12 +108,18 @@ describe('PaymentsService bank verification security', () => {
     verify: jest.fn(),
   } as unknown as ChekiService;
 
+  const states = {
+    transition: jest.fn().mockResolvedValue(true),
+    recordEvent: jest.fn().mockResolvedValue(undefined),
+  } as unknown as PaymentStateMachine;
+
   const service = new PaymentsService(
     prisma,
     receipts,
     config,
     verifier,
     cheki,
+    states,
   );
 
   // A second instance with Cheki acting as the primary source.
@@ -125,6 +135,7 @@ describe('PaymentsService bank verification security', () => {
     config,
     verifier,
     chekiEnabled,
+    states,
   );
 
   const plan = {
@@ -165,10 +176,11 @@ describe('PaymentsService bank verification security', () => {
     findSubscription.mockReset().mockResolvedValue(null);
     // Every catalog bank is enabled by default in these tests; individual
     // cases override this to exercise the disabled/unknown path.
-    findBank.mockReset().mockImplementation(
-      ({ where }: { where: { code: string } }) =>
+    findBank
+      .mockReset()
+      .mockImplementation(({ where }: { where: { code: string } }) =>
         Promise.resolve({ code: where.code, isActive: true }),
-    );
+      );
     // No admin-managed accounts by default; the env fallback in the config
     // mock still provides the standard college account.
     findBanks.mockReset().mockResolvedValue([]);
@@ -181,7 +193,7 @@ describe('PaymentsService bank verification security', () => {
     extract.mockReset();
   });
 
-  it('keeps unconfirmed Chapa checkouts out of the admin review queue', async () => {
+  it('keeps unconfirmed Chapa checkouts out of the admin review queue, but keeps terminal outcomes visible', async () => {
     await service.findAllAdmin();
 
     expect(findPayments).toHaveBeenCalledWith(
@@ -190,7 +202,10 @@ describe('PaymentsService bank verification security', () => {
           NOT: {
             method: 'CHAPA',
             chapaRef: null,
-            status: { not: 'APPROVED' },
+            // PENDING (open checkout) and REJECTED (failed init) Chapa rows
+            // without a gateway reference are not admin-review items;
+            // EXPIRED / CANCELLED are terminal and stay visible.
+            status: { in: ['PENDING', 'REJECTED'] },
           },
         },
       }),
@@ -213,7 +228,7 @@ describe('PaymentsService bank verification security', () => {
           NOT: {
             method: 'CHAPA',
             chapaRef: null,
-            status: { not: 'APPROVED' },
+            status: { in: ['PENDING', 'REJECTED'] },
           },
           status: 'REJECTED',
         },
@@ -225,6 +240,8 @@ describe('PaymentsService bank verification security', () => {
       APPROVED: 5,
       REJECTED: 0,
       REVERSED: 1,
+      EXPIRED: 0,
+      CANCELLED: 0,
     });
   });
 
@@ -237,7 +254,7 @@ describe('PaymentsService bank verification security', () => {
           NOT: {
             method: 'CHAPA',
             chapaRef: null,
-            status: { not: 'APPROVED' },
+            status: { in: ['PENDING', 'REJECTED'] },
           },
         },
       }),
@@ -287,14 +304,14 @@ describe('PaymentsService bank verification security', () => {
           NOT: {
             method: 'CHAPA',
             chapaRef: null,
-            status: { not: 'APPROVED' },
+            status: { in: ['PENDING', 'REJECTED'] },
           },
         },
       }),
     );
   });
 
-  it('hides an unconfirmed Chapa checkout from the student payment history', async () => {
+  it('hides only failed Chapa initializations from the student history; open/expired/cancelled checkouts stay visible', async () => {
     await service.findMine('student-1');
 
     expect(findPayments).toHaveBeenCalledWith(
@@ -304,7 +321,7 @@ describe('PaymentsService bank verification security', () => {
           NOT: {
             method: 'CHAPA',
             chapaRef: null,
-            status: { not: 'APPROVED' },
+            status: 'REJECTED',
           },
         },
       }),
@@ -351,7 +368,27 @@ describe('PaymentsService bank verification security', () => {
     expect(createdData.bankReference).toBe('TX-123');
   });
 
-  it('routes an overpayment to manual review instead of auto-approving it', async () => {
+  it('rejects an underpayment with the exact expected/received/shortfall amounts', async () => {
+    extract.mockResolvedValue({
+      ok: true,
+      receipt: { ...validReceipt, amount: 850.5 },
+    });
+
+    await expect(
+      service.verifyAndSubmit('student-1', dashenDto),
+    ).rejects.toThrow(
+      'Amount paid (850.50 ETB) is less than the plan price (1000.00 ETB); shortfall 149.50 ETB.',
+    );
+
+    expect(createdData.status).toBe('REJECTED');
+    expect(String(createdData.rejectionReason)).toContain(
+      'shortfall 149.50 ETB',
+    );
+    // no manual-review excess on a hard reject
+    expect(createdData.excessAmount).toBeUndefined();
+  });
+
+  it('routes an overpayment to manual review, records the excess on the payment and tells the student', async () => {
     extract.mockResolvedValue({
       ok: true,
       receipt: { ...validReceipt, amount: 1001 },
@@ -368,11 +405,14 @@ describe('PaymentsService bank verification security', () => {
     );
     expect(createdData.status).toBeUndefined(); // defaults to PENDING
     expect(createdData.bankReference).toBe('TX-123');
+    // excess is recorded on the payment for the college to refund or credit
+    expect((createdData.excessAmount as Prisma.Decimal).toString()).toBe('1');
     const verification = createdData.verification as Record<string, unknown>;
-    expect(String(verification.reviewNote)).toMatch(
-      /greater than the plan price/,
-    );
+    expect(String(verification.reviewNote)).toContain('excess 1.00 ETB');
     expect(verification.amount).toBe(1001);
+    // the plan is snapshotted on the payment at creation (not read live later)
+    expect(createdData.planName).toBe('Semester');
+    expect(createdData.planDurationMonths).toBe(6);
   });
 
   it('preserves submitted evidence when the verifier is unreachable', async () => {
@@ -599,8 +639,9 @@ describe('PaymentsService bank verification security', () => {
       });
       findPayment
         .mockResolvedValueOnce(null) // assertReferenceUnused: not used yet
-        .mockResolvedValueOnce({
-          // finalizeApproval loads the payment
+        .mockResolvedValue({
+          // finalizeApproval loads the payment; the same value also serves the
+          // in-transaction status re-read inside $transaction.
           id: 'payment-1',
           status: 'PENDING',
           userId: 'student-1',
@@ -627,9 +668,9 @@ describe('PaymentsService bank verification security', () => {
       expect(extract).not.toHaveBeenCalled();
       expect(chekiVerify).toHaveBeenCalledTimes(1);
       expect(createdData.amount).toEqual(new Prisma.Decimal(1000));
-      expect(
-        (createdData.verification as Record<string, unknown>).source,
-      ).toBe('cheki');
+      expect((createdData.verification as Record<string, unknown>).source).toBe(
+        'cheki',
+      );
       expect(result).toMatchObject({
         status: 'APPROVED',
         autoApproved: true,
@@ -870,8 +911,9 @@ describe('PaymentsService bank verification security', () => {
       (receipts.buildReceiptNumber as jest.Mock).mockReturnValue('LM-TEST-OCR');
       findPayment
         .mockResolvedValueOnce(null) // assertReferenceUnused: not used yet
-        .mockResolvedValueOnce({
-          // finalizeApproval loads the payment
+        .mockResolvedValue({
+          // finalizeApproval loads the payment; the same value also serves the
+          // in-transaction status re-read inside $transaction.
           id: 'payment-1',
           status: 'PENDING',
           userId: 'student-1',
@@ -906,9 +948,9 @@ describe('PaymentsService bank verification security', () => {
       });
       expect(extract).not.toHaveBeenCalled();
       expect(createdData.receiptPath).toBe('upload-x.png');
-      expect(
-        (createdData.verification as Record<string, unknown>).ocr,
-      ).toEqual({ via: 'cheki-ocr', bankCode: 'cbe' });
+      expect((createdData.verification as Record<string, unknown>).ocr).toEqual(
+        { via: 'cheki-ocr', bankCode: 'cbe' },
+      );
       expect(result).toMatchObject({
         status: 'APPROVED',
         autoApproved: true,
@@ -951,7 +993,10 @@ describe('PaymentsService bank verification security', () => {
       const verification = createdData.verification as Record<string, unknown>;
       expect(verification.chekiCode).toBe('RATE_LIMITED');
       expect(verification.verifierCode).toBe('UNREACHABLE');
-      expect(verification.ocr).toEqual({ via: 'cheki-ocr', bankCode: 'dashen' });
+      expect(verification.ocr).toEqual({
+        via: 'cheki-ocr',
+        bankCode: 'dashen',
+      });
     });
 
     it('blocks a replayed QR receipt exactly like the reference flow', async () => {
@@ -1218,6 +1263,7 @@ describe('PaymentsService bank verification security', () => {
         envOnlyConfig,
         verifier,
         cheki,
+        states,
       );
 
       findBanks.mockResolvedValueOnce([]);
@@ -1230,13 +1276,13 @@ describe('PaymentsService bank verification security', () => {
 describe('PaymentsService.reverse — super-admin payment reversal', () => {
   const findPayment = jest.fn<Promise<unknown>, [unknown]>();
   const countApproved = jest.fn<Promise<number>, [unknown]>();
-  const claimUpdate = jest.fn<Promise<{ count: number }>, [unknown]>();
+  const transition = jest.fn<Promise<boolean>, [unknown, unknown, unknown]>();
   const cancelSubs = jest.fn<Promise<{ count: number }>, [unknown]>();
   const notify = jest.fn<Promise<unknown>, [unknown]>();
   const audit = jest.fn<Promise<unknown>, [unknown]>();
 
   const tx = {
-    payment: { updateMany: claimUpdate, count: countApproved },
+    payment: { count: countApproved },
     subscription: { updateMany: cancelSubs },
     notification: { create: notify },
     auditLog: { create: audit },
@@ -1249,12 +1295,18 @@ describe('PaymentsService.reverse — super-admin payment reversal', () => {
     ),
   } as unknown as PrismaService;
 
+  const states = {
+    transition,
+    recordEvent: jest.fn(),
+  } as unknown as PaymentStateMachine;
+
   const service = new PaymentsService(
     prisma,
     {} as unknown as ReceiptService,
     {} as unknown as ConfigService,
     {} as unknown as ReceiptVerifierService,
     {} as unknown as ChekiService,
+    states,
   );
 
   const approvedPayment = {
@@ -1267,7 +1319,7 @@ describe('PaymentsService.reverse — super-admin payment reversal', () => {
 
   beforeEach(() => {
     findPayment.mockReset().mockResolvedValue(approvedPayment);
-    claimUpdate.mockReset().mockResolvedValue({ count: 1 });
+    transition.mockReset().mockResolvedValue(true);
     countApproved.mockReset().mockResolvedValue(0);
     cancelSubs.mockReset().mockResolvedValue({ count: 1 });
     notify.mockReset().mockResolvedValue({});
@@ -1281,16 +1333,19 @@ describe('PaymentsService.reverse — super-admin payment reversal', () => {
       'Refunded — duplicate payment',
     );
 
-    expect(claimUpdate).toHaveBeenCalledTimes(1);
-    const claimArgs = claimUpdate.mock.calls[0][0] as {
-      where: Record<string, unknown>;
+    expect(transition).toHaveBeenCalledTimes(1);
+    const transitionArgs = transition.mock.calls[0][2] as {
+      from: string[];
+      to: string;
       data: Record<string, unknown>;
     };
-    expect(claimArgs.where).toEqual({ id: 'pay-1', status: 'APPROVED' });
-    expect(claimArgs.data.status).toBe('REVERSED');
-    expect(claimArgs.data.reversalReason).toBe('Refunded — duplicate payment');
-    expect(claimArgs.data.reversedBy).toBe('super-1');
-    expect(claimArgs.data.reversedAt).toBeInstanceOf(Date);
+    expect(transitionArgs.from).toEqual(['APPROVED']);
+    expect(transitionArgs.to).toBe('REVERSED');
+    expect(transitionArgs.data.reversalReason).toBe(
+      'Refunded — duplicate payment',
+    );
+    expect(transitionArgs.data.reversedBy).toBe('super-1');
+    expect(transitionArgs.data.reversedAt).toBeInstanceOf(Date);
 
     expect(cancelSubs).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1329,7 +1384,7 @@ describe('PaymentsService.reverse — super-admin payment reversal', () => {
     await expect(service.reverse('pay-1', 'super-1', '   ')).rejects.toThrow(
       BadRequestException,
     );
-    expect(claimUpdate).not.toHaveBeenCalled();
+    expect(transition).not.toHaveBeenCalled();
   });
 
   it('rejects reversing a payment that is not approved', async () => {
@@ -1338,7 +1393,7 @@ describe('PaymentsService.reverse — super-admin payment reversal', () => {
     await expect(service.reverse('pay-1', 'super-1', 'reason')).rejects.toThrow(
       BadRequestException,
     );
-    expect(claimUpdate).not.toHaveBeenCalled();
+    expect(transition).not.toHaveBeenCalled();
   });
 
   it('reports an already-reversed payment without touching it again', async () => {
@@ -1350,11 +1405,11 @@ describe('PaymentsService.reverse — super-admin payment reversal', () => {
       message: 'Payment has already been reversed',
       alreadyReversed: true,
     });
-    expect(claimUpdate).not.toHaveBeenCalled();
+    expect(transition).not.toHaveBeenCalled();
   });
 
   it('reports a concurrent reversal as already reversed (lost the race)', async () => {
-    claimUpdate.mockResolvedValue({ count: 0 });
+    transition.mockResolvedValue(false);
 
     const result = await service.reverse('pay-1', 'super-1', 'race');
 
@@ -1369,5 +1424,500 @@ describe('PaymentsService.reverse — super-admin payment reversal', () => {
     await expect(service.reverse('pay-1', 'super-1', 'reason')).rejects.toThrow(
       NotFoundException,
     );
+  });
+});
+
+describe('PaymentsService.cancelOwn — student cancels their own PENDING online payment', () => {
+  const findPayment = jest.fn<Promise<unknown>, [unknown]>();
+  const transition = jest.fn<Promise<boolean>, [unknown, unknown, unknown]>();
+  const audit = jest.fn<Promise<unknown>, [unknown]>();
+
+  const tx = {
+    payment: { findUnique: findPayment },
+    auditLog: { create: audit },
+  };
+
+  const prisma = {
+    payment: { findUnique: findPayment },
+    $transaction: jest.fn((fn: (client: unknown) => Promise<unknown>) =>
+      fn(tx),
+    ),
+  } as unknown as PrismaService;
+
+  const states = {
+    transition,
+    recordEvent: jest.fn(),
+  } as unknown as PaymentStateMachine;
+
+  const service = new PaymentsService(
+    prisma,
+    {} as unknown as ReceiptService,
+    {} as unknown as ConfigService,
+    {} as unknown as ReceiptVerifierService,
+    {} as unknown as ChekiService,
+    states,
+  );
+
+  const pendingChapa = {
+    id: 'pay-1',
+    userId: 'student-1',
+    status: 'PENDING',
+    method: 'CHAPA',
+    txRef: 'lm-pay-1',
+  };
+
+  beforeEach(() => {
+    findPayment.mockReset().mockResolvedValue(pendingChapa);
+    transition.mockReset().mockResolvedValue(true);
+    audit.mockReset().mockResolvedValue({});
+  });
+
+  it('cancels via the state machine (PENDING → CANCELLED, PAYMENT_CANCELLED) and writes an audit row', async () => {
+    const result = await service.cancelOwn('pay-1', 'student-1');
+
+    expect(result).toEqual({ message: 'Payment cancelled' });
+    expect(transition).toHaveBeenCalledWith(
+      tx,
+      'pay-1',
+      expect.objectContaining({
+        from: ['PENDING'],
+        to: 'CANCELLED',
+        type: 'PAYMENT_CANCELLED',
+        actorId: 'student-1',
+      }),
+    );
+    const auditArgs = audit.mock.calls[0][0] as {
+      data: Record<string, unknown>;
+    };
+    expect(auditArgs.data).toMatchObject({
+      action: 'PAYMENT_CANCELLED',
+      actorId: 'student-1',
+      entityType: 'Payment',
+      entityId: 'pay-1',
+      meta: { method: 'CHAPA', txRef: 'lm-pay-1' },
+    });
+  });
+
+  it('hides another student’s payment behind a not-found', async () => {
+    findPayment.mockResolvedValue({ ...pendingChapa, userId: 'student-2' });
+
+    await expect(service.cancelOwn('pay-1', 'student-1')).rejects.toThrow(
+      NotFoundException,
+    );
+    expect(transition).not.toHaveBeenCalled();
+    expect(audit).not.toHaveBeenCalled();
+  });
+
+  it('refuses to cancel a payment that is not pending', async () => {
+    findPayment.mockResolvedValue({ ...pendingChapa, status: 'APPROVED' });
+
+    await expect(service.cancelOwn('pay-1', 'student-1')).rejects.toThrow(
+      /Only a pending payment can be cancelled/,
+    );
+    expect(transition).not.toHaveBeenCalled();
+  });
+
+  it('refuses to cancel a MANUAL bank-receipt payment (admin-review item)', async () => {
+    findPayment.mockResolvedValue({ ...pendingChapa, method: 'MANUAL' });
+
+    await expect(service.cancelOwn('pay-1', 'student-1')).rejects.toThrow(
+      /admin and cannot be cancelled here/,
+    );
+    expect(transition).not.toHaveBeenCalled();
+  });
+
+  it('lost race (concurrent approval won): refuses instead of overwriting', async () => {
+    transition.mockResolvedValue(false);
+
+    await expect(service.cancelOwn('pay-1', 'student-1')).rejects.toThrow(
+      /no longer pending/,
+    );
+    expect(audit).not.toHaveBeenCalled();
+  });
+});
+
+describe('PaymentsService plan snapshots on approval', () => {
+  const findPayment = jest.fn();
+  const findSubscription = jest.fn();
+  const transition = jest.fn();
+  const txPaymentUpdate = jest.fn();
+  const txSubscriptionCreate = jest.fn();
+  const txSubscriptionUpdate = jest.fn();
+  const txNotificationCreate = jest.fn();
+  const txAuditCreate = jest.fn();
+  const buildReceiptNumber = jest.fn();
+  const generateReceipt = jest.fn();
+
+  const tx = {
+    $executeRaw: jest.fn().mockResolvedValue(1),
+    payment: { update: txPaymentUpdate, findUnique: findPayment },
+    subscription: {
+      findUnique: findSubscription,
+      create: txSubscriptionCreate,
+      update: txSubscriptionUpdate,
+    },
+    notification: { create: txNotificationCreate },
+    auditLog: { create: txAuditCreate },
+  };
+
+  const prisma = {
+    payment: { findUnique: findPayment },
+    $transaction: jest.fn((fn: (client: unknown) => Promise<unknown>) =>
+      fn(tx),
+    ),
+  } as unknown as PrismaService;
+
+  const states = {
+    transition,
+    recordEvent: jest.fn(),
+  } as unknown as PaymentStateMachine;
+
+  const service = new PaymentsService(
+    prisma,
+    {
+      buildReceiptNumber,
+      generate: generateReceipt,
+    } as unknown as ReceiptService,
+    {} as unknown as ConfigService,
+    {} as unknown as ReceiptVerifierService,
+    {} as unknown as ChekiService,
+    states,
+  );
+
+  // A payment captured while the plan was called "Semester 2026" for 1 month,
+  // priced 1000 ETB. The live plan has since been renamed, repriced to 1500
+  // and lengthened to 12 months.
+  const snapshotPayment = {
+    id: 'pay-1',
+    userId: 'student-1',
+    planId: 'plan-1',
+    status: 'PENDING',
+    method: 'MANUAL',
+    amount: new Prisma.Decimal('1000'),
+    currency: 'ETB',
+    chapaRef: null,
+    receiptNumber: null,
+    receiptPath: 'receipt.png',
+    bankReference: 'TX-1',
+    verification: null,
+    planName: 'Semester 2026',
+    planDurationMonths: 1,
+    plan: {
+      name: 'Semester 2027 (renamed)',
+      durationMonths: 12,
+      priceETB: new Prisma.Decimal('1500'),
+    },
+    user: {
+      fullName: 'Test Student',
+      email: 's@example.com',
+      phoneNumber: null,
+    },
+  };
+
+  const paidAt = new Date(Date.UTC(2026, 0, 31, 10, 0, 0));
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    findPayment.mockResolvedValue(snapshotPayment);
+    findSubscription.mockResolvedValue(null);
+    transition.mockResolvedValue(true);
+    buildReceiptNumber.mockReturnValue('LM-2026-1');
+    generateReceipt.mockResolvedValue(undefined);
+    txSubscriptionCreate.mockResolvedValue({ id: 'sub-1' });
+  });
+
+  it('uses the snapshot name/duration/amount when the live plan changed after payment', async () => {
+    await service.finalizeApproval('pay-1', {
+      reviewedBy: 'admin-1',
+      paidAt,
+    });
+
+    // Jan 31 + the snapshot's 1 month, clamped to Feb 28 — not the live 12 months.
+    const subArgs = txSubscriptionCreate.mock.calls[0][0] as {
+      data: { startDate: Date; endDate: Date };
+    };
+    expect(subArgs.data.startDate.toISOString()).toBe(
+      '2026-01-31T10:00:00.000Z',
+    );
+    expect(subArgs.data.endDate.toISOString()).toBe('2026-02-28T10:00:00.000Z');
+
+    // Receipt uses the snapshot name/duration/amount, never the live plan.
+    const receiptArgs = generateReceipt.mock.calls[0][1] as {
+      amount: string;
+      plan: { name: string; durationMonths: number };
+    };
+    expect(receiptArgs.amount).toBe('1000.00');
+    expect(receiptArgs.plan).toEqual({
+      name: 'Semester 2026',
+      durationMonths: 1,
+    });
+
+    // Notification and audit carry the snapshot name too.
+    const notif = txNotificationCreate.mock.calls[0][0] as {
+      data: { message: string };
+    };
+    expect(notif.data.message).toBe('Your Semester 2026/1000 is now active.');
+    const audit = txAuditCreate.mock.calls[0][0] as {
+      data: { meta: { planName: string } };
+    };
+    expect(audit.data.meta.planName).toBe('Semester 2026');
+  });
+
+  it('falls back to the live plan for old rows with no snapshot (no backfill)', async () => {
+    findPayment.mockResolvedValue({
+      ...snapshotPayment,
+      planName: null,
+      planDurationMonths: null,
+    });
+
+    await service.finalizeApproval('pay-1', { reviewedBy: 'admin-1', paidAt });
+
+    const subArgs = txSubscriptionCreate.mock.calls[0][0] as {
+      data: { endDate: Date };
+    };
+    expect(subArgs.data.endDate.toISOString()).toBe('2027-01-31T10:00:00.000Z');
+
+    const receiptArgs = generateReceipt.mock.calls[0][1] as {
+      plan: { name: string; durationMonths: number };
+    };
+    expect(receiptArgs.plan).toEqual({
+      name: 'Semester 2027 (renamed)',
+      durationMonths: 12,
+    });
+
+    const audit = txAuditCreate.mock.calls[0][0] as {
+      data: { meta: { planName: string } };
+    };
+    expect(audit.data.meta.planName).toBe('Semester 2027 (renamed)');
+  });
+
+  it('extends an ACTIVE subscription from its current endDate with UTC end-of-month clamping', async () => {
+    findSubscription.mockResolvedValue({
+      id: 'sub-existing',
+      status: 'ACTIVE',
+      startDate: new Date(Date.UTC(2025, 6, 31, 10, 0, 0)),
+      endDate: new Date(Date.UTC(2026, 0, 31, 10, 0, 0)),
+    });
+    txSubscriptionUpdate.mockResolvedValue({ id: 'sub-existing' });
+
+    await service.finalizeApproval('pay-1', {
+      reviewedBy: 'admin-1',
+      paidAt: new Date(Date.UTC(2026, 0, 10, 9, 0, 0)),
+    });
+
+    // Not overwritten from "now": the current endDate (Jan 31) is the base,
+    // +1 snapshot month clamps to Feb 28 in a non-leap year.
+    const updateArgs = txSubscriptionUpdate.mock.calls[0][0] as {
+      where: { id: string };
+      data: { startDate: Date; endDate: Date; status: string };
+    };
+    expect(updateArgs.where).toEqual({ id: 'sub-existing' });
+    expect(updateArgs.data.startDate.toISOString()).toBe(
+      '2025-07-31T10:00:00.000Z',
+    );
+    expect(updateArgs.data.endDate.toISOString()).toBe(
+      '2026-02-28T10:00:00.000Z',
+    );
+    expect(updateArgs.data.status).toBe('ACTIVE');
+    expect(txSubscriptionCreate).not.toHaveBeenCalled();
+  });
+
+  it('starts a new term from now when the existing subscription already expired', async () => {
+    findSubscription.mockResolvedValue({
+      id: 'sub-expired',
+      status: 'ACTIVE',
+      startDate: new Date(Date.UTC(2024, 0, 1, 0, 0, 0)),
+      endDate: new Date(Date.UTC(2024, 6, 1, 0, 0, 0)),
+    });
+    txSubscriptionUpdate.mockResolvedValue({ id: 'sub-expired' });
+
+    const now = new Date(Date.UTC(2026, 0, 15, 8, 0, 0));
+    await service.finalizeApproval('pay-1', {
+      reviewedBy: 'admin-1',
+      paidAt: now,
+    });
+
+    const updateArgs = txSubscriptionUpdate.mock.calls[0][0] as {
+      data: { endDate: Date };
+    };
+    expect(updateArgs.data.endDate.toISOString()).toBe(
+      '2026-02-15T08:00:00.000Z',
+    );
+  });
+
+  it('revives an EXPIRED payment on a verified Chapa confirmation and records the previous status', async () => {
+    findPayment.mockResolvedValue({
+      ...snapshotPayment,
+      status: 'EXPIRED',
+      method: 'CHAPA',
+      receiptPath: null,
+      bankReference: null,
+    });
+
+    await service.finalizeApproval('pay-1', {
+      allowExpiredOrCancelled: true,
+      chapaRef: 'chapa-ref-1',
+      paidAt,
+    });
+
+    const transitionArgs = transition.mock.calls[0][2] as {
+      from: string[];
+      to: string;
+      type: string;
+      reason: string;
+      data: { recoveredFromStatus?: string };
+    };
+    expect(transitionArgs.from).toEqual(['EXPIRED']);
+    expect(transitionArgs.to).toBe('APPROVED');
+    expect(transitionArgs.type).toBe('PAYMENT_APPROVED_AFTER_EXPIRY');
+    expect(transitionArgs.reason).toContain('EXPIRED');
+    expect(transitionArgs.data.recoveredFromStatus).toBe('EXPIRED');
+
+    // Normal activation, receipt and student notification still happen once.
+    expect(txSubscriptionCreate).toHaveBeenCalledTimes(1);
+    expect(generateReceipt).toHaveBeenCalledTimes(1);
+    const notif = txNotificationCreate.mock.calls[0][0] as {
+      data: { message: string; meta: { recoveredFromStatus?: string } };
+    };
+    expect(notif.data.message).toBe('Your Semester 2026/1000 is now active.');
+    expect(notif.data.meta.recoveredFromStatus).toBe('EXPIRED');
+    const audit = txAuditCreate.mock.calls[0][0] as {
+      data: { action: string; meta: { recoveredFromStatus?: string } };
+    };
+    expect(audit.data.action).toBe('PAYMENT_APPROVED_AFTER_EXPIRY');
+    expect(audit.data.meta.recoveredFromStatus).toBe('EXPIRED');
+  });
+
+  it('revives a CANCELLED payment on a verified Chapa confirmation', async () => {
+    findPayment.mockResolvedValue({
+      ...snapshotPayment,
+      status: 'CANCELLED',
+      method: 'CHAPA',
+      receiptPath: null,
+      bankReference: null,
+    });
+
+    await service.finalizeApproval('pay-1', {
+      allowExpiredOrCancelled: true,
+      paidAt,
+    });
+
+    const transitionArgs = transition.mock.calls[0][2] as {
+      from: string[];
+      type: string;
+      reason: string;
+    };
+    expect(transitionArgs.from).toEqual(['CANCELLED']);
+    expect(transitionArgs.type).toBe('PAYMENT_APPROVED_AFTER_EXPIRY');
+    expect(transitionArgs.reason).toContain('CANCELLED');
+    expect(txSubscriptionCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it('revives when a concurrent cancel lands between the in-transaction read and the claim', async () => {
+    // Outer read: PENDING. In-transaction read: still PENDING, but the guarded
+    // claim is lost because a student cancel committed just before it. The
+    // re-read then sees CANCELLED and the next pass must revive it — money the
+    // gateway confirmed as paid can never be dropped by a racing cancel.
+    findPayment
+      .mockResolvedValueOnce({ ...snapshotPayment, status: 'PENDING' })
+      .mockResolvedValueOnce({ ...snapshotPayment, status: 'PENDING' })
+      .mockResolvedValueOnce({ ...snapshotPayment, status: 'CANCELLED' })
+      .mockResolvedValueOnce({ ...snapshotPayment, status: 'CANCELLED' });
+    transition
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true)
+      .mockResolvedValue(true);
+
+    const result = await service.finalizeApproval('pay-1', {
+      allowExpiredOrCancelled: true,
+      chapaRef: 'chapa-ref-1',
+      paidAt,
+    });
+
+    // Second pass claims CANCELLED → APPROVED with the recovery event.
+    expect(transition).toHaveBeenCalledTimes(2);
+    const reviveArgs = transition.mock.calls[1][2] as {
+      from: string[];
+      type: string;
+      data: { recoveredFromStatus?: string };
+    };
+    expect(reviveArgs.from).toEqual(['CANCELLED']);
+    expect(reviveArgs.type).toBe('PAYMENT_APPROVED_AFTER_EXPIRY');
+    expect(reviveArgs.data.recoveredFromStatus).toBe('CANCELLED');
+
+    // Exactly one activation, receipt and notification.
+    expect(txSubscriptionCreate).toHaveBeenCalledTimes(1);
+    expect(generateReceipt).toHaveBeenCalledTimes(1);
+    expect(txNotificationCreate).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      message: 'Payment approved and subscription activated',
+    });
+  });
+
+  it('does not revive a row it cannot claim when revival is not allowed', async () => {
+    // Outer read: PENDING, in-transaction read: PENDING but the claim is lost
+    // to a cancel. Without a verified-gateway confirmation the row stays
+    // closed and the caller is told the payment was not approved.
+    findPayment
+      .mockResolvedValueOnce({ ...snapshotPayment, status: 'PENDING' })
+      .mockResolvedValueOnce({ ...snapshotPayment, status: 'PENDING' })
+      .mockResolvedValueOnce({ ...snapshotPayment, status: 'CANCELLED' })
+      .mockResolvedValueOnce({ ...snapshotPayment, status: 'CANCELLED' });
+    transition.mockResolvedValue(false);
+
+    const result = await service.finalizeApproval('pay-1', { paidAt });
+
+    expect(result).toMatchObject({
+      approved: false,
+      status: 'CANCELLED',
+    });
+    expect(transition).toHaveBeenCalledTimes(1);
+    expect(generateReceipt).not.toHaveBeenCalled();
+  });
+
+  it('never lets an admin reopen an EXPIRED or CANCELLED payment', async () => {
+    for (const status of ['EXPIRED', 'CANCELLED']) {
+      jest.clearAllMocks();
+      findPayment.mockResolvedValue({
+        ...snapshotPayment,
+        status,
+        method: 'CHAPA',
+      });
+
+      await expect(
+        service.finalizeApproval('pay-1', { reviewedBy: 'admin-1' }),
+      ).rejects.toThrow(/verified gateway confirmation/);
+
+      // Even a caller that passes both flags cannot mix admin review with a
+      // revival.
+      await expect(
+        service.finalizeApproval('pay-1', {
+          reviewedBy: 'admin-1',
+          allowExpiredOrCancelled: true,
+        }),
+      ).rejects.toThrow(/cannot be approved by an admin/);
+
+      expect(transition).not.toHaveBeenCalled();
+    }
+  });
+
+  it('keeps REJECTED and REVERSED terminal even with the gateway flag', async () => {
+    for (const status of ['REJECTED', 'REVERSED']) {
+      jest.clearAllMocks();
+      findPayment.mockResolvedValue({
+        ...snapshotPayment,
+        status,
+        method: 'CHAPA',
+      });
+
+      await expect(
+        service.finalizeApproval('pay-1', { allowExpiredOrCancelled: true }),
+      ).rejects.toThrow(
+        status === 'REJECTED'
+          ? /already been rejected/
+          : /has been reversed/,
+      );
+      expect(transition).not.toHaveBeenCalled();
+    }
   });
 });

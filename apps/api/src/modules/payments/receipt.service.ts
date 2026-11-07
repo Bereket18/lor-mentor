@@ -13,7 +13,8 @@ export interface ReceiptData {
   receiptNumber: string;
   paidAt: Date;
   method: 'MANUAL' | 'CHAPA';
-  amount: number;
+  /** Pre-formatted decimal string (2 decimals) — never a JS float on money. */
+  amount: string;
   currency: string;
   chapaRef?: string | null;
   payer: { fullName: string; email: string; phoneNumber?: string | null };
@@ -164,7 +165,7 @@ export class ReceiptService {
         .fillColor(muted)
         .text(period, 300, y + 10)
         .fillColor(ink)
-        .text(`${data.amount.toLocaleString()} ${data.currency}`, 60, y + 10, {
+        .text(`${data.amount} ${data.currency}`, 60, y + 10, {
           width: 480,
           align: 'right',
         });
@@ -178,7 +179,7 @@ export class ReceiptService {
         .fillColor(ink)
         .text('Total paid', 60, y)
         .fillColor(teal)
-        .text(`${data.amount.toLocaleString()} ${data.currency}`, 60, y, {
+        .text(`${data.amount} ${data.currency}`, 60, y, {
           width: 480,
           align: 'right',
         });

@@ -32,6 +32,8 @@ function statusStyle(status: string): React.CSSProperties {
     return { background: "rgba(16,185,129,0.14)", color: "var(--state-success)" };
   if (s === "PENDING")
     return { background: "rgba(245,158,11,0.14)", color: "var(--state-warning)" };
+  if (s === "EXPIRED" || s === "CANCELLED")
+    return { background: "rgba(148,163,184,0.14)", color: "var(--state-muted, #94a3b8)" };
   return { background: "rgba(239,68,68,0.14)", color: "var(--state-error)" };
 }
 
@@ -121,6 +123,20 @@ export default function ProfilePage() {
       window.open(url, "_blank");
     } catch {
       toast.error("Receipt is not available yet.");
+    }
+  }
+
+  async function cancelPayment(paymentId: string) {
+    try {
+      await api.post(`/payments/${paymentId}/cancel`);
+      toast.success("Pending online payment cancelled.");
+      const res = await api.get("/users/me/full");
+      setProfile(res.data);
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message ?? "Could not cancel the payment.";
+      toast.error(message);
     }
   }
 
@@ -364,6 +380,16 @@ export default function ProfilePage() {
                           style={{ color: "var(--teal)" }}
                         >
                           <Download className="h-3 w-3" /> Receipt
+                        </button>
+                      )}
+                      {p.status === "PENDING" && p.method === "CHAPA" && (
+                        <button
+                          type="button"
+                          onClick={() => cancelPayment(p.id)}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold transition-colors"
+                          style={{ color: "var(--state-error)" }}
+                        >
+                          Cancel
                         </button>
                       )}
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"

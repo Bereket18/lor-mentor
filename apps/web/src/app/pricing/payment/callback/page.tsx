@@ -18,7 +18,7 @@ type Phase = "verifying" | "approved" | "pending" | "error";
 
 interface VerifyResult {
   paymentId?: string;
-  status: "PENDING" | "APPROVED" | "REJECTED";
+  status: "PENDING" | "APPROVED" | "REJECTED" | "REVERSED" | "EXPIRED" | "CANCELLED";
   receiptNumber?: string | null;
 }
 
