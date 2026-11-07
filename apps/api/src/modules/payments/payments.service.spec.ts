@@ -30,6 +30,7 @@ describe('PaymentsService bank verification security', () => {
   const findPending = jest.fn();
   const findPayment = jest.fn();
   const findPayments = jest.fn();
+  const countPayments = jest.fn();
   const findPaymentGroups = jest.fn();
   const findSubscription = jest.fn();
   const findBank = jest.fn();
@@ -53,6 +54,7 @@ describe('PaymentsService bank verification security', () => {
       findFirst: findPending,
       findUnique: findPayment,
       findMany: findPayments,
+      count: countPayments,
       groupBy: findPaymentGroups,
       create: createPayment,
     },
@@ -172,6 +174,7 @@ describe('PaymentsService bank verification security', () => {
     findPending.mockReset().mockResolvedValue(null);
     findPayment.mockReset().mockResolvedValue(null);
     findPayments.mockReset().mockResolvedValue([]);
+    countPayments.mockReset().mockResolvedValue(0);
     findPaymentGroups.mockReset().mockResolvedValue([]);
     findSubscription.mockReset().mockResolvedValue(null);
     // Every catalog bank is enabled by default in these tests; individual
@@ -193,23 +196,96 @@ describe('PaymentsService bank verification security', () => {
     extract.mockReset();
   });
 
+  // The admin queue scope (a row is listed when ANY of these holds): every
+  // non-Chapa payment, every Chapa payment Chapa actually confirmed
+  // (chapaRef stamped), every payment flagged with a review exception — so
+  // verified money can never be hidden by the status filter — and every
+  // Chapa row whose status is not an unconfirmed attempt.
+  const ADMIN_QUEUE_SCOPE = {
+    OR: [
+      { method: { not: 'CHAPA' } },
+      { chapaRef: { not: null } },
+      { verification: { path: ['exception'], equals: true } },
+      { status: { notIn: ['PENDING', 'REJECTED'] } },
+    ],
+  };
+
   it('keeps unconfirmed Chapa checkouts out of the admin review queue, but keeps terminal outcomes visible', async () => {
     await service.findAllAdmin();
 
     expect(findPayments).toHaveBeenCalledWith(
       expect.objectContaining({
+        where: ADMIN_QUEUE_SCOPE,
+      }),
+    );
+  });
+
+  it('never hides a Chapa payment that carries verified money or a review exception', async () => {
+    await service.findAllAdmin();
+
+    const where = findPayments.mock.calls[0][0].where;
+    // A REJECTED row with no chapaRef is only listed when the exception flag
+    // is set: that is the only signal that Chapa confirmed real money on it.
+    expect(where.OR).toEqual(
+      expect.arrayContaining([
+        { verification: { path: ['exception'], equals: true } },
+        { chapaRef: { not: null } },
+      ]),
+    );
+    // Nothing in the scope hides a row by status alone: the unconfirmed
+    // checkout exclusion only counts a status the row is still in *and* the
+    // absence of a gateway reference.
+    expect(where.OR).not.toContainEqual(
+      expect.objectContaining({ status: { equals: expect.anything() } }),
+    );
+  });
+
+  it('lists every exception-flagged payment for the Exceptions tab', async () => {
+    countPayments.mockResolvedValue(2);
+
+    const result = await service.findAllAdmin({ exceptions: true });
+
+    expect(findPayments).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          verification: { path: ['exception'], equals: true },
+        }),
+      }),
+    );
+    expect(result.counts.EXCEPTIONS).toBe(2);
+  });
+
+  it('combines the Exceptions tab with a status and a search term', async () => {
+    await service.findAllAdmin({
+      exceptions: true,
+      status: 'APPROVED',
+      search: '  Wend ',
+    });
+
+    const userFilter = {
+      OR: [
+        { fullName: { contains: 'Wend', mode: 'insensitive' } },
+        { email: { contains: 'Wend', mode: 'insensitive' } },
+        { phoneNumber: { contains: 'Wend', mode: 'insensitive' } },
+      ],
+    };
+    expect(findPayments).toHaveBeenCalledWith(
+      expect.objectContaining({
         where: {
-          NOT: {
-            method: 'CHAPA',
-            chapaRef: null,
-            // PENDING (open checkout) and REJECTED (failed init) Chapa rows
-            // without a gateway reference are not admin-review items;
-            // EXPIRED / CANCELLED are terminal and stay visible.
-            status: { in: ['PENDING', 'REJECTED'] },
-          },
+          verification: { path: ['exception'], equals: true },
+          status: 'APPROVED',
+          user: userFilter,
         },
       }),
     );
+    // The scope of the counts and of the exception count follows the search
+    // term, but never the selected tab status.
+    expect(countPayments).toHaveBeenCalledWith({
+      where: {
+        verification: { path: ['exception'], equals: true },
+        user: userFilter,
+      },
+    });
   });
 
   it('filters the admin queue by tab status and returns counts for every tab', async () => {
@@ -224,14 +300,7 @@ describe('PaymentsService bank verification security', () => {
 
     expect(findPayments).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: {
-          NOT: {
-            method: 'CHAPA',
-            chapaRef: null,
-            status: { in: ['PENDING', 'REJECTED'] },
-          },
-          status: 'REJECTED',
-        },
+        where: { ...ADMIN_QUEUE_SCOPE, status: 'REJECTED' },
       }),
     );
     expect(result.payments).toEqual([{ id: 'pay-rejected' }]);
@@ -242,6 +311,7 @@ describe('PaymentsService bank verification security', () => {
       REVERSED: 1,
       EXPIRED: 0,
       CANCELLED: 0,
+      EXCEPTIONS: 0,
     });
   });
 
@@ -250,13 +320,7 @@ describe('PaymentsService bank verification security', () => {
 
     expect(findPayments).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: {
-          NOT: {
-            method: 'CHAPA',
-            chapaRef: null,
-            status: { in: ['PENDING', 'REJECTED'] },
-          },
-        },
+        where: ADMIN_QUEUE_SCOPE,
       }),
     );
   });
@@ -300,13 +364,7 @@ describe('PaymentsService bank verification security', () => {
 
     expect(findPayments).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: {
-          NOT: {
-            method: 'CHAPA',
-            chapaRef: null,
-            status: { in: ['PENDING', 'REJECTED'] },
-          },
-        },
+        where: ADMIN_QUEUE_SCOPE,
       }),
     );
   });

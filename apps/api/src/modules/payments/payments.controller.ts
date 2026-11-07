@@ -82,8 +82,16 @@ export class PaymentsController {
   @Get('admin')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
-  findAllAdmin(@Query('status') status = '', @Query('search') search = '') {
-    return this.service.findAllAdmin({ status, search });
+  findAllAdmin(
+    @Query('status') status = '',
+    @Query('search') search = '',
+    @Query('exceptions') exceptions = '',
+  ) {
+    return this.service.findAllAdmin({
+      status,
+      search,
+      exceptions: exceptions === 'true' || exceptions === '1',
+    });
   }
 
   // ── Admin: accepted payment banks ─────────────

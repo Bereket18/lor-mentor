@@ -213,7 +213,21 @@ reported back as already-paid — the payment is never dropped.
 subscription/receipt/notification flow, and shows a "Recovered from
 expired/cancelled" badge in the admin queue. Admin manual approval can never
 reopen a closed row. `REJECTED` and `REVERSED` stay terminal; a late exact
-payment on either records `CHAPA_LATE_PAYMENT_TERMINAL` for refund review.
+payment on either records `CHAPA_LATE_PAYMENT_TERMINAL`, **stamps `chapaRef`**
+and sets `verification.exception = true` so the money is admin-visible and
+refundable.
+
+**The admin queue never hides verified money.** A Chapa row created before the
+student paid has no `chapaRef`; those unconfirmed attempts (`PENDING`, or a
+failed initialization rejected as `REJECTED`) are deliberately kept out of the
+review queue because Chapa payments can only be approved through verification.
+A row is listed as soon as **any** of these holds: it is not a Chapa payment,
+Chapa has confirmed it (`chapaRef` stamped), it carries a review exception, or
+its status is not an unconfirmed attempt. The *Exceptions* tab
+(`GET /payments/admin?exceptions=true`) lists every payment with
+`verification.exception = true` regardless of status or method — a reported
+refund, a late payment on a terminal row, an under/overpayment — with its own
+count, so a row needing a human can never be missed.
 
 **Refunds, reversals and failed events.** Webhook events `charge.refunded`
 (status `refunding` or `refunded`), `charge.reversed`, and `charge.failed`

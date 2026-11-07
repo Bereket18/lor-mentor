@@ -664,6 +664,50 @@ describe('ChapaService', () => {
     );
   });
 
+  it('stamps chapaRef and an admin exception when verified money lands on a terminal row', async () => {
+    // A REJECTED row has no gateway reference of its own (e.g. the checkout
+    // failed to initialize), so the money only becomes visible to the admin
+    // queue if we stamp the reference we did get and flag the exception.
+    findUnique.mockReset().mockResolvedValueOnce({
+      id: 'payment-1',
+      status: 'REJECTED',
+      amount: '1000',
+      verification: { reviewNote: 'Receipt could not be verified' },
+    });
+    mockVerifyResponse({
+      status: 'success',
+      amount: '1000.00',
+      currency: 'ETB',
+      tx_ref: 'lm-payment-1',
+      reference: 'chapa-reference',
+    });
+
+    const body = Buffer.from('{"tx_ref":"lm-payment-1"}');
+    await expect(
+      service.handleWebhook(body, { payloadSignature: signPayload(body) }),
+    ).resolves.toEqual({ received: true });
+
+    expect(finalizeApproval).not.toHaveBeenCalled();
+    expect(recordEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      'payment-1',
+      'CHAPA_LATE_PAYMENT_TERMINAL',
+      expect.objectContaining({ fromStatus: 'REJECTED', toStatus: 'REJECTED' }),
+    );
+    // Without this write the admin queue hides a CHAPA/REJECTED row with no
+    // chapaRef entirely: the money would appear nowhere.
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { id: 'payment-1' },
+      data: expect.objectContaining({
+        chapaRef: 'chapa-reference',
+        verification: expect.objectContaining({
+          exception: true,
+          reviewNote: expect.stringContaining('REJECTED'),
+        }),
+      }),
+    });
+  });
+
   it('rejects a 1-cent amount difference (no float tolerance)', async () => {
     mockPendingPaymentThen('PENDING');
     mockVerifyResponse({

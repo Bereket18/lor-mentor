@@ -14,6 +14,19 @@ import { PaymentStateMachine } from './payment-state-machine';
 import { PaymentEventType } from './payment-event.types';
 import { amountsEqual, formatETB, toDecimal } from './money';
 
+/**
+ * Prisma returns JSON columns as `JsonValue`. Narrow a payment's
+ * `verification` column to a mergeable record so annotating it (review
+ * exception, mismatch fields, …) never discards evidence written earlier.
+ */
+function asJsonObject(
+  value: Prisma.JsonValue | null | undefined,
+): Record<string, Prisma.JsonValue> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, Prisma.JsonValue>)
+    : {};
+}
+
 interface ChapaInitResponse {
   status: string;
   message?: string | Record<string, unknown>;
@@ -906,12 +919,7 @@ export class ChapaService {
 
       // Merge into the existing verification blob so bank-receipt evidence
       // (when present) and earlier annotations are not lost.
-      const existing =
-        payment.verification &&
-        typeof payment.verification === 'object' &&
-        !Array.isArray(payment.verification)
-          ? (payment.verification as Record<string, Prisma.JsonValue>)
-          : {};
+      const existing = asJsonObject(payment.verification);
       await tx.payment.updateMany({
         where: { id: payment.id },
         data: {
@@ -978,7 +986,13 @@ export class ChapaService {
   private async confirmAndApprove(txRef: string): Promise<ConfirmOutcome> {
     const payment = await this.prisma.payment.findUnique({
       where: { txRef },
-      select: { id: true, status: true, amount: true },
+      select: {
+        id: true,
+        status: true,
+        amount: true,
+        // Needed to merge (never overwrite) the exception annotation below.
+        verification: true,
+      },
     });
     if (!payment) return { kind: 'IGNORED', reason: 'unknown tx_ref' };
     if (payment.status === 'APPROVED') return { kind: 'APPROVED' }; // idempotent
@@ -1126,25 +1140,53 @@ export class ChapaService {
     }
 
     // REJECTED and REVERSED are fully terminal: a late exact payment must not
-    // reopen them, but it must never be silently dropped either. Record the
-    // money on the immutable ledger so an admin can refund/reconcile.
+    // reopen them, but it must never be silently dropped either. Stamp the
+    // gateway reference we do have, flag the review exception, and record the
+    // money on the immutable ledger so an admin can refund/reconcile it. The
+    // flag matters: without it (and without a chapaRef) an admin row for a
+    // CHAPA/REJECTED payment is filtered out of the queue entirely.
     if (payment.status === 'REVERSED' || payment.status === 'REJECTED') {
-      await this.states.recordEvent(
-        this.prisma,
-        payment.id,
-        PaymentEventType.CHAPA_LATE_PAYMENT_TERMINAL,
-        {
-          fromStatus: payment.status,
-          toStatus: payment.status,
-          reason: `Chapa verified an exact payment after the payment was ${payment.status}; terminal status kept for refund review`,
-          meta: {
-            txRef,
-            chapaRef: data?.reference ?? null,
-            amount: settled?.toString() ?? null,
-            currency: 'ETB',
+      const verifiedRef = data?.reference ?? null;
+      await this.prisma.$transaction(async (tx) => {
+        await this.states.recordEvent(
+          tx,
+          payment.id,
+          PaymentEventType.CHAPA_LATE_PAYMENT_TERMINAL,
+          {
+            fromStatus: payment.status,
+            toStatus: payment.status,
+            reason: `Chapa verified an exact payment after the payment was ${payment.status}; terminal status kept for refund review`,
+            meta: {
+              txRef,
+              chapaRef: verifiedRef,
+              amount: settled?.toString() ?? null,
+              currency: 'ETB',
+            },
           },
-        },
-      );
+        );
+
+        // Merge into the existing verification blob so bank-receipt evidence
+        // and earlier annotations are not lost.
+        const existing = asJsonObject(payment.verification);
+        await tx.payment.updateMany({
+          where: { id: payment.id },
+          data: {
+            ...(verifiedRef ? { chapaRef: verifiedRef } : {}),
+            verification: {
+              ...existing,
+              decision: 'REVIEW',
+              exception: true,
+              reviewNote: `Chapa verified an exact payment for this ${payment.status} payment; refund review required (it cannot be approved).`,
+              chapaException: {
+                txRef,
+                chapaRef: verifiedRef,
+                amount: settled?.toString() ?? null,
+                currency: 'ETB',
+              },
+            } as Prisma.InputJsonValue,
+          },
+        });
+      });
       this.logger.error(
         `Late Chapa payment on ${payment.status} payment ${payment.id} (tx ${txRef}) — manual refund review required`,
       );

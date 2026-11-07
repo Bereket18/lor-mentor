@@ -29,8 +29,10 @@ import { toast } from "sonner";
 
 type PaymentStatus = "PENDING" | "APPROVED" | "REJECTED" | "REVERSED" | "EXPIRED" | "CANCELLED";
 // "ALL" is a client-side convenience value: it simply omits the status query
-// parameter, so the server returns every payment in the queue.
-type PaymentFilter = PaymentStatus | "ALL";
+// parameter, so the server returns every payment in the queue. "EXCEPTIONS"
+// asks the server (exceptions=true) for every payment carrying a review
+// exception, whatever its status or payment method.
+type PaymentFilter = PaymentStatus | "ALL" | "EXCEPTIONS";
 
 // Normalized receipt data attached to auto-verified bank transfers (mirrors the
 // receipt-verifier contract). `reviewNote` is set when it needs manual review.
@@ -50,6 +52,10 @@ interface Verification {
   submittedReference?: string;
   submittedUrl?: string;
   submittedAccountMatched?: boolean;
+  /** Set by the API on every verified-but-not-approved outcome (refund, late
+      payment on a terminal row, verification mismatch): the Exceptions tab
+      lists these so no verified money is missed. */
+  exception?: boolean;
 }
 
 interface Payment {
@@ -89,7 +95,7 @@ const statusColors: Record<PaymentStatus, string> = {
 // opens on the full queue (all statuses, newest first) and filters on demand.
 // Reversed lives in its own status (not mixed into Rejected) so the rejection
 // reason stays unambiguous.
-const TABS: { key: PaymentStatus; label: string; empty: string }[] = [
+const STATUS_TABS: { key: PaymentStatus; label: string; empty: string }[] = [
   { key: "PENDING", label: "Pending", empty: "No pending payments to review." },
   { key: "APPROVED", label: "Approved", empty: "No approved payments yet." },
   { key: "REJECTED", label: "Rejected", empty: "No rejected payments." },
@@ -98,13 +104,28 @@ const TABS: { key: PaymentStatus; label: string; empty: string }[] = [
   { key: "CANCELLED", label: "Cancelled", empty: "No cancelled payments." },
 ];
 
-const EMPTY_COUNTS: Record<PaymentStatus, number> = {
+// The cross-status tab: every payment the gateway or the verifier flagged for
+// a human (a reported refund, a late payment on a terminal row, a verification
+// mismatch). It is listed first so a refund can never be missed.
+const EXCEPTIONS_TAB = {
+  key: "EXCEPTIONS",
+  label: "Exceptions",
+  empty: "No payment needs manual review.",
+} as const;
+
+const TABS: { key: PaymentFilter; label: string; empty: string }[] = [
+  EXCEPTIONS_TAB,
+  ...STATUS_TABS,
+];
+
+const EMPTY_COUNTS: Record<string, number> = {
   PENDING: 0,
   APPROVED: 0,
   REJECTED: 0,
   REVERSED: 0,
   EXPIRED: 0,
   CANCELLED: 0,
+  EXCEPTIONS: 0,
 };
 
 // Renders the data extracted from a bank receipt so an admin can eyeball it.
@@ -226,7 +247,7 @@ export default function AdminPaymentsPage() {
   const [search, setSearch] = useState("");
   const [payments, setPayments] = useState<Payment[]>([]);
   const [counts, setCounts] =
-    useState<Record<PaymentStatus, number>>(EMPTY_COUNTS);
+    useState<Record<string, number>>(EMPTY_COUNTS);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
   const [reverseTarget, setReverseTarget] = useState<Payment | null>(null);
@@ -242,7 +263,11 @@ export default function AdminPaymentsPage() {
     try {
       const res = await api.get("/payments/admin", {
         params: {
-          ...(status !== "ALL" ? { status } : {}),
+          ...(activeTab === "EXCEPTIONS"
+            ? { exceptions: "true" }
+            : activeTab !== "ALL"
+              ? { status: activeTab }
+              : {}),
           ...(term.trim() ? { search: term.trim() } : {}),
         },
       });
@@ -358,7 +383,7 @@ export default function AdminPaymentsPage() {
     }
   }
 
-  const totalCount = TABS.reduce((n, tab) => n + counts[tab.key], 0);
+  const totalCount = STATUS_TABS.reduce((n, tab) => n + counts[tab.key], 0);
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -496,6 +521,16 @@ export default function AdminPaymentsPage() {
                     >
                       {payment.status}
                     </span>
+                    {payment.verification?.exception && (
+                      <span
+                        className="ml-1 inline-flex items-center rounded-md bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium text-red-400"
+                        title={payment.verification.reviewNote ??
+                          "Flagged for manual review"}
+                      >
+                        <AlertTriangle className="h-3 w-3 mr-0.5" />
+                        Exception
+                      </span>
+                    )}
                     {payment.recoveredFromStatus && (
                       <span
                         className="ml-1 inline-flex items-center rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-400"

@@ -67,38 +67,48 @@ export class PaymentsService {
 
   /**
    * Admin-visible payment filter. A CHAPA row is created when the checkout is
-   * initialized, before the student has paid: unconfirmed CHAPA attempts (no
-   * chapaRef) are not admin-review items — Chapa payments can only be approved
-   * through Chapa verification — so abandoned, failed-initialization and
-   * not-yet-completed checkouts stay out of the admin queue. An APPROVED row is
-   * always kept; a row that Chapa did confirm but could not auto-approve
-   * (e.g. underpaid) carries a chapaRef and is also shown for reconciliation.
+   * initialized, before the student has paid: an unconfirmed Chapa attempt (no
+   * `chapaRef`) is not an admin-review item — Chapa payments can only be
+   * approved through Chapa verification — so abandoned, failed-initialization
+   * and not-yet-completed checkouts stay out of the queue.
+   *
+   * Everything else is always listed, which matters: a row the money already
+   * reached must never be filtered out by its status. Two signals keep that
+   * true — a stamped `chapaRef` (Chapa confirmed this transaction) and the
+   * review `exception` flag on `verification` (set on every verified-but-not-
+   * approved outcome, including a late exact payment on a REJECTED/REVERSED
+   * row and a reported refund).
    */
   private adminPaymentWhere(
-    status?: string,
-    search?: string,
+    opts: { status?: string; search?: string; exceptions?: boolean } = {},
   ): Prisma.PaymentWhereInput {
-    const where: Prisma.PaymentWhereInput = {
-      NOT: {
-        method: 'CHAPA',
-        chapaRef: null,
-        // Unconfirmed/abandoned CHAPA attempts stay out of the admin queue;
-        // EXPIRED and CANCELLED are terminal outcomes and remain visible.
-        status: { in: ['PENDING', 'REJECTED'] },
-      },
-    };
+    const where: Prisma.PaymentWhereInput = {};
+
+    if (opts.exceptions) {
+      // The Exceptions tab: every payment an admin must look at, whatever its
+      // status or method.
+      where.verification = { path: ['exception'], equals: true };
+    } else {
+      where.OR = [
+        { method: { not: 'CHAPA' } },
+        { chapaRef: { not: null } },
+        { verification: { path: ['exception'], equals: true } },
+        { status: { notIn: ['PENDING', 'REJECTED'] } },
+      ];
+    }
+
     if (
-      status &&
+      opts.status &&
       (PaymentsService.ADMIN_PAYMENT_STATUSES as readonly string[]).includes(
-        status,
+        opts.status,
       )
     ) {
       where.status =
-        status as (typeof PaymentsService.ADMIN_PAYMENT_STATUSES)[number];
+        opts.status as (typeof PaymentsService.ADMIN_PAYMENT_STATUSES)[number];
     }
     // Free-text search over the student identity. Trimmed and length-capped so
     // a pathological query string never reaches the database verbatim.
-    const term = search?.trim().slice(0, 100);
+    const term = opts.search?.trim().slice(0, 100);
     if (term) {
       where.user = {
         OR: [
@@ -112,15 +122,18 @@ export class PaymentsService {
   }
 
   /**
-   * Admin moderation queue: payments for the selected status plus per-status
+   * Admin moderation queue: payments for the selected tab plus per-status
    * counts. The list and the counts run on the same base filter and the same
    * search term, so the select's counts always match what a status change
-   * would show.
+   * would show. `EXCEPTIONS` counts every flagged payment, so a refund or a
+   * late verified payment can never slip past the admin silently.
    */
-  async findAllAdmin(opts: { status?: string; search?: string } = {}) {
-    const [payments, grouped] = await Promise.all([
+  async findAllAdmin(
+    opts: { status?: string; search?: string; exceptions?: boolean } = {},
+  ) {
+    const [payments, grouped, exceptionCount] = await Promise.all([
       this.prisma.payment.findMany({
-        where: this.adminPaymentWhere(opts.status, opts.search),
+        where: this.adminPaymentWhere(opts),
         orderBy: { createdAt: 'desc' },
         include: {
           user: {
@@ -143,8 +156,14 @@ export class PaymentsService {
       }),
       this.prisma.payment.groupBy({
         by: ['status'],
-        where: this.adminPaymentWhere(undefined, opts.search),
+        where: this.adminPaymentWhere({ search: opts.search }),
         _count: { _all: true },
+      }),
+      this.prisma.payment.count({
+        where: this.adminPaymentWhere({
+          search: opts.search,
+          exceptions: true,
+        }),
       }),
     ]);
 
@@ -155,6 +174,7 @@ export class PaymentsService {
       REVERSED: 0,
       EXPIRED: 0,
       CANCELLED: 0,
+      EXCEPTIONS: exceptionCount,
     };
     for (const group of grouped) {
       counts[group.status] = group._count._all;

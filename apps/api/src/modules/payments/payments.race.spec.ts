@@ -995,6 +995,107 @@ describeWithDb('Payments concurrency (real Postgres)', () => {
     ).toMatchObject({ status: 'CANCELLED' });
   });
 
+  it('REJECTED row then an exact Chapa payment: the verified money reaches the admin queue', async () => {
+    const student = await createStudent('rejected-money-visible');
+    const txRef = `lm-${crypto.randomUUID()}`;
+    const payment = await createPayment(student.id, {
+      method: 'CHAPA',
+      txRef,
+      receiptPath: null,
+      bankReference: null,
+    });
+    // Rejected before the student paid: the row carries no gateway reference
+    // of its own, so only the late verification can prove money arrived.
+    await states.transition(prisma, payment.id, {
+      from: ['PENDING'],
+      to: 'REJECTED',
+      type: 'PAYMENT_REJECTED',
+      reason: 'race test rejection',
+    });
+    mockSuccessfulVerify(txRef);
+
+    const body = webhookBody(txRef);
+    await expect(
+      chapa.handleWebhook(body, signWebhook(body)),
+    ).resolves.toEqual({ received: true });
+
+    const final = await prisma.payment.findUniqueOrThrow({
+      where: { id: payment.id },
+    });
+    // Terminal means terminal — no revival, no subscription.
+    expect(final.status).toBe('REJECTED');
+    expect(final.subscriptionId).toBeNull();
+    // But the money is now on the row: a gateway reference plus the review
+    // exception the admin queue keys on.
+    expect(final.chapaRef).toBe(`chapa-${txRef}`);
+    expect(final.verification as Record<string, unknown>).toMatchObject({
+      exception: true,
+    });
+
+    // Visible in the ordinary queue (not just on a filtered tab)...
+    const queue = await payments.findAllAdmin({ search: student.email });
+    expect(queue.payments.map((p) => p.id)).toContain(payment.id);
+    expect(queue.counts.REJECTED).toBeGreaterThanOrEqual(1);
+
+    // ...and on the Exceptions tab, where an admin refunds it.
+    const exceptions = await payments.findAllAdmin({
+      exceptions: true,
+      search: student.email,
+    });
+    expect(exceptions.payments.map((p) => p.id)).toContain(payment.id);
+    expect(exceptions.counts.EXCEPTIONS).toBeGreaterThanOrEqual(1);
+  });
+
+  it('REJECTED row with no gateway reference on the money: the exception flag alone keeps it visible', async () => {
+    const student = await createStudent('rejected-no-ref');
+    const txRef = `lm-${crypto.randomUUID()}`;
+    const payment = await createPayment(student.id, {
+      method: 'CHAPA',
+      txRef,
+      receiptPath: null,
+      bankReference: null,
+    });
+    await states.transition(prisma, payment.id, {
+      from: ['PENDING'],
+      to: 'REJECTED',
+      type: 'PAYMENT_REJECTED',
+      reason: 'race test rejection',
+    });
+    // A verify payload without `reference`: we have proof of the money but no
+    // Chapa id to stamp, so the exception flag is the only signal left.
+    mockGateway({
+      verifyOk: true,
+      verify: (ref) => ({
+        status: 'success',
+        data: { status: 'success', amount: '1000.00', currency: 'ETB', tx_ref: ref },
+      }),
+    });
+
+    const body = webhookBody(txRef);
+    await expect(
+      chapa.handleWebhook(body, signWebhook(body)),
+    ).resolves.toEqual({ received: true });
+
+    const final = await prisma.payment.findUniqueOrThrow({
+      where: { id: payment.id },
+    });
+    expect(final.status).toBe('REJECTED');
+    expect(final.chapaRef).toBeNull();
+    expect(final.verification as Record<string, unknown>).toMatchObject({
+      exception: true,
+    });
+
+    // Neither a chapaRef nor a visible status — still listed, because money
+    // was verified on this row.
+    const queue = await payments.findAllAdmin({ search: student.email });
+    expect(queue.payments.map((p) => p.id)).toContain(payment.id);
+    const exceptions = await payments.findAllAdmin({
+      exceptions: true,
+      search: student.email,
+    });
+    expect(exceptions.payments.map((p) => p.id)).toContain(payment.id);
+  });
+
   it('late webhook while a newer PENDING checkout exists: approves the old one exactly once', async () => {
     const student = await createStudent('late-with-newer');
     const oldTxRef = `lm-${crypto.randomUUID()}`;
