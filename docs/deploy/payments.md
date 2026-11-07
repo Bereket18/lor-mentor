@@ -220,6 +220,16 @@ is not spammed. The profile page polls the same endpoint for the student's own
 unresolved Chapa payments and shows the message; the callback page keeps polling
 before showing it, because the next redelivery usually finishes the approval.
 
+**Both browser-facing Chapa endpoints are capped at 10 requests/minute** per
+client (`@Throttle` on `GET /payments/chapa/callback` and
+`GET /payments/chapa/verify/:txRef`), like the other gateway entry points and
+tighter than the global 120/minute. Each call re-verifies with Chapa, so without
+it anyone could burn the gateway quota (and our database) by replaying an
+unauthenticated URL. The UI is built for it: the callback page polls five times,
+the profile page every 15s for about five minutes, and an HTTP 429 is never
+surfaced as an error to the student. Chapa's webhook is deliberately **not**
+throttled — a redelivery must never be dropped.
+
 **Mismatches and failed attempts.** A mismatch keeps the payment `PENDING`,
 writes `CHAPA_VERIFY_MISMATCH`, and flags an admin-queue exception — never an
 auto-approval and never a customer-facing amount message. A verify call that
@@ -314,6 +324,9 @@ refund.
 - Amounts and subscription duration come from the server-side plan snapshot,
   not the client.
 - Production refuses test keys at boot and rejects a `mode` mismatch.
+- The public Chapa routes (`chapa/callback`, `chapa/verify/:txRef`) are capped at
+  10 requests/minute per client; the webhook is not capped, so Chapa's
+  redeliveries are never dropped.
 
 ### 1.8 End-to-end test before launch
 

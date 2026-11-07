@@ -219,7 +219,10 @@ export class PaymentsController {
   }
 
   // Chapa calls callback_url with a GET after checkout. This endpoint does not
-  // trust callback fields; it re-verifies the transaction with Chapa.
+  // trust callback fields; it re-verifies the transaction with Chapa — that is
+  // an external call per request, and the route is public, so cap it like the
+  // other gateway entry points instead of relying on the global 120/min.
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Get('chapa/callback')
   handleChapaCallback(
     @Query('trx_ref') trxRef?: string,
@@ -244,6 +247,9 @@ export class PaymentsController {
   }
 
   // ── CHAPA: confirm status from the browser callback ──
+  // Same per-client cap as the callback route: each call re-verifies with
+  // Chapa, and the page polls a couple of times before giving up.
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Get('chapa/verify/:txRef')
   @UseGuards(JwtAuthGuard)
   verifyChapa(@Param('txRef') txRef: string, @CurrentUser() user: RequestUser) {

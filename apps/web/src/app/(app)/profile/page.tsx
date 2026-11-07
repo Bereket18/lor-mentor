@@ -28,6 +28,12 @@ interface VerifyState {
 const CONFIRMATION_PENDING_FALLBACK =
   "We have your payment, but the confirmation is still being processed. Please wait and do not pay again — your access activates automatically.";
 
+// The verify endpoint is capped at 10 requests/minute per client (it re-checks
+// every call with Chapa), so keep the poll slow and short: 15s apart for about
+// five minutes is under the limit even with two unresolved checkouts.
+const POLL_INTERVAL_MS = 15_000;
+const POLL_LIMIT = 20;
+
 // Subscription and payment dates are UTC instants; students see them in Addis
 // Ababa time (see lib/dates).
 const formatDate = formatDisplayDate;
@@ -155,9 +161,9 @@ export default function ProfilePage() {
             // transient — the next tick tries again
           }
         }
-        if (polls >= 15) clearInterval(timer);
+        if (polls >= POLL_LIMIT) clearInterval(timer);
       })();
-    }, 8000);
+    }, POLL_INTERVAL_MS);
     return () => {
       active = false;
       clearInterval(timer);
