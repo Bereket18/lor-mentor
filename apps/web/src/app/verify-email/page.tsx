@@ -1,75 +1,106 @@
 "use client";
 
-import { Suspense, useEffect, useState, useCallback } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Mail, CheckCircle, Loader2, RefreshCw } from "lucide-react";
 import api from "@/lib/api";
 import { BrandLogo } from "@/components/shared/brand-logo";
+import {
+  MAX_VERIFICATION_ATTEMPTS,
+  VERIFICATION_CODE_LENGTH,
+  isCompleteVerificationCode,
+  resendCooldownRemaining,
+  sanitizeVerificationCode,
+} from "@/lib/verification-code";
+
+const GENERIC_FAILURE =
+  "That verification code is incorrect or has expired. Request a new code.";
 
 function VerifyEmailContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  // Get the email from the URL: /verify-email?email=bereket@lorcan.edu.et
-  const email = searchParams.get("email") ?? "";
-
-  const [token, setToken] = useState(() => searchParams.get("token") ?? "");
+  // Arrives pre-filled from registration (/verify-email?email=...) but is
+  // editable, because someone who opens this page directly has to be able to
+  // say which account they are verifying.
+  const [email, setEmail] = useState(() => searchParams.get("email") ?? "");
+  const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [resendEmail, setResendEmail] = useState(email);
+
+  // Failed attempts against the code currently in hand. Every one of them was
+  // recorded by the API, so this reaching the limit means the code is burned
+  // server-side and the correct digits will no longer work either.
+  const [attempts, setAttempts] = useState(0);
+  const codeIsBurned = attempts >= MAX_VERIFICATION_ATTEMPTS;
+
+  const [sentAt, setSentAt] = useState<number | undefined>(undefined);
+  const [now, setNow] = useState(() => Date.now());
   const [resending, setResending] = useState(false);
   const [resendMessage, setResendMessage] = useState("");
   const [resendError, setResendError] = useState("");
-  const linkToken = searchParams.get("token") ?? "";
 
-  const verifyToken = useCallback(async (value: string) => {
-    if (!value.trim()) {
-      setError("Please paste your verification token");
-      return;
-    }
+  const cooldown = resendCooldownRemaining(sentAt, now);
 
-    setLoading(true);
-    setError("");
-
-    try {
-      await api.post("/auth/verify-email", { token: value.trim() });
-      setSuccess(true);
-
-      // Redirect to login after 2 seconds
-      setTimeout(() => router.push("/login"), 2000);
-    } catch (err: unknown) {
-      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setError(message ?? "Invalid or expired token.");
-    } finally {
-      setLoading(false);
-    }
-  }, [router]);
-
+  // Tick only while a cooldown is actually running, and stop once it expires.
   useEffect(() => {
-    if (!linkToken) return;
+    if (sentAt === undefined) return;
 
-    let cancelled = false;
-    queueMicrotask(() => {
-      if (!cancelled) {
-        void verifyToken(linkToken);
+    const id = setInterval(() => {
+      const current = Date.now();
+      setNow(current);
+      if (resendCooldownRemaining(sentAt, current) === 0) clearInterval(id);
+    }, 1000);
+
+    return () => clearInterval(id);
+  }, [sentAt]);
+
+  const verifyCode = useCallback(
+    async (value: string) => {
+      const address = email.trim();
+
+      if (!address || !address.includes("@")) {
+        setError("Enter the email address you registered with");
+        return;
       }
-    });
+      if (!isCompleteVerificationCode(value)) {
+        setError(
+          `Enter the ${VERIFICATION_CODE_LENGTH}-digit code from your email`,
+        );
+        return;
+      }
 
-    return () => {
-      cancelled = true;
-    };
-  }, [linkToken, verifyToken]);
+      setLoading(true);
+      setError("");
 
-  function handleVerify() {
-    void verifyToken(token);
+      try {
+        await api.post("/auth/verify-email", { email: address, code: value });
+        setSuccess(true);
+        setTimeout(() => router.push("/login"), 2000);
+      } catch (err: unknown) {
+        const message = (
+          err as { response?: { data?: { message?: string } } }
+        )?.response?.data?.message;
+        setError(message ?? GENERIC_FAILURE);
+        setAttempts((previous) => previous + 1);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [email, router],
+  );
+
+  function handleVerify(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void verifyCode(code);
   }
 
   async function handleResend() {
-    const value = resendEmail.trim();
-    if (!value || !value.includes("@")) {
+    const address = email.trim();
+    if (!address || !address.includes("@")) {
       setResendError("Enter the email address used for registration");
       setResendMessage("");
       return;
@@ -80,14 +111,18 @@ function VerifyEmailContent() {
     setResendMessage("");
     try {
       const response = await api.post("/auth/resend-verification", {
-        email: value,
+        email: address,
       });
       setResendMessage(response.data.message);
+      setSentAt(Date.now());
+      // A new code arrives with a fresh attempt budget, so the old count — and
+      // the "this code is used up" state it produced — no longer apply.
+      setAttempts(0);
     } catch (err: unknown) {
       const message = (err as { response?: { data?: { message?: string } } })
         ?.response?.data?.message;
       setResendError(
-        message ?? "Could not request another email. Please try again.",
+        message ?? "Could not send a new code. Please try again.",
       );
     } finally {
       setResending(false);
@@ -148,9 +183,14 @@ function VerifyEmailContent() {
         <h2 className="text-2xl font-bold text-primary mb-2">
           Check your email
         </h2>
-        <p className="text-secondary text-sm mb-8 leading-relaxed">
-          We sent a verification link to{" "}
-          <span className="font-medium text-primary">{email}</span>. Open the link from your inbox to verify your account, or paste the token below if needed.
+        <p className="text-secondary text-sm mb-6 leading-relaxed">
+          We sent a {VERIFICATION_CODE_LENGTH}-digit verification code to{" "}
+          {email.trim() ? (
+            <span className="font-medium text-primary">{email.trim()}</span>
+          ) : (
+            "your email address"
+          )}
+          . Enter it below to verify your account.
         </p>
 
         {/* Steps */}
@@ -158,7 +198,7 @@ function VerifyEmailContent() {
           {[
             "Open your email inbox",
             "Find the email from Lor Mentor",
-            "Click the verification link",
+            `Enter the ${VERIFICATION_CODE_LENGTH}-digit code below`,
             "Sign in after verification succeeds",
           ].map((step, i) => (
             <div key={step} className="flex items-center gap-3">
@@ -174,89 +214,139 @@ function VerifyEmailContent() {
           ))}
         </div>
 
-        {/* Token input */}
-        <div className="mb-4">
-          <label
-            htmlFor="verification-token"
-            className="block text-sm font-medium
-            text-primary mb-1.5"
-          >
-            Verification token
-          </label>
-          <input
-            id="verification-token"
-            type="text"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            placeholder="Paste your token here"
-            className="w-full bg-surface border border-border
-              rounded-xl px-4 py-3 text-sm text-primary
-              placeholder:text-muted font-mono
-              focus:outline-none focus:ring-2
-              focus:ring-accent focus:border-transparent
-              transition-all"
-          />
-          {error && <p className="text-red-500 text-xs mt-1.5">{error}</p>}
-        </div>
-
-        {/* Verify button */}
-        <button
-          type="button"
-          onClick={handleVerify}
-          disabled={loading}
-          className="w-full bg-accent hover:bg-accent-hover
-            text-white font-semibold rounded-xl py-3
-            flex items-center justify-center gap-2
-            transition-all disabled:opacity-60 disabled:cursor-not-allowed mb-4"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Verifying...
-            </>
-          ) : (
-            "Verify email"
-          )}
-        </button>
-
-        <div className="border-t border-border pt-4 mb-5">
-          <p className="text-sm font-medium text-primary mb-2">
-            Need a new verification link?
-          </p>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <label htmlFor="resend-email" className="sr-only">
-              Registration email
+        <form onSubmit={handleVerify}>
+          {/* Email */}
+          <div className="mb-4">
+            <label
+              htmlFor="verification-email"
+              className="block text-sm font-medium
+              text-primary mb-1.5"
+            >
+              Email address
             </label>
             <input
-              id="resend-email"
+              id="verification-email"
               type="email"
-              value={resendEmail}
-              onChange={(event) => setResendEmail(event.target.value)}
-              placeholder="Registration email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="you@example.com"
               autoComplete="email"
-              className="min-w-0 flex-1 bg-surface border border-border
-                rounded-lg px-3 py-2.5 text-sm text-primary
-                placeholder:text-muted focus:outline-none focus:ring-2
-                focus:ring-accent focus:border-transparent"
+              className="w-full bg-surface border border-border
+                rounded-xl px-4 py-3 text-sm text-primary
+                placeholder:text-muted
+                focus:outline-none focus:ring-2
+                focus:ring-accent focus:border-transparent
+                transition-all"
             />
-            <button
-              type="button"
-              onClick={() => void handleResend()}
-              disabled={resending}
-              className="shrink-0 border border-border bg-surface
-                hover:bg-surface-hover text-primary font-medium rounded-lg
-                px-4 py-2.5 text-sm flex items-center justify-center gap-2
-                transition-colors disabled:opacity-60
-                disabled:cursor-not-allowed"
-            >
-              {resending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              {resending ? "Sending..." : "Resend email"}
-            </button>
           </div>
+
+          {/* Code */}
+          <div className="mb-4">
+            <label
+              htmlFor="verification-code"
+              className="block text-sm font-medium
+              text-primary mb-1.5"
+            >
+              Verification code
+            </label>
+            <input
+              id="verification-code"
+              type="text"
+              value={code}
+              onChange={(event) =>
+                setCode(sanitizeVerificationCode(event.target.value))
+              }
+              placeholder={"0".repeat(VERIFICATION_CODE_LENGTH)}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              aria-describedby="verification-code-hint"
+              aria-invalid={error ? true : undefined}
+              // Deliberately no `maxLength`: the browser would truncate a raw
+              // paste to the limit, so " 428193" would become " 42819" and lose
+              // its last digit. Cleaning the value in onChange truncates what
+              // is left after the non-digits are removed, which cannot lose a
+              // digit that way.
+              className="w-full bg-surface border border-border
+                rounded-xl px-4 py-3 text-lg text-primary
+                placeholder:text-muted font-mono tracking-[0.4em]
+                focus:outline-none focus:ring-2
+                focus:ring-accent focus:border-transparent
+                transition-all"
+            />
+            <p
+              id="verification-code-hint"
+              className="text-xs text-muted mt-1.5"
+            >
+              {VERIFICATION_CODE_LENGTH} digits, from the email we just sent.
+            </p>
+          </div>
+
+          {error && (
+            <p role="alert" className="text-red-500 text-xs mb-3">
+              {error}
+            </p>
+          )}
+
+          {codeIsBurned && (
+            <div
+              role="alert"
+              className="mb-3 rounded-xl border border-border
+              bg-surface p-3"
+            >
+              <p className="text-sm text-primary font-medium mb-1">
+                This code can no longer be used
+              </p>
+              <p className="text-xs text-secondary">
+                Too many incorrect attempts. Send a new code and we will email
+                you a fresh {VERIFICATION_CODE_LENGTH}-digit one.
+              </p>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading || codeIsBurned}
+            className="w-full bg-accent hover:bg-accent-hover
+              text-white font-semibold rounded-xl py-3
+              flex items-center justify-center gap-2
+              transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Verifying...
+              </>
+            ) : (
+              "Verify email"
+            )}
+          </button>
+        </form>
+
+        <div className="border-t border-border pt-4 mt-5 mb-5">
+          <p className="text-sm font-medium text-primary mb-2">
+            Didn&apos;t get the code?
+          </p>
+          <button
+            type="button"
+            onClick={() => void handleResend()}
+            disabled={resending || cooldown > 0}
+            className="w-full border border-border bg-surface
+              hover:bg-surface-hover text-primary font-medium rounded-lg
+              px-4 py-2.5 text-sm flex items-center justify-center gap-2
+              transition-colors disabled:opacity-60
+              disabled:cursor-not-allowed"
+          >
+            {resending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            {resending
+              ? "Sending..."
+              : cooldown > 0
+                ? `Send a new code in ${cooldown}s`
+                : "Send a new code"}
+          </button>
           {resendMessage && (
             <p role="status" className="text-green-600 text-xs mt-2">
               {resendMessage}

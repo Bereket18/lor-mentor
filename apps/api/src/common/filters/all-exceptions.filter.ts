@@ -8,6 +8,16 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import * as Sentry from '@sentry/node';
+import { redactSensitiveFields } from '../redact-sensitive';
+
+/**
+ * Pathname only, for anything sent to an external tracker. A query string can
+ * carry a live secret (`?token=…`, `?code=…`), and a fragment never leaves the
+ * client — so both are stripped before the URL is used as a tag.
+ */
+function trackerPath(url: string | undefined): string {
+  return (url ?? '').split('?')[0].split('#')[0];
+}
 
 /**
  * Catches everything and returns ONE consistent error envelope:
@@ -52,7 +62,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       // Report 5xx exceptions to Sentry (server errors, not client mistakes).
       if (status >= 500) {
         Sentry.captureException(exception, {
-          tags: { statusCode: status, path: req.url },
+          tags: { statusCode: status, path: trackerPath(req.url) },
         });
       }
     } else if (exception instanceof Error) {
@@ -77,10 +87,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
           `Unhandled ${exception.name}: ${exception.message}`,
           exception.stack,
         );
-        // Always report unhandled exceptions to Sentry.
+        // Always report unhandled exceptions to Sentry. The body is redacted
+        // first: on the auth routes it carries a live credential (the
+        // verification code, a password, a reset token), and an error tracker
+        // is not a place to send a secret.
         Sentry.captureException(exception, {
-          tags: { path: req.url },
-          extra: { method: req.method, body: req.body },
+          tags: { path: trackerPath(req.url) },
+          extra: {
+            method: req.method,
+            body: redactSensitiveFields(req.body),
+          },
         });
       }
     }
