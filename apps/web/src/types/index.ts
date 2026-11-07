@@ -70,6 +70,8 @@ export interface ProfilePayment {
   method?: "MANUAL" | "CHAPA";
   createdAt: string;
   rejectionReason?: string | null;
+  /** Gateway reference of an online checkout; used to poll its confirmation. */
+  txRef?: string | null;
   plan?: { name: string; priceETB: string | number } | null;
 }
 

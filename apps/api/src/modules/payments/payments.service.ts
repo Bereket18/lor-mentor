@@ -211,6 +211,10 @@ export class PaymentsService {
         rejectionReason: true,
         paidAt: true,
         createdAt: true,
+        // The profile page polls the verify endpoint for a Chapa payment whose
+        // confirmation is pending, so the student is never left guessing (or
+        // paying twice).
+        txRef: true,
         plan: { select: { name: true, priceETB: true, durationMonths: true } },
       },
     });

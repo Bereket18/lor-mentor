@@ -1339,7 +1339,10 @@ describe('PaymentsService.reverse — super-admin payment reversal', () => {
   const notify = jest.fn<Promise<unknown>, [unknown]>();
   const audit = jest.fn<Promise<unknown>, [unknown]>();
 
+  const executeRaw = jest.fn().mockResolvedValue(1);
+
   const tx = {
+    $executeRaw: executeRaw,
     payment: { count: countApproved },
     subscription: { updateMany: cancelSubs },
     notification: { create: notify },
@@ -1379,6 +1382,7 @@ describe('PaymentsService.reverse — super-admin payment reversal', () => {
     findPayment.mockReset().mockResolvedValue(approvedPayment);
     transition.mockReset().mockResolvedValue(true);
     countApproved.mockReset().mockResolvedValue(0);
+    executeRaw.mockReset().mockResolvedValue(1);
     cancelSubs.mockReset().mockResolvedValue({ count: 1 });
     notify.mockReset().mockResolvedValue({});
     audit.mockReset().mockResolvedValue({});
@@ -1392,6 +1396,16 @@ describe('PaymentsService.reverse — super-admin payment reversal', () => {
     );
 
     expect(transition).toHaveBeenCalledTimes(1);
+    // The reversal must hold the same per-user advisory lock as an approval,
+    // otherwise a concurrent approval can land between the count and the
+    // cancel and leave a paid student without access.
+    expect(executeRaw).toHaveBeenCalledTimes(1);
+    expect(String(executeRaw.mock.calls[0][0])).toContain(
+      'pg_advisory_xact_lock',
+    );
+    expect(countApproved).toHaveBeenCalledWith({
+      where: { userId: 'student-1', status: 'APPROVED' },
+    });
     const transitionArgs = transition.mock.calls[0][2] as {
       from: string[];
       to: string;
@@ -1436,6 +1450,8 @@ describe('PaymentsService.reverse — super-admin payment reversal', () => {
 
     expect(cancelSubs).not.toHaveBeenCalled();
     expect(result.accessRemoved).toBe(false);
+    // The count it based that decision on ran under the lock.
+    expect(executeRaw).toHaveBeenCalledTimes(1);
   });
 
   it('requires a reason before touching the payment', async () => {

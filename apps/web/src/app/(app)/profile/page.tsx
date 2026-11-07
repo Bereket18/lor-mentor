@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Loader2, User, Mail, Phone, ShieldCheck, ShieldAlert, CalendarDays,
@@ -13,6 +13,19 @@ import api from "@/lib/api";
 import type { FullProfile } from "@/types";
 
 import { toast } from "sonner";
+
+/** Browser-facing state of one online payment (GET /payments/chapa/verify). */
+interface VerifyState {
+  paymentId?: string | null;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "REVERSED" | "EXPIRED" | "CANCELLED";
+  receiptNumber?: string | null;
+  /** The money is confirmed but the payment is not approved yet. */
+  confirmationPending?: boolean;
+  message?: string | null;
+}
+
+const CONFIRMATION_PENDING_FALLBACK =
+  "We have your payment, but the confirmation is still being processed. Please wait and do not pay again — your access activates automatically.";
 
 function formatDate(value?: string | null) {
   if (!value) return "—";
@@ -93,6 +106,70 @@ export default function ProfilePage() {
       .finally(() => active && setLoading(false));
     return () => { active = false; };
   }, []);
+
+  // Chapa checkouts whose confirmation has not landed yet. The verify endpoint
+  // answers with an explicit "confirmation pending" state (and a message that
+  // tells the student not to pay again), so the page polls for a couple of
+  // minutes and refreshes the history as soon as the payment is approved.
+  const awaitingConfirmation = (profile?.payments ?? []).filter(
+    (p) =>
+      p.method === "CHAPA" &&
+      !!p.txRef &&
+      (p.status === "PENDING" ||
+        p.status === "EXPIRED" ||
+        p.status === "CANCELLED"),
+  );
+  const awaitingKey = awaitingConfirmation.map((p) => p.id).join(",");
+  const [pendingMessages, setPendingMessages] = useState<Record<string, string>>(
+    {},
+  );
+
+  const reloadProfile = useCallback(() => {
+    return api
+      .get<{ user: FullProfile }>("/users/me/full")
+      .then((r) => setProfile(r.data.user));
+  }, []);
+
+  useEffect(() => {
+    if (!awaitingKey) return;
+    let active = true;
+    let polls = 0;
+    const timer = setInterval(() => {
+      polls += 1;
+      void (async () => {
+        for (const payment of awaitingConfirmation) {
+          try {
+            const res = await api.get<VerifyState>(
+              `/payments/chapa/verify/${payment.txRef}`,
+            );
+            if (!active) return;
+            setPendingMessages((current) => {
+              const next = { ...current };
+              if (res.data.confirmationPending && res.data.message) {
+                next[payment.id] = res.data.message;
+              } else {
+                delete next[payment.id];
+              }
+              return next;
+            });
+            if (res.data.status === "APPROVED") {
+              setPendingMessages({});
+              await reloadProfile();
+              return;
+            }
+          } catch {
+            // transient — the next tick tries again
+          }
+        }
+        if (polls >= 15) clearInterval(timer);
+      })();
+    }, 8000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [awaitingKey, reloadProfile]);
 
   async function handleSave() {
     if (!fullName.trim()) return;
@@ -366,8 +443,11 @@ export default function ProfilePage() {
             <div className="mt-4 pt-4" style={{ borderTop: "1px solid var(--border-default)" }}>
               <p className="text-[11px] uppercase tracking-wider text-muted mb-2">Recent payments</p>
               <div className="space-y-2">
-                {profile.payments.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between gap-2 text-sm">
+                {profile.payments.map((p) => {
+                  const pendingMessage = pendingMessages[p.id];
+                  return (
+                  <div key={p.id}>
+                  <div className="flex items-center justify-between gap-2 text-sm">
                     <span className="text-secondary truncate">
                       {p.plan?.name ?? "Payment"} · {formatDate(p.createdAt)}
                     </span>
@@ -382,7 +462,7 @@ export default function ProfilePage() {
                           <Download className="h-3 w-3" /> Receipt
                         </button>
                       )}
-                      {p.status === "PENDING" && p.method === "CHAPA" && (
+                      {p.status === "PENDING" && p.method === "CHAPA" && !pendingMessage && (
                         <button
                           type="button"
                           onClick={() => cancelPayment(p.id)}
@@ -398,7 +478,15 @@ export default function ProfilePage() {
                       </span>
                     </div>
                   </div>
-                ))}
+                  {pendingMessage && (
+                    <p className="mt-1 text-[11px] leading-relaxed"
+                      style={{ color: "var(--state-warning)" }}>
+                      {pendingMessage ?? CONFIRMATION_PENDING_FALLBACK}
+                    </p>
+                  )}
+                  </div>
+                  );
+                })}
               </div>
             </div>
           )}

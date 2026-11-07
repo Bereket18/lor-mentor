@@ -665,7 +665,7 @@ describe('ChapaService', () => {
   });
 
   it('stamps chapaRef and an admin exception when verified money lands on a terminal row', async () => {
-    // A REJECTED row has no gateway reference of its own (e.g. the checkout
+    // A REJECTED row may have no gateway reference of its own (the checkout
     // failed to initialize), so the money only becomes visible to the admin
     // queue if we stamp the reference we did get and flag the exception.
     findUnique.mockReset().mockResolvedValueOnce({
@@ -705,6 +705,173 @@ describe('ChapaService', () => {
           reviewNote: expect.stringContaining('REJECTED'),
         }),
       }),
+    });
+  });
+
+  describe('verified money that could not be approved in the same pass', () => {
+    /**
+     * Chapa confirmed the exact payment; finalizeApprorove could not claim the
+     * row (a concurrent cancel closed it). Each entry point reads the payment
+     * a different number of times, so the rig is built per entry point.
+     */
+    function mockVerifiedButUnapproved(entry: 'callback' | 'verify') {
+      const confirmRow = {
+        id: 'payment-1',
+        status: 'CANCELLED',
+        amount: '1000',
+        verification: null,
+      };
+      const freshRow = {
+        id: 'payment-1',
+        status: 'CANCELLED',
+        receiptNumber: null,
+      };
+      findUnique.mockReset();
+      if (entry === 'verify') {
+        findUnique
+          .mockResolvedValueOnce({
+            id: 'payment-1',
+            userId: 'student-1',
+            status: 'CANCELLED',
+            receiptNumber: null,
+          })
+          .mockResolvedValueOnce(confirmRow)
+          .mockResolvedValueOnce(freshRow);
+      } else {
+        findUnique
+          .mockResolvedValueOnce(confirmRow)
+          .mockResolvedValueOnce(freshRow);
+      }
+      finalizeApproval.mockReset().mockResolvedValue({
+        message: 'Payment is CANCELLED',
+        approved: false,
+        status: 'CANCELLED',
+      });
+      mockVerifyResponse({
+        status: 'success',
+        amount: '1000.00',
+        currency: 'ETB',
+        tx_ref: 'lm-payment-1',
+        reference: 'chapa-reference',
+      });
+    }
+
+    it('records CHAPA_VERIFY_NOT_APPROVED and flags an admin exception', async () => {
+      mockVerifiedButUnapproved('callback');
+
+      const body = Buffer.from('{"tx_ref":"lm-payment-1"}');
+      await expect(
+        service.handleWebhook(body, { payloadSignature: signPayload(body) }),
+      ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+      expect(recordEvent).toHaveBeenCalledWith(
+        expect.anything(),
+        'payment-1',
+        'CHAPA_VERIFY_NOT_APPROVED',
+        expect.objectContaining({
+          fromStatus: 'CANCELLED',
+          toStatus: 'CANCELLED',
+        }),
+      );
+      // Money is real: the row must be visible to an admin.
+      expect(updateMany).toHaveBeenCalledWith({
+        where: { id: 'payment-1', status: { not: 'APPROVED' } },
+        data: expect.objectContaining({
+          verification: expect.objectContaining({
+            exception: true,
+          }),
+        }),
+      });
+    });
+
+    it('the browser verify endpoint says the confirmation is pending instead of a stale status', async () => {
+      mockVerifiedButUnapproved('verify');
+
+      const result = await service.verifyByTxRef('lm-payment-1', 'student-1');
+
+      expect(result).toMatchObject({
+        paymentId: 'payment-1',
+        status: 'CANCELLED',
+        confirmationPending: true,
+      });
+      // The message the UI shows must tell the student not to pay again.
+      expect(result.message).toMatch(/do not pay again/i);
+    });
+
+    it('the browser callback endpoint reports the same pending confirmation', async () => {
+      mockVerifiedButUnapproved('callback');
+
+      const result = await service.handleCallback('lm-payment-1');
+
+      expect(result).toMatchObject({
+        paymentId: 'payment-1',
+        status: 'CANCELLED',
+        confirmationPending: true,
+      });
+      expect(result.message).toMatch(/do not pay again/i);
+    });
+
+    it('does not flag an exception when Chapa itself could not be reached', async () => {
+      findUnique
+        .mockReset()
+        .mockResolvedValueOnce({
+          id: 'payment-1',
+          userId: 'student-1',
+          status: 'PENDING',
+          receiptNumber: null,
+        })
+        .mockResolvedValueOnce({
+          id: 'payment-1',
+          status: 'PENDING',
+          amount: '1000',
+          verification: null,
+        })
+        .mockResolvedValueOnce({
+          id: 'payment-1',
+          status: 'PENDING',
+          receiptNumber: null,
+        });
+      jest.spyOn(global, 'fetch').mockRejectedValue(new Error('ECONNREFUSED'));
+
+      const result = await service.verifyByTxRef('lm-payment-1', 'student-1');
+
+      // The student still gets "wait, do not pay again"...
+      expect(result).toMatchObject({
+        status: 'PENDING',
+        confirmationPending: true,
+      });
+      // ...but no money was confirmed, so nothing is flagged for review.
+      expect(updateMany).not.toHaveBeenCalled();
+      expect(recordEvent).not.toHaveBeenCalledWith(
+        expect.anything(),
+        'payment-1',
+        'CHAPA_VERIFY_NOT_APPROVED',
+        expect.anything(),
+      );
+    });
+
+    it('an approved payment is never reported as pending', async () => {
+      findUnique
+        .mockReset()
+        .mockResolvedValueOnce({
+          id: 'payment-1',
+          userId: 'student-1',
+          status: 'APPROVED',
+          receiptNumber: 'LM-0001',
+        })
+        .mockResolvedValueOnce({
+          id: 'payment-1',
+          status: 'APPROVED',
+          receiptNumber: 'LM-0001',
+        });
+
+      const result = await service.verifyByTxRef('lm-payment-1', 'student-1');
+
+      expect(result).toMatchObject({
+        status: 'APPROVED',
+        receiptNumber: 'LM-0001',
+        confirmationPending: false,
+      });
     });
   });
 

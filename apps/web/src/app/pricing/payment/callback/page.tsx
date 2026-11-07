@@ -14,12 +14,19 @@ import api from "@/lib/api";
 
 import { toast } from "sonner";
 
-type Phase = "verifying" | "approved" | "pending" | "error";
+type Phase = "verifying" | "approved" | "pending" | "confirmation" | "error";
 
 interface VerifyResult {
-  paymentId?: string;
+  paymentId?: string | null;
   status: "PENDING" | "APPROVED" | "REJECTED" | "REVERSED" | "EXPIRED" | "CANCELLED";
   receiptNumber?: string | null;
+  /**
+   * Chapa confirmed the money but the payment is not approved yet. The server
+   * says so explicitly so we never show a success or a stale row status here.
+   */
+  confirmationPending?: boolean;
+  /** The message the student must see when the confirmation is pending. */
+  message?: string | null;
 }
 
 const MAX_ATTEMPTS = 5;
@@ -31,7 +38,9 @@ function CallbackContent() {
   const [phase, setPhase] = useState<Phase>("verifying");
   const [paymentId, setPaymentId] = useState<string | null>(null);
   const [receiptNumber, setReceiptNumber] = useState<string | null>(null);
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [attemptKey, setAttemptKey] = useState(0);
 
   const verify = useCallback(async () => {
     if (!txRef) {
@@ -40,11 +49,14 @@ function CallbackContent() {
     }
 
     // The webhook usually approves within a second or two, but it can lag.
-    // Poll the verify endpoint a few times before giving up to "pending".
+    // Poll the verify endpoint a few times before giving up: a payment whose
+    // confirmation is still pending often completes on Chapa's next redelivery.
+    let confirmationPending = false;
+    let message: string | null = null;
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       try {
         const res = await api.get<VerifyResult>(
-          `/payments/chapa/verify/${txRef}`,
+          `/payments/chapa/verify/${encodeURIComponent(txRef)}`,
         );
         const data = res.data;
         if (data.status === "APPROVED") {
@@ -52,6 +64,11 @@ function CallbackContent() {
           setReceiptNumber(data.receiptNumber ?? null);
           setPhase("approved");
           return;
+        }
+        if (data.confirmationPending) {
+          // Money is with us; the approval just has not landed yet.
+          confirmationPending = true;
+          message = data.message ?? null;
         }
         if (data.status === "REJECTED") {
           setPhase("error");
@@ -62,13 +79,14 @@ function CallbackContent() {
       }
       await new Promise((r) => setTimeout(r, 2000));
     }
-    setPhase("pending");
+    setPendingMessage(confirmationPending ? message : null);
+    setPhase(confirmationPending ? "confirmation" : "pending");
   }, [txRef]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     verify();
-  }, [verify]);
+  }, [verify, attemptKey]);
 
   async function downloadReceipt() {
     if (!paymentId) return;
@@ -141,6 +159,46 @@ function CallbackContent() {
           </>
         )}
 
+        {phase === "confirmation" && (
+          <>
+            <Clock className="h-12 w-12 text-yellow-400 mx-auto mb-4" />
+            <h1 className="font-display text-2xl font-semibold text-primary mb-2">
+              We have your payment
+            </h1>
+            <p className="text-sm text-secondary mb-6">
+              {pendingMessage ??
+                "We have your payment, but the confirmation is still being processed. Please wait and do not pay again — your access activates automatically, and the receipt appears on your profile within a few minutes."}
+            </p>
+            <p className="text-xs text-muted mb-6">
+              Your access activates automatically; you do not need to do
+              anything. If nothing changes within an hour, contact support with
+              your payment reference.
+            </p>
+            <div className="flex flex-col items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setPhase("verifying");
+                  setPendingMessage(null);
+                  setAttemptKey((n) => n + 1);
+                }}
+                className="inline-flex items-center justify-center gap-2 bg-accent
+                  hover:bg-accent-hover text-white rounded-xl px-6 py-3 text-sm
+                  font-medium"
+              >
+                <Clock className="h-4 w-4" />
+                Check again
+              </button>
+              <Link
+                href="/profile"
+                className="text-sm text-secondary hover:text-primary transition-colors"
+              >
+                Go to your profile
+              </Link>
+            </div>
+          </>
+        )}
+
         {phase === "pending" && (
           <>
             <Clock className="h-12 w-12 text-yellow-400 mx-auto mb-4" />
@@ -150,7 +208,8 @@ function CallbackContent() {
             <p className="text-sm text-secondary mb-6">
               We haven&apos;t received final confirmation yet. If you completed
               the payment, your access will activate automatically within a few
-              minutes — check your profile or notifications.
+              minutes — check your profile or notifications. Please do not start
+              another payment until it has been confirmed.
             </p>
             <Link
               href="/dashboard"

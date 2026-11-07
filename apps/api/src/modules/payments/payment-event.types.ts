@@ -49,6 +49,14 @@ export const PaymentEventType = {
    * only: no payment/subscription state changes.
    */
   CHAPA_FAILED_OR_CANCELLED: 'CHAPA_FAILED_OR_CANCELLED',
+  /**
+   * Chapa verified an exact payment but the row could not be approved in the
+   * same pass (the claim was lost to a concurrent close). The money is real,
+   * so the row is flagged for admin review and the browser is told the
+   * confirmation is still pending instead of being shown a success or a stale
+   * status.
+   */
+  CHAPA_VERIFY_NOT_APPROVED: 'CHAPA_VERIFY_NOT_APPROVED',
 } as const;
 
 export type PaymentEventTypeValue =

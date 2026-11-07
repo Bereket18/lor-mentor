@@ -6,7 +6,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { Prisma } from '@prisma/client';
+import type { PaymentStatus, Prisma } from '@prisma/client';
 import * as crypto from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PaymentsService } from './payments.service';
@@ -77,8 +77,21 @@ type ConfirmOutcome =
   | { kind: 'APPROVED' }
   /** Deterministically ignorable: 200 so Chapa stops retrying. */
   | { kind: 'IGNORED'; reason: string }
-  /** Transient: the webhook must return 5xx so Chapa retries. */
-  | { kind: 'RETRY'; reason: string };
+  /**
+   * Transient: the webhook must return 5xx so Chapa retries.
+   *
+   * `moneyVerified` marks the case where Chapa *did* confirm an exact payment
+   * and only our own claim failed — the student has paid, so the row is flagged
+   * for admin review and the browser is told to wait rather than being shown a
+   * success or a stale status. An unreachable/timeout verify never sets it.
+   */
+  | {
+      kind: 'RETRY';
+      reason: string;
+      moneyVerified?: boolean;
+      /** Status the row had when the verification succeeded. */
+      currentStatus?: PaymentStatus;
+    };
 
 type CancelOutcome =
   | { kind: 'CANCELLED' }
@@ -88,6 +101,24 @@ type CancelOutcome =
 
 type LifecycleEventKind = 'REFUND' | 'REVERSED' | 'FAILED';
 
+/**
+ * What the browser is told when Chapa confirmed the money but our row is not
+ * approved yet. Shown instead of a success screen or a stale status, because
+ * the worst outcome here is the student paying a second time.
+ */
+export const CHAPA_CONFIRMATION_PENDING_MESSAGE =
+  'We have your payment, but the confirmation is still being processed. Please wait and do not pay again — your access activates automatically, and the receipt appears on your profile within a few minutes.';
+
+/** State of one online payment as reported to the browser. */
+export interface ChapaPaymentState {
+  paymentId: string | null;
+  status: PaymentStatus;
+  receiptNumber: string | null;
+  /** True while a confirmed payment cannot be shown as approved yet. */
+  confirmationPending: boolean;
+  /** Message the UI must show; null unless `confirmationPending`. */
+  message: string | null;
+}
 
 interface ChapaWebhookSignatures {
   chapaSignature?: string;
@@ -939,18 +970,22 @@ export class ChapaService {
     );
   }
 
-  async handleCallback(txRef: string): Promise<{ received: true }> {
+  async handleCallback(txRef: string): Promise<ChapaPaymentState> {
     if (!txRef.startsWith('lm-')) {
       throw new BadRequestException('Invalid transaction reference');
     }
-    await this.confirmAndApprove(txRef);
-    return { received: true };
+    const outcome = await this.confirmAndApprove(txRef);
+    return this.paymentState(txRef, outcome);
   }
 
   /**
    * Called by the browser callback page. Confirms ownership, then verifies and
    * approves if Chapa reports success. Lets the student see an instant result
    * even if the webhook is delayed.
+   *
+   * When Chapa confirmed the money but the row is not approved yet, the
+   * response carries `confirmationPending` and the message to show — the page
+   * must never present that state as "paid" or as the stale row status.
    */
   async verifyByTxRef(txRef: string, requesterId: string) {
     const payment = await this.prisma.payment.findUnique({
@@ -962,23 +997,48 @@ export class ChapaService {
       throw new NotFoundException('Payment not found');
     }
 
+    let outcome: ConfirmOutcome = { kind: 'IGNORED', reason: 'nothing to confirm' };
     if (
       payment.status === 'PENDING' ||
       payment.status === 'EXPIRED' ||
       payment.status === 'CANCELLED'
     ) {
-      await this.confirmAndApprove(txRef);
+      outcome = await this.confirmAndApprove(txRef);
     }
 
+    return this.paymentState(txRef, outcome);
+  }
+
+  /**
+   * Current state of a payment plus the browser-facing confirmation flag. A
+   * `RETRY` outcome means "we could not finish the confirmation right now":
+   * the student must be told to wait, not shown a success or a stale status.
+   */
+  private async paymentState(
+    txRef: string,
+    outcome: ConfirmOutcome,
+  ): Promise<ChapaPaymentState> {
     const fresh = await this.prisma.payment.findUnique({
       where: { txRef },
       select: { id: true, status: true, receiptNumber: true },
     });
 
+    if (outcome.kind === 'RETRY') {
+      return {
+        paymentId: fresh?.id ?? null,
+        status: fresh?.status ?? 'PENDING',
+        receiptNumber: fresh?.receiptNumber ?? null,
+        confirmationPending: true,
+        message: CHAPA_CONFIRMATION_PENDING_MESSAGE,
+      };
+    }
+
     return {
-      paymentId: fresh?.id,
+      paymentId: fresh?.id ?? null,
       status: fresh?.status ?? 'PENDING',
       receiptNumber: fresh?.receiptNumber ?? null,
+      confirmationPending: false,
+      message: null,
     };
   }
 
@@ -1204,11 +1264,60 @@ export class ChapaService {
       // it (a concurrent cancel closed it, or it moved to a non-approvable
       // state). Nothing was activated, so do not report success: ask the
       // caller — a webhook turns this into 5xx — to retry, and a later attempt
-      // re-verifies and revives the closed row.
+      // re-verifies and revives the closed row. The money is real, so the row
+      // is flagged and an event is written for the admin, and the browser is
+      // told the confirmation is still pending (never "success").
       this.logger.error(
         `Chapa verified an exact payment for ${txRef} but the row is ${finalized.status ?? 'no longer approvable'}; not approved`,
       );
-      return { kind: 'RETRY', reason: 'payment not approved' };
+      await this.prisma.$transaction(async (tx) => {
+        await this.states.recordEvent(
+          tx,
+          payment.id,
+          PaymentEventType.CHAPA_VERIFY_NOT_APPROVED,
+          {
+            fromStatus: payment.status,
+            toStatus: payment.status,
+            reason: `Chapa verified an exact payment for ${txRef} but it could not be approved in this pass (${String(finalized.status ?? 'not approvable')}); waiting for a redelivery`,
+            meta: {
+              txRef,
+              chapaRef: data?.reference ?? null,
+              reportedStatus: String(finalized.status ?? ''),
+            },
+          },
+        );
+        // Guarded: if a concurrent caller approved the row in the meantime, do
+        // not leave a stale review flag on a healthy payment.
+        const flagged = await tx.payment.updateMany({
+          where: { id: payment.id, status: { not: 'APPROVED' } },
+          data: {
+            verification: {
+              ...asJsonObject(payment.verification),
+              decision: 'REVIEW',
+              exception: true,
+              reviewNote:
+                'Chapa verified this payment but it is not approved yet; it completes on the next redelivery.',
+              chapaException: {
+                txRef,
+                chapaRef: data?.reference ?? null,
+                reason: 'payment not approved in this pass',
+              },
+            } as Prisma.InputJsonValue,
+          },
+        });
+        if (flagged.count === 0) {
+          // The row was approved after all: the event above is enough.
+          this.logger.warn(
+            `Chapa payment ${payment.id} was approved concurrently; no exception flagged`,
+          );
+        }
+      });
+      return {
+        kind: 'RETRY',
+        reason: 'payment not approved',
+        moneyVerified: true,
+        currentStatus: payment.status,
+      };
     }
     return { kind: 'APPROVED' };
   }

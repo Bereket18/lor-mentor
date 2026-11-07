@@ -180,6 +180,21 @@ sequenceDiagram
    `GET /payments/chapa/verify/:txRef`, which re-checks with Chapa. The UI never
    trusts the redirect alone.
 
+**A confirmed payment that is not approved yet.** When Chapa verifies an exact
+payment but the row cannot be approved in the same pass (the claim was lost to a
+concurrent cancel, or the row moved to a non-approvable state), both
+`GET /payments/chapa/callback` and `GET /payments/chapa/verify/:txRef` answer
+with `confirmationPending: true` and a `message` that tells the student to wait
+and **not to pay again** — never a success screen and never a stale row status.
+The API also writes `CHAPA_VERIFY_NOT_APPROVED` and sets
+`verification.exception = true` so the payment shows up in the admin *Exceptions*
+tab, and the webhook answers `5xx` so Chapa redelivers and completes it. An
+*unreachable or timed-out* verify also reports `confirmationPending` (the student
+must still wait) but records nothing: no money was confirmed, so the admin queue
+is not spammed. The profile page polls the same endpoint for the student's own
+unresolved Chapa payments and shows the message; the callback page keeps polling
+before showing it, because the next redelivery usually finishes the approval.
+
 **Mismatches and failed attempts.** A mismatch keeps the payment `PENDING`,
 writes `CHAPA_VERIFY_MISMATCH`, and flags an admin-queue exception — never an
 auto-approval and never a customer-facing amount message. A verify call that
