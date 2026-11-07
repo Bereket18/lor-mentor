@@ -1813,6 +1813,68 @@ describe('PaymentsService plan snapshots on approval', () => {
     expect(txSubscriptionCreate).toHaveBeenCalledTimes(1);
   });
 
+  it('revives when a concurrent cancel lands between the in-transaction read and the claim', async () => {
+    // Outer read: PENDING. In-transaction read: still PENDING, but the guarded
+    // claim is lost because a student cancel committed just before it. The
+    // re-read then sees CANCELLED and the next pass must revive it — money the
+    // gateway confirmed as paid can never be dropped by a racing cancel.
+    findPayment
+      .mockResolvedValueOnce({ ...snapshotPayment, status: 'PENDING' })
+      .mockResolvedValueOnce({ ...snapshotPayment, status: 'PENDING' })
+      .mockResolvedValueOnce({ ...snapshotPayment, status: 'CANCELLED' })
+      .mockResolvedValueOnce({ ...snapshotPayment, status: 'CANCELLED' });
+    transition
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true)
+      .mockResolvedValue(true);
+
+    const result = await service.finalizeApproval('pay-1', {
+      allowExpiredOrCancelled: true,
+      chapaRef: 'chapa-ref-1',
+      paidAt,
+    });
+
+    // Second pass claims CANCELLED → APPROVED with the recovery event.
+    expect(transition).toHaveBeenCalledTimes(2);
+    const reviveArgs = transition.mock.calls[1][2] as {
+      from: string[];
+      type: string;
+      data: { recoveredFromStatus?: string };
+    };
+    expect(reviveArgs.from).toEqual(['CANCELLED']);
+    expect(reviveArgs.type).toBe('PAYMENT_APPROVED_AFTER_EXPIRY');
+    expect(reviveArgs.data.recoveredFromStatus).toBe('CANCELLED');
+
+    // Exactly one activation, receipt and notification.
+    expect(txSubscriptionCreate).toHaveBeenCalledTimes(1);
+    expect(generateReceipt).toHaveBeenCalledTimes(1);
+    expect(txNotificationCreate).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      message: 'Payment approved and subscription activated',
+    });
+  });
+
+  it('does not revive a row it cannot claim when revival is not allowed', async () => {
+    // Outer read: PENDING, in-transaction read: PENDING but the claim is lost
+    // to a cancel. Without a verified-gateway confirmation the row stays
+    // closed and the caller is told the payment was not approved.
+    findPayment
+      .mockResolvedValueOnce({ ...snapshotPayment, status: 'PENDING' })
+      .mockResolvedValueOnce({ ...snapshotPayment, status: 'PENDING' })
+      .mockResolvedValueOnce({ ...snapshotPayment, status: 'CANCELLED' })
+      .mockResolvedValueOnce({ ...snapshotPayment, status: 'CANCELLED' });
+    transition.mockResolvedValue(false);
+
+    const result = await service.finalizeApproval('pay-1', { paidAt });
+
+    expect(result).toMatchObject({
+      approved: false,
+      status: 'CANCELLED',
+    });
+    expect(transition).toHaveBeenCalledTimes(1);
+    expect(generateReceipt).not.toHaveBeenCalled();
+  });
+
   it('never lets an admin reopen an EXPIRED or CANCELLED payment', async () => {
     for (const status of ['EXPIRED', 'CANCELLED']) {
       jest.clearAllMocks();

@@ -1456,12 +1456,14 @@ export class PaymentsService {
       payment.planDurationMonths ?? payment.plan.durationMonths;
     const receiptNumber = this.receipts.buildReceiptNumber(payment.id, now);
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      // Re-read inside the transaction: the status may have moved since the
-      // fast-path read above (an abandoned checkout can be expired by a
-      // concurrent initialize). The guarded update below only fires for the
-      // status we just observed, so a late transition can never overwrite a
-      // newer one.
+    let result: { startDate: Date; endDate: Date } | null;
+    for (let attempt = 0; ; attempt++) {
+      result = await this.prisma.$transaction(async (tx) => {
+        // Re-read inside the transaction: the status may have moved since the
+        // fast-path read above (an abandoned checkout can be expired by a
+        // concurrent initialize). The guarded update below only fires for the
+        // status we just observed, so a late transition can never overwrite a
+        // newer one.
       const current = await tx.payment.findUnique({
         where: { id: paymentId },
         select: { status: true },
@@ -1568,7 +1570,26 @@ export class PaymentsService {
       });
 
       return { startDate: sub.startDate, endDate: sub.endDate };
-    });
+      });
+
+      // Claimed: activate the receipt/PDF path below exactly once.
+      if (result) break;
+
+      // Lost the guarded claim: another transaction moved this row first. If a
+      // concurrent student/lazy cancel closed it as EXPIRED/CANCELLED *after*
+      // we read `current.status`, the money Chapa just confirmed would be
+      // dropped silently — so re-read and revive on the next pass instead.
+      const after = await this.prisma.payment.findUnique({
+        where: { id: paymentId },
+        select: { status: true },
+      });
+      if (after?.status === 'APPROVED') {
+        return { message: 'Payment already approved', alreadyApproved: true };
+      }
+      const revivable =
+        after?.status === 'EXPIRED' || after?.status === 'CANCELLED';
+      if (!revivable || !opts.allowExpiredOrCancelled || attempt >= 2) break;
+    }
 
     // Another concurrent caller won the race and already finalized everything.
     if (!result) {
