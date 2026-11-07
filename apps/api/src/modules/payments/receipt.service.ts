@@ -23,6 +23,33 @@ export interface ReceiptData {
 }
 
 /**
+ * Dates on a receipt are entitlement instants stored in UTC. They are always
+ * rendered in Addis Ababa time (UTC+3, no DST) because that is where the
+ * college and its students are: leaving the timezone implicit made the same
+ * receipt print different days on a UTC API host and a developer machine.
+ */
+export const RECEIPT_TIME_ZONE = 'Africa/Addis_Ababa';
+
+/** `dd/mm/yyyy`, optionally `dd/mm/yyyy, HH:mm` — always Addis Ababa time. */
+export function formatReceiptDate(value: Date, withTime = false): string {
+  const options: Intl.DateTimeFormatOptions = {
+    timeZone: RECEIPT_TIME_ZONE,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  };
+  if (withTime) {
+    return value.toLocaleString('en-GB', {
+      ...options,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  }
+  return value.toLocaleDateString('en-GB', options);
+}
+
+/**
  * Generates branded PDF receipts and serves them back. Receipts live under
  * uploads/receipts-generated/<paymentId>.pdf and are produced once, the moment
  * a payment becomes APPROVED.
@@ -115,7 +142,7 @@ export class ReceiptService {
         .font('Helvetica')
         .fillColor(muted)
         .text(`Receipt No.  ${data.receiptNumber}`, 50, y + 24)
-        .text(`Date  ${data.paidAt.toLocaleString()}`, 50, y + 40)
+        .text(`Date  ${formatReceiptDate(data.paidAt, true)}`, 50, y + 40)
         .text(
           `Method  ${data.method === 'CHAPA' ? 'Chapa (online)' : 'Bank transfer (manual)'}`,
           50,
@@ -162,7 +189,7 @@ export class ReceiptService {
         .text('Amount', 60, y + 9, { width: 480, align: 'right' });
 
       y += 28;
-      const period = `${data.subscription.startDate.toLocaleDateString()} – ${data.subscription.endDate.toLocaleDateString()}`;
+      const period = `${formatReceiptDate(data.subscription.startDate)} – ${formatReceiptDate(data.subscription.endDate)}`;
       doc
         .font('Helvetica')
         .fillColor(ink)

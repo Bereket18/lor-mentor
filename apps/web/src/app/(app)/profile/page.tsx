@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import api from "@/lib/api";
+import { formatDisplayDate } from "@/lib/dates";
 import type { FullProfile } from "@/types";
 
 import { toast } from "sonner";
@@ -27,16 +28,9 @@ interface VerifyState {
 const CONFIRMATION_PENDING_FALLBACK =
   "We have your payment, but the confirmation is still being processed. Please wait and do not pay again — your access activates automatically.";
 
-function formatDate(value?: string | null) {
-  if (!value) return "—";
-  try {
-    return new Date(value).toLocaleDateString(undefined, {
-      year: "numeric", month: "short", day: "numeric",
-    });
-  } catch {
-    return "—";
-  }
-}
+// Subscription and payment dates are UTC instants; students see them in Addis
+// Ababa time (see lib/dates).
+const formatDate = formatDisplayDate;
 
 // Status chip colors driven by semantic state tokens
 function statusStyle(status: string): React.CSSProperties {

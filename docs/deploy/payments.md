@@ -180,6 +180,18 @@ sequenceDiagram
    `GET /payments/chapa/verify/:txRef`, which re-checks with Chapa. The UI never
    trusts the redirect alone.
 
+**Dates: UTC instants, Addis Ababa display.** Every money and entitlement moment
+(`Payment.paidAt`, `Subscription.startDate/endDate`, the approval and reversal
+timestamps) is stored and computed as a **UTC instant**, with the month maths
+done in UTC and end-of-month clamping (`Jan 31 + 1 month = Feb 28/29`). Nothing
+about that changes: the columns stay `timestamp` and no backfill exists. What is
+fixed is the *display*: the API renders receipt and UI dates with an explicit
+`Africa/Addis_Ababa` timezone (UTC+3, no DST) instead of inheriting the host's,
+so the same payment prints the same day on a UTC API container and on a
+developer machine. Concretely, a subscription that starts `2026-01-30T22:00Z`
+and ends `2026-02-28T22:00Z` is *one month* of access and shows as
+`31/01/2026 – 01/03/2026` in Addis.
+
 **The PDF receipt is never the transaction of record.** It is written *after* the
 approval commits, so a full disk, a permissions problem or a render error cannot
 roll back (or fail) a paid activation. Such a failure records
