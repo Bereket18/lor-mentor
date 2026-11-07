@@ -113,6 +113,21 @@ export function validateEnv(
     }
   }
 
+  // How long an unpaid Chapa checkout stays resumable before lazy resolution
+  // may close it. Must match the checkout/retry timeout configured in the
+  // Chapa dashboard; the default (60) is documented there.
+  if (
+    config.CHAPA_RETRY_WINDOW_MINUTES !== undefined &&
+    config.CHAPA_RETRY_WINDOW_MINUTES !== ''
+  ) {
+    const minutes = Number(config.CHAPA_RETRY_WINDOW_MINUTES);
+    if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) {
+      errors.push(
+        'CHAPA_RETRY_WINDOW_MINUTES must be an integer between 1 and 1440',
+      );
+    }
+  }
+
   // In production, refuse weak/placeholder JWT secrets outright.
   if (isProd) {
     if (
@@ -155,6 +170,15 @@ export function validateEnv(
             `${key} is required once Chapa is enabled (all Chapa keys must be set together)`,
           );
         }
+      }
+      // Chapa test keys carry "TEST" in the value (CHASECK_TEST-...). A test
+      // key in production cannot take live charges and would make every
+      // verified transaction fail the mode check, so refuse to boot.
+      const chapaSecret = config.CHAPA_SECRET_KEY;
+      if (typeof chapaSecret === 'string' && /test/i.test(chapaSecret)) {
+        errors.push(
+          'CHAPA_SECRET_KEY looks like a Chapa test key; production requires a live key (test keys contain "TEST", e.g. CHASECK_TEST-...)',
+        );
       }
     }
 
