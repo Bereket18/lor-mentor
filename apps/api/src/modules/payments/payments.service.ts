@@ -1,8 +1,10 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import type { PaymentStatus, Prisma } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
@@ -44,6 +46,7 @@ export interface BankAccountView {
 
 @Injectable()
 export class PaymentsService {
+  private readonly logger = new Logger(PaymentsService.name);
   private readonly uploadDir = path.join(process.cwd(), 'uploads', 'receipts');
 
   constructor(
@@ -1633,25 +1636,57 @@ export class PaymentsService {
     const { startDate, endDate } = result;
 
     // Generate the PDF outside the DB transaction — a slow/failed file write
-    // must never roll back an activated subscription.
-    await this.receipts.generate(paymentId, {
-      receiptNumber,
-      paidAt: now,
-      method: payment.method,
-      amount: formatETB(payment.amount ?? payment.plan.priceETB),
-      currency: payment.currency,
-      chapaRef: opts.chapaRef ?? payment.chapaRef,
-      payer: {
-        fullName: payment.user.fullName,
-        email: payment.user.email,
-        phoneNumber: payment.user.phoneNumber,
-      },
-      plan: {
-        name: planName,
-        durationMonths,
-      },
-      subscription: { startDate, endDate },
-    });
+    // must never roll back an activated subscription. If it still fails
+    // (disk full, permissions, a render error) the failure is recorded on the
+    // ledger and repaired on the next download: a missing receipt is never
+    // permanent and never hides the paid access.
+    try {
+      await this.receipts.generate(paymentId, {
+        receiptNumber,
+        paidAt: now,
+        method: payment.method,
+        amount: formatETB(payment.amount ?? payment.plan.priceETB),
+        currency: payment.currency,
+        chapaRef: opts.chapaRef ?? payment.chapaRef,
+        payer: {
+          fullName: payment.user.fullName,
+          email: payment.user.email,
+          phoneNumber: payment.user.phoneNumber,
+        },
+        plan: {
+          name: planName,
+          durationMonths,
+        },
+        subscription: { startDate, endDate },
+      });
+    } catch (err) {
+      this.logger.error(
+        `Receipt PDF generation failed for payment ${paymentId}: ${String(err)} — the approval stands and the receipt is regenerated on the next download`,
+      );
+      try {
+        await this.states.recordEvent(
+          this.prisma,
+          paymentId,
+          PaymentEventType.RECEIPT_GENERATION_FAILED,
+          {
+            fromStatus: 'APPROVED',
+            toStatus: 'APPROVED',
+            reason:
+              'The PDF receipt could not be written after approval; it is regenerated on the next download',
+            meta: {
+              receiptNumber,
+              error: err instanceof Error ? err.message : String(err),
+            },
+          },
+        );
+      } catch (ledgerErr) {
+        // The approval is already committed and the student keeps access; a
+        // failed audit write is logged and the receipt is still repairable.
+        this.logger.error(
+          `Could not record RECEIPT_GENERATION_FAILED for ${paymentId}: ${String(ledgerErr)}`,
+        );
+      }
+    }
 
     return {
       message: 'Payment approved and subscription activated',
@@ -1973,6 +2008,11 @@ export class PaymentsService {
   /**
    * Path to the generated PDF receipt for an APPROVED payment. The owner (the
    * student who paid) or any admin may download it.
+   *
+   * A receipt can be missing: the PDF is written *after* the approval commits,
+   * so a full disk or a permissions problem leaves an APPROVED payment with no
+   * file. That must not be permanent — the receipt is regenerated from the
+   * stored payment here, so the next download simply works.
    */
   async getReceiptDocumentPath(
     paymentId: string,
@@ -1980,7 +2020,23 @@ export class PaymentsService {
   ) {
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
-      select: { id: true, userId: true, status: true },
+      select: {
+        id: true,
+        userId: true,
+        status: true,
+        method: true,
+        amount: true,
+        currency: true,
+        chapaRef: true,
+        receiptNumber: true,
+        paidAt: true,
+        planName: true,
+        planDurationMonths: true,
+        createdAt: true,
+        user: { select: { fullName: true, email: true, phoneNumber: true } },
+        plan: { select: { name: true, priceETB: true, durationMonths: true } },
+        subscription: { select: { startDate: true, endDate: true } },
+      },
     });
 
     if (!payment) throw new NotFoundException('Payment not found');
@@ -1994,6 +2050,122 @@ export class PaymentsService {
       throw new BadRequestException('Receipt is only available once approved');
     }
 
+    if (!this.receipts.exists(paymentId)) {
+      await this.regenerateReceiptFile(payment);
+    }
+
     return this.receipts.resolveExisting(paymentId);
+  }
+
+  /**
+   * Rebuild a receipt PDF from the stored payment (admin action, or the lazy
+   * path above). Everything comes from the payment's own snapshot, so the
+   * regenerated document matches the one produced at approval time even if the
+   * plan was since renamed, repriced or lengthened.
+   */
+  async regenerateReceipt(paymentId: string, adminId: string) {
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+      select: {
+        id: true,
+        userId: true,
+        status: true,
+        method: true,
+        amount: true,
+        currency: true,
+        chapaRef: true,
+        receiptNumber: true,
+        paidAt: true,
+        planName: true,
+        planDurationMonths: true,
+        createdAt: true,
+        user: { select: { fullName: true, email: true, phoneNumber: true } },
+        plan: { select: { name: true, priceETB: true, durationMonths: true } },
+        subscription: { select: { startDate: true, endDate: true } },
+      },
+    });
+
+    if (!payment) throw new NotFoundException('Payment not found');
+    if (payment.status !== 'APPROVED') {
+      throw new BadRequestException(
+        'A receipt can only be regenerated for an approved payment',
+      );
+    }
+
+    await this.regenerateReceiptFile(payment, adminId);
+    return { message: 'Receipt regenerated' };
+  }
+
+  /** Shared writer used by the lazy download path and the admin action. */
+  private async regenerateReceiptFile(
+    payment: {
+      id: string;
+      status: PaymentStatus;
+      method: 'MANUAL' | 'CHAPA';
+      amount: Prisma.Decimal | null;
+      currency: string;
+      chapaRef: string | null;
+      receiptNumber: string | null;
+      paidAt: Date | null;
+      planName: string | null;
+      planDurationMonths: number | null;
+      user: { fullName: string; email: string; phoneNumber: string | null };
+      plan: {
+        name: string;
+        priceETB: Prisma.Decimal;
+        durationMonths: number;
+      };
+      subscription: { startDate: Date | null; endDate: Date | null } | null;
+    },
+    actorId?: string,
+  ): Promise<void> {
+    const paidAt = payment.paidAt ?? new Date();
+    const planName = payment.planName ?? payment.plan.name;
+    const durationMonths =
+      payment.planDurationMonths ?? payment.plan.durationMonths;
+    // A row approved before the receipt flow existed has no subscription
+    // attached (or one without dates); fall back to the same month maths the
+    const startDate = payment.subscription?.startDate ?? paidAt;
+    const endDate =
+      payment.subscription?.endDate ?? addMonthsUtc(paidAt, durationMonths);
+
+    try {
+      await this.receipts.generate(payment.id, {
+        receiptNumber:
+          payment.receiptNumber ?? this.receipts.buildReceiptNumber(payment.id, paidAt),
+        paidAt,
+        method: payment.method,
+        amount: formatETB(payment.amount ?? payment.plan.priceETB),
+        currency: payment.currency,
+        chapaRef: payment.chapaRef,
+        payer: payment.user,
+        plan: { name: planName, durationMonths },
+        subscription: { startDate, endDate },
+      });
+    } catch (err) {
+      this.logger.error(
+        `Receipt regeneration failed for payment ${payment.id}: ${String(err)}`,
+      );
+      throw new ServiceUnavailableException(
+        'The receipt could not be regenerated right now. Please try again in a moment.',
+      );
+    }
+
+    await this.states.recordEvent(
+      this.prisma,
+      payment.id,
+      PaymentEventType.RECEIPT_REGENERATED,
+      {
+        fromStatus: payment.status,
+        toStatus: payment.status,
+        actorId: actorId ?? null,
+        reason: 'Receipt PDF regenerated (the previous file was missing)',
+        meta: {
+          receiptNumber:
+            payment.receiptNumber ??
+            this.receipts.buildReceiptNumber(payment.id, paidAt),
+        },
+      },
+    );
   }
 }

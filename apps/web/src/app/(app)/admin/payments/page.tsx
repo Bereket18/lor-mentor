@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   AlertTriangle,
   RotateCcw,
+  RefreshCw,
   Search,
 } from "lucide-react";
 import api from "@/lib/api";
@@ -383,6 +384,26 @@ export default function AdminPaymentsPage() {
     }
   }
 
+  // The PDF is written after the approval commits, so a full disk or a
+  // permissions problem can leave an APPROVED payment without a file. The
+  // download endpoint repairs it automatically; this forces the rebuild when an
+  // admin wants it done now (and reports why it failed).
+  async function regenerateReceipt(id: string) {
+    setActionId(id);
+    try {
+      await api.post(`/payments/${id}/receipt/regenerate`);
+      toast.success("Receipt regenerated");
+      await loadPayments(activeTab, search);
+    } catch (err: unknown) {
+      toast.error(
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message ?? "Could not regenerate the receipt",
+      );
+    } finally {
+      setActionId(null);
+    }
+  }
+
   const totalCount = STATUS_TABS.reduce((n, tab) => n + counts[tab.key], 0);
 
   return (
@@ -564,15 +585,33 @@ export default function AdminPaymentsPage() {
                     )}
 
                     {payment.status === "APPROVED" && (
-                      <button
-                        type="button"
-                        onClick={() => openReceiptPdf(payment.id)}
-                        className="flex items-center gap-1 text-xs font-medium text-secondary
-                      hover:text-primary transition-colors"
-                      >
-                        <FileText className="h-3.5 w-3.5" />
-                        PDF
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => openReceiptPdf(payment.id)}
+                          className="flex items-center gap-1 text-xs font-medium text-secondary
+                        hover:text-primary transition-colors"
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          PDF
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => regenerateReceipt(payment.id)}
+                          disabled={actionId === payment.id}
+                          title="Rebuild the PDF receipt (it is also rebuilt
+                            automatically when a download finds no file)"
+                          className="flex items-center gap-1 text-xs font-medium text-secondary
+                        hover:text-primary transition-colors disabled:opacity-50"
+                        >
+                          {actionId === payment.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-3.5 w-3.5" />
+                          )}
+                          Regenerate
+                        </button>
+                      </>
                     )}
 
                     {payment.status === "APPROVED" && isSuperAdmin && (

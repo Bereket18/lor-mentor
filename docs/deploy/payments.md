@@ -180,6 +180,19 @@ sequenceDiagram
    `GET /payments/chapa/verify/:txRef`, which re-checks with Chapa. The UI never
    trusts the redirect alone.
 
+**The PDF receipt is never the transaction of record.** It is written *after* the
+approval commits, so a full disk, a permissions problem or a render error cannot
+roll back (or fail) a paid activation. Such a failure records
+`RECEIPT_GENERATION_FAILED` on the ledger and the approval still succeeds. The
+receipt is then **repaired on demand**: `GET /payments/:id/document` regenerates
+it from the payment's own snapshot (plan name, duration, amount, payer and the
+subscription period captured at approval) whenever the file is missing, so the
+student's next download simply works. A regeneration writes
+`RECEIPT_REGENERATED`. Admins can also force a rebuild with
+`POST /payments/:id/receipt/regenerate` (the *Regenerate* action on the payment
+row). If the rewrite fails too, the student gets a clear "try again" rather than
+a silent missing file.
+
 **A confirmed payment that is not approved yet.** When Chapa verifies an exact
 payment but the row cannot be approved in the same pass (the claim was lost to a
 concurrent cancel, or the row moved to a non-approvable state), both

@@ -327,4 +327,17 @@ export class PaymentsController {
     );
     res.sendFile(fullPath);
   }
+
+  // ── Admin: rebuild a missing or corrupt receipt PDF ──
+  // The PDF is written after the approval commits, so a full disk or a
+  // permissions problem can leave an APPROVED payment without a file. This
+  // action rebuilds it from the payment's own snapshot (the service also
+  // repairs it automatically on the next download).
+  @Post(':id/receipt/regenerate')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @SkipAudit()
+  regenerateReceipt(@Param('id') id: string, @CurrentUser() user: RequestUser) {
+    return this.service.regenerateReceipt(id, user.id);
+  }
 }

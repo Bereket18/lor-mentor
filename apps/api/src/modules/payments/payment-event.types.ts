@@ -57,6 +57,17 @@ export const PaymentEventType = {
    * status.
    */
   CHAPA_VERIFY_NOT_APPROVED: 'CHAPA_VERIFY_NOT_APPROVED',
+  /**
+   * The PDF receipt could not be written after the payment was approved (disk,
+   * permissions, a render error). The approval is unaffected: the receipt is
+   * regenerated on the first download, so this is never permanent.
+   */
+  RECEIPT_GENERATION_FAILED: 'RECEIPT_GENERATION_FAILED',
+  /**
+   * A receipt PDF was (re)built after the approval — on the first download
+   * because the file was missing, or when an admin asked for a regeneration.
+   */
+  RECEIPT_REGENERATED: 'RECEIPT_REGENERATED',
 } as const;
 
 export type PaymentEventTypeValue =

@@ -1995,3 +1995,212 @@ describe('PaymentsService plan snapshots on approval', () => {
     }
   });
 });
+
+describe('PaymentsService receipt resilience', () => {
+  const findPayment = jest.fn();
+  const findSubscription = jest.fn();
+  const transition = jest.fn();
+  const txPaymentUpdate = jest.fn();
+  const txSubscriptionCreate = jest.fn();
+  const txSubscriptionUpdate = jest.fn();
+  const txNotificationCreate = jest.fn();
+  const txAuditCreate = jest.fn();
+  const buildReceiptNumber = jest.fn();
+  const generateReceipt = jest.fn();
+  const receiptExists = jest.fn();
+  const resolveExisting = jest.fn();
+  const recordEvent = jest.fn();
+
+  const tx = {
+    $executeRaw: jest.fn().mockResolvedValue(1),
+    payment: { update: txPaymentUpdate, findUnique: findPayment },
+    subscription: {
+      findUnique: findSubscription,
+      create: txSubscriptionCreate,
+      update: txSubscriptionUpdate,
+    },
+    notification: { create: txNotificationCreate },
+    auditLog: { create: txAuditCreate },
+  };
+
+  const prisma = {
+    payment: { findUnique: findPayment },
+    $transaction: jest.fn((fn: (client: unknown) => Promise<unknown>) =>
+      fn(tx),
+    ),
+  } as unknown as PrismaService;
+
+  const service = new PaymentsService(
+    prisma,
+    {
+      buildReceiptNumber,
+      generate: generateReceipt,
+      exists: receiptExists,
+      resolveExisting,
+    } as unknown as ReceiptService,
+    {} as unknown as ConfigService,
+    {} as unknown as ReceiptVerifierService,
+    {} as unknown as ChekiService,
+    {
+      transition,
+      recordEvent,
+    } as unknown as PaymentStateMachine,
+  );
+
+  const paidAt = new Date(Date.UTC(2026, 0, 31, 10, 0, 0));
+  const approvedPayment = {
+    id: 'pay-1',
+    userId: 'student-1',
+    planId: 'plan-1',
+    status: 'APPROVED',
+    method: 'CHAPA',
+    amount: new Prisma.Decimal('1000'),
+    currency: 'ETB',
+    chapaRef: 'chapa-ref-1',
+    txRef: 'lm-pay-1',
+    receiptNumber: 'LM-2026-1',
+    receiptPath: null,
+    paidAt,
+    planName: 'Semester 2026',
+    planDurationMonths: 1,
+    plan: {
+      name: 'Semester 2026',
+      durationMonths: 1,
+      priceETB: new Prisma.Decimal('1000'),
+    },
+    user: {
+      fullName: 'Test Student',
+      email: 's@example.com',
+      phoneNumber: null,
+    },
+    subscription: {
+      startDate: new Date(Date.UTC(2026, 0, 31, 10, 0, 0)),
+      endDate: new Date(Date.UTC(2026, 1, 28, 10, 0, 0)),
+    },
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    findPayment.mockResolvedValue(approvedPayment);
+    findSubscription.mockResolvedValue(null);
+    transition.mockResolvedValue(true);
+    buildReceiptNumber.mockReturnValue('LM-2026-1');
+    generateReceipt.mockResolvedValue('pay-1.pdf');
+    receiptExists.mockReturnValue(true);
+    resolveExisting.mockReturnValue('C:/uploads/receipts-generated/pay-1.pdf');
+    recordEvent.mockResolvedValue(undefined);
+    txSubscriptionCreate.mockResolvedValue({ id: 'sub-1' });
+  });
+
+  it('records RECEIPT_GENERATION_FAILED and still approves when the PDF cannot be written', async () => {
+    // The subscription is already committed: a disk/permission failure on the
+    // after-commit PDF write must not undo (or hide) the paid access.
+    findPayment.mockResolvedValue({
+      ...approvedPayment,
+      status: 'PENDING',
+      receiptNumber: null,
+    });
+    generateReceipt.mockRejectedValue(new Error('ENOSPC: no space left on device'));
+
+    const result = await service.finalizeApproval('pay-1', { paidAt });
+
+    expect(result).toMatchObject({
+      message: 'Payment approved and subscription activated',
+      receiptNumber: 'LM-2026-1',
+    });
+    expect(recordEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      'pay-1',
+      'RECEIPT_GENERATION_FAILED',
+      expect.objectContaining({
+        fromStatus: 'APPROVED',
+        toStatus: 'APPROVED',
+        reason: expect.stringContaining('regenerated'),
+      }),
+    );
+  });
+
+  it('regenerates the PDF on the first download after a failed generation', async () => {
+    // The student downloads: the file is gone, so it is rebuilt from the row
+    // instead of failing forever.
+    receiptExists.mockReturnValue(false);
+    generateReceipt.mockResolvedValue('pay-1.pdf');
+
+    const path = await service.getReceiptDocumentPath('pay-1', {
+      id: 'student-1',
+      role: 'STUDENT',
+    });
+
+    expect(path).toBe('C:/uploads/receipts-generated/pay-1.pdf');
+    expect(generateReceipt).toHaveBeenCalledTimes(1);
+    const data = generateReceipt.mock.calls[0][1] as {
+      receiptNumber: string;
+      amount: string;
+      plan: { name: string; durationMonths: number };
+      subscription: { startDate: Date; endDate: Date };
+    };
+    // Same content as the original receipt: the snapshot, not the live plan.
+    expect(data.receiptNumber).toBe('LM-2026-1');
+    expect(data.amount).toBe('1000.00');
+    expect(data.plan).toEqual({ name: 'Semester 2026', durationMonths: 1 });
+    expect(data.subscription.endDate.toISOString()).toBe(
+      '2026-02-28T10:00:00.000Z',
+    );
+    expect(recordEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      'pay-1',
+      'RECEIPT_REGENERATED',
+      expect.anything(),
+    );
+  });
+
+  it('does not regenerate a receipt that is already on disk', async () => {
+    receiptExists.mockReturnValue(true);
+
+    await service.getReceiptDocumentPath('pay-1', {
+      id: 'student-1',
+      role: 'STUDENT',
+    });
+
+    expect(generateReceipt).not.toHaveBeenCalled();
+  });
+
+  it('lets an admin force a receipt regeneration', async () => {
+    const result = await service.regenerateReceipt('pay-1', 'admin-1');
+
+    expect(result).toMatchObject({
+      message: expect.stringContaining('regenerated'),
+    });
+    expect(generateReceipt).toHaveBeenCalledTimes(1);
+    expect(recordEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      'pay-1',
+      'RECEIPT_REGENERATED',
+      expect.objectContaining({ actorId: 'admin-1' }),
+    );
+  });
+
+  it('tells the student to try again when the regeneration also fails', async () => {
+    receiptExists.mockReturnValue(false);
+    generateReceipt.mockRejectedValue(new Error('ENOSPC'));
+
+    await expect(
+      service.getReceiptDocumentPath('pay-1', {
+        id: 'student-1',
+        role: 'STUDENT',
+      }),
+    ).rejects.toThrow(/try again/i);
+  });
+
+  it('refuses to regenerate a receipt for a payment that is not approved', async () => {
+    findPayment.mockResolvedValue({
+      ...approvedPayment,
+      status: 'PENDING',
+    });
+
+    await expect(
+      service.regenerateReceipt('pay-1', 'admin-1'),
+    ).rejects.toThrow(/approved/i);
+    expect(generateReceipt).not.toHaveBeenCalled();
+  });
+});

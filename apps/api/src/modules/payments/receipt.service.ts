@@ -54,6 +54,11 @@ export class ReceiptService {
     return `${paymentId}.pdf`;
   }
 
+  /** Whether the generated PDF for this payment is currently on disk. */
+  exists(paymentId: string): boolean {
+    return fs.existsSync(path.join(this.dir, this.fileNameFor(paymentId)));
+  }
+
   /** Absolute path + existence check for serving a previously generated PDF. */
   resolveExisting(paymentId: string): string {
     const full = path.join(this.dir, this.fileNameFor(paymentId));
