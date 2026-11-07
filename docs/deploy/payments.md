@@ -342,6 +342,16 @@ refund.
    webhook should flag the approved payment in the admin queue without
    cancelling access.
 
+**Test layers.** The API unit suites (`npm run test --workspace=apps/api`) cover
+the state machine, the Chapa service (verification, mismatches, retries, refunds
+and reversals, the pending-confirmation states, webhook deduplication) and the
+receipt lifecycle. `apps/api/src/modules/payments/payments.race.spec.ts` needs a
+real PostgreSQL database (it is the only suite that exercises real row
+contention): point `DATABASE_URL` at a **disposable** database, apply the
+migrations with `npx prisma migrate deploy`, then run that one spec; the same
+suite runs in `api:test` in CI. The web app has no jest; its changes are verified
+with `tsc --noEmit` and the Playwright unit config.
+
 ### 1.9 Required environment variables (summary)
 
 | Variable | Where | Secret? |
@@ -494,6 +504,6 @@ statuses are rejected and cannot be overridden from the admin dashboard.
 - Status/event ledger semantics: `apps/api/src/modules/payments/payment-state-machine.ts`
   and `payment-event.types.ts`.
 - Operator handover and known deployment prerequisites: `HANDOVER.md`
-  (rows 24–27).
+  (rows 24–28).
 - Historical deployment checklist: `docs/deploy/GO-LIVE.md` and
   `docs/audit/HOSTINGER-DEPLOYMENT-PLAYBOOK.md` §4 (production test matrix).
