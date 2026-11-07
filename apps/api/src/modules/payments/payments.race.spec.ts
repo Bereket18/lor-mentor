@@ -1154,6 +1154,138 @@ describeWithDb('Payments concurrency (real Postgres)', () => {
     ).toBe(0);
   });
 
+  it('reverse vs approve: a reversal never strips the entitlement of a second approved payment', async () => {
+    // The dangerous interleaving for reverse(): the count of the user's other
+    // APPROVED payments runs, THEN a concurrent approval of a second payment
+    // commits, and only then does the reversal cancel the subscription — money
+    // paid, access gone, nothing in the admin queue. Repeat it so a timing
+    // coincidence cannot hide the defect.
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const student = await createStudent(`reverse-lock-${attempt}`);
+      const paidAt = new Date(Date.UTC(2026, 5, 10, 10, 0, 0));
+      // A bank receipt an admin approved (the payment an admin then reverses).
+      const first = await createPayment(student.id);
+      await payments.finalizeApproval(first.id, { reviewedBy: adminId, paidAt });
+      // An online checkout Chapa just confirmed (approved by the gateway path).
+      const secondTxRef = `lm-${crypto.randomUUID()}`;
+      const second = await createPayment(student.id, {
+        method: 'CHAPA',
+        txRef: secondTxRef,
+        receiptPath: null,
+        bankReference: null,
+      });
+      // Park reverse() between its "is this the last approved payment?" count
+      // and the subscription update, so the approval below gets the whole
+      // window to commit inside.
+      let release: () => void = () => undefined;
+      const parked = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const originalTransaction = prisma.$transaction.bind(prisma);
+      let parkedOnce = false;
+      jest.spyOn(prisma, '$transaction').mockImplementation(((
+        arg: unknown,
+        ...rest: unknown[]
+      ) => {
+        if (typeof arg !== 'function') {
+          return (originalTransaction as (a: unknown, ...r: unknown[]) => unknown)(
+            arg,
+            ...rest,
+          );
+        }
+        return (
+          originalTransaction as (a: unknown, ...r: unknown[]) => unknown
+        )(async (tx: Record<string, unknown>) => {
+          const wrapped = new Proxy(tx, {
+            get(target, prop) {
+              if (prop === 'subscription') {
+                const delegate = target.subscription as Record<string, unknown>;
+                return new Proxy(delegate, {
+                  get(delegateTarget, delegateProp) {
+                    if (delegateProp === 'updateMany') {
+                      return async (args: unknown) => {
+                        if (!parkedOnce) {
+                          parkedOnce = true;
+                          await parked;
+                        }
+                        return (
+                          delegateTarget.updateMany as (a: unknown) => unknown
+                        )(args);
+                      };
+                    }
+                    const value = Reflect.get(
+                      delegateTarget as object,
+                      delegateProp,
+                    );
+                    return typeof value === 'function'
+                      ? (value as (...a: unknown[]) => unknown).bind(delegateTarget)
+                      : value;
+                  },
+                });
+              }
+              const value = Reflect.get(target as object, prop);
+              return typeof value === 'function'
+                ? (value as (...a: unknown[]) => unknown).bind(target)
+                : value;
+            },
+          });
+          return (arg as (client: unknown) => unknown)(wrapped);
+        }, ...rest);
+      }) as unknown as typeof prisma.$transaction);
+
+      const reversal = payments.reverse(
+        first.id,
+        adminId,
+        'chargeback after a second payment was approved',
+      );
+      // The second payment is approved the way a verified Chapa payment is:
+      // no admin actor, only the gateway's evidence.
+      const approval = payments.finalizeApproval(second.id, {
+        chapaRef: `chapa-${secondTxRef}`,
+        paidAt: new Date(Date.UTC(2026, 5, 11, 10, 0, 0)),
+      });
+      // Give the approval the whole parked window to commit.
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      release();
+      const results = await Promise.allSettled([reversal, approval]);
+      // Neither operation may fail: a lost race is a normal outcome, not an error.
+      for (const result of results) {
+        expect(result.status).toBe('fulfilled');
+      }
+
+      const secondFinal = await prisma.payment.findUniqueOrThrow({
+        where: { id: second.id },
+      });
+      const subscription = await prisma.subscription.findUnique({
+        where: { userId: student.id },
+      });
+      const exceptions = await payments.findAllAdmin({
+        exceptions: true,
+        search: student.email,
+      });
+
+      if (secondFinal.status === 'APPROVED') {
+        // Either the access is still there, or an admin can see why it is not.
+        expect({
+          attempt,
+          secondStatus: secondFinal.status,
+          subscriptionStatus: subscription?.status ?? null,
+          adminVisibleExceptions: exceptions.counts.EXCEPTIONS,
+          entitlementKept:
+            subscription?.status === 'ACTIVE' ||
+            exceptions.counts.EXCEPTIONS > 0,
+        }).toMatchObject({ entitlementKept: true });
+      }
+      // And the reversal itself always won its own claim.
+      const firstFinal = await prisma.payment.findUniqueOrThrow({
+        where: { id: first.id },
+      });
+      expect(firstFinal.status).toBe('REVERSED');
+
+      jest.restoreAllMocks();
+    }
+  });
+
   it('late webhook delivered twice: one approval, one activation, one notification', async () => {
     const student = await createStudent('late-double');
     const txRef = `lm-${crypto.randomUUID()}`;

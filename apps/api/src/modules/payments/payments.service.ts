@@ -1861,6 +1861,14 @@ export class PaymentsService {
       });
       if (!won) return null;
 
+      // Take the same per-user advisory lock finalizeApproval takes before it
+      // touches the subscription. Without it, a concurrent verified approval
+      // can commit between the count below and the cancel: the student has
+      // paid, the row is APPROVED, and this reversal still removes the access
+      // that payment bought. The lock is released with the transaction, so the
+      // two operations serialize instead of interleaving.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('payment-activation'), hashtext(${payment.userId}))`;
+
       // Remove access only when this was the student's last approved payment.
       const otherApproved = await tx.payment.count({
         where: { userId: payment.userId, status: 'APPROVED' },

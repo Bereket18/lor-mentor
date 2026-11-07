@@ -229,6 +229,16 @@ its status is not an unconfirmed attempt. The *Exceptions* tab
 refund, a late payment on a terminal row, an under/overpayment — with its own
 count, so a row needing a human can never be missed.
 
+**Admin reversal and concurrent approvals.** An admin reversal only cancels the
+subscription when it is the student's last `APPROVED` payment. That count and
+the cancel run under the same per-user advisory lock
+(`pg_advisory_xact_lock(hashtext('payment-activation'), hashtext(userId))`) that
+`finalizeApproval` takes, so a verified approval that lands at the same moment
+is serialized with the reversal instead of committing inside its window: the
+reversal either sees the second payment (access kept) or finishes before it
+(the approval then starts the subscription again). A reversal can therefore
+never leave a paid `APPROVED` row pointing at a cancelled subscription.
+
 **Refunds, reversals and failed events.** Webhook events `charge.refunded`
 (status `refunding` or `refunded`), `charge.reversed`, and `charge.failed`
 (or a `cancelled` status) always write a `PaymentEvent`
