@@ -1,0 +1,406 @@
+# GitHub Actions stand-in for the blocking gates in .gitlab-ci.yml.
+#
+# Why this exists: GitLab compute minutes are exhausted, so this workflow runs
+# the same hard gates on GitHub-hosted ubuntu-latest runners until GitLab CI is
+# available again. It is intentionally narrow:
+#
+#   * Only pushes to ci/preview-** branches and manual dispatch.
+#   * No deploy jobs and no real secrets. Every credential below is the
+#     throwaway CI Postgres value from .gitlab-ci.yml.
+#   * Report-only GitLab jobs are deliberately not mirrored: npm audit, Docker
+#     image builds, compose config, nginx syntax and Trivy.
+#
+# Differences from GitLab, required by GitHub Actions service containers:
+#   * A job that runs directly on the runner reaches service containers on
+#     localhost (GitLab jobs run inside the Docker network and use the
+#     `postgres` / `redis` aliases). The credentials, database name, image
+#     tags and Node/Python versions are unchanged.
+#
+# Keep this file in sync with the hard gates in .gitlab-ci.yml.
+
+name: GitLab gates
+
+on:
+  push:
+    branches:
+      - "ci/preview-**"
+  workflow_dispatch:
+
+# One queue per branch; a new push cancels the superseded run.
+concurrency:
+  group: gitlab-gates-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CI: "true"
+  NPM_CONFIG_AUDIT: "false"
+  NPM_CONFIG_FUND: "false"
+  NEXT_TELEMETRY_DISABLED: "1"
+  # Throwaway credentials for the ephemeral CI Postgres service. Not secrets:
+  # the service lives only for the duration of one job.
+  POSTGRES_USER: lor_ci
+  POSTGRES_PASSWORD: lor_ci_password
+  POSTGRES_DB: lor_mentor_ci
+  DATABASE_URL: postgresql://lor_ci:lor_ci_password@localhost:5432/lor_mentor_ci
+
+jobs:
+  # ── API ────────────────────────────────────────────────────────────
+  prisma-validate:
+    name: prisma:validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install (workspaces)
+        run: npm ci --prefer-offline --no-audit --no-fund
+      - name: Validate Prisma schema
+        run: npx prisma validate --schema apps/api/prisma/schema.prisma
+
+  api-typecheck:
+    name: api:typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install (workspaces)
+        run: npm ci --prefer-offline --no-audit --no-fund
+      - name: Prisma generate
+        working-directory: apps/api
+        run: npx prisma generate
+      - name: Type-check API
+        run: npx tsc -p apps/api/tsconfig.json --noEmit
+
+  api-build:
+    name: api:build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install (workspaces)
+        run: npm ci --prefer-offline --no-audit --no-fund
+      - name: Prisma generate
+        working-directory: apps/api
+        run: npx prisma generate
+      - name: Build API
+        run: npm run build:api
+
+  api-test:
+    name: api:test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: lor_ci
+          POSTGRES_PASSWORD: lor_ci_password
+          POSTGRES_DB: lor_mentor_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lor_ci -d lor_mentor_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      REDIS_HOST: localhost
+      REDIS_PORT: "6379"
+      # CI=true + DATABASE_URL is what enables payments.race.spec.ts against
+      # this real Postgres, exactly like the GitLab api:test job.
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install (workspaces)
+        run: npm ci --prefer-offline --no-audit --no-fund
+      - name: Generate client and deploy migrations
+        working-directory: apps/api
+        run: npx prisma generate && npx prisma migrate deploy
+      - name: Run unit suite (includes real-Postgres race specs)
+        working-directory: apps/api
+        run: npx jest --ci
+
+  api-e2e:
+    name: api:e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: lor_ci
+          POSTGRES_PASSWORD: lor_ci_password
+          POSTGRES_DB: lor_mentor_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lor_ci -d lor_mentor_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      REDIS_HOST: localhost
+      REDIS_PORT: "6379"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install (workspaces)
+        run: npm ci --prefer-offline --no-audit --no-fund
+      - name: Generate client and deploy migrations
+        working-directory: apps/api
+        run: npx prisma generate && npx prisma migrate deploy
+      - name: Run e2e suite
+        working-directory: apps/api
+        run: npm run test:e2e
+
+  # The race specs also run inside api:test (CI=true + DATABASE_URL). This job
+  # makes the real-Postgres concurrency gate visible as its own status once
+  # payments.race.spec.ts exists on the branch. On refs without it the job
+  # records a notice instead of failing, because the spec is introduced by the
+  # still-unmerged payments-hardening branch.
+  api-race:
+    name: api:test:race
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: lor_ci
+          POSTGRES_PASSWORD: lor_ci_password
+          POSTGRES_DB: lor_mentor_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lor_ci -d lor_mentor_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      REDIS_HOST: localhost
+      REDIS_PORT: "6379"
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install (workspaces)
+        run: npm ci --prefer-offline --no-audit --no-fund
+      - name: Generate client and deploy migrations
+        working-directory: apps/api
+        run: npx prisma generate && npx prisma migrate deploy
+      - name: Run real-Postgres race specs
+        working-directory: apps/api
+        run: |
+          spec=src/modules/payments/payments.race.spec.ts
+          if [ -f "$spec" ]; then
+            npx jest --ci --runTestsByPath "$spec"
+          else
+            echo "::notice title=Race specs skipped::$spec is not present on this commit."
+          fi
+
+  # ── Anatomy model validators ───────────────────────────────────────
+  anatomy-validators:
+    name: anatomy:validators
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install (workspaces)
+        run: npm ci --prefer-offline --no-audit --no-fund
+      - name: Validate anatomy models
+        working-directory: apps/web
+        run: |
+          node scripts/validate-anatomy-model.mjs --system heart
+          node scripts/validate-anatomy-model.mjs --system urinary
+      - name: Run script tests
+        run: npm run test:scripts
+
+  # ── Web ────────────────────────────────────────────────────────────
+  web-lint:
+    name: web:lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install (workspaces)
+        run: npm ci --prefer-offline --no-audit --no-fund
+      - name: Lint web
+        working-directory: apps/web
+        run: npx eslint .
+
+  web-typecheck:
+    name: web:typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_PUBLIC_API_URL: https://api.example.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install (workspaces)
+        run: npm ci --prefer-offline --no-audit --no-fund
+      - name: Generate Next route types
+        working-directory: apps/web
+        run: npx next typegen
+      - name: Type-check web
+        run: npx tsc -p apps/web/tsconfig.json --noEmit
+
+  web-unit:
+    name: web:unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install (workspaces)
+        run: npm ci --prefer-offline --no-audit --no-fund
+      - name: Run web unit tests
+        run: npm run test:unit --workspace=apps/web
+
+  web-build:
+    name: web:build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_API_URL: https://api.example.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install (workspaces)
+        run: npm ci --prefer-offline --no-audit --no-fund
+      - name: Build web
+        run: npm run build:web
+
+  # ── Receipt verifier (Python) ──────────────────────────────────────
+  verifier-test:
+    name: verifier:test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: services/receipt-verifier
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Pin the same versions as .gitlab-ci.yml. Do not install
+      # requirements.txt: it pulls ethiobank-receipts (Selenium + Chromium),
+      # which these tests deliberately do not need.
+      - name: Install test dependencies
+        run: pip install requests==2.34.2 fastapi==0.140.0
+      - name: Byte-compile verifier modules
+        run: python -m py_compile normalize.py cbe_links.py security.py main.py
+      - name: Normalizer tests
+        run: python test_normalize.py
+      - name: Receipt-link tests
+        run: python test_cbe_links.py
+      - name: Security and authentication tests
+        run: python test_security.py
+
+  # ── Aggregate status ───────────────────────────────────────────────
+  all-gates:
+    name: all-gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: always()
+    needs:
+      - prisma-validate
+      - api-typecheck
+      - api-build
+      - api-test
+      - api-e2e
+      - api-race
+      - anatomy-validators
+      - web-lint
+      - web-typecheck
+      - web-unit
+      - web-build
+      - verifier-test
+    steps:
+      - name: Summarize gate results
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "## GitLab gate mirror" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Gate | Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| --- | --- |" >> "$GITHUB_STEP_SUMMARY"
+          echo "$RESULTS" | jq -r 'to_entries[] | "| \(.key) | \(.value.result) |"' >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          failed=$(echo "$RESULTS" | jq -r '[to_entries[] | select(.value.result != "success")] | length')
+          if [ "$failed" -ne 0 ]; then
+            echo "**Result: FAIL — $failed gate(s) did not pass.**" >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=all-gates::$failed gate(s) did not pass"
+            exit 1
+          fi
+          echo "**Result: PASS — all gates passed.**" >> "$GITHUB_STEP_SUMMARY"
