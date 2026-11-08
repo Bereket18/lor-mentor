@@ -79,7 +79,7 @@ export function validateEnv(
     errors.push(
       error instanceof Error
         ? error.message
-        : 'TRUST_PROXY must be a non-negative integer (number of proxy hops)',
+        : 'TRUST_PROXY must be a non-negative integer (proxy hops) or a comma-separated list of trusted proxy IPs/subnets',
     );
   }
 

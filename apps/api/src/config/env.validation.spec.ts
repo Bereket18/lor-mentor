@@ -252,6 +252,15 @@ describe('validateEnv', () => {
     expect(validateEnv({ ...config })).toEqual(config);
   });
 
+  it('accepts an Express-style list of trusted proxy addresses and subnets', () => {
+    const config = {
+      ...secureProductionConfig,
+      TRUST_PROXY: 'loopback,172.18.0.0/16',
+    };
+
+    expect(validateEnv({ ...config })).toEqual(config);
+  });
+
   it.each(['one', '-1', '1.5', 'true', '1,2'])(
     'rejects a non-integer TRUST_PROXY value (%s)',
     (trustProxy) => {
@@ -261,7 +270,7 @@ describe('validateEnv', () => {
           TRUST_PROXY: trustProxy,
         }),
       ).toThrow(
-        /TRUST_PROXY must be a non-negative integer \(number of proxy hops\)/,
+        /TRUST_PROXY must be a non-negative integer \(proxy hops\)/,
       );
     },
   );

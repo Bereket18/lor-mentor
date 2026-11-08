@@ -49,6 +49,21 @@ describe('trust proxy', () => {
     expect(resolveTrustProxy(3, 'test')).toBe(3);
   });
 
+  it('accepts an Express-style list of trusted proxy addresses and subnets', () => {
+    expect(resolveTrustProxy('loopback', 'production')).toEqual(['loopback']);
+    expect(resolveTrustProxy('loopback, 172.18.0.0/16', 'production')).toEqual([
+      'loopback',
+      '172.18.0.0/16',
+    ]);
+    expect(
+      resolveTrustProxy('127.0.0.1,10.0.0.0/8,fd00::/8', 'test'),
+    ).toEqual(['127.0.0.1', '10.0.0.0/8', 'fd00::/8']);
+    expect(resolveTrustProxy('linklocal,uniquelocal', 'test')).toEqual([
+      'linklocal',
+      'uniquelocal',
+    ]);
+  });
+
   it.each(['one', '-1', '1.5', 'true', '1,2'])(
     'rejects an invalid hop count (%s)',
     (value) => {
@@ -57,6 +72,20 @@ describe('trust proxy', () => {
       );
     },
   );
+
+  it.each([
+    'loopback,',
+    ',loopback',
+    'loopback,,10.0.0.0/8',
+    '10.0.0.0/33',
+    'fd00::/129',
+    '999.1.1.1',
+    'loopback,not-a-range',
+  ])('rejects an invalid trusted proxy entry (%s)', (value) => {
+    expect(() => resolveTrustProxy(value, 'production')).toThrow(
+      /TRUST_PROXY must be a non-negative integer/,
+    );
+  });
 
   it('keys the rate limiter on the forwarded client address when enabled', async () => {
     const app = await createApp('1');
@@ -82,6 +111,88 @@ describe('trust proxy', () => {
       await request(server)
         .get('/rate-limit-probe')
         .set('X-Forwarded-For', '203.0.113.11')
+        .expect(200);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('trusts the forwarded client when the peer is in the configured list (loopback)', async () => {
+    const app = await createApp('loopback');
+    try {
+      const server = app.getHttpServer();
+
+      await request(server)
+        .get('/rate-limit-probe')
+        .set('X-Forwarded-For', '203.0.113.10')
+        .expect(200);
+      await request(server)
+        .get('/rate-limit-probe')
+        .set('X-Forwarded-For', '203.0.113.10')
+        .expect(200);
+      await request(server)
+        .get('/rate-limit-probe')
+        .set('X-Forwarded-For', '203.0.113.10')
+        .expect(429);
+
+      await request(server)
+        .get('/rate-limit-probe')
+        .set('X-Forwarded-For', '203.0.113.11')
+        .expect(200);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('ignores forwarded addresses from a peer outside the configured subnet', async () => {
+    // 10/8 does not contain the loopback address supertest connects from, so
+    // the peer is untrusted and its X-Forwarded-For must not be believed.
+    const app = await createApp('10.0.0.0/8');
+    try {
+      const server = app.getHttpServer();
+
+      await request(server)
+        .get('/rate-limit-probe')
+        .set('X-Forwarded-For', '203.0.113.10')
+        .expect(200);
+      await request(server)
+        .get('/rate-limit-probe')
+        .set('X-Forwarded-For', '203.0.113.11')
+        .expect(200);
+      await request(server)
+        .get('/rate-limit-probe')
+        .set('X-Forwarded-For', '203.0.113.12')
+        .expect(429);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('ignores a spoofed left-most address when only the proxy hop is trusted', async () => {
+    // A client can send any X-Forwarded-For it likes. With only the proxy hop
+    // trusted, the right-most untrusted entry is the real client; a made-up
+    // left-most entry must not create a fresh rate-limit bucket.
+    const app = await createApp('loopback');
+    try {
+      const server = app.getHttpServer();
+
+      await request(server)
+        .get('/rate-limit-probe')
+        .set('X-Forwarded-For', '203.0.113.99, 198.51.100.7')
+        .expect(200);
+      await request(server)
+        .get('/rate-limit-probe')
+        .set('X-Forwarded-For', '203.0.113.98, 198.51.100.7')
+        .expect(200);
+      await request(server)
+        .get('/rate-limit-probe')
+        .set('X-Forwarded-For', '203.0.113.97, 198.51.100.7')
+        .expect(429);
+
+      // A different real client still gets its own bucket.
+      await request(server)
+        .get('/rate-limit-probe')
+        .set('X-Forwarded-For', '203.0.113.99, 198.51.100.8')
         .expect(200);
     } finally {
       await app.close();

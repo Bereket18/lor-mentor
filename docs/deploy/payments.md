@@ -357,13 +357,25 @@ refund. Unverified events are deduplicated the same way.
 
 **`TRUST_PROXY` must match the real proxy topology.** The limits above key on
 `req.ip`, which Express only resolves to the real client when it trusts the
-proxies in front of the API. Set `TRUST_PROXY` to the number of hops you
-operate: `1` for nginx only (the default in production), `2` behind Cloudflare,
-`0` only for direct local access. If it is wrong — most commonly `0` or unset
-outside production — every request appears to come from the proxy's loopback
-address, all per-IP buckets collapse into one, and the 120/min ceiling is shared
-by the whole internet-facing service. `env.validation.ts` rejects a value that is
-not a non-negative integer, and `docs/deploy/GO-LIVE.md` records the expected
+proxies in front of the API. `TRUST_PROXY` accepts either form:
+
+- **Recommended — trusted addresses/subnets:** a comma-separated list such as
+  `loopback,172.18.0.0/16` (nginx on loopback plus the Docker bridge subnet) or
+  `loopback,uniquelocal`. Express only believes `X-Forwarded-For` when the
+  directly connected peer is in the list, so a client outside the proxy network
+  cannot spoof its address into a fresh rate-limit bucket. Named ranges
+  (`loopback`, `linklocal`, `uniquelocal`), IPs and CIDRs are accepted.
+- **Hop count:** `1` for nginx only (the default in production), `2` behind
+  Cloudflare, `0` only for direct local access. Kept for simple topologies.
+
+Prefer the subnet form when you know the proxy addresses: a hop count trusts
+the right-most N entries regardless of who supplied them, while a subnet list
+also constrains *which peers* may supply the header. If the value is wrong -
+most commonly `0` or unset outside production - every request appears to come
+from the proxy's loopback address, all per-IP buckets collapse into one, and
+the 120/min ceiling is shared by the whole internet-facing service.
+`env.validation.ts` rejects an entry that is neither a non-negative integer nor
+a valid IP/CIDR/named range, and `docs/deploy/GO-LIVE.md` records the expected
 value per topology.
 
 **Verification step (do this on staging and again after go-live):**
