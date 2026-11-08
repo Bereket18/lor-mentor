@@ -213,7 +213,10 @@ with `confirmationPending: true` and a `message` that tells the student to wait
 and **not to pay again** — never a success screen and never a stale row status.
 The API also writes `CHAPA_VERIFY_NOT_APPROVED` and sets
 `verification.exception = true` so the payment shows up in the admin *Exceptions*
-tab, and the webhook answers `5xx` so Chapa redelivers and completes it. An
+tab, and the webhook answers `5xx` so Chapa redelivers and completes it. Because
+that retry is expected and can repeat for hours, the event is recorded at most
+once per `tx_ref` in any 10-minute window; later redeliveries in the window
+return the same pending answer without another ledger row or flag write. An
 *unreachable or timed-out* verify also reports `confirmationPending` (the student
 must still wait) but records nothing: no money was confirmed, so the admin queue
 is not spammed. The profile page polls the same endpoint for the student's own

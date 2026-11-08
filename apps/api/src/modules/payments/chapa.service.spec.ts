@@ -847,6 +847,66 @@ describe('ChapaService', () => {
       });
     });
 
+    it('deduplicates CHAPA_VERIFY_NOT_APPROVED for the same tx_ref within 10 minutes', async () => {
+      const now = new Date('2026-01-01T12:00:00Z');
+      jest.useFakeTimers();
+      jest.setSystemTime(now);
+      try {
+        mockVerifiedButUnapproved('callback');
+        findEvents.mockResolvedValueOnce([
+          {
+            meta: { txRef: 'lm-payment-1' },
+            createdAt: new Date(now.getTime() - 60_000),
+          },
+        ]);
+        recordEvent.mockClear();
+        updateMany.mockClear();
+
+        const body = Buffer.from('{"tx_ref":"lm-payment-1"}');
+        await expect(
+          service.handleWebhook(body, { payloadSignature: signPayload(body) }),
+        ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+        // The lookup is scoped to this payment, this event type and the last
+        // ten minutes, so a redelivery inside the window is a no-op.
+        expect(findEvents).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: {
+              paymentId: 'payment-1',
+              type: 'CHAPA_VERIFY_NOT_APPROVED',
+              createdAt: { gte: new Date(now.getTime() - 10 * 60 * 1000) },
+            },
+          }),
+        );
+        expect(recordEvent).not.toHaveBeenCalled();
+        expect(updateMany).not.toHaveBeenCalled();
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('does not deduplicate a CHAPA_VERIFY_NOT_APPROVED event for a different tx_ref', async () => {
+      mockVerifiedButUnapproved('callback');
+      findEvents.mockResolvedValueOnce([
+        {
+          meta: { txRef: 'lm-some-other-payment' },
+          createdAt: new Date(),
+        },
+      ]);
+
+      const body = Buffer.from('{"tx_ref":"lm-payment-1"}');
+      await expect(
+        service.handleWebhook(body, { payloadSignature: signPayload(body) }),
+      ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+      expect(recordEvent).toHaveBeenCalledWith(
+        expect.anything(),
+        'payment-1',
+        'CHAPA_VERIFY_NOT_APPROVED',
+        expect.anything(),
+      );
+    });
+
     it('the browser verify endpoint says the confirmation is pending instead of a stale status', async () => {
       mockVerifiedButUnapproved('verify');
 

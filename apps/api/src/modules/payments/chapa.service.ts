@@ -15,6 +15,16 @@ import { PaymentEventType } from './payment-event.types';
 import { amountsEqual, formatETB, toDecimal } from './money';
 
 /**
+ * Chapa redelivers a webhook until it sees a 2xx. When a verified payment
+ * cannot be approved in the current pass we deliberately keep asking for a
+ * retry, so the same tx_ref can hit that path repeatedly. Record at most one
+ * CHAPA_VERIFY_NOT_APPROVED per tx_ref in this window: the event exists to
+ * make the money visible to an admin, and a fresh row per redelivery only
+ * adds ledger noise without adding information.
+ */
+const VERIFY_NOT_APPROVED_DEDUPE_MS = 10 * 60 * 1000;
+
+/**
  * Prisma returns JSON columns as `JsonValue`. Narrow a payment's
  * `verification` column to a mergeable record so annotating it (review
  * exception, mismatch fields, …) never discards evidence written earlier.
@@ -1477,48 +1487,74 @@ export class ChapaService {
       this.logger.error(
         `Chapa verified an exact payment for ${txRef} but the row is ${finalized.status ?? 'no longer approvable'}; not approved`,
       );
-      await this.prisma.$transaction(async (tx) => {
-        await this.states.recordEvent(
-          tx,
-          payment.id,
-          PaymentEventType.CHAPA_VERIFY_NOT_APPROVED,
-          {
-            fromStatus: payment.status,
-            toStatus: payment.status,
-            reason: `Chapa verified an exact payment for ${txRef} but it could not be approved in this pass (${String(finalized.status ?? 'not approvable')}); waiting for a redelivery`,
-            meta: {
-              txRef,
-              chapaRef: data?.reference ?? null,
-              reportedStatus: String(finalized.status ?? ''),
-            },
+      // The same tx_ref can reach this path on every Chapa redelivery. The
+      // first event (and its flag) is enough to make the money visible, so
+      // skip a repeat inside the ten-minute window instead of writing a new
+      // ledger row each time.
+      const recent = await this.prisma.paymentEvent.findMany({
+        where: {
+          paymentId: payment.id,
+          type: PaymentEventType.CHAPA_VERIFY_NOT_APPROVED,
+          createdAt: {
+            gte: new Date(Date.now() - VERIFY_NOT_APPROVED_DEDUPE_MS),
           },
+        },
+        select: { meta: true },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      });
+      const alreadyRecorded = recent.some((event) => {
+        const recordedTxRef = asJsonObject(event.meta).txRef;
+        return typeof recordedTxRef !== 'string' || recordedTxRef === txRef;
+      });
+      if (alreadyRecorded) {
+        this.logger.warn(
+          `Chapa payment ${payment.id} (tx ${txRef}) was already flagged as not approved within the last 10 minutes; skipping the duplicate event`,
         );
-        // Guarded: if a concurrent caller approved the row in the meantime, do
-        // not leave a stale review flag on a healthy payment.
-        const flagged = await tx.payment.updateMany({
-          where: { id: payment.id, status: { not: 'APPROVED' } },
-          data: {
-            verification: {
-              ...asJsonObject(payment.verification),
-              decision: 'REVIEW',
-              exception: true,
-              reviewNote:
-                'Chapa verified this payment but it is not approved yet; it completes on the next redelivery.',
-              chapaException: {
+      } else {
+        await this.prisma.$transaction(async (tx) => {
+          await this.states.recordEvent(
+            tx,
+            payment.id,
+            PaymentEventType.CHAPA_VERIFY_NOT_APPROVED,
+            {
+              fromStatus: payment.status,
+              toStatus: payment.status,
+              reason: `Chapa verified an exact payment for ${txRef} but it could not be approved in this pass (${String(finalized.status ?? 'not approvable')}); waiting for a redelivery`,
+              meta: {
                 txRef,
                 chapaRef: data?.reference ?? null,
-                reason: 'payment not approved in this pass',
+                reportedStatus: String(finalized.status ?? ''),
               },
-            } as Prisma.InputJsonValue,
-          },
-        });
-        if (flagged.count === 0) {
-          // The row was approved after all: the event above is enough.
-          this.logger.warn(
-            `Chapa payment ${payment.id} was approved concurrently; no exception flagged`,
+            },
           );
-        }
-      });
+          // Guarded: if a concurrent caller approved the row in the meantime,
+          // do not leave a stale review flag on a healthy payment.
+          const flagged = await tx.payment.updateMany({
+            where: { id: payment.id, status: { not: 'APPROVED' } },
+            data: {
+              verification: {
+                ...asJsonObject(payment.verification),
+                decision: 'REVIEW',
+                exception: true,
+                reviewNote:
+                  'Chapa verified this payment but it is not approved yet; it completes on the next redelivery.',
+                chapaException: {
+                  txRef,
+                  chapaRef: data?.reference ?? null,
+                  reason: 'payment not approved in this pass',
+                },
+              } as Prisma.InputJsonValue,
+            },
+          });
+          if (flagged.count === 0) {
+            // The row was approved after all: the event above is enough.
+            this.logger.warn(
+              `Chapa payment ${payment.id} was approved concurrently; no exception flagged`,
+            );
+          }
+        });
+      }
       return {
         kind: 'RETRY',
         reason: 'payment not approved',
