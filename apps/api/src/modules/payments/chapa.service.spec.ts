@@ -1466,6 +1466,105 @@ describe('ChapaService', () => {
       expect(updateMany).toHaveBeenCalled();
     });
 
+    it('records a lifecycle event carrying only the static signature as unverified, changing nothing', async () => {
+      findUnique.mockResolvedValue({
+        id: 'payment-1',
+        status: 'APPROVED',
+        verification: null,
+        chapaRef: 'chapa-reference',
+      });
+      const body = Buffer.from(
+        JSON.stringify({
+          event: 'charge.refunded',
+          status: 'refunded',
+          tx_ref: 'lm-payment-1',
+          reference: 'chapa-refund-1',
+        }),
+      );
+
+      // Only the static secret hash is present: it proves the sender knows the
+      // secret but is not bound to this body, so a captured header could be
+      // replayed with a different refund payload. Record the evidence, change
+      // nothing, and still let Chapa stop retrying.
+      await expect(
+        service.handleWebhook(body, { chapaSignature: signSecret() }),
+      ).resolves.toEqual({ received: true });
+
+      expect(recordEvent).toHaveBeenCalledWith(
+        expect.anything(),
+        'payment-1',
+        'CHAPA_LIFECYCLE_UNVERIFIED',
+        expect.objectContaining({
+          fromStatus: 'APPROVED',
+          toStatus: 'APPROVED',
+          meta: expect.objectContaining({ txRef: 'lm-payment-1' }),
+        }),
+      );
+      // No exception flag and no state change: this event is not trusted.
+      expect(updateMany).not.toHaveBeenCalled();
+      expect(transition).not.toHaveBeenCalled();
+      expect(finalizeApproval).not.toHaveBeenCalled();
+    });
+
+    it('still accepts the static signature on the success path (verify is the control)', async () => {
+      findUnique.mockResolvedValueOnce({
+        id: 'payment-1',
+        status: 'PENDING',
+        amount: '1000',
+        verification: null,
+      });
+      finalizeApproval
+        .mockReset()
+        .mockResolvedValue({ message: 'Payment approved' });
+      mockVerifyResponse({
+        status: 'success',
+        amount: '1000.00',
+        currency: 'ETB',
+        tx_ref: 'lm-payment-1',
+        reference: 'chapa-reference',
+      });
+
+      const body = Buffer.from('{"tx_ref":"lm-payment-1"}');
+      await expect(
+        service.handleWebhook(body, { chapaSignature: signSecret() }),
+      ).resolves.toEqual({ received: true });
+
+      // The signed body never approves on its own; the server-side verify
+      // still has to confirm the exact payment.
+      expect(finalizeApproval).toHaveBeenCalledWith(
+        'payment-1',
+        expect.objectContaining({ chapaRef: 'chapa-reference' }),
+      );
+    });
+
+    it('deduplicates a redelivered unverified lifecycle event', async () => {
+      findUnique.mockResolvedValue({
+        id: 'payment-1',
+        status: 'APPROVED',
+        verification: null,
+        chapaRef: 'chapa-reference',
+      });
+      findEvents.mockResolvedValue([
+        {
+          id: 'event-1',
+          meta: { reference: 'chapa-refund-1', txRef: 'lm-payment-1' },
+        },
+      ]);
+      const body = Buffer.from(
+        JSON.stringify({
+          event: 'charge.refunded',
+          status: 'refunded',
+          tx_ref: 'lm-payment-1',
+          reference: 'chapa-refund-1',
+        }),
+      );
+
+      await service.handleWebhook(body, { chapaSignature: signSecret() });
+
+      expect(recordEvent).not.toHaveBeenCalled();
+      expect(updateMany).not.toHaveBeenCalled();
+    });
+
     it('records a failed/cancelled event without changing state', async () => {
       findUnique.mockResolvedValue({
         id: 'payment-1',

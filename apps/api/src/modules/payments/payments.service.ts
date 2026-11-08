@@ -89,8 +89,18 @@ export class PaymentsService {
 
     if (opts.exceptions) {
       // The Exceptions tab: every payment an admin must look at, whatever its
-      // status or method.
-      where.verification = { path: ['exception'], equals: true };
+      // status or method — plus rows carrying a gateway lifecycle event we
+      // could not body-verify (a static-signature-only refund/reversal). Those
+      // rows are deliberately left untouched, but the count must show that
+      // unverified gateway traffic happened.
+      where.OR = [
+        { verification: { path: ['exception'], equals: true } },
+        {
+          events: {
+            some: { type: PaymentEventType.CHAPA_LIFECYCLE_UNVERIFIED },
+          },
+        },
+      ];
     } else {
       where.OR = [
         { method: { not: 'CHAPA' } },
@@ -128,8 +138,9 @@ export class PaymentsService {
    * Admin moderation queue: payments for the selected tab plus per-status
    * counts. The list and the counts run on the same base filter and the same
    * search term, so the select's counts always match what a status change
-   * would show. `EXCEPTIONS` counts every flagged payment, so a refund or a
-   * late verified payment can never slip past the admin silently.
+   * would show. `EXCEPTIONS` counts every flagged payment plus every row that
+   * received an unverified gateway lifecycle event, so a refund or a late
+   * verified payment can never slip past the admin silently.
    */
   async findAllAdmin(
     opts: { status?: string; search?: string; exceptions?: boolean } = {},

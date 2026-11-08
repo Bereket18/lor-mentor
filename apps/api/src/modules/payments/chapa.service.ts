@@ -874,7 +874,7 @@ export class ChapaService {
     rawBody: Buffer,
     signatures: ChapaWebhookSignatures,
   ): Promise<{ received: true }> {
-    this.verifySignature(rawBody, signatures);
+    const signature = this.verifySignature(rawBody, signatures);
 
     let parsedEvent: unknown;
     try {
@@ -905,7 +905,13 @@ export class ChapaService {
     const lifecycle = this.classifyLifecycleEvent(event);
     if (lifecycle) {
       try {
-        await this.handleLifecycleEvent(txRef, lifecycle, event);
+        if (!signature.bodyBound) {
+          // The static header is not bound to this body: it cannot authorize
+          // a refund/reversal. Record the evidence and change nothing.
+          await this.recordUnverifiedLifecycleEvent(txRef, lifecycle, event);
+        } else {
+          await this.handleLifecycleEvent(txRef, lifecycle, event);
+        }
       } catch (err) {
         // A DB write failed: the event is not durably recorded, so ask Chapa
         // to retry instead of acknowledging it.
@@ -977,6 +983,88 @@ export class ChapaService {
       return 'FAILED';
     }
     return null;
+  }
+
+  /**
+   * Record a lifecycle event that arrived with only the static
+   * `chapa-signature` header. That header is a hash of the secret keyed with
+   * itself: it proves the sender knows the secret, but it is identical for
+   * every request, so it cannot show that THIS refund/reversal body is the one
+   * Chapa sent. It is therefore never trusted to change money state — the
+   * event is written to the ledger as evidence (no exception flag, no status
+   * change) and the webhook still answers 200 so Chapa stops retrying. The
+   * admin Exceptions tab counts rows carrying these events, so unverified
+   * gateway traffic is visible without being silently discarded.
+   */
+  private async recordUnverifiedLifecycleEvent(
+    txRef: string,
+    kind: LifecycleEventKind,
+    event: Record<string, unknown>,
+  ): Promise<void> {
+    const payment = await this.prisma.payment.findUnique({
+      where: { txRef },
+      select: { id: true, status: true },
+    });
+    if (!payment) {
+      this.logger.warn(
+        `Unverified Chapa ${kind} webhook for unknown tx_ref ${txRef} — ignored`,
+      );
+      return;
+    }
+
+    const reference = lifecycleReference(event);
+
+    // Redeliveries are deduplicated exactly like trusted lifecycle events, so
+    // a retried static-signature webhook cannot flood the ledger.
+    const recorded = await this.prisma.paymentEvent.findMany({
+      where: {
+        paymentId: payment.id,
+        type: PaymentEventType.CHAPA_LIFECYCLE_UNVERIFIED,
+      },
+      select: { id: true, meta: true },
+      orderBy: { createdAt: 'desc' },
+      take: 25,
+    });
+    if (
+      recorded.some((row) =>
+        isReplayedLifecycleEvent(row.meta, reference),
+      )
+    ) {
+      this.logger.warn(
+        `Duplicate unverified Chapa ${kind} webhook for ${txRef} — already recorded`,
+      );
+      return;
+    }
+
+    const meta = {
+      txRef,
+      kind,
+      event: typeof event.event === 'string' ? event.event : null,
+      status: typeof event.status === 'string' ? event.status : null,
+      amount:
+        typeof event.amount === 'string' || typeof event.amount === 'number'
+          ? event.amount
+          : null,
+      currency: typeof event.currency === 'string' ? event.currency : null,
+      reference,
+      signatureHeader: 'chapa-signature',
+    } as Prisma.InputJsonValue;
+
+    await this.states.recordEvent(
+      this.prisma,
+      payment.id,
+      PaymentEventType.CHAPA_LIFECYCLE_UNVERIFIED,
+      {
+        fromStatus: payment.status,
+        toStatus: payment.status,
+        reason: `Chapa ${kind} webhook carried only the static signature (no body-bound x-chapa-signature); recorded as unverified evidence, no state changed`,
+        meta,
+      },
+    );
+
+    this.logger.warn(
+      `Unverified Chapa ${kind} webhook recorded for ${txRef} — static signature only, no state changed`,
+    );
   }
 
   /**
@@ -1513,15 +1601,24 @@ export class ChapaService {
   /**
    * Verify the documented Chapa signature over the exact raw request body.
    *
-   * Chapa documents two headers and either is sufficient:
+   * Chapa documents two headers:
    *  - `chapa-signature`: HMAC-SHA256 of the webhook secret, keyed with itself;
    *  - `x-chapa-signature`: HMAC-SHA256 of the event payload, keyed with the
    *    webhook secret.
-   * We accept both and compare in constant time. This only proves the request
-   * came from someone holding the secret; the **server-side verify call is the
-   * real control** — no payment is ever approved from the signed body alone.
+   * Either accepted header lets the request through, but only the body-bound
+   * `x-chapa-signature` can authorize a lifecycle (refund/reversal/failed)
+   * event: the static header is identical for every request, so it proves the
+   * sender knows the secret but not that this body is the one Chapa sent.
+   *
+   * For the success path the server-side verify call is the real control — no
+   * payment is ever approved from the signed body alone — so the static header
+   * stays accepted there. The returned `bodyBound` flag tells the caller which
+   * proof it has.
    */
-  private verifySignature(rawBody: Buffer, signatures: ChapaWebhookSignatures) {
+  private verifySignature(
+    rawBody: Buffer,
+    signatures: ChapaWebhookSignatures,
+  ): { bodyBound: boolean } {
     const secret = this.config.get<string>('CHAPA_WEBHOOK_SECRET');
     if (!secret) {
       this.logger.error('CHAPA_WEBHOOK_SECRET is not configured');
@@ -1551,6 +1648,7 @@ export class ChapaService {
     if (!chapaValid && !payloadValid) {
       throw new BadRequestException('Invalid webhook signature');
     }
+    return { bodyBound: payloadValid };
   }
 
   private signatureMatches(expected: string, actual?: string): boolean {

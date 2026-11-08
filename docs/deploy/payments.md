@@ -314,17 +314,35 @@ never leave a paid `APPROVED` row pointing at a cancelled subscription.
 (status `refunding` or `refunded`), `charge.reversed`, and `charge.failed`
 (or a `cancelled` status) always write a `PaymentEvent`
 (`CHAPA_REFUND_RECEIVED`, `CHAPA_REVERSAL_RECEIVED`,
-`CHAPA_FAILED_OR_CANCELLED`). A refund or reversal on an `APPROVED` payment is
-flagged in the admin queue for human review; the subscription is **never**
-auto-cancelled and the payment status is not changed automatically. A
-failed/cancelled webhook changes no state beyond the ledger entry. Refunds and
-chargebacks are still executed in the Chapa dashboard.
+`CHAPA_FAILED_OR_CANCELLED`). A refund or reversal on **any** payment status —
+not just `APPROVED` — flags `verification.exception` and stamps the row's
+gateway reference when it has none, so the row appears in the admin *Exceptions*
+tab; the subscription is **never** auto-cancelled and the payment status is not
+changed automatically. A failed/cancelled webhook changes no state beyond the
+ledger entry. Refunds and chargebacks are still executed in the Chapa dashboard.
+
+**Lifecycle events require the body-bound signature.** Chapa documents two
+headers: `chapa-signature` (HMAC of the webhook secret, keyed with itself —
+identical on every request) and `x-chapa-signature` (HMAC of the event body,
+keyed with the secret). The success path accepts either, because the
+server-side verify call is the real control and no payment is approved from the
+signed body alone. A refund, reversal or failed event is different: it changes
+what an admin is asked to review, and the static header cannot prove that
+*this* body is the one Chapa sent. Such events are therefore only acted on when
+`x-chapa-signature` is valid. If only `chapa-signature` is present, the API
+records `CHAPA_LIFECYCLE_UNVERIFIED` (evidence only — no exception flag, no
+status change), answers `200` so Chapa stops retrying, and the admin
+*Exceptions* tab count includes the row so the unverified gateway traffic is
+visible. **Owner check before go-live:** in the Chapa sandbox, trigger a refund
+and observe which header the refund webhook actually carries. If Chapa sends
+only the static header, lifecycle events will be recorded as unverified by
+design until the merchant account/webhook configuration starts sending
+`x-chapa-signature`; raise it with Chapa support rather than weakening the
+check.
 
 **A redelivered lifecycle event is a no-op.** Chapa redelivers a webhook every
 ~10 minutes for up to 72 hours until it sees a `2xx`, so a refund, reversal or
-failed event can arrive many times — and under either accepted signature header
-(`chapa-signature` and `x-chapa-signature` are both still accepted; accepting a
-valid signature is never what deduplicates it). Before anything is written, the
+failed event can arrive many times. Before anything is written, the
 service looks up the events already recorded for that payment **of that type**
 (`tx_ref` + event kind) and compares Chapa's own id for the event
 (`reference`, falling back to `id`/`event_id`). A match means the redelivery is
@@ -333,7 +351,7 @@ exception flag, no duplicated notification. When neither payload carries an
 event id it is treated as a replay of the most recent event of that kind, since
 Chapa repeats the body verbatim. A genuinely different refund (a different
 `reference`) is still recorded, and a reversal is never mistaken for an earlier
-refund.
+refund. Unverified events are deduplicated the same way.
 
 ### 1.6.1 Operational requirements for the rate limits
 
@@ -410,6 +428,12 @@ without that change must be treated as disabling the per-user and per-IP caps.
    appears in the Chapa dashboard balance, then refund or reconcile. A refund
    webhook should flag the approved payment in the admin queue without
    cancelling access.
+6. **Sandbox owner check (required, blocks go-live):** with test keys, trigger
+   a refund in the Chapa dashboard and observe which signature header the
+   refund webhook carries. It must include `x-chapa-signature` (body-bound).
+   If it carries only `chapa-signature`, the event is recorded as
+   `CHAPA_LIFECYCLE_UNVERIFIED` and changes no state — raise it with Chapa
+   support (see 1.6) rather than weakening the check.
 
 **Test layers.** The API unit suites (`npm run test --workspace=apps/api`) cover
 the state machine, the Chapa service (verification, mismatches, retries, refunds

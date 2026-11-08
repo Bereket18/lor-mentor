@@ -210,6 +210,17 @@ describe('PaymentsService bank verification security', () => {
     ],
   };
 
+  // The Exceptions tab: every row flagged for review, plus every row that
+  // received a gateway event we could not body-verify (a static-signature
+  // refund/reversal is recorded but not trusted), so an admin sees how much
+  // unverified gateway traffic exists without it touching the row's state.
+  const EXCEPTIONS_SCOPE = {
+    OR: [
+      { verification: { path: ['exception'], equals: true } },
+      { events: { some: { type: 'CHAPA_LIFECYCLE_UNVERIFIED' } } },
+    ],
+  };
+
   it('keeps unconfirmed Chapa checkouts out of the admin review queue, but keeps terminal outcomes visible', async () => {
     await service.findAllAdmin();
 
@@ -240,16 +251,14 @@ describe('PaymentsService bank verification security', () => {
     );
   });
 
-  it('lists every exception-flagged payment for the Exceptions tab', async () => {
+  it('lists every exception-flagged payment and unverified gateway event for the Exceptions tab', async () => {
     countPayments.mockResolvedValue(2);
 
     const result = await service.findAllAdmin({ exceptions: true });
 
     expect(findPayments).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({
-          verification: { path: ['exception'], equals: true },
-        }),
+        where: expect.objectContaining({ OR: EXCEPTIONS_SCOPE.OR }),
       }),
     );
     expect(result.counts.EXCEPTIONS).toBe(2);
@@ -272,7 +281,7 @@ describe('PaymentsService bank verification security', () => {
     expect(findPayments).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          verification: { path: ['exception'], equals: true },
+          OR: EXCEPTIONS_SCOPE.OR,
           status: 'APPROVED',
           user: userFilter,
         },
@@ -282,10 +291,33 @@ describe('PaymentsService bank verification security', () => {
     // term, but never the selected tab status.
     expect(countPayments).toHaveBeenCalledWith({
       where: {
-        verification: { path: ['exception'], equals: true },
+        OR: EXCEPTIONS_SCOPE.OR,
         user: userFilter,
       },
     });
+  });
+
+  it('counts unverified gateway lifecycle events in the Exceptions tab', async () => {
+    countPayments.mockResolvedValue(1);
+
+    const result = await service.findAllAdmin({ exceptions: true });
+
+    // The row itself is untouched (no exception flag, no status change), so
+    // the event is the only signal that unverified gateway traffic happened.
+    expect(findPayments).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([
+            {
+              events: {
+                some: { type: 'CHAPA_LIFECYCLE_UNVERIFIED' },
+              },
+            },
+          ]),
+        }),
+      }),
+    );
+    expect(result.counts.EXCEPTIONS).toBe(1);
   });
 
   it('filters the admin queue by tab status and returns counts for every tab', async () => {

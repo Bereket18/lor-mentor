@@ -50,6 +50,15 @@ export const PaymentEventType = {
    */
   CHAPA_FAILED_OR_CANCELLED: 'CHAPA_FAILED_OR_CANCELLED',
   /**
+   * A refund/reversal/failed event arrived with only the static
+   * `chapa-signature` header and no body-bound `x-chapa-signature`. The
+   * signature proves the sender knows the secret but is not bound to this
+   * body, so the event is recorded as evidence only: no exception flag, no
+   * state change. The admin Exceptions tab counts these rows so unverified
+   * gateway traffic is visible.
+   */
+  CHAPA_LIFECYCLE_UNVERIFIED: 'CHAPA_LIFECYCLE_UNVERIFIED',
+  /**
    * Chapa verified an exact payment but the row could not be approved in the
    * same pass (the claim was lost to a concurrent close). The money is real,
    * so the row is flagged for admin review and the browser is told the
