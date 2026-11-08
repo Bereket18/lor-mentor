@@ -15,6 +15,18 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TokenDenylistService } from '../../common/redis/token-denylist.service';
+import { VerificationPurpose } from '@prisma/client';
+import {
+  CODE_TTL_MINUTES,
+  CODE_TTL_MS,
+  MAX_CODES_PER_HOUR,
+  MAX_VERIFY_ATTEMPTS,
+  RESEND_COOLDOWN_MS,
+  equalizeVerificationTiming,
+  generateVerificationCode,
+  hashVerificationCode,
+  verifyCodeHash,
+} from './verification-code';
 
 /** Decoded refresh-token payload. `jti`/`exp` are absent on pre-denylist tokens. */
 interface RefreshPayload {
@@ -29,6 +41,20 @@ interface RefreshPayload {
 // is locked for LOCKOUT_MINUTES. The counter resets on any successful login.
 const MAX_FAILED_LOGINS = 5;
 const LOCKOUT_MINUTES = 15;
+
+/**
+ * The one message POST /auth/verify-email returns for every failure: wrong
+ * code, expired, already used, superseded by a resend, out of attempts, unknown
+ * address, or an account that is already verified.
+ *
+ * A single string on purpose. Distinguishing "no such account" from "wrong
+ * code" would turn the endpoint into a way to find out which addresses are
+ * registered here; distinguishing "expired" from "wrong" would confirm that a
+ * guess was at least the right shape. The user can act on all of them the same
+ * way, which is what the last sentence tells them to do.
+ */
+const VERIFY_FAILED_MESSAGE =
+  'That verification code is incorrect or has expired. Request a new code.';
 
 /**
  * Parse a JWT-style duration (`s`, `m`, `h`, `d`; bare number = seconds).
@@ -121,20 +147,26 @@ export class AuthService {
       phoneNumber: dto.phoneNumber,
     });
 
-    // 4. Generate email verification token
-    // crypto.randomBytes creates a random string
-    // It is impossible to guess
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    // 6. Issue a 6-digit verification code.
+    //
+    // Only the bcrypt hash is persisted. `code` exists in memory just long
+    // enough to be emailed: it is never written to the database, never returned
+    // in the response body and never logged.
+    const code = generateVerificationCode();
+    const codeHash = await hashVerificationCode(code);
+    const expiresAt = new Date(Date.now() + CODE_TTL_MS);
 
-    const webBase = this.publicWebBase();
-    const verifyUrl = `${webBase}/verify-email?token=${encodeURIComponent(token)}&email=${encodeURIComponent(user.email)}`;
-
-    // If storing the token or sending the email fails, roll the account back.
-    // Otherwise the user is left half-created and unable to re-register.
+    // If issuing or sending fails, roll the account back. Otherwise the user is
+    // left half-created: unable to sign in (email unverified) and unable to
+    // register again (the address is taken).
     try {
-      await this.usersService.saveVerifyToken(user.id, token, expiry);
-      await this.mail.sendEmailVerification(user.email, verifyUrl);
+      await this.usersService.issueVerificationCode({
+        userId: user.id,
+        purpose: VerificationPurpose.EMAIL_VERIFICATION,
+        codeHash,
+        expiresAt,
+      });
+      await this.mail.sendEmailVerification(user.email, code, CODE_TTL_MINUTES);
     } catch (error) {
       this.logger.error(
         `Verification setup failed for ${user.email}; rolling back registration`,
@@ -148,49 +180,90 @@ export class AuthService {
 
     return {
       message:
-        'Registration successful. Please check your email to verify your account.',
+        'Registration successful. We sent a 6-digit verification code to your email address.',
     };
   }
 
-  // ── RESEND VERIFICATION EMAIL ─────────────────────────
+  // ── RESEND VERIFICATION CODE ──────────────────────────
   // Always returns the same generic message so callers can't probe which
   // emails exist or are unverified (same anti-enumeration stance as
-  // forgot-password).
+  // forgot-password). The cooldown and the hourly cap deliberately answer the
+  // same way: a distinct "slow down" response for a real account and a generic
+  // one for an unknown address would give the enumeration away.
   async resendVerification(email: string) {
     const generic = {
       message:
-        'If that email is registered and unverified, a new verification link has been sent.',
+        'If that email is registered and unverified, a new verification code has been sent.',
     };
 
     const user = await this.usersService.findByEmail(email);
     if (!user || user.isEmailVerified) return generic;
 
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-    const verifyUrl = `${this.publicWebBase()}/verify-email?token=${encodeURIComponent(token)}&email=${encodeURIComponent(user.email)}`;
+    const purpose = VerificationPurpose.EMAIL_VERIFICATION;
+    const now = Date.now();
 
-    let tokenSaved = false;
+    // Both limits are enforced against the database rather than by the
+    // throttler. The global throttler counts in process memory, so its per-IP
+    // limits are per-instance and reset on every deploy — and neither limit
+    // here is per-IP in the first place. Both are per-account, which is what
+    // stops someone using resend to repeatedly invalidate another person's
+    // in-flight code or to use the mail path as a flood target.
+    const issuedDuringCooldown = await this.usersService.countCodesIssuedSince({
+      userId: user.id,
+      purpose,
+      since: new Date(now - RESEND_COOLDOWN_MS),
+    });
+    if (issuedDuringCooldown > 0) return generic;
+
+    const issuedThisHour = await this.usersService.countCodesIssuedSince({
+      userId: user.id,
+      purpose,
+      since: new Date(now - 60 * 60 * 1000),
+    });
+    if (issuedThisHour >= MAX_CODES_PER_HOUR) {
+      this.logger.warn(
+        `Verification code hourly cap reached for user ${user.id}; not sending`,
+      );
+      return generic;
+    }
+
+    // Captured before issuing so a failed send can put this code back in play.
+    const previouslyActive = await this.usersService.findActiveVerificationCode(
+      {
+        userId: user.id,
+        purpose,
+        maxAttempts: MAX_VERIFY_ATTEMPTS,
+      },
+    );
+
+    const code = generateVerificationCode();
+    const codeHash = await hashVerificationCode(code);
+    const expiresAt = new Date(now + CODE_TTL_MS);
+
+    let issued: { id: string } | null = null;
     try {
-      await this.usersService.saveVerifyToken(user.id, token, expiry);
-      tokenSaved = true;
-      await this.mail.sendEmailVerification(user.email, verifyUrl);
+      issued = await this.usersService.issueVerificationCode({
+        userId: user.id,
+        purpose,
+        codeHash,
+        expiresAt,
+      });
+      await this.mail.sendEmailVerification(user.email, code, CODE_TTL_MINUTES);
     } catch (error) {
       this.logger.error(
-        `Resend verification email failed for user ${user.id}`,
+        `Resend verification code failed for user ${user.id}`,
         error instanceof Error ? error.stack : String(error),
       );
 
-      // Do not invalidate a previously delivered link when the replacement
-      // email fails. The token condition prevents this rollback from
-      // overwriting a newer token created by a concurrent resend.
-      if (tokenSaved) {
-        await this.prisma.user
-          .updateMany({
-            where: { id: user.id, emailVerifyToken: token },
-            data: {
-              emailVerifyToken: user.emailVerifyToken,
-              emailVerifyExpiry: user.emailVerifyExpiry,
-            },
+      // Do not strand the user with no usable code when the replacement email
+      // never left. The restore is guarded on our new row still being the one
+      // in play, so a concurrent resend that already replaced it is not undone.
+      if (issued) {
+        await this.usersService
+          .restoreSupersededCode({
+            newCodeId: issued.id,
+            expectedNewHash: codeHash,
+            supersededId: previouslyActive?.id ?? null,
           })
           .catch(() => {});
       }
@@ -200,24 +273,59 @@ export class AuthService {
   }
 
   // ── VERIFY EMAIL ──────────────────────────────────────
-  async verifyEmail(token: string) {
-    // Find the user with this exact token
-    // We have to use prisma directly here for a custom query
-    // UsersService does not have this method yet
-    const user = await this.usersService.findByVerifyToken(token);
+  //
+  // Scoped by email rather than by the code alone. Six digits is only a 10^6
+  // keyspace, so a lookup by code value could match a different account's row;
+  // addressing the user first keeps the comparison inside one account.
+  async verifyEmail(email: string, code: string) {
+    const user = await this.usersService.findByEmail(email);
 
-    if (!user) {
-      throw new BadRequestException('Invalid or expired verification link');
+    if (!user || user.isEmailVerified) {
+      await equalizeVerificationTiming(code);
+      throw new BadRequestException(VERIFY_FAILED_MESSAGE);
     }
 
-    // Check the token has not expired
-    if (user.emailVerifyExpiry && user.emailVerifyExpiry < new Date()) {
-      throw new BadRequestException(
-        'Verification link has expired. Please request a new one.',
-      );
+    const active = await this.usersService.findActiveVerificationCode({
+      userId: user.id,
+      purpose: VerificationPurpose.EMAIL_VERIFICATION,
+      maxAttempts: MAX_VERIFY_ATTEMPTS,
+    });
+
+    if (!active) {
+      // Nothing to compare against: expired, already used, superseded, or out
+      // of attempts. Spend the same time as a real comparison so the response
+      // time does not say which of those it was.
+      await equalizeVerificationTiming(code);
+      throw new BadRequestException(VERIFY_FAILED_MESSAGE);
     }
 
-    // Mark email as verified
+    if (!(await verifyCodeHash(code, active.codeHash))) {
+      // The increment is bounded in the database, so concurrent wrong guesses
+      // cannot push the counter past the budget.
+      await this.usersService.recordVerificationMiss({
+        id: active.id,
+        maxAttempts: MAX_VERIFY_ATTEMPTS,
+      });
+      throw new BadRequestException(VERIFY_FAILED_MESSAGE);
+    }
+
+    const claimed = await this.usersService.claimVerificationCode({
+      id: active.id,
+      codeHash: active.codeHash,
+      maxAttempts: MAX_VERIFY_ATTEMPTS,
+    });
+
+    if (!claimed) {
+      // Lost a race with another request carrying the same correct code. If
+      // that request succeeded the account is already verified, so report
+      // success rather than telling a user who typed the right code that it was
+      // wrong.
+      const current = await this.usersService.findById(user.id);
+      if (!current?.isEmailVerified) {
+        throw new BadRequestException(VERIFY_FAILED_MESSAGE);
+      }
+    }
+
     await this.usersService.markEmailVerified(user.id);
 
     return { message: 'Email verified successfully. You can now log in.' };

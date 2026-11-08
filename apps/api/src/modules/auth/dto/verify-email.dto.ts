@@ -1,5 +1,6 @@
 import { Transform } from 'class-transformer';
-import { IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString, Matches } from 'class-validator';
+import { normalizeEmailValue } from '../../../common/normalize-email';
 
 /**
  * Body for POST /auth/verify-email.
@@ -10,18 +11,28 @@ import { IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
  * `forbidNonWhitelisted` did nothing and any JSON shape was accepted. A DTO
  * makes the contract explicit and enforced.
  *
- * The generated token is 32 random bytes hex-encoded (64 chars). The bounds are
- * deliberately looser than that exact format so a link emailed by an older
- * build (different length, same property) still verifies; the service remains
- * the authority on whether the token exists and is unexpired.
+ * Email is part of the body because a six-digit code has only 10^6 possible
+ * values: looking the code up on its own could match a different account's row,
+ * so the request has to say which account it means and the service compares
+ * within that one account. The email is trimmed and lowercased to match how it
+ * is stored on registration.
+ *
+ * The code is a **string of exactly six digits**, never a number. `@IsNumber`
+ * or a numeric transform would turn "000042" into 42 and drop the leading
+ * zeroes the generator deliberately preserves.
  */
 export class VerifyEmailDto {
+  @Transform(({ value }) => normalizeEmailValue(value))
+  @IsEmail({}, { message: 'Please provide a valid email address' })
+  email!: string;
+
   @Transform(({ value }) =>
     typeof value === 'string' ? value.trim() : (value as unknown),
   )
-  @IsString({ message: 'Verification token must be a string' })
-  @IsNotEmpty({ message: 'Verification token is required' })
-  @MinLength(16, { message: 'Verification token is malformed' })
-  @MaxLength(256, { message: 'Verification token is malformed' })
-  token!: string;
+  @IsString({ message: 'Verification code must be a string' })
+  @IsNotEmpty({ message: 'Verification code is required' })
+  @Matches(/^\d{6}$/, {
+    message: 'Verification code must be 6 digits',
+  })
+  code!: string;
 }

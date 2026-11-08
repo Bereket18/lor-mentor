@@ -3,7 +3,8 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 
-const VALID_TOKEN = 'a'.repeat(64);
+const VALID_EMAIL = 'student@example.com';
+const VALID_CODE = '123456';
 
 /** The exact pipe configured in main.ts. */
 const pipe = new ValidationPipe({
@@ -43,39 +44,89 @@ async function rejectionReason(body: unknown): Promise<string> {
 }
 
 describe('VerifyEmailDto', () => {
-  it('accepts a well-formed token', async () => {
-    await expect(errorsFor({ token: VALID_TOKEN })).resolves.toHaveLength(0);
+  it('accepts a well-formed email and six-digit code', async () => {
+    await expect(
+      errorsFor({ email: VALID_EMAIL, code: VALID_CODE }),
+    ).resolves.toHaveLength(0);
   });
 
-  it('rejects a missing token', async () => {
-    const errors = await errorsFor({});
-    expect(errors).toHaveLength(1);
-    expect(errors[0].property).toBe('token');
-  });
-
-  it('rejects empty, whitespace-only and non-string tokens', async () => {
-    for (const token of ['', '    ', 12345, null, {}, ['a'.repeat(64)]]) {
-      await expect(errorsFor({ token })).resolves.not.toHaveLength(0);
+  it("accepts codes with leading zeroes as six characters", async () => {
+    for (const code of ['000000', '000042', '007007']) {
+      await expect(errorsFor({ email: VALID_EMAIL, code })).resolves.toHaveLength(
+        0,
+      );
     }
   });
 
-  it('rejects malformed lengths', async () => {
-    await expect(errorsFor({ token: 'abc' })).resolves.not.toHaveLength(0);
-    await expect(
-      errorsFor({ token: 'a'.repeat(257) }),
-    ).resolves.not.toHaveLength(0);
+  it('rejects a missing code or a missing email', async () => {
+    const noCode = await errorsFor({ email: VALID_EMAIL });
+    expect(noCode.map((e) => e.property)).toEqual(['code']);
+
+    const noEmail = await errorsFor({ code: VALID_CODE });
+    expect(noEmail.map((e) => e.property)).toEqual(['email']);
   });
 
-  it('trims surrounding whitespace before validating', async () => {
+  it('rejects codes that are not exactly six digits', async () => {
+    for (const code of [
+      '',
+      '   ',
+      '12345', // too short
+      '1234567', // too long
+      '12345a', // not all digits
+      'abcdef',
+      '12 456', // internal space
+      '+123456',
+      123456, // a number, not a string
+      null,
+      {},
+      [VALID_CODE],
+    ]) {
+      await expect(
+        errorsFor({ email: VALID_EMAIL, code }),
+      ).resolves.not.toHaveLength(0);
+    }
+  });
+
+  it('rejects 123456 as a number rather than coercing it', async () => {
+    // The distinction matters beyond type strictness: a numeric transform would
+    // also turn "000042" into 42 and destroy codes with leading zeroes.
+    const errors = await errorsFor({ email: VALID_EMAIL, code: 123456 });
+    expect(errors.map((e) => e.property)).toEqual(['code']);
+    expect(Object.keys(errors[0].constraints ?? {})).toContain('isString');
+  });
+
+  it('rejects malformed email addresses', async () => {
+    for (const email of ['', 'not-an-email', 'a@', '@example.com', 42, null]) {
+      await expect(
+        errorsFor({ email, code: VALID_CODE }),
+      ).resolves.not.toHaveLength(0);
+    }
+  });
+
+  it('trims surrounding whitespace on the code', async () => {
+    // Includes a trailing newline: pasting a code out of an email or a terminal
+    // commonly drags one along, and it is not something the user typed.
+    for (const code of [`  ${VALID_CODE}  `, `\n${VALID_CODE}\n`, `\t${VALID_CODE}`]) {
+      const dto = (await transform({
+        email: VALID_EMAIL,
+        code,
+      })) as VerifyEmailDto;
+      expect(dto.code).toBe(VALID_CODE);
+    }
+  });
+
+  it('lowercases and trims the email so it matches the stored form', async () => {
     const dto = (await transform({
-      token: `  ${VALID_TOKEN}  `,
+      email: '  Student@Example.COM ',
+      code: VALID_CODE,
     })) as VerifyEmailDto;
-    expect(dto.token).toBe(VALID_TOKEN);
+    expect(dto.email).toBe(VALID_EMAIL);
   });
 
   it('rejects unexpected fields', async () => {
     const reason = await rejectionReason({
-      token: VALID_TOKEN,
+      email: VALID_EMAIL,
+      code: VALID_CODE,
       role: 'SUPER_ADMIN',
     });
     expect(reason).toMatch(/role/);
@@ -86,9 +137,19 @@ describe('VerifyEmailDto', () => {
     // `@Body('token')` accepted any JSON object as long as `token` existed,
     // including one carrying unrelated privileged-looking keys.
     const reason = await rejectionReason({
-      token: VALID_TOKEN,
+      email: VALID_EMAIL,
+      code: VALID_CODE,
       isVerified: true,
     });
     expect(reason).toMatch(/isVerified/);
+  });
+
+  it('no longer accepts the removed `token` field', async () => {
+    const reason = await rejectionReason({
+      email: VALID_EMAIL,
+      token: 'a'.repeat(64),
+    });
+    expect(reason).toMatch(/token/);
+    expect(reason).toMatch(/should not exist/);
   });
 });

@@ -58,7 +58,7 @@ the verifier are reachable **only** from inside the Compose network.
 | Access token | JWT, signed with `JWT_ACCESS_SECRET`, lifetime **15m** |
 | Refresh token | JWT, separate `JWT_REFRESH_SECRET`, lifetime **7d** |
 | Token storage | `httpOnly` cookies; `Secure` in production; `SameSite=Lax` |
-| Verification token | `crypto.randomBytes(32)`, single-use, **24h** |
+| Email verification code | **6 digits** from `crypto.randomInt`, stored only as a bcrypt hash, single-use, **15m**, **5** attempts per code, 60s resend cooldown, **5** codes/hour/account |
 | Reset token | `crypto.randomBytes(32)`, single-use, **1h** |
 | Brute force | **5** failed logins → **15-minute** account lockout |
 | Login rate limit | **5 requests/min per IP** on top of the account lockout |
