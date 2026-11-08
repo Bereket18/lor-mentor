@@ -220,15 +220,36 @@ is not spammed. The profile page polls the same endpoint for the student's own
 unresolved Chapa payments and shows the message; the callback page keeps polling
 before showing it, because the next redelivery usually finishes the approval.
 
-**Both browser-facing Chapa endpoints are capped at 10 requests/minute** per
-client (`@Throttle` on `GET /payments/chapa/callback` and
-`GET /payments/chapa/verify/:txRef`), like the other gateway entry points and
-tighter than the global 120/minute. Each call re-verifies with Chapa, so without
-it anyone could burn the gateway quota (and our database) by replaying an
-unauthenticated URL. The UI is built for it: the callback page polls five times,
-the profile page every 15s for about five minutes, and an HTTP 429 is never
-surfaced as an error to the student. Chapa's webhook is deliberately **not**
-throttled — a redelivery must never be dropped.
+**Rate limiting is per user, per tx_ref and per IP — deliberately.**
+Authenticated payment routes (`POST /payments/chapa/initialize`,
+`POST /payments/submit`, `POST /payments/verify`,
+`GET /payments/chapa/verify/:txRef`, `POST /payments/:id/cancel`,
+`GET /payments/:id/document`) are capped at **10 requests/minute per
+authenticated user**, using the user id rather than the socket address. Students
+behind one campus NAT therefore never share a bucket, and an abusive account
+cannot escape by rotating IPs. The public browser callback
+(`GET /payments/chapa/callback`) is capped at **6 requests/minute per `tx_ref`**
+(either `tx_ref` or Chapa's `trx_ref` spelling); replayed redirects for the same
+checkout stop there, while a different checkout is unaffected. The **global
+limiter stays at 120 requests/minute** and its tracker is the authenticated user
+when the signed `access_token` cookie identifies one, otherwise the client IP.
+For the public callback that IP ceiling is the only abuse cap, and it is
+deliberately generous because Chapa's redirect and browser retries share it.
+Each Chapa browser call re-verifies with the gateway, so without these caps
+anyone could burn the gateway quota (and our database) by replaying a URL. The
+UI is built for it: the callback page polls five times, the profile page every
+15s for about five minutes, and an HTTP 429 is never surfaced as an error to the
+student. Chapa's webhook is deliberately **not** throttled — Chapa redelivers
+every ~10 minutes for up to 72 hours, and dropping a redelivery could lose a
+payment.
+
+**The polling window ends in one definitive sentence.** Once the callback page
+or the profile page has finished polling a payment that still reports
+`confirmationPending`, it shows exactly: *"We are still confirming your payment.
+You will receive a notification when your subscription is active. If nothing
+changes in 30 minutes, contact support and quote reference &lt;payment
+reference&gt;."* — never a failure or error screen, because the money was
+confirmed. The reference is the checkout's `tx_ref`.
 
 **Mismatches and failed attempts.** A mismatch keeps the payment `PENDING`,
 writes `CHAPA_VERIFY_MISMATCH`, and flags an admin-queue exception — never an
@@ -314,6 +335,52 @@ Chapa repeats the body verbatim. A genuinely different refund (a different
 `reference`) is still recorded, and a reversal is never mistaken for an earlier
 refund.
 
+### 1.6.1 Operational requirements for the rate limits
+
+**`TRUST_PROXY` must match the real proxy topology.** The limits above key on
+`req.ip`, which Express only resolves to the real client when it trusts the
+proxies in front of the API. Set `TRUST_PROXY` to the number of hops you
+operate: `1` for nginx only (the default in production), `2` behind Cloudflare,
+`0` only for direct local access. If it is wrong — most commonly `0` or unset
+outside production — every request appears to come from the proxy's loopback
+address, all per-IP buckets collapse into one, and the 120/min ceiling is shared
+by the whole internet-facing service. `env.validation.ts` rejects a value that is
+not a non-negative integer, and `docs/deploy/GO-LIVE.md` records the expected
+value per topology.
+
+**Verification step (do this on staging and again after go-live):**
+
+1. Send one request through the public edge. The simplest audited request is a
+   failed login with a throwaway account, because it writes an `AuditLog` row
+   without needing an admin session:
+   ```bash
+   curl -s -o /dev/null -X POST https://api.your-domain/api/v1/auth/login \
+     -H 'Content-Type: application/json' \
+     -d '{"email":"trust-proxy-probe@example.com","password":"wrong"}'
+   ```
+2. Read the client IP the API recorded:
+   ```sql
+   SELECT action, "ipAddress", meta->>'forwardedFor' AS forwarded_for, "createdAt"
+   FROM "AuditLog"
+   WHERE action = 'AUTH_LOGIN_FAILED'
+   ORDER BY "createdAt" DESC
+   LIMIT 1;
+   ```
+3. The row's `ipAddress` must be the public client IP you sent from (matching the
+   left-most address your proxy saw in `X-Forwarded-For`), **not** `127.0.0.1` or
+   a Docker-internal `172.x`/`10.x` address. If it is a proxy address,
+   `TRUST_PROXY` is too low; if it is a spoofed address, it is too high. The same
+   `ipAddress` is written for administrative audit entries, so an admin action
+   (for example toggling an accepted bank) verifies it there too.
+
+**The throttles are in-memory: one API instance only.** `@nestjs/throttler`
+keeps its counters in process memory by default. The production compose file
+runs a single `api` service, so the limits are correct as deployed. If the API is
+ever scaled to more than one instance or replica, each instance counts
+separately and the effective limit multiplies; configure a shared
+`ThrottlerStorage` (Redis) before adding a second instance. Scaling the API
+without that change must be treated as disabling the per-user and per-IP caps.
+
 ### 1.7 Security checklist
 
 - Keys live in `.env.production` (server env), never in the repo or a client
@@ -324,9 +391,11 @@ refund.
 - Amounts and subscription duration come from the server-side plan snapshot,
   not the client.
 - Production refuses test keys at boot and rejects a `mode` mismatch.
-- The public Chapa routes (`chapa/callback`, `chapa/verify/:txRef`) are capped at
-  10 requests/minute per client; the webhook is not capped, so Chapa's
-  redeliveries are never dropped.
+- The authenticated payment routes are capped at 10 requests/minute **per
+  user**; the public `chapa/callback` at 6 requests/minute **per `tx_ref`** with
+  the global 120/minute per-IP ceiling as the abuse cap; the webhook is not
+  capped, so Chapa's redeliveries are never dropped (see 1.6.1 for `TRUST_PROXY`
+  and the single-instance limit).
 
 ### 1.8 End-to-end test before launch
 

@@ -11,6 +11,7 @@ import {
   Download,
 } from "lucide-react";
 import api from "@/lib/api";
+import { ConfirmationEndStateMessage } from "@/components/payment/confirmation-end-state";
 
 import { toast } from "sonner";
 
@@ -38,7 +39,6 @@ function CallbackContent() {
   const [phase, setPhase] = useState<Phase>("verifying");
   const [paymentId, setPaymentId] = useState<string | null>(null);
   const [receiptNumber, setReceiptNumber] = useState<string | null>(null);
-  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [attemptKey, setAttemptKey] = useState(0);
 
@@ -52,7 +52,6 @@ function CallbackContent() {
     // Poll the verify endpoint a few times before giving up: a payment whose
     // confirmation is still pending often completes on Chapa's next redelivery.
     let confirmationPending = false;
-    let message: string | null = null;
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       try {
         const res = await api.get<VerifyResult>(
@@ -66,11 +65,10 @@ function CallbackContent() {
           return;
         }
         if (data.confirmationPending) {
-          // Money is with us; the approval just has not landed yet.
+          // Money is with us; the approval just has not landed yet. This must
+          // never fall through to the failure screen, whatever the row status.
           confirmationPending = true;
-          message = data.message ?? null;
-        }
-        if (data.status === "REJECTED") {
+        } else if (data.status === "REJECTED") {
           setPhase("error");
           return;
         }
@@ -79,7 +77,6 @@ function CallbackContent() {
       }
       await new Promise((r) => setTimeout(r, 2000));
     }
-    setPendingMessage(confirmationPending ? message : null);
     setPhase(confirmationPending ? "confirmation" : "pending");
   }, [txRef]);
 
@@ -163,23 +160,17 @@ function CallbackContent() {
           <>
             <Clock className="h-12 w-12 text-yellow-400 mx-auto mb-4" />
             <h1 className="font-display text-2xl font-semibold text-primary mb-2">
-              We have your payment
+              Still confirming your payment
             </h1>
-            <p className="text-sm text-secondary mb-6">
-              {pendingMessage ??
-                "We have your payment, but the confirmation is still being processed. Please wait and do not pay again — your access activates automatically, and the receipt appears on your profile within a few minutes."}
-            </p>
-            <p className="text-xs text-muted mb-6">
-              Your access activates automatically; you do not need to do
-              anything. If nothing changes within an hour, contact support with
-              your payment reference.
-            </p>
+            <ConfirmationEndStateMessage
+              reference={txRef ?? "your payment"}
+              className="text-sm text-secondary mb-6"
+            />
             <div className="flex flex-col items-center gap-3">
               <button
                 type="button"
                 onClick={() => {
                   setPhase("verifying");
-                  setPendingMessage(null);
                   setAttemptKey((n) => n + 1);
                 }}
                 className="inline-flex items-center justify-center gap-2 bg-accent

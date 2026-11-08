@@ -11,6 +11,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import api from "@/lib/api";
 import { formatDisplayDate } from "@/lib/dates";
+import { ConfirmationEndStateMessage } from "@/components/payment/confirmation-end-state";
 import type { FullProfile } from "@/types";
 
 import { toast } from "sonner";
@@ -120,9 +121,13 @@ export default function ProfilePage() {
         p.status === "CANCELLED"),
   );
   const awaitingKey = awaitingConfirmation.map((p) => p.id).join(",");
-  const [pendingMessages, setPendingMessages] = useState<Record<string, string>>(
-    {},
-  );
+  const [pendingConfirmations, setPendingConfirmations] = useState<
+    Record<string, string | null>
+  >({});
+  // The key whose poll window has run out. Storing the key (rather than a
+  // boolean reset in an effect) means a new payment starts polling cleanly.
+  const [exhaustedFor, setExhaustedFor] = useState<string | null>(null);
+  const pollingExhausted = !!awaitingKey && exhaustedFor === awaitingKey;
 
   const reloadProfile = useCallback(() => {
     return api
@@ -143,17 +148,17 @@ export default function ProfilePage() {
               `/payments/chapa/verify/${payment.txRef}`,
             );
             if (!active) return;
-            setPendingMessages((current) => {
+            setPendingConfirmations((current) => {
               const next = { ...current };
-              if (res.data.confirmationPending && res.data.message) {
-                next[payment.id] = res.data.message;
+              if (res.data.confirmationPending) {
+                next[payment.id] = res.data.message ?? null;
               } else {
                 delete next[payment.id];
               }
               return next;
             });
             if (res.data.status === "APPROVED") {
-              setPendingMessages({});
+              setPendingConfirmations({});
               await reloadProfile();
               return;
             }
@@ -161,7 +166,10 @@ export default function ProfilePage() {
             // transient — the next tick tries again
           }
         }
-        if (polls >= POLL_LIMIT) clearInterval(timer);
+        if (polls >= POLL_LIMIT) {
+          setExhaustedFor(awaitingKey);
+          clearInterval(timer);
+        }
       })();
     }, POLL_INTERVAL_MS);
     return () => {
@@ -444,7 +452,12 @@ export default function ProfilePage() {
               <p className="text-[11px] uppercase tracking-wider text-muted mb-2">Recent payments</p>
               <div className="space-y-2">
                 {profile.payments.map((p) => {
-                  const pendingMessage = pendingMessages[p.id];
+                  const pendingMessage = pendingConfirmations[p.id];
+                  const hasPendingConfirmation =
+                    Object.prototype.hasOwnProperty.call(
+                      pendingConfirmations,
+                      p.id,
+                    );
                   return (
                   <div key={p.id}>
                   <div className="flex items-center justify-between gap-2 text-sm">
@@ -462,7 +475,7 @@ export default function ProfilePage() {
                           <Download className="h-3 w-3" /> Receipt
                         </button>
                       )}
-                      {p.status === "PENDING" && p.method === "CHAPA" && !pendingMessage && (
+                      {p.status === "PENDING" && p.method === "CHAPA" && !hasPendingConfirmation && (
                         <button
                           type="button"
                           onClick={() => cancelPayment(p.id)}
@@ -478,11 +491,18 @@ export default function ProfilePage() {
                       </span>
                     </div>
                   </div>
-                  {pendingMessage && (
-                    <p className="mt-1 text-[11px] leading-relaxed"
-                      style={{ color: "var(--state-warning)" }}>
-                      {pendingMessage ?? CONFIRMATION_PENDING_FALLBACK}
-                    </p>
+                  {hasPendingConfirmation && (
+                    pollingExhausted ? (
+                      <ConfirmationEndStateMessage
+                        reference={p.txRef ?? p.id}
+                        className="mt-1 text-[11px] leading-relaxed"
+                      />
+                    ) : (
+                      <p className="mt-1 text-[11px] leading-relaxed"
+                        style={{ color: "var(--state-warning)" }}>
+                        {pendingMessage ?? CONFIRMATION_PENDING_FALLBACK}
+                      </p>
+                    )
                   )}
                   </div>
                   );
