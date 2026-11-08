@@ -188,7 +188,10 @@ about that changes: the columns stay `timestamp` and no backfill exists. What is
 fixed is the *display*: the API renders receipt and UI dates with an explicit
 `Africa/Addis_Ababa` timezone (UTC+3, no DST) instead of inheriting the host's,
 so the same payment prints the same day on a UTC API container and on a
-developer machine. Concretely, a subscription that starts `2026-01-30T22:00Z`
+developer machine. The receipt-number year (`LM-<year>-<paymentId>`) uses the
+same zone, so a payment at `2026-12-31T21:30Z` is numbered `LM-2027-…` and
+prints as 1 January 2027 rather than disagreeing with itself. Concretely, a
+subscription that starts `2026-01-30T22:00Z`
 and ends `2026-02-28T22:00Z` is *one month* of access and shows as
 `31/01/2026 – 01/03/2026` in Addis.
 

@@ -73,7 +73,15 @@ export class ReceiptService {
    * same payment always maps to the same number (idempotent on webhook retry).
    */
   buildReceiptNumber(paymentId: string, when: Date): string {
-    const year = when.getFullYear();
+    // The year belongs on the college's calendar, not the API host's.
+    // Production runs in UTC, where 21:30Z on 31 Dec is still 2026 - but the
+    // receipt it prints (in Addis time) says 1 Jan 2027. Deriving the year in
+    // the same zone as the printed dates keeps the number and the receipt
+    // consistent.
+    const year = new Intl.DateTimeFormat('en-GB', {
+      timeZone: RECEIPT_TIME_ZONE,
+      year: 'numeric',
+    }).format(when);
     return `LM-${year}-${paymentId.slice(-8).toUpperCase()}`;
   }
 
