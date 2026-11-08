@@ -33,6 +33,7 @@ describe('ChapaService', () => {
   const updateMany = jest.fn();
   const assertNoActiveSubscription = jest.fn();
   const finalizeApproval = jest.fn();
+  const rejectPayment = jest.fn();
   const cancelOwn = jest.fn();
   const config = {
     get: jest.fn((key: string) => {
@@ -65,6 +66,7 @@ describe('ChapaService', () => {
   const payments = {
     assertNoActiveSubscription,
     finalizeApproval,
+    reject: rejectPayment,
     cancelOwn,
   } as unknown as PaymentsService;
   const service = new ChapaService(config, prisma, payments, states);
@@ -96,6 +98,7 @@ describe('ChapaService', () => {
     recordEvent.mockReset().mockResolvedValue(undefined);
     assertNoActiveSubscription.mockReset();
     finalizeApproval.mockReset();
+    rejectPayment.mockReset().mockResolvedValue({ message: 'Payment rejected' });
     cancelOwn.mockReset().mockResolvedValue({ message: 'Payment cancelled' });
     jest.restoreAllMocks();
   });
@@ -711,9 +714,66 @@ describe('ChapaService', () => {
     });
   });
 
+  it('never acknowledges verified money that landed on a row rejected while we were verifying', async () => {
+    // The webhook read PENDING, Chapa confirmed the exact payment, and an admin
+    // rejected the row in the meantime. finalizeApproval refuses a REJECTED
+    // row, so unless the outcome is written down the webhook's generic
+    // "BadRequestException -> 200" branch silently drops money the student
+    // really paid.
+    findUnique
+      .mockReset()
+      .mockResolvedValueOnce({
+        id: 'payment-1',
+        status: 'PENDING',
+        amount: '1000',
+        verification: null,
+      })
+      .mockResolvedValueOnce({
+        id: 'payment-1',
+        status: 'REJECTED',
+        verification: null,
+      });
+    mockVerifyResponse({
+      status: 'success',
+      amount: '1000.00',
+      currency: 'ETB',
+      tx_ref: 'lm-payment-1',
+      reference: 'chapa-reference',
+    });
+    finalizeApproval
+      .mockReset()
+      .mockRejectedValue(
+        new BadRequestException('Payment has already been rejected'),
+      );
+
+    const body = Buffer.from('{"tx_ref":"lm-payment-1"}');
+    await expect(
+      service.handleWebhook(body, { payloadSignature: signPayload(body) }),
+    ).resolves.toEqual({ received: true });
+
+    expect(recordEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      'payment-1',
+      'CHAPA_LATE_PAYMENT_TERMINAL',
+      expect.objectContaining({ fromStatus: 'REJECTED', toStatus: 'REJECTED' }),
+    );
+    // The gateway reference and the review exception are the two signals the
+    // admin queue keys on; without them the money is invisible.
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { id: 'payment-1' },
+      data: expect.objectContaining({
+        chapaRef: 'chapa-reference',
+        verification: expect.objectContaining({
+          exception: true,
+          reviewNote: expect.stringContaining('REJECTED'),
+        }),
+      }),
+    });
+  });
+
   describe('verified money that could not be approved in the same pass', () => {
     /**
-     * Chapa confirmed the exact payment; finalizeApprorove could not claim the
+     * Chapa confirmed the exact payment; finalizeApproval could not claim the
      * row (a concurrent cancel closed it). Each entry point reads the payment
      * a different number of times, so the rig is built per entry point.
      */
@@ -1636,6 +1696,164 @@ describe('ChapaService', () => {
         service.cancelByStudent('payment-1', 'student-1'),
       ).rejects.toBeInstanceOf(BadRequestException);
       expect(cancelOwn).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('admin reject of a checkout', () => {
+    const chapaPending = {
+      id: 'payment-1',
+      status: 'PENDING',
+      method: 'CHAPA',
+      txRef: 'lm-payment-1',
+    };
+
+    function mockGatewayCancel(
+      cancel: { ok: boolean; status: number; json: unknown },
+      verify?: { ok: boolean; status: number; json: unknown },
+    ) {
+      jest.spyOn(global, 'fetch').mockImplementation((url) => {
+        const u = String(url);
+        if (u.includes('/transaction/cancel/')) {
+          return Promise.resolve({
+            ok: cancel.ok,
+            status: cancel.status,
+            json: () => Promise.resolve(cancel.json),
+          } as unknown as Response);
+        }
+        return Promise.resolve({
+          ok: verify?.ok ?? false,
+          status: verify?.status ?? 404,
+          json: () => Promise.resolve(verify?.json ?? {}),
+        } as unknown as Response);
+      });
+    }
+
+    it('closes the checkout at Chapa before rejecting it locally', async () => {
+      const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            status: 'success',
+            message: 'Checkout link expired successfully',
+          }),
+      } as Response);
+      findUnique.mockResolvedValue(chapaPending);
+
+      await service.rejectByAdmin('payment-1', 'admin-1', 'receipt unreadable');
+
+      // The gateway is asked first: rejecting a still-open checkout locally
+      // leaves a link the student can still complete after the rejection.
+      expect(fetchSpy).toHaveBeenCalledWith(
+        expect.stringContaining('/transaction/cancel/lm-payment-1'),
+        expect.objectContaining({ method: 'PUT' }),
+      );
+      expect(rejectPayment).toHaveBeenCalledWith(
+        'payment-1',
+        'admin-1',
+        'receipt unreadable',
+      );
+      expect(transition).not.toHaveBeenCalled();
+    });
+
+    it('refuses the reject when Chapa reports the checkout as already paid', async () => {
+      findUnique.mockResolvedValue(chapaPending);
+      mockGatewayCancel(
+        {
+          ok: false,
+          status: 400,
+          json: { status: 'failed', message: 'Payment cannot be cancelled' },
+        },
+        {
+          ok: true,
+          status: 200,
+          json: {
+            status: 'success',
+            data: {
+              status: 'success',
+              amount: '1000',
+              currency: 'ETB',
+              tx_ref: 'lm-payment-1',
+              reference: 'chapa-reference',
+              mode: 'test',
+            },
+          },
+        },
+      );
+
+      await expect(
+        service.rejectByAdmin('payment-1', 'admin-1', 'duplicate'),
+      ).rejects.toThrow(/already paid/i);
+      // The money is real: the verified-payment path (not a reject) decides.
+      expect(rejectPayment).not.toHaveBeenCalled();
+    });
+
+    it('changes nothing and asks for a retry when Chapa is unreachable', async () => {
+      findUnique.mockResolvedValue(chapaPending);
+      jest
+        .spyOn(global, 'fetch')
+        .mockRejectedValue(new Error('connect ECONNREFUSED'));
+
+      await expect(
+        service.rejectByAdmin('payment-1', 'admin-1'),
+      ).rejects.toBeInstanceOf(ServiceUnavailableException);
+      expect(rejectPayment).not.toHaveBeenCalled();
+    });
+
+    it('refuses the reject when Chapa cannot close an unpaid checkout either', async () => {
+      findUnique.mockResolvedValue(chapaPending);
+      mockGatewayCancel(
+        {
+          ok: false,
+          status: 400,
+          json: { status: 'failed', message: 'Card checkout cannot be cancelled' },
+        },
+        { ok: false, status: 404, json: { status: 'failed', data: null } },
+      );
+
+      await expect(
+        service.rejectByAdmin('payment-1', 'admin-1'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(rejectPayment).not.toHaveBeenCalled();
+    });
+
+    it('names the verified-payment path when the approval won the claim', async () => {
+      findUnique
+        .mockResolvedValueOnce(chapaPending)
+        .mockResolvedValueOnce({ id: 'payment-1', status: 'APPROVED' });
+      mockGatewayCancel({
+        ok: true,
+        status: 200,
+        json: { status: 'success', message: 'Checkout link expired' },
+      });
+      rejectPayment.mockReset().mockRejectedValue(
+        new BadRequestException('Payment has already been reviewed'),
+      );
+
+      await expect(
+        service.rejectByAdmin('payment-1', 'admin-1'),
+      ).rejects.toThrow(/approved/i);
+    });
+
+    it('rejects a MANUAL payment without calling the gateway', async () => {
+      const fetchSpy = jest.spyOn(global, 'fetch');
+      findUnique.mockResolvedValue({
+        id: 'payment-1',
+        status: 'PENDING',
+        method: 'MANUAL',
+        txRef: null,
+      });
+
+      await expect(
+        service.rejectByAdmin('payment-1', 'admin-1', 'not a real receipt'),
+      ).resolves.toEqual({ message: 'Payment rejected' });
+      // Bank-receipt payments have no gateway checkout to close.
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(rejectPayment).toHaveBeenCalledWith(
+        'payment-1',
+        'admin-1',
+        'not a real receipt',
+      );
     });
   });
 

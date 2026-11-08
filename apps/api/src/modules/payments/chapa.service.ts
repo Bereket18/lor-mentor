@@ -786,6 +786,76 @@ export class ChapaService {
   }
 
   /**
+   * Admin reject, gateway-aware.
+   *
+   * A PENDING Chapa checkout is still a live link at the gateway: rejecting it
+   * locally without closing it leaves a checkout the student can complete
+   * afterwards — money that arrives after the rejection and has to be found
+   * later. So the same cancel endpoint the expiry and student-cancel paths
+   * use is called first:
+   *  - Chapa confirms the link is dead → the ordinary reject transition runs;
+   *  - Chapa reports the checkout as already paid → the reject is REFUSED.
+   *    The money is real, so the admin is sent to the verified-payment path
+   *    (the gateway verification approves it, or records it as a review
+   *    exception) instead of marking it rejected;
+   *  - Chapa is unreachable or refuses → nothing changes locally.
+   *
+   * MANUAL payments are admin-review items with no gateway checkout, so they
+   * go straight to the service.
+   */
+  async rejectByAdmin(paymentId: string, adminId: string, reason?: string) {
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+      select: { id: true, status: true, method: true, txRef: true },
+    });
+    if (!payment) throw new NotFoundException('Payment not found');
+    if (payment.status !== 'PENDING') {
+      throw new BadRequestException('Payment has already been reviewed');
+    }
+    if (payment.method !== 'CHAPA' || !payment.txRef) {
+      return this.payments.reject(paymentId, adminId, reason);
+    }
+
+    const cancel = await this.cancelAtChapa(payment.txRef);
+    if (cancel.kind === 'CANCELLED') {
+      try {
+        return await this.payments.reject(paymentId, adminId, reason);
+      } catch (err) {
+        // Lost the claim to a concurrent approval: report the real outcome
+        // rather than a rejection that never happened.
+        if (err instanceof BadRequestException) {
+          const fresh = await this.prisma.payment.findUnique({
+            where: { id: paymentId },
+            select: { status: true },
+          });
+          if (fresh?.status === 'APPROVED') {
+            throw new BadRequestException(
+              'Chapa confirmed this payment while the reject was in flight, so it is APPROVED — it has NOT been rejected. It is on the approved list with its receipt.',
+            );
+          }
+        }
+        throw err;
+      }
+    }
+
+    if (cancel.kind === 'ALREADY_PAID') {
+      throw new BadRequestException(
+        'Chapa reports this checkout as already paid, so it has NOT been rejected. Do not reject it: the gateway verification approves it, and if it cannot be approved it appears in the Exceptions tab for refund review.',
+      );
+    }
+
+    if (cancel.kind === 'UNREACHABLE') {
+      throw new ServiceUnavailableException(
+        'We could not reach the payment gateway, so the payment has NOT been rejected. Please try again in a minute.',
+      );
+    }
+
+    throw new BadRequestException(
+      'Chapa could not close this checkout, so the payment has NOT been rejected. Please try again.',
+    );
+  }
+
+  /**
    * Webhook receiver. Chapa signs the raw request body with HMAC-SHA256 using
    * the webhook secret; we verify it before trusting anything, then confirm the
    * transaction through the verify endpoint (defence in depth — the signed body
@@ -1263,59 +1333,47 @@ export class ChapaService {
     // flag matters: without it (and without a chapaRef) an admin row for a
     // CHAPA/REJECTED payment is filtered out of the queue entirely.
     if (payment.status === 'REVERSED' || payment.status === 'REJECTED') {
-      const verifiedRef = data?.reference ?? null;
-      await this.prisma.$transaction(async (tx) => {
-        await this.states.recordEvent(
-          tx,
-          payment.id,
-          PaymentEventType.CHAPA_LATE_PAYMENT_TERMINAL,
-          {
-            fromStatus: payment.status,
-            toStatus: payment.status,
-            reason: `Chapa verified an exact payment after the payment was ${payment.status}; terminal status kept for refund review`,
-            meta: {
-              txRef,
-              chapaRef: verifiedRef,
-              amount: settled?.toString() ?? null,
-              currency: 'ETB',
-            },
-          },
-        );
-
-        // Merge into the existing verification blob so bank-receipt evidence
-        // and earlier annotations are not lost.
-        const existing = asJsonObject(payment.verification);
-        await tx.payment.updateMany({
-          where: { id: payment.id },
-          data: {
-            ...(verifiedRef ? { chapaRef: verifiedRef } : {}),
-            verification: {
-              ...existing,
-              decision: 'REVIEW',
-              exception: true,
-              reviewNote: `Chapa verified an exact payment for this ${payment.status} payment; refund review required (it cannot be approved).`,
-              chapaException: {
-                txRef,
-                chapaRef: verifiedRef,
-                amount: settled?.toString() ?? null,
-                currency: 'ETB',
-              },
-            } as Prisma.InputJsonValue,
-          },
-        });
+      await this.recordLatePaymentOnTerminalRow(payment, txRef, {
+        reference: data?.reference ?? null,
+        amount: settled?.toString() ?? null,
       });
-      this.logger.error(
-        `Late Chapa payment on ${payment.status} payment ${payment.id} (tx ${txRef}) — manual refund review required`,
-      );
       return { kind: 'IGNORED', reason: 'terminal status' };
     }
 
-    const finalized = await this.payments.finalizeApproval(payment.id, {
-      chapaRef: data?.reference ?? undefined,
-      paidAt: new Date(),
-      // Only the verified gateway path may revive EXPIRED/CANCELLED.
-      allowExpiredOrCancelled: true,
-    });
+    let finalized: Awaited<ReturnType<PaymentsService['finalizeApproval']>>;
+    try {
+      finalized = await this.payments.finalizeApproval(payment.id, {
+        chapaRef: data?.reference ?? undefined,
+        paidAt: new Date(),
+        // Only the verified gateway path may revive EXPIRED/CANCELLED.
+        allowExpiredOrCancelled: true,
+      });
+    } catch (err) {
+      // A verified payment must never be acknowledged without evidence.
+      // finalizeApproval refuses REJECTED/REVERSED outright (they are not
+      // revivable), and the webhook's generic BadRequestException handler
+      // would turn that refusal into a silent 200 — dropping money the
+      // student really paid. Re-read the row and persist the late payment
+      // instead. Anything else is a genuine failure and propagates.
+      if (err instanceof BadRequestException) {
+        const row = await this.prisma.payment.findUnique({
+          where: { id: payment.id },
+          select: { status: true, verification: true },
+        });
+        if (row && (row.status === 'REJECTED' || row.status === 'REVERSED')) {
+          await this.recordLatePaymentOnTerminalRow(
+            { id: payment.id, ...row },
+            txRef,
+            {
+              reference: data?.reference ?? null,
+              amount: settled?.toString() ?? null,
+            },
+          );
+          return { kind: 'IGNORED', reason: 'terminal status' };
+        }
+      }
+      throw err;
+    }
     if (finalized && 'approved' in finalized && finalized.approved === false) {
       // finalizeApproval could not claim the row and no other caller approved
       // it (a concurrent cancel closed it, or it moved to a non-approvable
@@ -1377,6 +1435,75 @@ export class ChapaService {
       };
     }
     return { kind: 'APPROVED' };
+  }
+
+  /**
+   * Verified money on a fully terminal row (REJECTED / REVERSED).
+   *
+   * Those statuses are not revivable, so the status is deliberately kept —
+   * but the money is real, so the evidence is persisted before the webhook is
+   * acknowledged: the gateway reference is stamped, the review exception is
+   * flagged (the signal the admin Exceptions tab keys on) and the immutable
+   * ledger gets CHAPA_LATE_PAYMENT_TERMINAL. Acknowledging without writing
+   * this would silently drop a payment the student actually made.
+   *
+   * Used from both entries to the same outcome: the row was already terminal
+   * when the gateway answered, or it moved into that state while we were
+   * verifying (an admin reject won the claim — see confirmAndApprove).
+   */
+  private async recordLatePaymentOnTerminalRow(
+    row: {
+      id: string;
+      status: PaymentStatus;
+      verification: Prisma.JsonValue | null;
+    },
+    txRef: string,
+    money: { reference: string | null; amount: string | null },
+  ): Promise<void> {
+    const from = row.status;
+    await this.prisma.$transaction(async (tx) => {
+      await this.states.recordEvent(
+        tx,
+        row.id,
+        PaymentEventType.CHAPA_LATE_PAYMENT_TERMINAL,
+        {
+          fromStatus: from,
+          toStatus: from,
+          reason: `Chapa verified an exact payment after the payment was ${from}; terminal status kept for refund review`,
+          meta: {
+            txRef,
+            chapaRef: money.reference,
+            amount: money.amount,
+            currency: 'ETB',
+          },
+        },
+      );
+
+      // Merge into the existing verification blob so bank-receipt evidence
+      // and earlier annotations are not lost.
+      const existing = asJsonObject(row.verification);
+      await tx.payment.updateMany({
+        where: { id: row.id },
+        data: {
+          ...(money.reference ? { chapaRef: money.reference } : {}),
+          verification: {
+            ...existing,
+            decision: 'REVIEW',
+            exception: true,
+            reviewNote: `Chapa verified an exact payment for this ${from} payment; refund review required (it cannot be approved).`,
+            chapaException: {
+              txRef,
+              chapaRef: money.reference,
+              amount: money.amount,
+              currency: 'ETB',
+            },
+          } as Prisma.InputJsonValue,
+        },
+      });
+    });
+    this.logger.error(
+      `Late Chapa payment on ${from} payment ${row.id} (tx ${txRef}) — manual refund review required`,
+    );
   }
 
   /**

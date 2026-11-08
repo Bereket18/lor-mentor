@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, HttpException } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -227,6 +227,7 @@ describeWithDb('Payments concurrency (real Postgres)', () => {
   function mockGateway(opts: {
     verify?: (txRef: string) => unknown;
     verifyOk?: boolean;
+    verifyDelayMs?: number;
     initializeUrl?: string;
     initializeFails?: boolean;
     cancel?: (txRef: string) => unknown;
@@ -240,7 +241,7 @@ describeWithDb('Payments concurrency (real Postgres)', () => {
         const txRef = decodeURIComponent(
           u.split('/transaction/verify/')[1] ?? '',
         );
-        return Promise.resolve({
+        const reply = {
           ok: opts.verifyOk ?? false,
           status: opts.verifyOk ? 200 : 404,
           json: () =>
@@ -253,7 +254,12 @@ describeWithDb('Payments concurrency (real Postgres)', () => {
                     data: null,
                   },
             ),
-        } as Response);
+        } as unknown as Response;
+        return opts.verifyDelayMs
+          ? new Promise((resolve) =>
+              setTimeout(() => resolve(reply), opts.verifyDelayMs),
+            )
+          : Promise.resolve(reply);
       }
       if (u.includes('/transaction/cancel/')) {
         const txRef = decodeURIComponent(
@@ -1094,6 +1100,109 @@ describeWithDb('Payments concurrency (real Postgres)', () => {
       search: student.email,
     });
     expect(exceptions.payments.map((p) => p.id)).toContain(payment.id);
+  });
+
+  it('admin reject vs webhook approval (10 runs): verified money is never silently dropped', async () => {
+    // The gateway holds the money (verify succeeds) and still lets the admin
+    // close the checkout link, so either call can win the claim.
+    for (let run = 0; run < 10; run += 1) {
+      // Alternate which caller starts first, so both interleavings happen. The
+      // gateway latency is only charged to the webhook, which widens the window
+      // in which an admin reject can land between the webhook reading the row
+      // and claiming the approval - the exact interleaving that used to drop
+      // verified money.
+      const webhookFirst = run % 2 === 0;
+      const student = await createStudent(`reject-vs-webhook-${run}`);
+      const txRef = `lm-${crypto.randomUUID()}`;
+      const payment = await createPayment(student.id, {
+        method: 'CHAPA',
+        txRef,
+        receiptPath: null,
+        bankReference: null,
+      });
+      mockGateway({
+        verifyOk: true,
+        verify: (ref) => ({
+          status: 'success',
+          data: {
+            status: 'success',
+            amount: '1000.00',
+            currency: 'ETB',
+            tx_ref: ref,
+            reference: `chapa-${ref}`,
+          },
+        }),
+        verifyDelayMs: webhookFirst ? 40 : 0,
+      });
+
+      const body = webhookBody(txRef);
+      const yieldToOther = () => new Promise((resolve) => setImmediate(resolve));
+
+      const results = await Promise.allSettled([
+        (async () => {
+          if (!webhookFirst) await yieldToOther();
+          return chapa.handleWebhook(body, signWebhook(body));
+        })(),
+        (async () => {
+          if (webhookFirst) await yieldToOther();
+          return chapa.rejectByAdmin(payment.id, adminId, 'duplicate receipt');
+        })(),
+      ]);
+
+      // Neither call may corrupt the row: a loser reports a deliberate HTTP
+      // outcome (a domain refusal, or "Chapa, please retry"). A raw error
+      // would mean the row was left in an undefined state.
+      for (const r of results) {
+        if (r.status === 'rejected') {
+          expect(r.reason).toBeInstanceOf(HttpException);
+        }
+      }
+
+      const final = await prisma.payment.findUniqueOrThrow({
+        where: { id: payment.id },
+      });
+
+      if (final.status === 'APPROVED') {
+        // The predicate: the verified money activated the subscription.
+        expect(
+          await prisma.paymentEvent.count({
+            where: { paymentId: payment.id, type: 'PAYMENT_APPROVED' },
+          }),
+        ).toBe(1);
+        expect(final.subscriptionId).not.toBeNull();
+      } else {
+        // A reject won the race. The row stays REJECTED, but the verified
+        // money must still be visible to an admin (queue + Exceptions tab) —
+        // never silently dropped with no event and no flag.
+        expect(final.status).toBe('REJECTED');
+        expect(
+          await prisma.paymentEvent.count({
+            where: {
+              paymentId: payment.id,
+              type: {
+                in: [
+                  'CHAPA_LATE_PAYMENT_TERMINAL',
+                  'CHAPA_VERIFY_NOT_APPROVED',
+                ],
+              },
+            },
+          }),
+        ).toBe(1);
+        expect(final.verification as Record<string, unknown>).toMatchObject({
+          exception: true,
+        });
+
+        const queue = await payments.findAllAdmin({
+          search: student.email,
+        });
+        expect(queue.payments.map((p) => p.id)).toContain(payment.id);
+        const exceptions = await payments.findAllAdmin({
+          exceptions: true,
+          search: student.email,
+        });
+        expect(exceptions.payments.map((p) => p.id)).toContain(payment.id);
+      }
+    }
   });
 
   it('late webhook while a newer PENDING checkout exists: approves the old one exactly once', async () => {

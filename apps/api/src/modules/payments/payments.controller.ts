@@ -293,7 +293,10 @@ export class PaymentsController {
     @Body('reason') reason: string,
     @CurrentUser() user: RequestUser,
   ) {
-    return this.service.reject(id, user.id, reason);
+    // Routed through the gateway service: a PENDING Chapa checkout is closed
+    // at Chapa first, and an already-paid checkout is never rejected (the
+    // admin is pointed at the verified-payment path instead).
+    return this.chapa.rejectByAdmin(id, user.id, reason);
   }
 
   // SUPER_ADMIN only: invalidate a previously approved payment. Removes the
