@@ -981,9 +981,10 @@ export class ChapaService {
 
   /**
    * Record a refund, reversal, or failed/cancelled event on the immutable
-   * ledger. Refund/reversal additionally flags an admin-queue exception when
-   * the payment is APPROVED; the subscription is never auto-cancelled and the
-   * payment status is never changed here (a human decides the refund).
+   * ledger. Refund and reversal always flag an admin-queue exception and
+   * stamp the gateway reference, whatever the payment status: the status is
+   * never changed here (a human decides the refund), but the money movement
+   * must never be hidden just because the row was not APPROVED.
    */
   private async handleLifecycleEvent(
     txRef: string,
@@ -1061,19 +1062,21 @@ export class ChapaService {
     }
 
     const label = kind === 'REFUND' ? 'refund' : 'reversal';
-    const flagException = payment.status === 'APPROVED';
+    // A refund/reversal can land on a row in ANY status — a pending checkout
+    // can be refunded, and money can be refunded after we expired, cancelled
+    // or rejected the row. Keep the status (a human decides the refund), but
+    // always persist the evidence: the gateway reference (only when the row
+    // has none of its own — the checkout reference is authoritative) and the
+    // review exception, which is what the admin Exceptions tab keys on.
+    const verifiedRef = payment.chapaRef ? null : reference;
 
     await this.prisma.$transaction(async (tx) => {
       await this.states.recordEvent(tx, payment.id, type, {
         fromStatus: payment.status,
         toStatus: payment.status,
-        reason: flagException
-          ? `Chapa reported a ${label} on an APPROVED payment; admin review required`
-          : `Chapa reported a ${label}; no state change`,
+        reason: `Chapa reported a ${label} on a ${payment.status} payment; admin review required`,
         meta,
       });
-
-      if (!flagException) return;
 
       // Merge into the existing verification blob so bank-receipt evidence
       // (when present) and earlier annotations are not lost.
@@ -1081,11 +1084,12 @@ export class ChapaService {
       await tx.payment.updateMany({
         where: { id: payment.id },
         data: {
+          ...(verifiedRef ? { chapaRef: verifiedRef } : {}),
           verification: {
             ...existing,
             decision: 'REVIEW',
             exception: true,
-            reviewNote: `Chapa reported a ${label} for this approved payment; refund/reversal review required.`,
+            reviewNote: `Chapa reported a ${label} for this ${payment.status} payment; refund/reversal review required.`,
             chapaException: meta,
           } as Prisma.InputJsonValue,
         },
@@ -1093,7 +1097,7 @@ export class ChapaService {
     });
 
     this.logger.warn(
-      `Chapa ${label} recorded for ${payment.status} payment ${payment.id} (tx ${txRef})${flagException ? ' — admin exception flagged' : ''}`,
+      `Chapa ${label} recorded for ${payment.status} payment ${payment.id} (tx ${txRef}) — admin exception flagged`,
     );
   }
 

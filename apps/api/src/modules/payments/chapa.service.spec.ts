@@ -1318,6 +1318,7 @@ describe('ChapaService', () => {
         event: 'charge.refunded',
         status: 'refunding',
         tx_ref: 'lm-payment-1',
+        reference: 'chapa-refund-1',
       });
 
       await service.handleWebhook(body, signatures);
@@ -1328,9 +1329,115 @@ describe('ChapaService', () => {
         'CHAPA_REFUND_RECEIVED',
         expect.anything(),
       );
-      // Not approved: event only, no admin exception write.
-      expect(updateMany).not.toHaveBeenCalled();
       expect(transition).not.toHaveBeenCalled();
+    });
+
+    // A refund or reversal can arrive on any row, not just an approved one:
+    // a pending checkout can be refunded by Chapa, and money can be refunded
+    // after we expired/cancelled/rejected the row. Hiding those events would
+    // hide real money movement, so every status gets the same evidence write.
+    it.each(['PENDING', 'EXPIRED', 'CANCELLED', 'REJECTED'] as const)(
+      'flags a refund on a %s row and stamps the gateway reference',
+      async (status) => {
+        findUnique.mockResolvedValue({
+          id: 'payment-1',
+          status,
+          verification: { source: 'chapa' },
+          chapaRef: null,
+        });
+        const { body, signatures } = signed({
+          event: 'charge.refunded',
+          status: 'refunded',
+          tx_ref: 'lm-payment-1',
+          reference: 'chapa-refund-1',
+        });
+
+        await expect(
+          service.handleWebhook(body, signatures),
+        ).resolves.toEqual({ received: true });
+
+        expect(recordEvent).toHaveBeenCalledWith(
+          expect.anything(),
+          'payment-1',
+          'CHAPA_REFUND_RECEIVED',
+          expect.objectContaining({
+            fromStatus: status,
+            toStatus: status,
+          }),
+        );
+        expect(transition).not.toHaveBeenCalled();
+        expect(finalizeApproval).not.toHaveBeenCalled();
+        expect(updateMany).toHaveBeenCalledWith({
+          where: { id: 'payment-1' },
+          data: expect.objectContaining({
+            chapaRef: 'chapa-refund-1',
+            verification: expect.objectContaining({
+              source: 'chapa',
+              exception: true,
+              decision: 'REVIEW',
+            }),
+          }),
+        });
+      },
+    );
+
+    it.each(['PENDING', 'EXPIRED', 'CANCELLED', 'REJECTED'] as const)(
+      'flags a reversal on a %s row and stamps the gateway reference',
+      async (status) => {
+        findUnique.mockResolvedValue({
+          id: 'payment-1',
+          status,
+          verification: null,
+          chapaRef: null,
+        });
+        const { body, signatures } = signed({
+          event: 'charge.reversed',
+          status: 'reversed',
+          tx_ref: 'lm-payment-1',
+          reference: 'chapa-reversal-1',
+        });
+
+        await expect(
+          service.handleWebhook(body, signatures),
+        ).resolves.toEqual({ received: true });
+
+        expect(recordEvent).toHaveBeenCalledWith(
+          expect.anything(),
+          'payment-1',
+          'CHAPA_REVERSAL_RECEIVED',
+          expect.objectContaining({ fromStatus: status, toStatus: status }),
+        );
+        expect(updateMany).toHaveBeenCalledWith({
+          where: { id: 'payment-1' },
+          data: expect.objectContaining({
+            chapaRef: 'chapa-reversal-1',
+            verification: expect.objectContaining({ exception: true }),
+          }),
+        });
+      },
+    );
+
+    it('does not overwrite an existing gateway reference with the refund reference', async () => {
+      findUnique.mockResolvedValue({
+        id: 'payment-1',
+        status: 'PENDING',
+        verification: null,
+        chapaRef: 'chapa-checkout-reference',
+      });
+      const { body, signatures } = signed({
+        event: 'charge.refunded',
+        status: 'refunded',
+        tx_ref: 'lm-payment-1',
+        reference: 'chapa-refund-1',
+      });
+
+      await service.handleWebhook(body, signatures);
+
+      const write = updateMany.mock.calls.find(
+        (call) => call[0]?.where?.id === 'payment-1',
+      );
+      expect(write?.[0].data).not.toHaveProperty('chapaRef');
+      expect(write?.[0].data.verification).toMatchObject({ exception: true });
     });
 
     it('records a reversal on an APPROVED payment and flags an admin exception', async () => {
