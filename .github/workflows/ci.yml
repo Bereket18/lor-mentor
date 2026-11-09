@@ -110,8 +110,6 @@ jobs:
     name: Web (lint, typecheck, unit, build)
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      NEXT_PUBLIC_API_URL: https://api.example.com
     steps:
       - uses: actions/checkout@v4
 
@@ -131,16 +129,22 @@ jobs:
       # without running a full production build.
       - name: Generate route types
         working-directory: apps/web
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.com
         run: npx next typegen
 
       - name: Typecheck
         working-directory: apps/web
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.com
         run: npx tsc -p tsconfig.json --noEmit
 
       - name: Unit tests
         run: npm run test:unit --workspace=apps/web
 
       - name: Build web
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.com
         run: npm run build:web
 
   # ── Anatomy model validators ──────────────────────────────────────
