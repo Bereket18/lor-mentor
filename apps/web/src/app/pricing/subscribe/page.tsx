@@ -19,6 +19,7 @@ import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
+import { paymentUnderReviewMessage } from "@/lib/payment-confirmation";
 
 interface Plan {
   id: string;
@@ -84,9 +85,9 @@ function SubscribeContent() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
-  const [successKind, setSuccessKind] = useState<"review" | "approved">(
-    "review",
-  );
+  const [successKind, setSuccessKind] = useState<
+    "review" | "approved" | "online-review"
+  >("review");
   const [file, setFile] = useState<File | null>(null);
 
   // Bank-transfer sub-mode: verify a reference (instant) or upload an image.
@@ -183,6 +184,20 @@ function SubscribeContent() {
         // gateway: approved through the normal path, no new checkout.
         toast.success(res.data.message ?? "Your payment is approved.");
         router.push("/profile");
+        return;
+      }
+      if (res.data?.review) {
+        // Lazy resolution found the previous checkout already paid by the
+        // gateway, but the payment cannot be approved automatically (a
+        // mismatch or a terminal row). Show the fixed review sentence — never
+        // a success and never a "not charged" failure.
+        setResultMessage(
+          paymentUnderReviewMessage(
+            typeof res.data.txRef === "string" ? res.data.txRef : "your payment",
+          ),
+        );
+        setSuccessKind("online-review");
+        setSuccess(true);
         return;
       }
       // Hand off to Chapa's hosted checkout page (fresh or resumed checkout).
@@ -404,12 +419,17 @@ function SubscribeContent() {
 
   if (success) {
     const approved = successKind === "approved";
+    const heading = approved
+      ? "Payment verified"
+      : successKind === "online-review"
+        ? "Payment received"
+        : "Receipt submitted";
     return (
       <div className="min-h-screen bg-base flex items-center justify-center p-6">
         <div className="max-w-md w-full text-center">
           <CheckCircle2 className="h-12 w-12 text-green-400 mx-auto mb-4" />
           <h1 className="font-display text-2xl font-semibold text-primary mb-2">
-            {approved ? "Payment verified" : "Receipt submitted"}
+            {heading}
           </h1>
           <p className="text-sm text-secondary mb-6">
             {approved ? (

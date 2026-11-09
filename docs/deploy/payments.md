@@ -208,23 +208,28 @@ student's next download simply works. A regeneration writes
 row). If the rewrite fails too, the student gets a clear "try again" rather than
 a silent missing file.
 
-**A confirmed payment that is not approved yet.** When Chapa verifies an exact
-payment but the row cannot be approved in the same pass (the claim was lost to a
-concurrent cancel, or the row moved to a non-approvable state), both
+**A confirmed payment that cannot be approved.** When Chapa verifies an exact
+payment but the row cannot be approved in the same pass (the row was rejected or
+reversed, or the approval claim was lost to a concurrent writer), both
 `GET /payments/chapa/callback` and `GET /payments/chapa/verify/:txRef` answer
-with `confirmationPending: true` and a `message` that tells the student to wait
-and **not to pay again** — never a success screen and never a stale row status.
-The API also writes `CHAPA_VERIFY_NOT_APPROVED` and sets
-`verification.exception = true` so the payment shows up in the admin *Exceptions*
-tab, and the webhook answers `5xx` so Chapa redelivers and completes it. Because
-that retry is expected and can repeat for hours, the event is recorded at most
-once per `tx_ref` in any 10-minute window; later redeliveries in the window
-return the same pending answer without another ledger row or flag write. An
-*unreachable or timed-out* verify also reports `confirmationPending` (the student
-must still wait) but records nothing: no money was confirmed, so the admin queue
-is not spammed. The profile page polls the same endpoint for the student's own
-unresolved Chapa payments and shows the message; the callback page keeps polling
-before showing it, because the next redelivery usually finishes the approval.
+with `moneyVerified: true`, `underReview: true` and a `message` containing the
+fixed sentence *"We have received your payment. It is under review and any
+refund will be handled by the college. Reference &lt;payment reference&gt;."* —
+never a success screen, never a stale row status, and **never** "you were not
+charged". The API writes `CHAPA_VERIFY_NOT_APPROVED` (or
+`CHAPA_LATE_PAYMENT_TERMINAL` for a closed row) and sets
+`verification.exception = true` under a status guard, so the payment shows up in
+the admin *Exceptions* tab, and the webhook answers `200` — verified money is
+durable, so Chapa must not be asked to retry it. Only a verify call that could
+not reach the gateway yields `RETRY` / `5xx`, because no money was confirmed.
+Because Chapa can redeliver, each of these exception events is recorded at most
+once per `tx_ref` in any 10-minute window, and a deduplicated redelivery writes
+neither a ledger row nor a second flag. An *unreachable or timed-out* verify
+reports `confirmationPending` (the student must still wait) but records no
+exception: no money was confirmed, so the admin queue is not spammed. The
+profile page polls the same endpoint for the student's own unresolved Chapa
+payments and shows the message; the callback page keeps polling before showing
+it, because the next redelivery usually finishes the approval.
 
 **Rate limiting is per user, per tx_ref and per IP — deliberately.**
 Authenticated payment routes (`POST /payments/chapa/initialize`,
@@ -257,13 +262,17 @@ changes in 30 minutes, contact support and quote reference &lt;payment
 reference&gt;."* — never a failure or error screen, because the money was
 confirmed. The reference is the checkout's `tx_ref`.
 
-**Mismatches and failed attempts.** A mismatch keeps the payment `PENDING`,
-writes `CHAPA_VERIFY_MISMATCH`, and flags an admin-queue exception — never an
-auto-approval and never a customer-facing amount message. A verify call that
-reports `failed`/`cancelled` **once is not terminal**: Chapa's documentation
-does not define what verify returns between attempts, and the customer may
-retry inside the retry window, so the API records `CHAPA_ATTEMPT_FAILED` with
-the reported status and keeps the payment `PENDING`. It is not rejected.
+**Mismatches and failed attempts.** Inexact verified money (a wrong `tx_ref`,
+currency, amount or mode) is never auto-approved **on any status** — including
+`REJECTED`, `REVERSED`, `EXPIRED` and `CANCELLED`. It writes
+`CHAPA_VERIFY_MISMATCH`, sets `verification.exception = true` and stamps
+`chapaRef` when present, so an under/overpayment or a live-vs-test mode anomaly
+is visible in the admin *Exceptions* tab; the row's status is not changed and no
+customer-facing amount message is shown. A verify call that reports
+`failed`/`cancelled` **once is not terminal**: Chapa's documentation does not
+define what verify returns between attempts, and the customer may retry inside
+the retry window, so the API records `CHAPA_ATTEMPT_FAILED` with the reported
+status and leaves the row as it is. It is not rejected.
 
 **Retry window and cancellation.** A `PENDING` checkout younger than
 `CHAPA_RETRY_WINDOW_MINUTES` (default 60, matching the dashboard) is still
@@ -278,10 +287,12 @@ cancel-at-Chapa check before the local `PENDING → CANCELLED` transition.
 
 **Cancel racing a paid webhook.** A cancel that lands in the same instant Chapa
 confirms the money moved must never win silently. The approval path re-reads the
-row and revives a `CANCELLED`/`EXPIRED` checkout (see "Late payments" below), and
-if it still cannot claim the row the webhook answers `5xx` so Chapa redelivers.
-The student's cancel therefore either completes before the money arrives or is
-reported back as already-paid — the payment is never dropped.
+row and revives a `CANCELLED`/`EXPIRED` checkout (see "Late payments" below).
+If it still cannot claim the row, the verified money is recorded as an admin
+exception instead of being dropped, and the webhook answers `200`. The student's
+cancel therefore either completes before the money arrives or is reported back
+as already-paid/under review — the payment is never dropped and Chapa is never
+asked to retry money that already moved.
 
 **Late payments after a closed checkout.** `EXPIRED → APPROVED` and
 `CANCELLED → APPROVED` are allowed **only** through verified gateway paths
@@ -292,7 +303,9 @@ expired/cancelled" badge in the admin queue. Admin manual approval can never
 reopen a closed row. `REJECTED` and `REVERSED` stay terminal; a late exact
 payment on either records `CHAPA_LATE_PAYMENT_TERMINAL`, **stamps `chapaRef`**
 and sets `verification.exception = true` so the money is admin-visible and
-refundable.
+refundable. The same rule covers **inexact** money on any terminal row: it
+records `CHAPA_VERIFY_MISMATCH` and the exception flag rather than being
+discarded because the row was already closed.
 
 **The admin queue never hides verified money.** A Chapa row created before the
 student paid has no `chapaRef`; those unconfirmed attempts (`PENDING`, or a
@@ -303,8 +316,9 @@ Chapa has confirmed it (`chapaRef` stamped), it carries a review exception, or
 its status is not an unconfirmed attempt. The *Exceptions* tab
 (`GET /payments/admin?exceptions=true`) lists every payment with
 `verification.exception = true` regardless of status or method — a reported
-refund, a late payment on a terminal row, an under/overpayment — with its own
-count, so a row needing a human can never be missed.
+refund, a late payment on a terminal row, an under/overpayment — plus any row
+with a `CHAPA_LIFECYCLE_UNVERIFIED` or `CHAPA_VERIFY_MISMATCH` event, with its
+own count, so a row needing a human can never be missed.
 
 **Admin reversal and concurrent approvals.** An admin reversal only cancels the
 subscription when it is the student's last `APPROVED` payment. That count and
@@ -358,6 +372,42 @@ event id it is treated as a replay of the most recent event of that kind, since
 Chapa repeats the body verbatim. A genuinely different refund (a different
 `reference`) is still recorded, and a reversal is never mistaken for an earlier
 refund. Unverified events are deduplicated the same way.
+
+The exception annotations are deduplicated by `tx_ref`, not by Chapa's event id:
+`CHAPA_LATE_PAYMENT_TERMINAL` and `CHAPA_VERIFY_MISMATCH` are recorded at most
+once per payment and `tx_ref` in a rolling 10-minute window. The check and the
+write run in one transaction under a per-payment advisory lock
+(`pg_advisory_xact_lock`), so two simultaneous redeliveries cannot both insert
+a row; when the event already exists the whole annotation is skipped — no
+second ledger row and no second JSON merge.
+
+**One decision function for verified gateway money.** Every path that learns
+Chapa has taken money — the webhook, the browser callback, the verify endpoint
+and lazy resolution at `POST /payments/chapa/initialize` — calls
+`ChapaService.processVerifiedGatewayPayment(payment, verifyResult, source)`.
+It is the only code allowed to call `PaymentsService.finalizeApproval` for
+gateway money, and its outcome is total:
+
+| Outcome | Meaning |
+| --- | --- |
+| `APPROVED` | Exact verified money; row approved, subscription and receipt written. |
+| `ALREADY_APPROVED` | The row was already approved / the gateway reference matches. |
+| `RECOVERED_LATE` | An `EXPIRED`/`CANCELLED` checkout revived by exact verified money. |
+| `EXCEPTION_RECORDED` | Verified money that cannot be approved now (terminal row, lost claim, inexact amount/currency/tx_ref). The row is stamped with `chapaRef`, flagged `verification.exception = true` under a status guard, given a ledger event and shown in the admin queue + *Exceptions* tab. |
+| `RETRY` | **Only** when the verify call itself could not reach Chapa (no money evidence). The webhook answers `5xx`; browser endpoints report the pending-confirmation message. |
+| `NOT_PAID` | Chapa did not verify money; the row is left unchanged apart from the attempt event. |
+
+The invariant is: *if Chapa verified money, the money is never silently lost and
+never reported as a transient retry.* It is enforced by an exhaustive
+table-driven test on a real disposable PostgreSQL database
+(`apps/api/src/modules/payments/payments.gateway.matrix.spec.ts`): 6 row
+statuses × 5 verify outcomes (exact, underpaid, currency mismatch, not paid,
+unreachable) × 4 entry points (webhook, callback, verify, lazy) × 5
+interferences (none, redelivery, concurrent reject/cancel/approve) = **600
+combinations**, asserted in one pass and reported as
+`gateway-money matrix: ran 600/600 combinations`. It runs only when
+`PAYMENTS_RACE_DATABASE_URL` points at a disposable database with migrations
+applied (or `CI=true` + `DATABASE_URL`), so it can never touch production data.
 
 ### 1.6.1 Operational requirements for the rate limits
 

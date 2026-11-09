@@ -17,3 +17,22 @@ export function confirmationEndStateMessage(reference: string): string {
     `reference ${reference}.`
   );
 }
+
+/**
+ * The one sentence shown when the gateway confirmed money but the payment
+ * cannot be approved automatically (a terminal row, an amount/currency/tx_ref
+ * mismatch, or a lost claim). The wording is fixed by the owner:
+ *
+ *   We have received your payment. It is under review and any refund will be
+ *   handled by the college. Reference <payment reference>.
+ *
+ * It must never read as a failure — the money was taken — and it must always
+ * name the reference support will ask for. The API renders the identical
+ * sentence server-side (`chapaUnderReviewMessage`) so the two cannot drift.
+ */
+export function paymentUnderReviewMessage(reference: string): string {
+  return (
+    "We have received your payment. It is under review and any refund " +
+    `will be handled by the college. Reference ${reference}.`
+  );
+}

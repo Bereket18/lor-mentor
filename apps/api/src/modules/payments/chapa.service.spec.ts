@@ -54,7 +54,16 @@ describe('ChapaService', () => {
     recordEvent,
   } as unknown as PaymentStateMachine;
 
-  const tx = { payment: { updateMany } };
+  // The advisory locks (F5/F6) and the transactional dedupe lookups run on the
+  // transaction client, so the shared `tx` stands in for both the $transaction
+  // callback client and the state machine's client.
+  const txExecuteRaw = jest.fn().mockResolvedValue(1);
+  const eventFindFirst = jest.fn();
+  const tx = {
+    payment: { updateMany },
+    paymentEvent: { findFirst: eventFindFirst, findMany: findEvents },
+    $executeRaw: txExecuteRaw,
+  };
   const prisma = {
     subscriptionPlan: { findUnique: findPlan },
     payment: { findUnique, findFirst, create, update, updateMany },
@@ -94,10 +103,17 @@ describe('ChapaService', () => {
     update.mockReset().mockResolvedValue({});
     updateMany.mockReset().mockResolvedValue({ count: 1 });
     findEvents.mockReset().mockResolvedValue([]);
+    eventFindFirst.mockReset().mockResolvedValue(null);
+    txExecuteRaw.mockReset().mockResolvedValue(1);
     transition.mockReset().mockResolvedValue(true);
     recordEvent.mockReset().mockResolvedValue(undefined);
     assertNoActiveSubscription.mockReset();
-    finalizeApproval.mockReset();
+    finalizeApproval
+      .mockReset()
+      .mockResolvedValue({
+        message: 'Payment approved and subscription activated',
+        receiptNumber: 'LM-0001',
+      });
     rejectPayment.mockReset().mockResolvedValue({ message: 'Payment rejected' });
     cancelOwn.mockReset().mockResolvedValue({ message: 'Payment cancelled' });
     jest.restoreAllMocks();
@@ -493,7 +509,7 @@ describe('ChapaService', () => {
       expect.anything(),
       'payment-1',
       'CHAPA_VERIFY_UNREACHABLE',
-      expect.objectContaining({ meta: { error: 'TimeoutError' } }),
+      expect.objectContaining({ meta: expect.objectContaining({ error: 'TimeoutError' }) }),
     );
   });
 
@@ -703,7 +719,7 @@ describe('ChapaService', () => {
     // Without this write the admin queue hides a CHAPA/REJECTED row with no
     // chapaRef entirely: the money would appear nowhere.
     expect(updateMany).toHaveBeenCalledWith({
-      where: { id: 'payment-1' },
+      where: { id: 'payment-1', status: 'REJECTED' },
       data: expect.objectContaining({
         chapaRef: 'chapa-reference',
         verification: expect.objectContaining({
@@ -760,7 +776,7 @@ describe('ChapaService', () => {
     // The gateway reference and the review exception are the two signals the
     // admin queue keys on; without them the money is invisible.
     expect(updateMany).toHaveBeenCalledWith({
-      where: { id: 'payment-1' },
+      where: { id: 'payment-1', status: 'REJECTED' },
       data: expect.objectContaining({
         chapaRef: 'chapa-reference',
         verification: expect.objectContaining({
@@ -799,11 +815,13 @@ describe('ChapaService', () => {
             receiptNumber: null,
           })
           .mockResolvedValueOnce(confirmRow)
-          .mockResolvedValueOnce(freshRow);
+          .mockResolvedValueOnce(freshRow) // reload after the lost claim
+          .mockResolvedValueOnce(freshRow); // paymentState re-read
       } else {
         findUnique
           .mockResolvedValueOnce(confirmRow)
-          .mockResolvedValueOnce(freshRow);
+          .mockResolvedValueOnce(freshRow) // reload after the lost claim
+          .mockResolvedValueOnce(freshRow); // paymentState re-read
       }
       finalizeApproval.mockReset().mockResolvedValue({
         message: 'Payment is CANCELLED',
@@ -825,7 +843,7 @@ describe('ChapaService', () => {
       const body = Buffer.from('{"tx_ref":"lm-payment-1"}');
       await expect(
         service.handleWebhook(body, { payloadSignature: signPayload(body) }),
-      ).rejects.toBeInstanceOf(ServiceUnavailableException);
+      ).resolves.toEqual({ received: true });
 
       expect(recordEvent).toHaveBeenCalledWith(
         expect.anything(),
@@ -838,7 +856,7 @@ describe('ChapaService', () => {
       );
       // Money is real: the row must be visible to an admin.
       expect(updateMany).toHaveBeenCalledWith({
-        where: { id: 'payment-1', status: { not: 'APPROVED' } },
+        where: { id: 'payment-1', status: 'CANCELLED' },
         data: expect.objectContaining({
           verification: expect.objectContaining({
             exception: true,
@@ -853,28 +871,25 @@ describe('ChapaService', () => {
       jest.setSystemTime(now);
       try {
         mockVerifiedButUnapproved('callback');
-        findEvents.mockResolvedValueOnce([
-          {
-            meta: { txRef: 'lm-payment-1' },
-            createdAt: new Date(now.getTime() - 60_000),
-          },
-        ]);
+        // A recent identical event already exists for this tx_ref.
+        eventFindFirst.mockResolvedValueOnce({ id: 'event-1' });
         recordEvent.mockClear();
         updateMany.mockClear();
 
         const body = Buffer.from('{"tx_ref":"lm-payment-1"}');
         await expect(
           service.handleWebhook(body, { payloadSignature: signPayload(body) }),
-        ).rejects.toBeInstanceOf(ServiceUnavailableException);
+        ).resolves.toEqual({ received: true });
 
-        // The lookup is scoped to this payment, this event type and the last
-        // ten minutes, so a redelivery inside the window is a no-op.
-        expect(findEvents).toHaveBeenCalledWith(
+        // The lookup is scoped to this payment, this event type, the last ten
+        // minutes and this tx_ref, so a redelivery inside the window is a no-op.
+        expect(eventFindFirst).toHaveBeenCalledWith(
           expect.objectContaining({
             where: {
               paymentId: 'payment-1',
               type: 'CHAPA_VERIFY_NOT_APPROVED',
               createdAt: { gte: new Date(now.getTime() - 10 * 60 * 1000) },
+              meta: { path: ['txRef'], equals: 'lm-payment-1' },
             },
           }),
         );
@@ -887,17 +902,13 @@ describe('ChapaService', () => {
 
     it('does not deduplicate a CHAPA_VERIFY_NOT_APPROVED event for a different tx_ref', async () => {
       mockVerifiedButUnapproved('callback');
-      findEvents.mockResolvedValueOnce([
-        {
-          meta: { txRef: 'lm-some-other-payment' },
-          createdAt: new Date(),
-        },
-      ]);
+      // No prior event for THIS tx_ref, so a fresh row is written.
+      eventFindFirst.mockResolvedValueOnce(null);
 
       const body = Buffer.from('{"tx_ref":"lm-payment-1"}');
       await expect(
         service.handleWebhook(body, { payloadSignature: signPayload(body) }),
-      ).rejects.toBeInstanceOf(ServiceUnavailableException);
+      ).resolves.toEqual({ received: true });
 
       expect(recordEvent).toHaveBeenCalledWith(
         expect.anything(),
@@ -907,7 +918,7 @@ describe('ChapaService', () => {
       );
     });
 
-    it('the browser verify endpoint says the confirmation is pending instead of a stale status', async () => {
+    it('the browser verify endpoint reports verified money under review instead of a stale status', async () => {
       mockVerifiedButUnapproved('verify');
 
       const result = await service.verifyByTxRef('lm-payment-1', 'student-1');
@@ -916,12 +927,18 @@ describe('ChapaService', () => {
         paymentId: 'payment-1',
         status: 'CANCELLED',
         confirmationPending: true,
+        underReview: true,
+        moneyVerified: true,
       });
-      // The message the UI shows must tell the student not to pay again.
-      expect(result.message).toMatch(/do not pay again/i);
+      // The owner-fixed sentence: the money is with us and a human will handle
+      // any refund — never a "not charged" failure.
+      expect(result.message).toBe(
+        'We have received your payment. It is under review and any refund ' +
+          'will be handled by the college. Reference lm-payment-1.',
+      );
     });
 
-    it('the browser callback endpoint reports the same pending confirmation', async () => {
+    it('the browser callback endpoint reports the same review state', async () => {
       mockVerifiedButUnapproved('callback');
 
       const result = await service.handleCallback('lm-payment-1');
@@ -930,8 +947,13 @@ describe('ChapaService', () => {
         paymentId: 'payment-1',
         status: 'CANCELLED',
         confirmationPending: true,
+        underReview: true,
+        moneyVerified: true,
       });
-      expect(result.message).toMatch(/do not pay again/i);
+      expect(result.message).toBe(
+        'We have received your payment. It is under review and any refund ' +
+          'will be handled by the college. Reference lm-payment-1.',
+      );
     });
 
     it('does not flag an exception when Chapa itself could not be reached', async () => {
@@ -1249,10 +1271,10 @@ describe('ChapaService', () => {
       ).rejects.toBeInstanceOf(ServiceUnavailableException);
     });
 
-    it('returns 5xx when the row moved and could not be claimed (never a false 200)', async () => {
+    it('returns 200 when the money is real but the row moved (flagged for review, no false retry)', async () => {
       // The money is real, but a concurrent cancel closed the row before the
-      // approval could claim it. A false 200 would lose the event for good, so
-      // ask Chapa to redeliver; the retry re-verifies and revives it.
+      // approval could claim it. Verified money never triggers a retry: the
+      // row is flagged for admin review and the webhook is acknowledged.
       findUnique.mockResolvedValue({
         id: 'payment-1',
         status: 'PENDING',
@@ -1274,7 +1296,7 @@ describe('ChapaService', () => {
 
       await expect(
         service.handleWebhook(body, signatures),
-      ).rejects.toBeInstanceOf(ServiceUnavailableException);
+      ).resolves.toEqual({ received: true });
     });
 
     it('returns 200 for a mismatch (durably recorded, manual review)', async () => {
@@ -2191,6 +2213,9 @@ describe('ChapaService', () => {
     beforeEach(() => {
       findPlan.mockResolvedValue(plan);
       create.mockResolvedValue({ id: 'new-payment' });
+      // Lazy resolution re-reads the existing row by tx_ref before deciding
+      // (the single gateway-money function owns that read).
+      findUnique.mockResolvedValue(pendingChapa());
     });
 
     it('expires an abandoned checkout (>60 min, Chapa unpaid and cancel confirmed) via PAYMENT_EXPIRED and starts a fresh one', async () => {
@@ -2327,7 +2352,10 @@ describe('ChapaService', () => {
         'old-payment',
         'CHAPA_VERIFY_UNREACHABLE',
         expect.objectContaining({
-          meta: expect.objectContaining({ context: 'initialize-retry' }),
+          meta: expect.objectContaining({
+            source: 'lazy-resolution',
+            error: 'Error',
+          }),
         }),
       );
     });

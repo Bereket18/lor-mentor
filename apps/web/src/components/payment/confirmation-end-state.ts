@@ -1,5 +1,8 @@
 import { createElement, type ReactElement } from "react";
-import { confirmationEndStateMessage } from "../../lib/payment-confirmation";
+import {
+  confirmationEndStateMessage,
+  paymentUnderReviewMessage,
+} from "../../lib/payment-confirmation";
 
 /**
  * Renders the one definitive sentence a student sees after the polling window
@@ -20,5 +23,25 @@ export function ConfirmationEndStateMessage({
     "p",
     { className: className ?? "text-sm text-secondary" },
     confirmationEndStateMessage(reference),
+  );
+}
+
+/**
+ * Renders the fixed "payment received, under review" sentence for a payment
+ * whose money the gateway confirmed but which cannot be approved automatically.
+ * JSX-free for the same reason as above, so the unit suite can assert the
+ * exact wording the student sees.
+ */
+export function PaymentUnderReviewMessage({
+  reference,
+  className,
+}: {
+  reference: string;
+  className?: string;
+}): ReactElement {
+  return createElement(
+    "p",
+    { className: className ?? "text-sm text-secondary" },
+    paymentUnderReviewMessage(reference),
   );
 }

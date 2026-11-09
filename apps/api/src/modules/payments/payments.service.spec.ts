@@ -212,12 +212,14 @@ describe('PaymentsService bank verification security', () => {
 
   // The Exceptions tab: every row flagged for review, plus every row that
   // received a gateway event we could not body-verify (a static-signature
-  // refund/reversal is recorded but not trusted), so an admin sees how much
-  // unverified gateway traffic exists without it touching the row's state.
+  // refund/reversal is recorded but not trusted), plus every row with a
+  // verify-mismatch event, so an admin sees how much unverified or inexact
+  // gateway traffic exists without it touching the row's state.
   const EXCEPTIONS_SCOPE = {
     OR: [
       { verification: { path: ['exception'], equals: true } },
       { events: { some: { type: 'CHAPA_LIFECYCLE_UNVERIFIED' } } },
+      { events: { some: { type: 'CHAPA_VERIFY_MISMATCH' } } },
     ],
   };
 
