@@ -35,6 +35,11 @@ export const LOADED_TEACHING_TEXT_SYSTEMS = new Set([
   "digestive-upper",
   "digestive-lower",
   "digestive-liver",
+  "nervous-left",
+  "nervous-right",
+  "sensory-eye-right",
+  "sensory-eye-left",
+  "digestive-hepatobiliary",
 ]);
 
 export const TEACHING_TEXT_FIELDS = [

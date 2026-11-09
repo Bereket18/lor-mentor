@@ -75,31 +75,42 @@ const BATCH_ONE_LOADED_SYSTEMS = [
   "digestive-upper",
   "digestive-lower",
   "digestive-liver",
-];
-
-const EMPTY_GENERATED_SYSTEMS = [
-  "digestive-hepatobiliary",
   "nervous-left",
   "nervous-right",
-  "sensory-eye-left",
   "sensory-eye-right",
+  "sensory-eye-left",
+  "digestive-hepatobiliary",
 ];
 
+// Every generated system now carries loaded teaching text, so no generated
+// system is left as an empty-text draft. The list is kept so the empty-text
+// rule is still asserted should a future system be added or unloaded.
+const EMPTY_GENERATED_SYSTEMS = [];
+
+// The full generated set (sixteen modules). The loaded and empty sets must
+// always partition it.
+const GENERATED_SYSTEMS = ["respiratory", ...BATCH_ONE_LOADED_SYSTEMS];
+
+// A slug that is deliberately not in LOADED_TEACHING_TEXT_SYSTEMS, standing in
+// for any future system that is not yet loaded.
+const UNLOADED_SYSTEM = "unloaded-system";
+
 describe("loaded-teaching-text set", () => {
-  test("includes respiratory and every batch-1 system", () => {
+  test("includes respiratory and every loaded generated system", () => {
     for (const slug of ["respiratory", ...BATCH_ONE_LOADED_SYSTEMS]) {
       assert.ok(
         LOADED_TEACHING_TEXT_SYSTEMS.has(slug),
         `${slug} should be in LOADED_TEACHING_TEXT_SYSTEMS`,
       );
     }
-    assert.equal(LOADED_TEACHING_TEXT_SYSTEMS.size, 11);
+    assert.equal(LOADED_TEACHING_TEXT_SYSTEMS.size, 16);
   });
 
   test("recognises loaded and unloaded systems", () => {
     assert.equal(isLoadedTeachingTextSystem("respiratory"), true);
     assert.equal(isLoadedTeachingTextSystem("nervous-central"), true);
-    assert.equal(isLoadedTeachingTextSystem("nervous-left"), false);
+    assert.equal(isLoadedTeachingTextSystem("nervous-left"), true);
+    assert.equal(isLoadedTeachingTextSystem(UNLOADED_SYSTEM), false);
   });
 });
 
@@ -110,10 +121,10 @@ describe("empty-text validator guard", () => {
   });
 
   test("is still emitted for a non-loaded system", () => {
-    const lines = emptyTeachingTextGuardLines("nervous-left");
+    const lines = emptyTeachingTextGuardLines(UNLOADED_SYSTEM);
     assert.equal(lines.length, 3);
     assert.match(lines.join("\n"), /must not contain teaching text/);
-    assert.equal(shouldEmitEmptyTeachingTextGuard("nervous-left"), true);
+    assert.equal(shouldEmitEmptyTeachingTextGuard(UNLOADED_SYSTEM), true);
   });
 
   test("loads a different loaded-systems set when one is supplied", () => {
@@ -218,7 +229,7 @@ describe("preservedCuratedText", () => {
     const bySlug = extractCuratedText(
       seedModule({ slug: "trachea", summary: "Loaded" }),
     );
-    assert.equal(preservedCuratedText("nervous-left", bySlug), null);
+    assert.equal(preservedCuratedText(UNLOADED_SYSTEM, bySlug), null);
   });
 });
 
@@ -230,17 +241,17 @@ describe("assertRegenerationSafe", () => {
     assert.throws(
       () =>
         assertRegenerationSafe({
-          slug: "nervous-left",
+          slug: UNLOADED_SYSTEM,
           existingBySlug,
-          dataPath: "anatomy-nervous-left.data.ts",
+          dataPath: `anatomy-${UNLOADED_SYSTEM}.data.ts`,
         }),
       (error) => {
         assert.match(
           error.message,
           /Refusing to overwrite curated teaching text/,
         );
-        assert.match(error.message, /anatomy-nervous-left\.data\.ts/);
-        assert.match(error.message, /"nervous-left"/);
+        assert.match(error.message, /anatomy-unloaded-system\.data\.ts/);
+        assert.match(error.message, /"unloaded-system"/);
         assert.match(error.message, /trachea/);
         assert.match(error.message, /LOADED_TEACHING_TEXT_SYSTEMS/);
         return true;
@@ -260,7 +271,7 @@ describe("assertRegenerationSafe", () => {
   test("allows a non-loaded system whose draft is empty", () => {
     const existingBySlug = extractCuratedText(seedModule({ slug: "trachea" }));
     assert.doesNotThrow(() =>
-      assertRegenerationSafe({ slug: "nervous-left", existingBySlug }),
+      assertRegenerationSafe({ slug: UNLOADED_SYSTEM, existingBySlug }),
     );
   });
 });
@@ -279,7 +290,7 @@ describe("seed header and description", () => {
 
   test("unloaded header still says the text is empty", () => {
     assert.match(
-      teachingTextHeaderLines("nervous-left").join("\n"),
+      teachingTextHeaderLines(UNLOADED_SYSTEM).join("\n"),
       /intentionally empty/,
     );
   });
@@ -290,7 +301,7 @@ describe("seed header and description", () => {
       /Teaching notes are an AI draft pending faculty review/,
     );
     assert.match(
-      systemTeachingDescription("Nervous system", "nervous-left"),
+      systemTeachingDescription("Example system", UNLOADED_SYSTEM),
       /Teaching notes are empty pending faculty review/,
     );
   });
@@ -309,6 +320,11 @@ describe("real generated seed modules", () => {
     ["digestive-upper", 12],
     ["digestive-lower", 19],
     ["digestive-liver", 8],
+    ["nervous-left", 21],
+    ["nervous-right", 21],
+    ["sensory-eye-right", 21],
+    ["sensory-eye-left", 22],
+    ["digestive-hepatobiliary", 48],
   ]);
 
   test("the loaded set is exactly the fully curated systems", () => {
@@ -372,16 +388,28 @@ describe("real generated seed modules", () => {
     }
   });
 
-  test("every unloaded generated system is still an empty draft", () => {
-    for (const slug of EMPTY_GENERATED_SYSTEMS) {
-      const path = seedPath(slug);
-      const bySlug = extractCuratedText(readFileSync(path, "utf8"), path);
-      assert.deepEqual(
-        structuresWithCuratedContent(bySlug),
-        [],
-        `${slug} should have no curated teaching text`,
-      );
-    }
+  test("every generated system is loaded, so none is left as an empty draft", () => {
+    // All sixteen generated systems now carry loaded teaching text.
+    assert.deepEqual(EMPTY_GENERATED_SYSTEMS, []);
+
+    // The loaded seed files and the (now empty) unloaded list must partition
+    // the full generated set: no generated system may be unaccounted for.
+    assert.deepEqual(
+      [...loadedCounts.keys(), ...EMPTY_GENERATED_SYSTEMS].sort(),
+      [...GENERATED_SYSTEMS].sort(),
+    );
+
+    // A system outside the loaded list is still required to be empty: the
+    // helper reports it as unloaded and still emits the empty-text guard.
+    assert.equal(isLoadedTeachingTextSystem(UNLOADED_SYSTEM), false);
+    assert.equal(shouldEmitEmptyTeachingTextGuard(UNLOADED_SYSTEM), true);
+    const path = seedPath(UNLOADED_SYSTEM);
+    assert.equal(
+      structuresWithCuratedContent(
+        extractCuratedText(seedModule({ slug: "trachea" }), path),
+      ).length,
+      0,
+    );
   });
 });
 
