@@ -12,30 +12,45 @@ export class MailService {
 
   constructor(private readonly config: ConfigService) {}
 
-  async sendEmailVerification(to: string, verifyUrl: string): Promise<void> {
+  /**
+   * The sign-up verification email.
+   *
+   * Carries a six-digit code rather than a link. A code typed into the app
+   * never travels as a URL query parameter, which is where the old link put the
+   * secret — into browser history, referrer headers and every access log that
+   * records full request URLs.
+   *
+   * The code is the largest thing on the page and is set in a monospace face
+   * with wide letter spacing so it reads easily off a phone and copies cleanly.
+   * The copy says "code" throughout; the internal name for this value never
+   * reaches the user.
+   */
+  async sendEmailVerification(
+    to: string,
+    code: string,
+    expiresInMinutes: number,
+  ): Promise<void> {
     const appName = this.config.get<string>('APP_NAME') ?? 'Lor Mentor';
     const college =
       this.config.get<string>('COLLEGE_NAME') ?? 'Lorcan Medical College';
 
     await this.sendMail({
       to,
-      subject: `Verify your ${appName} account`,
+      subject: `Your ${appName} verification code`,
       text:
         `Welcome to ${appName}.\n\n` +
-        `Open this link to verify your email address:\n${verifyUrl}\n\n` +
-        `This link expires in 24 hours. If you did not create this account, you can ignore this email.\n\n` +
+        `Your email verification code is:\n\n    ${code}\n\n` +
+        `Enter it in the app to verify your email address and finish creating your account.\n\n` +
+        `The code expires in ${expiresInMinutes} minutes. Never share it with anyone — ${appName} staff will never ask you for it. If you did not create this account, you can ignore this email.\n\n` +
         `${college}`,
       html: `
-        <div style="font-family:Arial,sans-serif;line-height:1.5;color:#0f172a">
+        <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.5;color:#0f172a;max-width:520px">
           <h2 style="margin:0 0 12px">Verify your ${appName} account</h2>
-          <p>Welcome. Please verify your email address to finish creating your account.</p>
-          <p>
-            <a href="${verifyUrl}" style="display:inline-block;background:#147878;color:white;text-decoration:none;padding:10px 16px;border-radius:8px">
-              Verify email
-            </a>
-          </p>
-          <p style="font-size:13px;color:#64748b">This link expires in 24 hours. If you did not create this account, you can ignore this email.</p>
-          <p style="font-size:13px;color:#64748b">${college}</p>
+          <p style="margin:0 0 20px">Welcome. Enter this code in the app to verify your email address and finish creating your account.</p>
+          <div style="font-family:'Courier New',Courier,monospace;font-size:34px;font-weight:bold;letter-spacing:8px;color:#0f172a;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:10px;padding:18px 24px;text-align:center;margin:0 0 20px">${code}</div>
+          <p style="margin:0 0 8px">The code expires in ${expiresInMinutes} minutes.</p>
+          <p style="margin:0 0 20px;font-size:13px;color:#64748b">Never share this code with anyone — ${appName} staff will never ask you for it. If you did not create this account, you can ignore this email.</p>
+          <p style="margin:0;font-size:13px;color:#64748b">${college}</p>
         </div>
       `,
     });
