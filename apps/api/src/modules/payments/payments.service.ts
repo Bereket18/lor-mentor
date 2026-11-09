@@ -100,6 +100,15 @@ export class PaymentsService {
             some: { type: PaymentEventType.CHAPA_LIFECYCLE_UNVERIFIED },
           },
         },
+        // Defence in depth: a mismatch event is written in the same
+        // transaction as the exception flag, but keep the event as an
+        // independent signal so a partial write can never hide verified
+        // money from the Exceptions tab.
+        {
+          events: {
+            some: { type: PaymentEventType.CHAPA_VERIFY_MISMATCH },
+          },
+        },
       ];
     } else {
       where.OR = [

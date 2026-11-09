@@ -11,11 +11,20 @@ import {
   Download,
 } from "lucide-react";
 import api from "@/lib/api";
-import { ConfirmationEndStateMessage } from "@/components/payment/confirmation-end-state";
+import {
+  ConfirmationEndStateMessage,
+  PaymentUnderReviewMessage,
+} from "@/components/payment/confirmation-end-state";
 
 import { toast } from "sonner";
 
-type Phase = "verifying" | "approved" | "pending" | "confirmation" | "error";
+type Phase =
+  | "verifying"
+  | "approved"
+  | "pending"
+  | "confirmation"
+  | "review"
+  | "error";
 
 interface VerifyResult {
   paymentId?: string | null;
@@ -26,6 +35,13 @@ interface VerifyResult {
    * says so explicitly so we never show a success or a stale row status here.
    */
   confirmationPending?: boolean;
+  /** Chapa positively confirmed money for this reference. */
+  moneyVerified?: boolean;
+  /**
+   * Verified money that cannot be approved in this pass. The page must show
+   * the review sentence rather than a success or a "not charged" failure.
+   */
+  underReview?: boolean;
   /** The message the student must see when the confirmation is pending. */
   message?: string | null;
 }
@@ -62,6 +78,14 @@ function CallbackContent() {
           setPaymentId(data.paymentId ?? null);
           setReceiptNumber(data.receiptNumber ?? null);
           setPhase("approved");
+          return;
+        }
+        if (data.underReview) {
+          // The gateway confirmed money but the payment cannot be approved
+          // automatically (terminal row or a mismatch). Show the fixed review
+          // sentence — never a success, never a "not charged" failure — and
+          // stop polling: the state is durable and needs a human.
+          setPhase("review");
           return;
         }
         if (data.confirmationPending) {
@@ -190,6 +214,33 @@ function CallbackContent() {
           </>
         )}
 
+        {phase === "review" && (
+          <>
+            <Clock className="h-12 w-12 text-accent mx-auto mb-4" />
+            <h1 className="font-display text-2xl font-semibold text-primary mb-2">
+              Payment received
+            </h1>
+            <PaymentUnderReviewMessage
+              reference={txRef ?? "your payment"}
+              className="text-sm text-secondary mb-6"
+            />
+            <div className="flex flex-col items-center gap-3">
+              <Link
+                href="/dashboard"
+                className="inline-block bg-accent text-white rounded-xl px-6 py-3 text-sm font-medium"
+              >
+                Go to dashboard
+              </Link>
+              <Link
+                href="/profile"
+                className="text-sm text-secondary hover:text-primary transition-colors"
+              >
+                Go to your profile
+              </Link>
+            </div>
+          </>
+        )}
+
         {phase === "pending" && (
           <>
             <Clock className="h-12 w-12 text-yellow-400 mx-auto mb-4" />
@@ -218,8 +269,9 @@ function CallbackContent() {
               Payment not completed
             </h1>
             <p className="text-sm text-secondary mb-6">
-              Your payment could not be confirmed. You weren&apos;t charged, or
-              the transaction was cancelled. Please try again.
+              We couldn&apos;t confirm a completed payment for this checkout. If
+              your account was debited, contact support before trying again —
+              otherwise you can start over.
             </p>
             <div className="flex flex-col items-center gap-3">
               <Link
