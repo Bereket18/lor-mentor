@@ -339,6 +339,15 @@ export function validateEnv(
     }
   }
 
+  // Optional dedicated support mailbox. When unset, MailService falls back to
+  // SMTP_FROM's address. Validated whenever present so a typo cannot silently
+  // send every ticket notification nowhere.
+  if (typeof config.SUPPORT_EMAIL === 'string' && config.SUPPORT_EMAIL.trim()) {
+    if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(config.SUPPORT_EMAIL.trim())) {
+      errors.push('SUPPORT_EMAIL must be a valid email address');
+    }
+  }
+
   if (errors.length > 0) {
     throw new Error(
       `Invalid environment configuration:\n  - ${errors.join('\n  - ')}`,

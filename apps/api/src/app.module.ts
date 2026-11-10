@@ -30,6 +30,7 @@ import { ProgressModule } from './modules/progress/progress.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AnatomyModule } from './modules/anatomy/anatomy.module';
+import { SupportModule } from './modules/support/support.module';
 
 @Module({
   imports: [
@@ -68,6 +69,7 @@ import { AnatomyModule } from './modules/anatomy/anatomy.module';
     NotificationsModule,
     AuditModule,
     AnatomyModule,
+    SupportModule,
   ],
   controllers: [AppController],
   providers: [
