@@ -118,6 +118,27 @@ fi
 home_status="$(curl -sS -L -o /dev/null -w '%{http_code}' "$ORIGIN/" 2>/dev/null || true)"
 [ "$home_status" = 200 ] && ok "web home → 200 (after auth redirect)" || bad "web home not 200 ($home_status)"
 
+echo "10) API port is not published to the internet"
+# The API must only be reachable through nginx/TLS. docker-compose.prod.yml
+# publishes it on 127.0.0.1:4000, so a connection to <api-host>:4000 from
+# outside the host must be refused. Derive the hostname from the public API URL
+# and probe the bare port; any HTTP response means the container port leaked.
+case "$API" in
+  https://*)
+    api_authority="${API#https://}"
+    api_host="${api_authority%%/*}"
+    api_host="${api_host%%:*}"
+    if curl -s -o /dev/null --connect-timeout 3 "http://$api_host:4000/api/v1/health" 2>/dev/null; then
+      bad "API port 4000 is reachable from the internet on $api_host"
+    else
+      ok "API port 4000 is not externally reachable on $api_host"
+    fi
+    ;;
+  *)
+    echo "  ⏭  skipped (API is not https; cannot distinguish local from external)"
+    ;;
+esac
+
 echo
 echo "──────────────────────────────"
 echo "  PASS: $pass    FAIL: $fail"

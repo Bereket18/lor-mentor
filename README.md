@@ -54,7 +54,7 @@ Start here, then follow the document for your role.
 Deployment-specific guides live in [`docs/deploy/`](docs/deploy/):
 `SERVER-PREREQUISITES.md`, `NGINX-SETUP.md`, `BACKUP-RESTORE.md`,
 `GO-LIVE.md`, `RELEASE-CHECKLIST.md`, `DOCKER-READINESS.md`,
-`email-setup.md`, `chapa-production.md`, `receipt-verifier.md`.
+`email-setup.md`, `payments.md` (Chapa and bank-receipt lifecycles).
 
 ## Prerequisites (local development)
 

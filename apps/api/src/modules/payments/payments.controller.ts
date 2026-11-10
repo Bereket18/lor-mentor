@@ -17,7 +17,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Throttle } from '@nestjs/throttler';
+import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import { diskStorage } from 'multer';
 import type { Response } from 'express';
 import type { RawBodyRequest } from '@nestjs/common';
@@ -27,6 +27,8 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { UserThrottlerGuard } from '../../common/guards/user-throttler.guard';
+import { TxRefThrottlerGuard } from '../../common/guards/txref-throttler.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AuditAdmin, SkipAudit } from '../../common/decorators/audit.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -82,8 +84,16 @@ export class PaymentsController {
   @Get('admin')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
-  findAllAdmin(@Query('status') status = '', @Query('search') search = '') {
-    return this.service.findAllAdmin({ status, search });
+  findAllAdmin(
+    @Query('status') status = '',
+    @Query('search') search = '',
+    @Query('exceptions') exceptions = '',
+  ) {
+    return this.service.findAllAdmin({
+      status,
+      search,
+      exceptions: exceptions === 'true' || exceptions === '1',
+    });
   }
 
   // ── Admin: accepted payment banks ─────────────
@@ -163,9 +173,11 @@ export class PaymentsController {
   // ── MANUAL flow: upload bank receipt ──────────
   // The upload now also triggers a Cheki OCR scan (QR → bank reference), so
   // cap retries like the reference flow to stay inside the external quota.
+  // The cap is per authenticated user (not per IP): many students behind one
+  // campus NAT must not share a single bucket.
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('submit')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, UserThrottlerGuard)
   @Roles('STUDENT')
   @UseInterceptors(
     FileInterceptor('receipt', {
@@ -187,10 +199,10 @@ export class PaymentsController {
 
   // ── BANK-TRANSFER flow: verify a transaction reference ──
   // Hits an external scraper and creates a payment row, so cap retries like
-  // the Chapa entry point.
+  // the Chapa entry point — per authenticated user.
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('verify')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, UserThrottlerGuard)
   @Roles('STUDENT')
   verify(@Body() dto: VerifyReceiptDto, @CurrentUser() user: RequestUser) {
     return this.service.verifyAndSubmit(user.id, dto);
@@ -198,10 +210,10 @@ export class PaymentsController {
 
   // ── CHAPA flow: start an online payment ───────
   // Tighter limit than the global default — initializing a checkout hits an
-  // external API and creates a payment row, so cap abusive retries.
+  // external API and creates a payment row, so cap abusive retries per user.
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('chapa/initialize')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, UserThrottlerGuard)
   @Roles('STUDENT')
   initializeChapa(
     @Body() dto: InitializeChapaDto,
@@ -211,8 +223,12 @@ export class PaymentsController {
   }
 
   // Chapa calls callback_url with a GET after checkout. This endpoint does not
-  // trust callback fields; it re-verifies the transaction with Chapa.
+  // trust callback fields; it re-verifies the transaction with Chapa — that is
+  // an external call per request, and the route is public, so cap it per
+  // tx_ref (Chapa's redirect and browser retries all share one reference).
+  // The global limiter still contributes a generous per-IP abuse ceiling.
   @Get('chapa/callback')
+  @UseGuards(TxRefThrottlerGuard)
   handleChapaCallback(
     @Query('trx_ref') trxRef?: string,
     @Query('tx_ref') txRef?: string,
@@ -225,6 +241,9 @@ export class PaymentsController {
   }
 
   // ── CHAPA webhook (public; verified by HMAC signature) ──
+  // Never throttled: Chapa redelivers every ~10 minutes for up to 72 hours
+  // until it sees a 2xx, so an artificial cap could drop a payment event.
+  @SkipThrottle()
   @Post('chapa/webhook')
   @HttpCode(HttpStatus.OK)
   handleWebhook(@Req() req: RawBodyRequest<Request>) {
@@ -236,10 +255,23 @@ export class PaymentsController {
   }
 
   // ── CHAPA: confirm status from the browser callback ──
+  // Same per-user cap as the other gateway entry points: each call re-verifies
+  // with Chapa, and the page polls a couple of times before giving up.
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Get('chapa/verify/:txRef')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, UserThrottlerGuard)
   verifyChapa(@Param('txRef') txRef: string, @CurrentUser() user: RequestUser) {
     return this.chapa.verifyByTxRef(txRef, user.id);
+  }
+
+  // ── Student: cancel their own PENDING online (Chapa) payment ──
+  // The gateway is asked first (PUT /transaction/cancel); the row changes only
+  // after Chapa confirms the link is dead. Owner-checked in the service.
+  @Post(':id/cancel')
+  @UseGuards(JwtAuthGuard, UserThrottlerGuard)
+  @SkipAudit()
+  cancelMine(@Param('id') id: string, @CurrentUser() user: RequestUser) {
+    return this.chapa.cancelByStudent(id, user.id);
   }
 
   // These handlers write their own PAYMENT_* audit records with review
@@ -261,7 +293,10 @@ export class PaymentsController {
     @Body('reason') reason: string,
     @CurrentUser() user: RequestUser,
   ) {
-    return this.service.reject(id, user.id, reason);
+    // Routed through the gateway service: a PENDING Chapa checkout is closed
+    // at Chapa first, and an already-paid checkout is never rejected (the
+    // admin is pointed at the verified-payment path instead).
+    return this.chapa.rejectByAdmin(id, user.id, reason);
   }
 
   // SUPER_ADMIN only: invalidate a previously approved payment. Removes the
@@ -293,8 +328,9 @@ export class PaymentsController {
   }
 
   // ── Owner or admin: download the generated PDF receipt ──
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Get(':id/document')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, UserThrottlerGuard)
   @AuditAdmin({ read: true })
   async getDocument(
     @Param('id') id: string,
@@ -308,5 +344,18 @@ export class PaymentsController {
       `inline; filename="receipt-${id}.pdf"`,
     );
     res.sendFile(fullPath);
+  }
+
+  // ── Admin: rebuild a missing or corrupt receipt PDF ──
+  // The PDF is written after the approval commits, so a full disk or a
+  // permissions problem can leave an APPROVED payment without a file. This
+  // action rebuilds it from the payment's own snapshot (the service also
+  // repairs it automatically on the next download).
+  @Post(':id/receipt/regenerate')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @SkipAudit()
+  regenerateReceipt(@Param('id') id: string, @CurrentUser() user: RequestUser) {
+    return this.service.regenerateReceipt(id, user.id);
   }
 }

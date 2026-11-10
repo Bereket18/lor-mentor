@@ -5,6 +5,7 @@ import { ChapaService } from './chapa.service';
 import { ChekiService } from './cheki.service';
 import { ReceiptService } from './receipt.service';
 import { ReceiptVerifierService } from './receipt-verifier.service';
+import { PaymentStateMachine } from './payment-state-machine';
 
 @Module({
   controllers: [PaymentsController],
@@ -14,7 +15,8 @@ import { ReceiptVerifierService } from './receipt-verifier.service';
     ChekiService,
     ReceiptService,
     ReceiptVerifierService,
+    PaymentStateMachine,
   ],
-  exports: [PaymentsService],
+  exports: [PaymentsService, PaymentStateMachine],
 })
 export class PaymentsModule {}

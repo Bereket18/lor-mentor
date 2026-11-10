@@ -135,6 +135,10 @@ services:
       redis: { condition: service_healthy }
       verifier: { condition: service_healthy }
     ports:
+      # Loopback only. This is the actual control that keeps the API off the
+      # public internet (Docker-published ports bypass UFW); never change it to
+      # "4000:4000" or "0.0.0.0:4000:4000". deploy/smoke-test.sh step 10 probes
+      # <api-host>:4000 and fails if it is reachable.
       - "127.0.0.1:4000:4000"
     healthcheck:
       test:

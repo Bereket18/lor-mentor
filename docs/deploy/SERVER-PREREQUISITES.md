@@ -192,9 +192,22 @@ Debian/Ubuntu (UFW):
 sudo ufw allow OpenSSH
 sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
+# Belt-and-braces: the container ports must never be reachable from the
+# internet. The actual control is the 127.0.0.1 bind in
+# docker-compose.prod.yml, because Docker-published ports bypass UFW's INPUT
+# chain (DNAT runs before it); keep these denies as a second layer.
+sudo ufw deny 4000/tcp
+sudo ufw deny 3000/tcp
 sudo ufw enable
 sudo ufw status verbose
 ```
+
+> **UFW does not filter Docker-published ports.** Docker installs its own
+> `DOCKER-USER`/NAT rules, so `ufw deny 4000/tcp` alone would **not** make a
+> container published as `0.0.0.0:4000:4000` unreachable. Always keep the
+> `127.0.0.1:4000:4000` / `127.0.0.1:3000:3000` binds in
+> `docker-compose.prod.yml`; `deploy/smoke-test.sh` (step 10) checks that
+> `<api-host>:4000` is refused from outside.
 
 RHEL-family (firewalld):
 
