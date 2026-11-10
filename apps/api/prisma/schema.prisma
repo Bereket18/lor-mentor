@@ -73,6 +73,32 @@ enum NotificationType {
   NEW_ANNOUNCEMENT
   FORUM_REPLY
   AI_COMPLETE
+  // A student opened a ticket, or wrote back on one the college had answered.
+  SUPPORT_TICKET
+  // A support agent answered one of the student's tickets.
+  SUPPORT_REPLY
+}
+
+// Where a support ticket is in its life:
+//  - OPEN: the student wrote last; the college has to answer.
+//  - AWAITING_STUDENT: a staff member answered; the ball is with the student.
+//  - RESOLVED: answered and settled. A student reply reopens it, because the
+//    same problem coming back is the same conversation, not a new one.
+//  - CLOSED: the student closed it. Terminal for the student; admins can still
+//    read it, but nothing reopens it automatically.
+enum SupportTicketStatus {
+  OPEN
+  AWAITING_STUDENT
+  RESOLVED
+  CLOSED
+}
+
+enum SupportTicketCategory {
+  PAYMENT
+  ACCOUNT
+  COURSE
+  TECHNICAL
+  OTHER
 }
 
 // What a short verification code was issued for. Stored as a column so a code
@@ -142,6 +168,8 @@ model User {
   reviewedStructures AnatomyStructure[]      @relation("AnatomyStructureReviewer")
   publicationApprovals AnatomySystem[]       @relation("AnatomySystemPublicationApprover")
   verificationCodes VerificationCode[]
+  supportTickets   SupportTicket[]
+  supportMessages  SupportMessage[]  @relation("SupportMessageAuthor")
 
   @@index([email])
   @@index([role])
@@ -847,4 +875,51 @@ model Report {
   @@index([postId])
   @@index([replyId])
   @@index([reporterId])
+}
+
+// ─── Support tickets ────────────────────────────────────────────────
+// The in-app destination for the three "contact support" sentences that used
+// to point nowhere. One ticket is one conversation between a student and the
+// college; staff replies are ordinary messages with isStaff = true, so the
+// thread reads in order and needs no second table.
+//
+// Both relations restrict deletion on purpose (the Prisma default): support
+// history is kept like payment history, so deleting an account that has
+// tickets must be a deliberate admin action, never a cascade.
+model SupportTicket {
+  id            String                @id @default(cuid())
+  userId        String
+  subject       String
+  category      SupportTicketCategory @default(OTHER)
+  status        SupportTicketStatus   @default(OPEN)
+  // Optional reference the student quotes (payment ref, receipt number) so an
+  // admin does not have to ask for it before looking the payment up.
+  reference     String?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  // Drives the admin queue order without a join on the messages table.
+  lastMessageAt DateTime              @default(now())
+
+  user     User             @relation(fields: [userId], references: [id])
+  messages SupportMessage[]
+
+  @@index([userId, status])
+  @@index([status, lastMessageAt])
+}
+
+model SupportMessage {
+  id        String   @id @default(cuid())
+  ticketId  String
+  authorId  String
+  body      String
+  // Captured at write time: a student promoted to staff later must not
+  // retroactively turn an old student message into a staff reply.
+  isStaff   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User          @relation("SupportMessageAuthor", fields: [authorId], references: [id])
+
+  @@index([ticketId, createdAt])
+  @@index([authorId])
 }

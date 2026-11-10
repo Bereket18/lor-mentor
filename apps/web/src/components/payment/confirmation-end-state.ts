@@ -23,6 +23,15 @@ export function ConfirmationEndStateMessage({
     "p",
     { className: className ?? "text-sm text-secondary" },
     confirmationEndStateMessage(reference),
+    " ",
+    createElement(
+      "a",
+      {
+        href: "/support",
+        style: { color: "var(--teal)", textDecoration: "underline" },
+      },
+      "Open support",
+    ),
   );
 }
 
@@ -43,5 +52,14 @@ export function PaymentUnderReviewMessage({
     "p",
     { className: className ?? "text-sm text-secondary" },
     paymentUnderReviewMessage(reference),
+    " ",
+    createElement(
+      "a",
+      {
+        href: "/support",
+        style: { color: "var(--teal)", textDecoration: "underline" },
+      },
+      "Open support",
+    ),
   );
 }

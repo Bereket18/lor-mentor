@@ -69,7 +69,13 @@ SMTP_PORT=587
 SMTP_USER=resend
 SMTP_PASS=<your API key>          # secret — never commit, never hardcode
 SMTP_FROM=Lor Mentor <no-reply@lormentor.com>   # the @domain must be the verified one
+SUPPORT_EMAIL=support@lormentor.com             # optional: where new support tickets are sent
 ```
+
+> `SUPPORT_EMAIL` receives the in-app Support page's new-ticket notices. When
+> it is blank, the address inside `SMTP_FROM` is used, so a single-mailbox
+> deployment needs no extra setting. Students still see staff replies in the
+> app and by email.
 
 > The app **fails to boot in production** if any SMTP_* is missing (fail-fast
 > validation), so you can't accidentally ship a build that silently can't email.
