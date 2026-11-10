@@ -208,6 +208,18 @@ student's next download simply works. A regeneration writes
 row). If the rewrite fails too, the student gets a clear "try again" rather than
 a silent missing file.
 
+**Two receipts, both permanent.** Chapa's hosted checkout shows its own receipt,
+but Chapa redirects the browser to `return_url` immediately after payment, so
+that screen is replaced by our callback page. The callback page therefore shows
+**View Chapa payment receipt** (Chapa's permanent
+`https://chapa.link/payment-receipt/<reference>` URL, built from
+`Payment.chapaRef`) next to **Download college receipt (PDF)**, and the profile
+history keeps both links for an approved payment. The Chapa link is only exposed
+on the authenticated owner endpoint; the public callback does not return it.
+Brand the Chapa receipt in the Chapa dashboard under *Settings → Account
+Settings → Customize Receipts* (logo and colours). A payment without a stored
+`chapaRef` cannot show the Chapa link; the college PDF is still available.
+
 **A confirmed payment that cannot be approved.** When Chapa verifies an exact
 payment but the row cannot be approved in the same pass (the row was rejected or
 reversed, or the approval claim was lost to a concurrent writer), both

@@ -1123,6 +1123,9 @@ export class UsersService {
           select: {
             id: true,
             status: true,
+            method: true,
+            txRef: true,
+            chapaRef: true,
             createdAt: true,
             rejectionReason: true,
             plan: { select: { name: true, priceETB: true } },
