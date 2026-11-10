@@ -438,7 +438,16 @@ function SubscribeContent() {
                 Your receipt has been generated.
               </>
             ) : resultMessage ? (
-              <>{resultMessage}</>
+              <>
+                {resultMessage}{" "}
+                <Link
+                  href="/support"
+                  className="underline underline-offset-2"
+                  style={{ color: "var(--teal)" }}
+                >
+                  Open support
+                </Link>
+              </>
             ) : (
               <>
                 Your payment for <strong>{plan.name}</strong> is pending admin

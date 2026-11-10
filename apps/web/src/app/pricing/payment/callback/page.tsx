@@ -270,8 +270,15 @@ function CallbackContent() {
             </h1>
             <p className="text-sm text-secondary mb-6">
               We couldn&apos;t confirm a completed payment for this checkout. If
-              your account was debited, contact support before trying again —
-              otherwise you can start over.
+              your account was debited,{" "}
+              <Link
+                href="/support"
+                className="underline underline-offset-2"
+                style={{ color: "var(--teal)" }}
+              >
+                contact support
+              </Link>{" "}
+              before trying again — otherwise you can start over.
             </p>
             <div className="flex flex-col items-center gap-3">
               <Link

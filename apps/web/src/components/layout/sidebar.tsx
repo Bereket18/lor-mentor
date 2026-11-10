@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, BookOpen, Bot, CreditCard, MessageSquare,
   BarChart3, User, Bell, LogOut, GraduationCap, Layers,
-  ChevronLeft, ChevronRight, ShieldAlert, Landmark, HeartPulse,
+  ChevronLeft, ChevronRight, ShieldAlert, Landmark, HeartPulse, LifeBuoy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -22,6 +22,7 @@ const studentNav = [
   { href: "/forum",         icon: MessageSquare,   label: "Forum" },
   { href: "/progress",      icon: BarChart3,       label: "Progress" },
   { href: "/notifications", icon: Bell,            label: "Notifications" },
+  { href: "/support",       icon: LifeBuoy,        label: "Support" },
 ];
 
 const adminNav = [
@@ -34,6 +35,7 @@ const adminNav = [
   { href: "/admin/courses",    icon: BookOpen,        label: "Courses" },
   { href: "/admin/moderation", icon: ShieldAlert,     label: "Moderation" },
   { href: "/admin/audit",      icon: BarChart3,       label: "Audit Logs" },
+  { href: "/admin/support",    icon: LifeBuoy,        label: "Support inbox" },
 ];
 
 const teacherNav = [
@@ -42,6 +44,7 @@ const teacherNav = [
   { href: "/anatomy",           icon: HeartPulse,      label: "Anatomy Lab" },
   { href: "/forum",             icon: MessageSquare,   label: "Forum" },
   { href: "/teacher/analytics", icon: BarChart3,       label: "Analytics" },
+  { href: "/support",           icon: LifeBuoy,        label: "Support" },
 ];
 
 interface SidebarProps {
