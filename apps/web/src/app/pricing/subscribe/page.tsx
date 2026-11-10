@@ -14,12 +14,15 @@ import {
   Copy,
   Check,
   Camera,
+  ScanLine,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { paymentUnderReviewMessage } from "@/lib/payment-confirmation";
+import { ReceiptQrScanner } from "@/components/payment/receipt-qr-scanner";
+import type { ReceiptScan } from "@/lib/qr-scan";
 
 interface Plan {
   id: string;
@@ -106,6 +109,12 @@ function SubscribeContent() {
   const [cameraError, setCameraError] = useState("");
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+
+  // Live QR reading of the receipt. The scanner fills the fields below and
+  // nothing else: submitting still goes through the reference flow, where
+  // Cheki and the bank decide whether the payment is real.
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scannedValue, setScannedValue] = useState("");
 
   // Admin-managed list of banks the college accepts (GET /payments/banks).
   const { data: bankOptions } = useQuery({
@@ -294,6 +303,22 @@ function SubscribeContent() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  // A scanned receipt fills the same two fields the student would type into,
+  // and selects a bank only when we can name it from the link's host AND the
+  // college actually accepts that bank. The student reviews before submitting.
+  function applyQrScan(scan: ReceiptScan) {
+    const value = scan.url ?? scan.reference ?? "";
+    if (!value) return;
+    setReference(value);
+    setReceiptUrl(value);
+    if (scan.bank && banks.some((b) => b.code === scan.bank)) {
+      setBank(scan.bank);
+    }
+    setScannedValue(scan.raw);
+    setError("");
+    setScanOpen(false);
   }
 
   async function copyAccount(accountNumber: string) {
@@ -759,6 +784,34 @@ function SubscribeContent() {
                       </div>
                     )}
                   </>
+                )}
+
+                {scanOpen ? (
+                  <ReceiptQrScanner
+                    onDecoded={applyQrScan}
+                    onCancel={() => setScanOpen(false)}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCameraOpen(false);
+                      setError("");
+                      setScanOpen(true);
+                    }}
+                    className="flex items-center justify-center gap-2 w-full
+                      bg-surface border border-default rounded-xl py-2.5 text-sm
+                      text-secondary hover:text-primary hover:border-accent/50
+                      transition-colors"
+                  >
+                    <ScanLine className="h-4 w-4" />
+                    Scan the receipt&apos;s QR code instead
+                  </button>
+                )}
+                {scannedValue && (
+                  <p className="text-xs text-muted break-all font-mono">
+                    Scanned: {scannedValue}
+                  </p>
                 )}
 
                 <p className="text-xs text-muted flex items-start gap-1.5">
