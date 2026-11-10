@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import {
   IsEmail,
   IsString,
@@ -5,6 +6,7 @@ import {
   MaxLength,
   IsNotEmpty,
 } from 'class-validator';
+import { normalizeEmailValue } from '../../../common/normalize-email';
 
 export class RegisterDto {
   @IsString()
@@ -12,6 +14,11 @@ export class RegisterDto {
   @MaxLength(100, { message: 'Full name must be less than 100 characters' })
   fullName!: string;
 
+  // Normalised before validation, so "  Abebe@X.com " both passes @IsEmail and
+  // is stored in the same form a later login, verify or resend will look it up
+  // by. UsersService.create normalises again; this keeps the value that reaches
+  // the service already canonical rather than relying on that alone.
+  @Transform(({ value }) => normalizeEmailValue(value))
   @IsEmail({}, { message: 'Please provide a valid email address' })
   email!: string;
 

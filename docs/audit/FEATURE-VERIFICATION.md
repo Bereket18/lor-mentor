@@ -12,7 +12,7 @@
 | # | Feature | UI | API endpoint(s) | Guards | DB | Status |
 |---|---|---|---|---|---|---|
 | F-01 | Registration (dept + year + phone) | `app/register/page.tsx` | `POST /auth/register` | public, throttled 5/min | `User` | **V** |
-| F-02 | Email verification | `app/verify-email/page.tsx` | `POST /auth/verify-email`, `POST /auth/resend-verification` | public, throttled | `User.emailVerifyToken` | **V** |
+| F-02 | Email verification | `app/verify-email/page.tsx` | `POST /auth/verify-email`, `POST /auth/resend-verification` | public, throttled | `VerificationCode` (6-digit code, hashed) | **V** |
 | F-03 | Login + brute-force lockout | `app/login/page.tsx`, `app/admin-login/page.tsx` | `POST /auth/login` | public, throttled 5/min | `User.failedLoginCount/lockoutUntil` | **V** |
 | F-04 | Token refresh + rotation | transparent (`lib/api.ts`) | `POST /auth/refresh` | public | Redis denylist | **V** |
 | F-05 | Logout (server-side revoke) | sidebar/topbar | `POST /auth/logout` | public | Redis denylist | **V** |

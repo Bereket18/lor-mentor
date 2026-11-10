@@ -5,6 +5,14 @@
 **Scope:** Feature 1 — Authentication · Feature 2 — Role-Based Access Control  
 **Codebase root:** `apps/api` (NestJS/Prisma) · `apps/web` (Next.js)
 
+> **Partially superseded.** Sections 1a–1b describe the email-verification design
+> as it stood on the audit date: a 64-hex token in `User.emailVerifyToken`,
+> emailed as a link, looked up by `findByVerifyToken`. That flow has since been
+> replaced by a six-digit code stored as a bcrypt hash in the `VerificationCode`
+> table. Everything else in this document still describes the code as it is.
+> The record below is left as the dated finding it is — see `SECURITY.md` §3 and
+> `docs/audit/CURRENT_ARCHITECTURE.md` for the current design.
+
 ---
 
 ## Feature 1: Authentication
