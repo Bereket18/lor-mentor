@@ -65,7 +65,6 @@ jobs:
       DATABASE_URL: postgresql://lor_ci:lor_ci_password@localhost:5432/lor_mentor_ci
       REDIS_HOST: localhost
       REDIS_PORT: "6379"
-      NEXT_PUBLIC_API_URL: https://api.example.com
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@v4
@@ -127,13 +126,20 @@ jobs:
 
       # Route types live in .next/types and are not committed; generate them
       # without running a full production build.
+      # NEXT_PUBLIC_API_URL is scoped to these two steps on purpose:
+      # api-origin.spec.ts asserts the behaviour when the variable is unset, so
+      # a job-wide value makes the unit suite fail (caught by run #8).
       - name: Web type-check
         working-directory: apps/web
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.com
         run: |
           npx next typegen
           npx tsc -p tsconfig.json --noEmit
 
       - name: Web build
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.com
         run: npm run build:web
 
       # Pure TypeScript tests; the config does not launch a browser or dev
