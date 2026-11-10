@@ -1,12 +1,29 @@
 name: CI
 
-# The `origin` remote is GitLab and now has .gitlab-ci.yml, which ports this
-# workflow and adds Docker / nginx / dependency-audit jobs. This GitHub
-# workflow remains for the `github-old` remote. Keep the two in sync whenever
-# the test matrix changes.
+# `origin` is GitLab and keeps .gitlab-ci.yml. This workflow is the port of
+# that file and mirrors its hard gates one-for-one:
+#
+#   install, prisma validate + migrate, API build, API type-check, API unit
+#   tests (including the real-Postgres race and gateway-matrix suites), API
+#   e2e, anatomy model validators + teaching-text safety tests, web lint, web
+#   type-check, web build, web unit tests, verifier tests.
+#
+# The GitLab account currently has no compute minutes left, so every job there
+# fails with `ci_quota_exceeded` before it starts. This workflow is therefore
+# the CI of record until that is resolved; keep the two matrices identical.
+#
+# Report-only in GitLab (npm audit, Docker builds, compose config, nginx
+# syntax, Trivy) is not duplicated here.
+
 on:
   push:
-    branches: ["main", "integration/**", "feature/**"]
+    branches:
+      - "main"
+      - "integration/**"
+      - "feature/**"
+      - "feat/**"
+      - "fix/**"
+      - "ci/**"
   pull_request:
     branches: ["main", "integration/**", "feature/**"]
 
@@ -19,6 +36,36 @@ jobs:
   # ── API + Web (Node monorepo) ─────────────────────────────────────
   node:
     runs-on: ubuntu-latest
+    services:
+      # Same throwaway credentials as .gitlab-ci.yml. The database lives for
+      # one job, so nothing here is a secret.
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: lor_ci
+          POSTGRES_PASSWORD: lor_ci_password
+          POSTGRES_DB: lor_mentor_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lor_ci -d lor_mentor_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://lor_ci:lor_ci_password@localhost:5432/lor_mentor_ci
+      REDIS_HOST: localhost
+      REDIS_PORT: "6379"
+      NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@v4
 
@@ -30,14 +77,31 @@ jobs:
       - name: Install (workspaces)
         run: npm ci
 
-      # API: Prisma client is needed for the TS build to type-check.
+      # Schema validation is cheap and catches a malformed schema before the
+      # heavier jobs. The committed migrations are then applied to the fresh
+      # service database, so a broken migration fails here rather than on a
+      # deploy.
       - name: Prisma generate
         working-directory: apps/api
         run: npx prisma generate
 
+      - name: Prisma validate
+        run: npx prisma validate --schema apps/api/prisma/schema.prisma
+
+      - name: Prisma migrate deploy
+        working-directory: apps/api
+        run: npx prisma migrate deploy
+
       - name: API build
         run: npm run build:api
 
+      # Nest's build already type-checks, but this fails fast with a readable
+      # list of errors and covers test files tsconfig.build.json excludes.
+      - name: API type-check
+        run: npx tsc -p apps/api/tsconfig.json --noEmit
+
+      # CI=true plus DATABASE_URL is what opts the race and gateway-matrix
+      # suites in (see payments.race.spec.ts and payments.gateway.matrix.spec.ts).
       - name: API tests
         working-directory: apps/api
         run: npx jest --ci
@@ -52,19 +116,36 @@ jobs:
           node scripts/validate-anatomy-model.mjs --system heart
           node scripts/validate-anatomy-model.mjs --system urinary
 
-      # Report-only for now: there is pre-existing lint debt (react-hooks
-      # rules) unrelated to CI. Build + tests below are the hard gates; tighten
-      # this to a blocking step once the existing warnings/errors are paid down.
-      - name: Web lint (report-only)
+      - name: Anatomy teaching-text safety tests
+        run: npm run test:scripts
+
+      # Blocking, as in .gitlab-ci.yml: apps/web lints clean at the source.
+      - name: Web lint
         working-directory: apps/web
         run: npx eslint .
-        continue-on-error: true
 
-      - name: Web build
-        run: npm run build:web
+      # Route types live in .next/types and are not committed; generate them
+      # without running a full production build.
+      # NEXT_PUBLIC_API_URL is scoped to these two steps on purpose:
+      # api-origin.spec.ts asserts the behaviour when the variable is unset, so
+      # a job-wide value makes the unit suite fail (caught by run #8).
+      - name: Web type-check
+        working-directory: apps/web
         env:
           NEXT_PUBLIC_API_URL: https://api.example.com
-          NEXT_TELEMETRY_DISABLED: "1"
+        run: |
+          npx next typegen
+          npx tsc -p tsconfig.json --noEmit
+
+      - name: Web build
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.com
+        run: npm run build:web
+
+      # Pure TypeScript tests; the config does not launch a browser or dev
+      # server, so no Playwright browser download is needed.
+      - name: Web unit tests
+        run: npm run test:unit --workspace=apps/web
 
   # ── Receipt-verifier (Python) ─────────────────────────────────────
   verifier:
@@ -82,9 +163,9 @@ jobs:
       # normalize.py + its tests are stdlib-only. cbe_links.py needs `requests`;
       # the validation/auth helpers live in security.py so the security tests do
       # not import main.py's Selenium/Chromium stack. main.py's real dependency
-      # stack is validated by the Docker build.
+      # stack is validated by the Docker build in .gitlab-ci.yml.
       - name: Install test dependencies
-        run: pip install requests fastapi
+        run: pip install requests==2.34.2 fastapi==0.140.0
 
       - name: Byte-compile verifier modules
         run: python -m py_compile normalize.py cbe_links.py security.py main.py
