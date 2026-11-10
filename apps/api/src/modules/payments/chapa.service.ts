@@ -216,11 +216,36 @@ export function chapaUnderReviewMessage(reference: string): string {
   );
 }
 
+/**
+ * Chapa's permanent receipt URL for a verified transaction. The receipt screen
+ * shown inside the hosted checkout is transient: Chapa redirects the browser to
+ * our `return_url` immediately after payment, so the screen is replaced by our
+ * own page. This URL is the stable way to show the same receipt again.
+ *
+ * The reference is Chapa's `data.reference` from the verify response (stored as
+ * `Payment.chapaRef`), not our `tx_ref`.
+ */
+const CHAPA_RECEIPT_BASE_URL = 'https://chapa.link/payment-receipt';
+
+export function chapaReceiptUrl(
+  reference: string | null | undefined,
+): string | null {
+  const trimmed = reference?.trim();
+  if (!trimmed) return null;
+  return `${CHAPA_RECEIPT_BASE_URL}/${encodeURIComponent(trimmed)}`;
+}
+
 /** State of one online payment as reported to the browser. */
 export interface ChapaPaymentState {
   paymentId: string | null;
   status: PaymentStatus;
   receiptNumber: string | null;
+  /**
+   * Permanent Chapa payment-receipt URL, when the gateway reference is known.
+   * Only exposed on the authenticated owner endpoint; the public callback does
+   * not return it.
+   */
+  chapaReceiptUrl: string | null;
   /**
    * Chapa positively confirmed money for this reference. Once true, the page
    * must never describe the payment as "not charged".
@@ -1353,7 +1378,10 @@ export class ChapaService {
           }
         : await this.confirmGatewayPayment(txRef, 'verify');
 
-    return this.paymentState(txRef, outcome);
+    // The owner may also need the permanent Chapa receipt: the gateway's own
+    // receipt screen is replaced by our return page, so this is the only way to
+    // show it again. Never expose it on the public callback below.
+    return this.paymentState(txRef, outcome, { includeChapaReceipt: true });
   }
 
   /**
@@ -1370,16 +1398,25 @@ export class ChapaService {
   private async paymentState(
     txRef: string,
     outcome: GatewayPaymentOutcome,
+    opts: { includeChapaReceipt?: boolean } = {},
   ): Promise<ChapaPaymentState> {
     const fresh = await this.prisma.payment.findUnique({
       where: { txRef },
-      select: { id: true, status: true, receiptNumber: true },
+      select: {
+        id: true,
+        status: true,
+        receiptNumber: true,
+        chapaRef: true,
+      },
     });
 
     const base = {
       paymentId: fresh?.id ?? (outcome.paymentId || null),
       status: fresh?.status ?? 'PENDING',
       receiptNumber: fresh?.receiptNumber ?? null,
+      chapaReceiptUrl: opts.includeChapaReceipt
+        ? chapaReceiptUrl(fresh?.chapaRef)
+        : null,
       recoveredFromStatus:
         outcome.kind === 'RECOVERED_LATE' ? outcome.recoveredFromStatus : null,
       outcome: outcome.kind,

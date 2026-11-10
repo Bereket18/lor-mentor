@@ -5,12 +5,13 @@ import Link from "next/link";
 import {
   Loader2, User, Mail, Phone, ShieldCheck, ShieldAlert, CalendarDays,
   Building2, GraduationCap, CreditCard, BookOpen, ArrowRight, Layers,
-  Download,
+  Download, ExternalLink,
   KeyRound,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import api from "@/lib/api";
 import { formatDisplayDate } from "@/lib/dates";
+import { chapaReceiptUrl } from "@/lib/chapa-receipt";
 import { ConfirmationEndStateMessage } from "@/components/payment/confirmation-end-state";
 import type { FullProfile } from "@/types";
 
@@ -453,6 +454,7 @@ export default function ProfilePage() {
               <div className="space-y-2">
                 {profile.payments.map((p) => {
                   const pendingMessage = pendingConfirmations[p.id];
+                  const gatewayReceipt = chapaReceiptUrl(p.chapaRef);
                   const hasPendingConfirmation =
                     Object.prototype.hasOwnProperty.call(
                       pendingConfirmations,
@@ -465,6 +467,17 @@ export default function ProfilePage() {
                       {p.plan?.name ?? "Payment"} · {formatDate(p.createdAt)}
                     </span>
                     <div className="flex items-center gap-2 flex-shrink-0">
+                      {p.status === "APPROVED" && gatewayReceipt && (
+                        <a
+                          href={gatewayReceipt}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold transition-colors"
+                          style={{ color: "var(--teal)" }}
+                        >
+                          <ExternalLink className="h-3 w-3" /> Chapa receipt
+                        </a>
+                      )}
                       {p.status === "APPROVED" && (
                         <button
                           type="button"
@@ -472,7 +485,7 @@ export default function ProfilePage() {
                           className="inline-flex items-center gap-1 text-[11px] font-semibold transition-colors"
                           style={{ color: "var(--teal)" }}
                         >
-                          <Download className="h-3 w-3" /> Receipt
+                          <Download className="h-3 w-3" /> College receipt
                         </button>
                       )}
                       {p.status === "PENDING" && p.method === "CHAPA" && !hasPendingConfirmation && (
@@ -492,7 +505,12 @@ export default function ProfilePage() {
                     </div>
                   </div>
                   {hasPendingConfirmation && (
-                    pollingExhausted ? (
+                    pendingMessage ? (
+                      <p className="mt-1 text-[11px] leading-relaxed"
+                        style={{ color: "var(--state-warning)" }}>
+                        {pendingMessage}
+                      </p>
+                    ) : pollingExhausted ? (
                       <ConfirmationEndStateMessage
                         reference={p.txRef ?? p.id}
                         className="mt-1 text-[11px] leading-relaxed"
@@ -500,7 +518,7 @@ export default function ProfilePage() {
                     ) : (
                       <p className="mt-1 text-[11px] leading-relaxed"
                         style={{ color: "var(--state-warning)" }}>
-                        {pendingMessage ?? CONFIRMATION_PENDING_FALLBACK}
+                        {CONFIRMATION_PENDING_FALLBACK}
                       </p>
                     )
                   )}

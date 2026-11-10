@@ -9,6 +9,7 @@ import {
   Clock,
   XCircle,
   Download,
+  ExternalLink,
 } from "lucide-react";
 import api from "@/lib/api";
 import {
@@ -30,6 +31,12 @@ interface VerifyResult {
   paymentId?: string | null;
   status: "PENDING" | "APPROVED" | "REJECTED" | "REVERSED" | "EXPIRED" | "CANCELLED";
   receiptNumber?: string | null;
+  /**
+   * Chapa's permanent receipt URL. The receipt shown inside the hosted
+   * checkout is replaced by this page when Chapa redirects here, so the link
+   * is the only way to get back to the same receipt.
+   */
+  chapaReceiptUrl?: string | null;
   /**
    * Chapa confirmed the money but the payment is not approved yet. The server
    * says so explicitly so we never show a success or a stale row status here.
@@ -55,6 +62,7 @@ function CallbackContent() {
   const [phase, setPhase] = useState<Phase>("verifying");
   const [paymentId, setPaymentId] = useState<string | null>(null);
   const [receiptNumber, setReceiptNumber] = useState<string | null>(null);
+  const [chapaReceipt, setChapaReceipt] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [attemptKey, setAttemptKey] = useState(0);
 
@@ -74,9 +82,13 @@ function CallbackContent() {
           `/payments/chapa/verify/${encodeURIComponent(txRef)}`,
         );
         const data = res.data;
+        if (data.chapaReceiptUrl) {
+          setChapaReceipt(data.chapaReceiptUrl);
+        }
         if (data.status === "APPROVED") {
           setPaymentId(data.paymentId ?? null);
           setReceiptNumber(data.receiptNumber ?? null);
+          setChapaReceipt(data.chapaReceiptUrl ?? null);
           setPhase("approved");
           return;
         }
@@ -155,6 +167,20 @@ function CallbackContent() {
               </p>
             )}
             <div className="flex flex-col gap-3">
+              {chapaReceipt && (
+                <a
+                  href={chapaReceipt}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl px-6
+                    py-3 text-sm font-medium text-primary transition-colors
+                    hover:bg-white/5"
+                  style={{ border: "1px solid var(--border-default)" }}
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  View Chapa payment receipt
+                </a>
+              )}
               <button
                 type="button"
                 onClick={downloadReceipt}
@@ -168,8 +194,13 @@ function CallbackContent() {
                 ) : (
                   <Download className="h-4 w-4" />
                 )}
-                Download receipt (PDF)
+                Download college receipt (PDF)
               </button>
+              <p className="text-xs text-muted">
+                Chapa&apos;s confirmation screen closes when you return here. The
+                Chapa receipt link and your college receipt stay available on
+                your profile.
+              </p>
               <Link
                 href="/dashboard"
                 className="text-sm text-secondary hover:text-primary transition-colors"
@@ -225,6 +256,20 @@ function CallbackContent() {
               className="text-sm text-secondary mb-6"
             />
             <div className="flex flex-col items-center gap-3">
+              {chapaReceipt && (
+                <a
+                  href={chapaReceipt}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl px-6
+                    py-3 text-sm font-medium text-primary transition-colors
+                    hover:bg-white/5"
+                  style={{ border: "1px solid var(--border-default)" }}
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  View Chapa payment receipt
+                </a>
+              )}
               <Link
                 href="/dashboard"
                 className="inline-block bg-accent text-white rounded-xl px-6 py-3 text-sm font-medium"

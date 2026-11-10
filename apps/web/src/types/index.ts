@@ -72,6 +72,8 @@ export interface ProfilePayment {
   rejectionReason?: string | null;
   /** Gateway reference of an online checkout; used to poll its confirmation. */
   txRef?: string | null;
+  /** Chapa's reference id, used for the permanent gateway receipt link. */
+  chapaRef?: string | null;
   plan?: { name: string; priceETB: string | number } | null;
 }
 

@@ -4,7 +4,7 @@ import * as crypto from 'crypto';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { PaymentsService } from './payments.service';
 import type { PaymentStateMachine } from './payment-state-machine';
-import { ChapaService } from './chapa.service';
+import { ChapaService, chapaReceiptUrl } from './chapa.service';
 
 interface PaymentUpdateArgs {
   where: { id: string };
@@ -117,6 +117,22 @@ describe('ChapaService', () => {
     rejectPayment.mockReset().mockResolvedValue({ message: 'Payment rejected' });
     cancelOwn.mockReset().mockResolvedValue({ message: 'Payment cancelled' });
     jest.restoreAllMocks();
+  });
+
+  describe('chapaReceiptUrl', () => {
+    it('builds the permanent receipt URL from the Chapa reference', () => {
+      expect(chapaReceiptUrl('APQ1kcaiCZi2')).toBe(
+        'https://chapa.link/payment-receipt/APQ1kcaiCZi2',
+      );
+    });
+
+    it('encodes the reference and rejects an empty one', () => {
+      expect(chapaReceiptUrl('ref/with space')).toBe(
+        'https://chapa.link/payment-receipt/ref%2Fwith%20space',
+      );
+      expect(chapaReceiptUrl(null)).toBeNull();
+      expect(chapaReceiptUrl('   ')).toBeNull();
+    });
   });
 
   it('creates a fresh Chapa transaction reference for every checkout attempt', async () => {
@@ -363,7 +379,63 @@ describe('ChapaService', () => {
       });
   }
 
-  it('does not approve a successful but underpaid transaction — stays PENDING as an admin exception', async () => {
+  it('returns the owner a permanent Chapa receipt URL for an approved payment', async () => {
+    findUnique
+      .mockResolvedValueOnce({
+        id: 'payment-1',
+        userId: 'student-1',
+        status: 'APPROVED',
+        receiptNumber: 'LM-0001',
+        chapaRef: 'APQ1kcaiCZi2',
+      })
+      .mockResolvedValueOnce({
+        id: 'payment-1',
+        status: 'APPROVED',
+        receiptNumber: 'LM-0001',
+        chapaRef: 'APQ1kcaiCZi2',
+      });
+
+    await expect(
+      service.verifyByTxRef('lm-payment-1', 'student-1'),
+    ).resolves.toMatchObject({
+      status: 'APPROVED',
+      receiptNumber: 'LM-0001',
+      chapaReceiptUrl: 'https://chapa.link/payment-receipt/APQ1kcaiCZi2',
+    });
+  });
+
+  it('never exposes the Chapa receipt URL on the public callback', async () => {
+    findUnique
+      .mockResolvedValueOnce({
+        id: 'payment-1',
+        status: 'APPROVED',
+        txRef: 'lm-payment-1',
+        amount: '1000',
+        verification: null,
+        chapaRef: 'APQ1kcaiCZi2',
+        receiptNumber: 'LM-0001',
+      })
+      .mockResolvedValueOnce({
+        id: 'payment-1',
+        status: 'APPROVED',
+        receiptNumber: 'LM-0001',
+        chapaRef: 'APQ1kcaiCZi2',
+      });
+    mockVerifyResponse({
+      status: 'success',
+      amount: '1000',
+      currency: 'ETB',
+      tx_ref: 'lm-payment-1',
+      reference: 'APQ1kcaiCZi2',
+    });
+
+    await expect(service.handleCallback('lm-payment-1')).resolves.toMatchObject({
+      status: 'APPROVED',
+      chapaReceiptUrl: null,
+    });
+  });
+
+  it('does not approve a successful but underpaid transaction - stays PENDING as an admin exception', async () => {
     mockPendingPaymentThen('PENDING');
     mockVerifyResponse({
       status: 'success',
