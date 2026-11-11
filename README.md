@@ -3,11 +3,14 @@
 Learning platform for Lorcan Medical College: courses, materials, AI study
 tools, payments, and an interactive 3D Anatomy Lab.
 
-> **Status:** release-hardening branch, not yet a production release. The heart
-> system is the published sample; the urinary system is an unpublished draft. No
-> anatomy teaching text has been faculty-reviewed, and the DBCLS licence
-> question remains open. See [`docs/archive/PROGRESS.md`](docs/archive/PROGRESS.md) for the working log of
-> gate results and open blockers.
+> **Status:** release candidate on `main` (`5b08f7c`, 2026-11-11). The code gate
+> is green on GitHub Actions and every hardening branch is merged — see
+> [PRODUCTION_CHECKLIST.md §11](PRODUCTION_CHECKLIST.md). It has not been
+> deployed yet: the heart system is the published sample; the urinary system is
+> an unpublished draft. No anatomy teaching text has been faculty-reviewed, and
+> the DBCLS licence question remains open. Open items are in
+> [HANDOVER.md §6](HANDOVER.md); the historical working log is in
+> [`docs/archive/PROGRESS.md`](docs/archive/PROGRESS.md).
 
 > **Deployment warning — local build:** this checkout's `.next` output was built
 > for local testing against `http://localhost:4000`. Do not deploy that build
@@ -32,7 +35,7 @@ apps/web                  Next.js app, Playwright tests, anatomy assets/validato
 apps/api                  NestJS API, Prisma schema/migrations/seeds, Jest tests
 services/receipt-verifier Python receipt extractor (FastAPI)
 deploy/                   Nginx configs, smoke test, backup script
-docs/                     Deployment, security, progress and audit records
+docs/                     Deployment runbooks, anatomy records and archived history
 scripts/                  Environment preflight and operational scripts
 ```
 
@@ -55,6 +58,9 @@ Deployment-specific guides live in [`docs/deploy/`](docs/deploy/):
 `SERVER-PREREQUISITES.md`, `NGINX-SETUP.md`, `BACKUP-RESTORE.md`,
 `GO-LIVE.md`, `RELEASE-CHECKLIST.md`, `DOCKER-READINESS.md`,
 `email-setup.md`, `payments.md` (Chapa and bank-receipt lifecycles).
+
+The full index — the active set plus the historical audit and archive folders —
+is [`docs/README.md`](docs/README.md).
 
 ## Prerequisites (local development)
 
