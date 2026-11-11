@@ -2,7 +2,8 @@
 
 Ordered, copy-paste checklist for a **fresh Ubuntu 24.04 LTS VPS**. Run every
 command on the VPS unless a step says otherwise. This is the short release
-gate; the long-form explanations live in [`GO-LIVE.md`](./GO-LIVE.md).
+gate; the long-form explanations live in
+[`10-DEPLOYMENT-GUIDE.md`](10-DEPLOYMENT-GUIDE.md).
 
 > **Never** commit `.env.production`, print secret values into logs, or run
 > `prisma migrate dev`, `prisma migrate reset`, or `prisma db push` against
@@ -151,7 +152,7 @@ Fill this in before touching the server:
         exec api npm run db:seed:anatomy -- --reconcile --system heart
       ```
 - [ ] Before any `anatomy:review --confirm`, export and validate a read-only
-      faculty packet for that system (see `GO-LIVE.md` §3.4.1). `--export` and
+      faculty packet for that system (see `10-DEPLOYMENT-GUIDE.md` §3.4.1). `--export` and
       `--validate` must not change teaching text, `isReviewed`, or
       `isPublished`; `--confirm` remains the separate sign-off step.
 - [ ] Verify the published flags and that no urinary row exists:

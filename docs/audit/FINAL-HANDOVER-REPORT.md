@@ -74,9 +74,9 @@ Source documents reconciled:
 | `docs/audit/FRONTEND-AUDIT.md` | prose sections |
 | `docs/audit/DEPLOYMENT-READINESS.md` | `DR-n` |
 | `docs/audit/PERFORMANCE-RELIABILITY-AUDIT.md` | prose sections |
-| `docs/deploy/DOCKER-READINESS.md` | §2.1–2.7, §7 ("Phase F deltas") |
-| `docs/audit/PHASE-H-VALIDATION.md` | §4 NOT TESTED |
-| `docs/audit/SECRET-ROTATION-RUNBOOK.md` | rotation items |
+| `docs/archive/DOCKER-READINESS-REPORT.md` | §2.1–2.7, §7 ("Phase F deltas") |
+| `docs/annex/PHASE-H-VALIDATION.md` | §4 NOT TESTED |
+| `docs/deployer/90-SECRET-ROTATION.md` | rotation items |
 | This pass (2026-11-01) | `NEW-n` |
 
 Status vocabulary (exactly one per row): **FIXED AND VERIFIED** · **FIXED BUT NOT VERIFIED** ·
@@ -209,10 +209,10 @@ pushed, or merged.
 | `apps/api/src/modules/users/users.service.ts` | `updateProfile` allow-list (NEW-1) |
 | `apps/api/src/modules/users/update-profile.spec.ts` | **New.** 4 regression tests for the mass-assignment fix |
 | `scripts/check-env.mjs` | Mirrors the split-host cookie rules with label-boundary matching |
-| `ENVIRONMENT_VARIABLES.md` | The three enforced cookie rules, `ALLOW_LOCAL_API_ORIGIN`, the `NEXT_PUBLIC_API_URL` behaviour table, split-host guidance |
+| `docs/deployer/60-ENVIRONMENT-VARIABLES.md` | The three enforced cookie rules, `ALLOW_LOCAL_API_ORIGIN`, the `NEXT_PUBLIC_API_URL` behaviour table, split-host guidance |
 | `.env.example` | Documents strict validation; commented `ALLOW_LOCAL_API_ORIGIN` |
 | `README.md` | `npm run test:unit --workspace=apps/web`; the build note with both commands |
-| `HANDOVER.md` | Items 6 and 10 closed; item 9 corrected; new rows 12 (credential) and 13 (build requires `NEXT_PUBLIC_API_URL`) |
+| `docs/annex/HANDOVER.md` | Items 6 and 10 closed; item 9 corrected; new rows 12 (credential) and 13 (build requires `NEXT_PUBLIC_API_URL`) |
 | `docs/audit/FINAL-HANDOVER-REPORT.md` | **New.** This report |
 
 ### C.2 Changed by the final remediation pass (items A–E, 3, CI)
@@ -236,7 +236,7 @@ pushed, or merged.
 | `apps/api/src/modules/mail/mail.service.ts` | `sendStaffInvitation()` |
 | `apps/api/src/modules/users/users.module.ts` | Imports `MailModule` |
 | `apps/web/src/app/(app)/admin/users/page.tsx` | Success banner shows the invitation result / fallback setup link instead of a password |
-| `ENVIRONMENT_VARIABLES.md` | Verifier token now mandatory on both sides; `CORS_ORIGIN` documented as the state-changing origin allow-list |
+| `docs/deployer/60-ENVIRONMENT-VARIABLES.md` | Verifier token now mandatory on both sides; `CORS_ORIGIN` documented as the state-changing origin allow-list |
 | **New specs** | `apps/api/src/modules/users/delete-user-retention.spec.ts` (6), `apps/api/src/common/guards/origin.guard.spec.ts` (8), `apps/api/src/modules/auth/verify-email.dto.spec.ts` (7), `apps/api/src/modules/auth/password-reset-sessions.spec.ts` (5) |
 | **Updated specs** | `token-denylist.service.spec.ts` (+9), `users.service.spec.ts` (password assertion replaced with 2 invitation tests; constructor updated), `update-profile.spec.ts` (constructor updated) |
 
@@ -253,12 +253,12 @@ without ever running `--fix`.** The 5 that remain are pre-existing errors in
 ### C.3 Pre-existing uncommitted changes carried into this handover
 
 The branch already contained modified `.dockerignore`, `.env.example`,
-`.env.production.example`, `DEPLOYMENT.md`, `README.md`, both Dockerfiles, `next.config.ts`,
+`.env.production.example`, `docs/deployer/00-START-HERE.md`, `README.md`, both Dockerfiles, `next.config.ts`,
 `package.json` (web), the proxy route, the pricing page, `pg-backup.sh`, both nginx configs,
 both compose files, `check-env.mjs`, the verifier `.dockerignore`/`Dockerfile`/`requirements.txt`,
 `users.service.ts`, `env.validation.ts` (+ spec), and the untracked documentation set
-(`HANDOVER.md`, `DATABASE_AND_BACKUPS.md`, `ENVIRONMENT_VARIABLES.md`, `INTEGRATIONS.md`,
-`PRODUCTION_CHECKLIST.md`, `THIRD_PARTY_LICENSES.md`, the `docs/audit/*` and `docs/deploy/*`
+(`docs/annex/HANDOVER.md`, `docs/deployer/30-DATABASE-AND-BACKUPS.md`, `docs/deployer/60-ENVIRONMENT-VARIABLES.md`, `docs/deployer/50-INTEGRATIONS-AND-ACCOUNTS.md`,
+`docs/deployer/80-GO-NOGO-GATE.md`, `THIRD_PARTY_LICENSES.md`, the `docs/audit/*` and `docs/deployer/*`
 files). These are preserved byte-for-byte; nothing was reset, stashed or reverted.
 
 ---
@@ -358,7 +358,7 @@ than reformat other people's code. **Every file this pass created lints clean.**
 The API total moved from 65 (pass 1) to 67 because the branch received new commits between the
 two measurements, one of which touched `anatomy/anatomy-review.service.ts`; the file list grew
 by that file, not by anything in this remediation. The previously reported 6 formatting errors
-in the anatomy-review files remain **no longer reproducible** (`HANDOVER.md` item 9).
+in the anatomy-review files remain **no longer reproducible** (`docs/annex/HANDOVER.md` item 9).
 
 ### D.4 NOT EXECUTED — do not read as a pass
 
@@ -367,7 +367,7 @@ in the anatomy-review files remain **no longer reproducible** (`HANDOVER.md` ite
 | Any `docker build` / `docker compose build` | Deliberate: no local image builds in this environment (disk constraint) | Deployment engineer, on the VPS |
 | `docker compose up` and container healthchecks | Same | Deployment engineer, on the VPS |
 | `prisma migrate deploy` against a real database | No production-like DB available; running it locally would touch the throwaway `lor_mentor_phaseh` | Deployment engineer, on the VPS |
-| Backup **restore** drill | A backup is not "recoverable" until a restore succeeds | Deployment engineer + college, per `docs/deploy/BACKUP-RESTORE.md` |
+| Backup **restore** drill | A backup is not "recoverable" until a restore succeeds | Deployment engineer + college, per `docs/deployer/30-DATABASE-AND-BACKUPS.md` |
 | Any test against live Chapa / Resend / Google AI | External paid services; test credentials only | College + deployment engineer |
 | Browser/device UI testing of the 3D viewer on real hardware | No browser automation for WebGL assets in this environment | Deployment engineer, after first boot |
 | Verifier outbound redirect/size limits | Inside the extractor package, outside the reviewed surface | Follow-up |
@@ -459,7 +459,7 @@ rotate these):**
 | 9 | Google AI / Gemini API key | Google AI Studio | Restrict to the server's egress if the console allows it |
 | 10 | VPS SSH access material | Hostinger hPanel | Not a repository secret; confirm key-only login and no stale keys |
 
-A fuller procedure exists in `docs/audit/SECRET-ROTATION-RUNBOOK.md`. **No credential value
+A fuller procedure exists in `docs/deployer/90-SECRET-ROTATION.md`. **No credential value
 appears in this report, in any commit message, or in terminal output.**
 
 ### E.5 Other security posture confirmed
@@ -548,7 +548,7 @@ docker compose -f docker-compose.prod.yml exec api npm run db:seed
 
 After the first successful boot, subsequent releases may use
 `docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build`.
-`DEPLOYMENT.md` §"First deployment" and `docs/deploy/GO-LIVE.md` carry the fuller runbook.
+`docs/deployer/00-START-HERE.md` §"First deployment" and `docs/deployer/10-DEPLOYMENT-GUIDE.md` carry the fuller runbook.
 
 ---
 
@@ -588,18 +588,18 @@ Code cannot discharge these; they are prerequisites for a production launch.
 
 ## H. Deployment engineer instructions
 
-Full procedures live in `DEPLOYMENT.md`, `PRODUCTION_CHECKLIST.md`,
-`docs/deploy/SERVER-PREREQUISITES.md`, `docs/deploy/NGINX-SETUP.md`,
-`docs/deploy/BACKUP-RESTORE.md` and `docs/audit/LOCAL-DEV-RUNBOOK.md`. Summary of the path:
+Full procedures live in `docs/deployer/00-START-HERE.md`, `docs/deployer/80-GO-NOGO-GATE.md`,
+`docs/deployer/20-SERVER-PREREQUISITES.md`, `docs/deployer/42-NGINX-AND-TLS.md`,
+`docs/deployer/30-DATABASE-AND-BACKUPS.md` and `docs/audit/LOCAL-DEV-RUNBOOK.md`. Summary of the path:
 
 1. **Server prerequisites** — install Docker Engine + Compose v2, nginx, certbot, git and
    Node 20+ (for `scripts/check-env.mjs`). Follow
-   `docs/deploy/SERVER-PREREQUISITES.md`; do not skip the firewall step.
+   `docs/deployer/20-SERVER-PREREQUISITES.md`; do not skip the firewall step.
 2. **Clone the repository** to the deployment path and check out the intended branch. `main`
    is protected on GitLab — deploy from the reviewed branch or a tagged release, never by
    force-pushing.
 3. **Create `.env.production`** from `.env.production.example`. Every variable the API requires
-   is documented in `ENVIRONMENT_VARIABLES.md`; the API validates them at boot and refuses to
+   is documented in `docs/deployer/60-ENVIRONMENT-VARIABLES.md`; the API validates them at boot and refuses to
    start on an invalid set. Three configuration traps to get right:
    - `NEXT_PUBLIC_API_URL` must be the bare public API origin (`https://api.<domain>`) — no
      trailing path, no `localhost`, and it is needed at **both** build and run time;
@@ -616,7 +616,7 @@ Full procedures live in `DEPLOYMENT.md`, `PRODUCTION_CHECKLIST.md`,
    password.
 8. **nginx + TLS**: apply `deploy/nginx/lor-mentor.conf` (staging:
    `lor-mentor-staging.conf`), obtain certificates with certbot, and verify the GLB route
-   returns the correct MIME type. `docs/deploy/NGINX-SETUP.md` has the exact steps.
+   returns the correct MIME type. `docs/deployer/42-NGINX-AND-TLS.md` has the exact steps.
 9. **Verify the application end-to-end** in a browser: registration, email verification (if
    Resend is live), login for each role, course and material access, the payment and receipt
    upload flow, and the 3D viewer loading its models from the production URL. Three behaviours

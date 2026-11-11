@@ -3,7 +3,7 @@
 Scope: the Docker and deployment configuration for a Hostinger VPS deployment.
 This document records what was changed, why, and — importantly — **what has and
 has not been verified**. It complements `GO-LIVE.md` (host setup) and
-`docs/audit/HOSTINGER-DEPLOYMENT-PLAYBOOK.md` (deploy-time deltas).
+`docs/deployer/82-PRODUCTION-GATES-AND-EVIDENCE.md` (deploy-time deltas).
 
 ## 1. Classification
 
@@ -181,7 +181,7 @@ in `apps/api/.env`**. It has been tracked in Git since the initial commit
 Required:
 
 1. **Rotate the password.** `ALTER ROLE <user> WITH PASSWORD '<new>';` then
-   update `apps/api/.env` — see `docs/audit/SECRET-ROTATION-RUNBOOK.md`.
+   update `apps/api/.env` — see `docs/deployer/90-SECRET-ROTATION.md`.
 2. **Confirm production differs.** The VPS `POSTGRES_PASSWORD` must not equal the
    development one.
 3. **Remove the file and purge history** before the repository is ever made
@@ -191,7 +191,7 @@ Required:
 
 Other hits from the history scan were checked and cleared:
 `.gitlab-ci.yml` (`lor_ci_password` — documented throwaway for the ephemeral CI
-Postgres), `docs/audit/SECRET-ROTATION-RUNBOOK.md` (a `<new-db-password>`
+Postgres), `docs/deployer/90-SECRET-ROTATION.md` (a `<new-db-password>`
 template), and the `.env.example` files (placeholders).
 
 ## 6. Repo hygiene note
@@ -215,10 +215,10 @@ Applied after the audit above, with all compose files re-validated:
 
 New documentation:
 
-- `docs/deploy/SERVER-PREREQUISITES.md` — OS-agnostic host requirements
+- `docs/deployer/20-SERVER-PREREQUISITES.md` — OS-agnostic host requirements
   (hardware, swap, packages per distro family, firewall, DNS, permissions),
   including Hostinger-specific caveats.
-- `docs/deploy/NGINX-SETUP.md` — topology, installation, Certbot flow, upload
+- `docs/deployer/42-NGINX-AND-TLS.md` — topology, installation, Certbot flow, upload
   limits, timeouts, the split-host cookie rule, and a failure-mode table.
 
 **Still not verified:** no image was built in this environment (the Docker

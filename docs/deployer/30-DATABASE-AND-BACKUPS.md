@@ -135,7 +135,7 @@ later. Each step is separately revertible by rolling back code.
 
 ### 4.2 The nightly dump
 
-The script lives at [`deploy/backup/pg-backup.sh`](deploy/backup/pg-backup.sh)
+The script lives at [`deploy/backup/pg-backup.sh`](../../deploy/backup/pg-backup.sh)
 and does four things beyond `pg_dump`:
 
 1. Fails loudly if `POSTGRES_USER` / `POSTGRES_DB` cannot be read from
@@ -324,4 +324,4 @@ payment records, and student-generated content. Access is restricted to the
   off shared storage, and delete expired ones.
 - Never copy a production dump to a laptop or into a ticket.
 - Consent, retention and deletion obligations for student data are the college's
-  policy; the mechanics are in [`SECURITY.md`](SECURITY.md).
+  policy; the mechanics are in [`docs/deployer/70-SECURITY.md`](70-SECURITY.md).

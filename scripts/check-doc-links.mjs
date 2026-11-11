@@ -25,6 +25,9 @@ const SKIP_DIRS = new Set([
   'coverage',
   'playwright-report',
   'test-results',
+  '.agents',
+  '.kilo',
+  '.claude',
 ]);
 
 const here = path.dirname(fileURLToPath(import.meta.url));

@@ -4,7 +4,7 @@ How the reverse proxy in front of Lor Mentor is configured, why each setting
 exists, and how to diagnose the failures that actually happen.
 
 Host prerequisites (install commands, firewall, DNS) are in
-[SERVER-PREREQUISITES.md](SERVER-PREREQUISITES.md). This document starts once
+[20-SERVER-PREREQUISITES.md](20-SERVER-PREREQUISITES.md). This document starts once
 nginx is installed.
 
 ---
@@ -194,7 +194,7 @@ cause of a "login works but I'm bounced back to the login page" report.
 | **Login succeeds, then bounces to /login** | `COOKIE_DOMAIN` blank or wrong on a split-host deploy | §7; browser devtools → Application → Cookies |
 | **CORS error in the console** | `CORS_ORIGIN` does not exactly match the browser origin (scheme, port or trailing slash differ) | `.env.production`; API boot log |
 | **`nginx: [emerg] ... unknown directive`** | file copied without the `http{}`-level context, or a typo after editing | `sudo nginx -t`, then `deploy/nginx/test-nginx-config.sh` |
-| **Certbot fails with a challenge error** | DNS not propagated, or the Hostinger panel firewall blocks 80 | §5 of SERVER-PREREQUISITES; `dig +short`; retry |
+| **Certbot fails with a challenge error** | DNS not propagated, or the Hostinger panel firewall blocks 80 | §5 of [20-SERVER-PREREQUISITES.md](20-SERVER-PREREQUISITES.md); `dig +short`; retry |
 | **Site works on the VPS via curl, not externally** | panel firewall vs host firewall mismatch | `ss -tlnp`, hPanel firewall rules |
 
 Log locations:

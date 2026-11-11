@@ -8,9 +8,9 @@ The canonical templates are:
 
 | File | Use |
 |---|---|
-| [`.env.example`](.env.example) | Local development |
-| [`.env.production.example`](.env.production.example) | Staging **and** production on the VPS |
-| [`services/receipt-verifier/.env.example`](services/receipt-verifier/.env.example) | Verifier when run standalone |
+| [`.env.example`](../../.env.example) | Local development |
+| [`.env.production.example`](../../.env.production.example) | Staging **and** production on the VPS |
+| [`services/receipt-verifier/.env.example`](../../services/receipt-verifier/.env.example) | Verifier when run standalone |
 
 > **Rule:** `.env` and `.env.production` are git-ignored and must never be
 > committed. Anything prefixed `NEXT_PUBLIC_` is public — never put a secret
@@ -154,7 +154,7 @@ values are the most sensitive in the file.
 | `SMTP_FROM` | Sender identity, `Name <address@domain>` | R | S | A **verified** domain | Same domain |
 
 `SMTP_FROM` must contain a valid address, and `@resend.dev` senders are rejected
-at boot: they only deliver to the account owner. See [INTEGRATIONS.md](INTEGRATIONS.md).
+at boot: they only deliver to the account owner. See [docs/deployer/50-INTEGRATIONS-AND-ACCOUNTS.md](50-INTEGRATIONS-AND-ACCOUNTS.md).
 
 ### AI
 
@@ -329,8 +329,8 @@ openssl rand -hex 24   # POSTGRES_PASSWORD
 - Store every generated value in the college's password manager, not in chat,
   tickets or email.
 - On the VPS: `chmod 600 .env.production`, owned by the deploy user.
-- Rotation procedure: [`docs/audit/SECRET-ROTATION-RUNBOOK.md`](docs/audit/SECRET-ROTATION-RUNBOOK.md).
-- Compromised secret handling: [`SECURITY.md`](SECURITY.md).
+- Rotation procedure: [`docs/deployer/90-SECRET-ROTATION.md`](90-SECRET-ROTATION.md).
+- Compromised secret handling: [`docs/deployer/70-SECURITY.md`](70-SECURITY.md).
 
 ## 6. Staging versus production — the short version
 

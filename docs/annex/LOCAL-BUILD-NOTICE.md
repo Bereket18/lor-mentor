@@ -24,7 +24,7 @@
   (for example `https://api.example.com`). That is why local login returned
   `500` until the web app was rebuilt against `http://localhost:4000`. **Do not
   copy this file to a server.** Create the deployment environment from
-  `ENVIRONMENT_VARIABLES.md` and the deployment templates.
+  `docs/deployer/60-ENVIRONMENT-VARIABLES.md` and the deployment templates.
 
 - The API schema has the faculty-review migration applied to the **local**
   `lor_mentor` database only. It has not been run against production.

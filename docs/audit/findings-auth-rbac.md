@@ -10,7 +10,7 @@
 > emailed as a link, looked up by `findByVerifyToken`. That flow has since been
 > replaced by a six-digit code stored as a bcrypt hash in the `VerificationCode`
 > table. Everything else in this document still describes the code as it is.
-> The record below is left as the dated finding it is — see `SECURITY.md` §3 and
+> The record below is left as the dated finding it is — see `docs/deployer/70-SECURITY.md` §3 and
 > `docs/audit/CURRENT_ARCHITECTURE.md` for the current design.
 
 ---

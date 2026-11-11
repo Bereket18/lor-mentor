@@ -13,7 +13,7 @@ unless it says otherwise. Don't skip steps.
 > **Audit gates & deferred items:** secret rotation (S-2), Resend domain
 > verification (F-8), Chapa live setup, and the remaining audit gates
 > (T-45 evidence, T-46/T-47/T-48, full verifier build, real TLS) are consolidated
-> in **`docs/audit/HOSTINGER-DEPLOYMENT-PLAYBOOK.md`**. This guide gets the site
+> in **`docs/deployer/82-PRODUCTION-GATES-AND-EVIDENCE.md`**. This guide gets the site
 > running; the playbook closes the production gates.
 
 ---
@@ -183,7 +183,7 @@ TRUST_PROXY=1
   `true`; either form prevents clients from spoofing their address. Verify it
   after go-live by sending one request and reading the client IP the API
   recorded in `AuditLog.ipAddress` (the exact steps are in
-  [payments.md](payments.md) 1.6.1). A wrong value collapses every per-IP rate
+  [payments.md](40-PAYMENTS.md) 1.6.1). A wrong value collapses every per-IP rate
   limit into one shared bucket.
 - The application's rate-limit counters are **in memory**: they are correct for
   the single `api` service in `docker-compose.prod.yml`, but if you ever run
@@ -424,7 +424,7 @@ Run once after the stack is up, before opening the site to users:
 # SECTION 4 — Production email (verification + password reset)
 
 Your app already sends real emails with expiring tokens — you only need a provider
-and DNS. Full detail in `docs/deploy/email-setup.md`; the short version:
+and DNS. Full detail in `docs/deployer/41-EMAIL-SETUP.md`; the short version:
 
 1. **Choose a provider** — **Resend** is recommended (simplest, great delivery).
    Alternatives: SendGrid, Mailgun, AWS SES.
@@ -471,9 +471,10 @@ You're now live on the real domain but password-protected. During this window:
   sudo crontab -e
   # add:  15 2 * * *  /opt/lor-mentor/deploy/backup/pg-backup.sh >> /var/log/lor-backup.log 2>&1
   ```
-- Cap Docker log growth: create `/etc/docker/daemon.json` with
-  `{"log-driver":"json-file","log-opts":{"max-size":"10m","max-file":"3"}}` then
-  `sudo systemctl restart docker`.
+- Log rotation is already configured per service in `docker-compose.prod.yml`
+  (json-file, 10 MB × 3). Do **not** also set a global driver in
+  `/etc/docker/daemon.json` — a conflicting value there changes behaviour for
+  containers that rely on the compose setting.
 
 ---
 
@@ -481,7 +482,7 @@ You're now live on the real domain but password-protected. During this window:
 
 Chapa is **optional** — your launch payment path is bank transfer + manual review,
 which needs no Chapa. Do this when you want card/Telebirr checkout. Full detail in
-`docs/deploy/chapa-production.md`.
+`docs/deployer/40-PAYMENTS.md`.
 
 ### 6.1 The critical distinction
 - The **school's settlement bank account** (where Chapa deposits your money) is set
@@ -510,8 +511,8 @@ This is what makes payments trustworthy. In **Settings → Webhooks**:
 
 > **How verification works + production tests** (server-side re-verify with
 > Chapa's verify endpoint, amount policy, idempotent finalize, spoofed-webhook
-> test): see `docs/audit/HOSTINGER-DEPLOYMENT-PLAYBOOK.md` §4 and
-> `docs/deploy/chapa-production.md` §5.
+> test): see `docs/deployer/82-PRODUCTION-GATES-AND-EVIDENCE.md` §4 and
+> `docs/deployer/40-PAYMENTS.md` §5.
 
 ### 6.5 Put the keys in the app
 In `.env.production` (both required together — the app enforces all-or-nothing):

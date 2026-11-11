@@ -190,7 +190,7 @@ container image built from them does not change the college's source licence.
 Chapa, Resend and Google Gemini are **services** governed by their own terms of
 service and privacy policies, not by open-source licences. Those terms are the
 college's responsibility to review and accept. Account setup and data-sharing
-details are in [INTEGRATIONS.md](INTEGRATIONS.md).
+details are in [docs/deployer/50-INTEGRATIONS-AND-ACCOUNTS.md](docs/deployer/50-INTEGRATIONS-AND-ACCOUNTS.md).
 
 ---
 
