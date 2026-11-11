@@ -5,7 +5,7 @@
 **Method:** every result below was produced by executing the item in a fully
 local, reversible environment. Nothing was inferred from documentation.
 Anything that could not be executed is listed under
-[NOT TESTED](#not-tested) and is **not** reported as passing.
+[NOT TESTED](#4-not-tested) and is **not** reported as passing.
 
 ## 0. Environment
 
