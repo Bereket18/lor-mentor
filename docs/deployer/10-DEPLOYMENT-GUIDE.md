@@ -183,7 +183,7 @@ TRUST_PROXY=1
   `true`; either form prevents clients from spoofing their address. Verify it
   after go-live by sending one request and reading the client IP the API
   recorded in `AuditLog.ipAddress` (the exact steps are in
-  [payments.md](40-PAYMENTS.md) 1.6.1). A wrong value collapses every per-IP rate
+  [40-PAYMENTS.md](40-PAYMENTS.md) 1.6.1). A wrong value collapses every per-IP rate
   limit into one shared bucket.
 - The application's rate-limit counters are **in memory**: they are correct for
   the single `api` service in `docker-compose.prod.yml`, but if you ever run

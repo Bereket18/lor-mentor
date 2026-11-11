@@ -2,7 +2,7 @@
 
 Scope: the Docker and deployment configuration for a Hostinger VPS deployment.
 This document records what was changed, why, and — importantly — **what has and
-has not been verified**. It complements `GO-LIVE.md` (host setup) and
+has not been verified**. It complements `docs/deployer/10-DEPLOYMENT-GUIDE.md` (host setup) and
 `docs/deployer/82-PRODUCTION-GATES-AND-EVIDENCE.md` (deploy-time deltas).
 
 ## 1. Classification
