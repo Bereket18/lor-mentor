@@ -13,6 +13,7 @@ export const PROTECTED_PREFIXES = [
   "/forum",
   "/profile",
   "/notifications",
+  "/support",
   "/admin",
   "/teacher",
 ] as const;

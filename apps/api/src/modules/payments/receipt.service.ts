@@ -13,12 +13,40 @@ export interface ReceiptData {
   receiptNumber: string;
   paidAt: Date;
   method: 'MANUAL' | 'CHAPA';
-  amount: number;
+  /** Pre-formatted decimal string (2 decimals) — never a JS float on money. */
+  amount: string;
   currency: string;
   chapaRef?: string | null;
   payer: { fullName: string; email: string; phoneNumber?: string | null };
   plan: { name: string; durationMonths: number };
   subscription: { startDate: Date; endDate: Date };
+}
+
+/**
+ * Dates on a receipt are entitlement instants stored in UTC. They are always
+ * rendered in Addis Ababa time (UTC+3, no DST) because that is where the
+ * college and its students are: leaving the timezone implicit made the same
+ * receipt print different days on a UTC API host and a developer machine.
+ */
+export const RECEIPT_TIME_ZONE = 'Africa/Addis_Ababa';
+
+/** `dd/mm/yyyy`, optionally `dd/mm/yyyy, HH:mm` — always Addis Ababa time. */
+export function formatReceiptDate(value: Date, withTime = false): string {
+  const options: Intl.DateTimeFormatOptions = {
+    timeZone: RECEIPT_TIME_ZONE,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  };
+  if (withTime) {
+    return value.toLocaleString('en-GB', {
+      ...options,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  }
+  return value.toLocaleDateString('en-GB', options);
 }
 
 /**
@@ -45,12 +73,25 @@ export class ReceiptService {
    * same payment always maps to the same number (idempotent on webhook retry).
    */
   buildReceiptNumber(paymentId: string, when: Date): string {
-    const year = when.getFullYear();
+    // The year belongs on the college's calendar, not the API host's.
+    // Production runs in UTC, where 21:30Z on 31 Dec is still 2026 - but the
+    // receipt it prints (in Addis time) says 1 Jan 2027. Deriving the year in
+    // the same zone as the printed dates keeps the number and the receipt
+    // consistent.
+    const year = new Intl.DateTimeFormat('en-GB', {
+      timeZone: RECEIPT_TIME_ZONE,
+      year: 'numeric',
+    }).format(when);
     return `LM-${year}-${paymentId.slice(-8).toUpperCase()}`;
   }
 
   fileNameFor(paymentId: string): string {
     return `${paymentId}.pdf`;
+  }
+
+  /** Whether the generated PDF for this payment is currently on disk. */
+  exists(paymentId: string): boolean {
+    return fs.existsSync(path.join(this.dir, this.fileNameFor(paymentId)));
   }
 
   /** Absolute path + existence check for serving a previously generated PDF. */
@@ -109,7 +150,7 @@ export class ReceiptService {
         .font('Helvetica')
         .fillColor(muted)
         .text(`Receipt No.  ${data.receiptNumber}`, 50, y + 24)
-        .text(`Date  ${data.paidAt.toLocaleString()}`, 50, y + 40)
+        .text(`Date  ${formatReceiptDate(data.paidAt, true)}`, 50, y + 40)
         .text(
           `Method  ${data.method === 'CHAPA' ? 'Chapa (online)' : 'Bank transfer (manual)'}`,
           50,
@@ -156,7 +197,7 @@ export class ReceiptService {
         .text('Amount', 60, y + 9, { width: 480, align: 'right' });
 
       y += 28;
-      const period = `${data.subscription.startDate.toLocaleDateString()} – ${data.subscription.endDate.toLocaleDateString()}`;
+      const period = `${formatReceiptDate(data.subscription.startDate)} – ${formatReceiptDate(data.subscription.endDate)}`;
       doc
         .font('Helvetica')
         .fillColor(ink)
@@ -164,7 +205,7 @@ export class ReceiptService {
         .fillColor(muted)
         .text(period, 300, y + 10)
         .fillColor(ink)
-        .text(`${data.amount.toLocaleString()} ${data.currency}`, 60, y + 10, {
+        .text(`${data.amount} ${data.currency}`, 60, y + 10, {
           width: 480,
           align: 'right',
         });
@@ -178,7 +219,7 @@ export class ReceiptService {
         .fillColor(ink)
         .text('Total paid', 60, y)
         .fillColor(teal)
-        .text(`${data.amount.toLocaleString()} ${data.currency}`, 60, y, {
+        .text(`${data.amount} ${data.currency}`, 60, y, {
           width: 480,
           align: 'right',
         });

@@ -2,12 +2,13 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD, APP_FILTER } from '@nestjs/core';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { validateEnv } from './config/env.validation';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { OriginGuard } from './common/guards/origin.guard';
+import { AppThrottlerGuard } from './common/guards/app-throttler.guard';
 import { RedisHealthService } from './common/redis/redis-health.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -29,12 +30,14 @@ import { ProgressModule } from './modules/progress/progress.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AnatomyModule } from './modules/anatomy/anatomy.module';
+import { SupportModule } from './modules/support/support.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
     // Global rate limit: protects auth (brute force) and payment endpoints.
-    // 120 requests / minute / IP is generous for normal app usage.
+    // 120 requests / minute per authenticated user, or per IP when anonymous
+    // (see AppThrottlerGuard) - generous for normal usage and campus NAT.
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     // Root Redis connection — every BullMQ queue in the app shares this
     BullModule.forRootAsync({
@@ -66,13 +69,16 @@ import { AnatomyModule } from './modules/anatomy/anatomy.module';
     NotificationsModule,
     AuditModule,
     AnatomyModule,
+    SupportModule,
   ],
   controllers: [AppController],
   providers: [
     AppService,
     RedisHealthService,
-    // Apply the rate limiter globally to every route.
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    // Apply the rate limiter globally to every route. The tracker is the
+    // authenticated user when the signed cookie identifies one, the IP
+    // otherwise.
+    { provide: APP_GUARD, useClass: AppThrottlerGuard },
     // Refuse state-changing requests whose Origin is not ours. Independent of
     // SameSite cookie policy; see origin.guard.ts.
     { provide: APP_GUARD, useClass: OriginGuard },

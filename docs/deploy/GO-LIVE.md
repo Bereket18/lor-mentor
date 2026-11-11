@@ -147,10 +147,21 @@ TRUST_PROXY=1
   `api.<domain>` + `<domain>`. Use the parent domain (leading dot is accepted).
   Without it, login can succeed at the API while every protected web page
   redirects to `/login`.
-- `TRUST_PROXY` is the number of reverse-proxy hops Express should trust when
-  reading `X-Forwarded-For`. The standard nginx setup is one hop (`1`, also the
-  production default when blank). If Cloudflare is in front of nginx, use `2`.
-  Never use `true`; a hop count prevents clients from spoofing their address.
+- `TRUST_PROXY` tells Express which proxies may supply `X-Forwarded-For`. The
+  standard nginx setup is one hop (`1`, also the production default when
+  blank); use `2` if Cloudflare is in front of nginx. The **recommended** form
+  is an explicit list of trusted addresses/subnets, e.g.
+  `TRUST_PROXY=loopback,172.18.0.0/16` (nginx on loopback plus the Docker
+  bridge), which also constrains which peers may set the header. Never use
+  `true`; either form prevents clients from spoofing their address. Verify it
+  after go-live by sending one request and reading the client IP the API
+  recorded in `AuditLog.ipAddress` (the exact steps are in
+  [payments.md](payments.md) 1.6.1). A wrong value collapses every per-IP rate
+  limit into one shared bucket.
+- The application's rate-limit counters are **in memory**: they are correct for
+  the single `api` service in `docker-compose.prod.yml`, but if you ever run
+  more than one API instance you must configure shared (Redis) throttler
+  storage first, or each instance will enforce its own copy of the limit.
 
 ---
 

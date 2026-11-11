@@ -164,6 +164,13 @@ if (verifierUrl && !verifierToken) {
   );
 }
 
+// Optional dedicated support mailbox. Validated whenever present so a typo
+// cannot send every ticket notification nowhere. Falls back to SMTP_FROM.
+const supportEmail = (entries.get('SUPPORT_EMAIL') ?? '').trim();
+if (supportEmail && !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(supportEmail)) {
+  errors.push('SUPPORT_EMAIL must be a valid email address');
+}
+
 const verifierTimeout = entries.get('RECEIPT_VERIFIER_TIMEOUT_MS') ?? '';
 if (verifierTimeout) {
   const timeoutMs = Number(verifierTimeout);

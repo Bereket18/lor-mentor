@@ -20,6 +20,8 @@ import {
   isPrivileged,
 } from './role.util';
 import { CreateUserDto } from './dto/create-user.dto';
+import { normalizeEmail } from '../../common/normalize-email';
+import { VerificationPurpose } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
@@ -43,9 +45,29 @@ export class UsersService {
 
   // Find a user by their email address
   // Used during login to check if the user exists
+  //
+  // Exact match is tried first and wins, so nothing about an existing account
+  // changes: whatever case is stored is still what is matched. Only if that
+  // finds nobody do we retry with the address lowercased, which is the form
+  // registration now stores.
+  //
+  // The fallback matters because `email` is @unique in a case-SENSITIVE
+  // collation. Registration lowercases, so an account created as "Abebe@X.com"
+  // is stored as "abebe@x.com"; without this retry that user could not sign in
+  // by typing the address the way they originally typed it. Lowercasing the
+  // lookup instead of the column also means no data migration and no account
+  // that used to work stops working.
   async findByEmail(email: string) {
-    return this.prisma.user.findUnique({
+    const exact = await this.prisma.user.findUnique({
       where: { email },
+    });
+    if (exact) return exact;
+
+    const normalized = normalizeEmail(email);
+    if (normalized === email) return null;
+
+    return this.prisma.user.findUnique({
+      where: { email: normalized },
     });
   }
 
@@ -82,7 +104,7 @@ export class UsersService {
   }) {
     return this.prisma.user.create({
       data: {
-        email: data.email,
+        email: normalizeEmail(data.email),
         passwordHash: data.passwordHash,
         fullName: data.fullName,
         departmentId: data.departmentId,
@@ -92,25 +114,187 @@ export class UsersService {
     });
   }
 
-  // Save the email verification token
-  // Called after registration to store the token we emailed
-  async saveVerifyToken(userId: string, token: string, expiry: Date) {
-    return this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        emailVerifyToken: token,
-        emailVerifyExpiry: expiry,
+  // ── Email verification codes ──────────────────────────────────
+  // A 6-digit code lives in its own VerificationCode row, not on the user.
+  // Only a bcrypt hash is stored; the plaintext exists only long enough to be
+  // emailed. See modules/auth/verification-code.ts for the policy constants.
+
+  /**
+   * Issue a new code: supersede whatever is currently active, then insert the
+   * new row — in one transaction.
+   *
+   * Both halves have to land together. Superseding without inserting leaves the
+   * account with no usable code; inserting without superseding leaves two codes
+   * valid at once, which defeats "a new code invalidates the previous one".
+   */
+  async issueVerificationCode(params: {
+    userId: string;
+    purpose: VerificationPurpose;
+    codeHash: string;
+    expiresAt: Date;
+  }) {
+    const { userId, purpose, codeHash, expiresAt } = params;
+
+    const [, created] = await this.prisma.$transaction([
+      this.prisma.verificationCode.updateMany({
+        where: { userId, purpose, consumedAt: null, supersededAt: null },
+        data: { supersededAt: new Date() },
+      }),
+      this.prisma.verificationCode.create({
+        data: { userId, purpose, codeHash, expiresAt },
+      }),
+    ]);
+
+    return created;
+  }
+
+  /**
+   * The single code that can currently be redeemed for this user and purpose.
+   *
+   * Returns null when every row is expired, consumed, superseded or burned, so
+   * the caller has one "nothing to compare against" branch instead of four.
+   */
+  async findActiveVerificationCode(params: {
+    userId: string;
+    purpose: VerificationPurpose;
+    maxAttempts: number;
+  }) {
+    const { userId, purpose, maxAttempts } = params;
+
+    return this.prisma.verificationCode.findFirst({
+      where: {
+        userId,
+        purpose,
+        consumedAt: null,
+        supersededAt: null,
+        expiresAt: { gt: new Date() },
+        attempts: { lt: maxAttempts },
       },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /**
+   * Redeem a code. Returns true only for the request that actually won.
+   *
+   * Every condition is in the WHERE clause, so the database decides: a code that
+   * expired, was already consumed, was superseded, or ran out of attempts
+   * matches zero rows no matter how the request was ordered. Two concurrent
+   * submissions of the same correct code cannot both return true, because the
+   * first UPDATE clears `consumedAt` and the second then matches nothing.
+   *
+   * This is the same guarded-update shape as `claimResetToken`, which exists
+   * because the read-then-write version had a race.
+   */
+  async claimVerificationCode(params: {
+    id: string;
+    codeHash: string;
+    maxAttempts: number;
+  }): Promise<boolean> {
+    const { id, codeHash, maxAttempts } = params;
+
+    const result = await this.prisma.verificationCode.updateMany({
+      where: {
+        id,
+        codeHash,
+        consumedAt: null,
+        supersededAt: null,
+        expiresAt: { gt: new Date() },
+        attempts: { lt: maxAttempts },
+      },
+      data: { consumedAt: new Date() },
+    });
+
+    return result.count === 1;
+  }
+
+  /**
+   * Record one wrong guess against a code.
+   *
+   * `attempts: { lt: maxAttempts }` is what makes the cap hold under
+   * concurrency: once the counter is at the limit the update matches nothing, so
+   * parallel guesses cannot push it past the budget by all reading the same
+   * starting value. When this stops matching, the code is burned — the claim
+   * path requires the same bound, so even the correct code is then rejected.
+   */
+  async recordVerificationMiss(params: {
+    id: string;
+    maxAttempts: number;
+  }): Promise<void> {
+    const { id, maxAttempts } = params;
+
+    await this.prisma.verificationCode.updateMany({
+      where: {
+        id,
+        consumedAt: null,
+        supersededAt: null,
+        expiresAt: { gt: new Date() },
+        attempts: { lt: maxAttempts },
+      },
+      data: { attempts: { increment: 1 } },
+    });
+  }
+
+  /**
+   * How many codes this account has been issued since `since`.
+   *
+   * Counts every row including superseded and expired ones, because the point is
+   * to bound how often the account can be mailed, not how many codes are
+   * currently valid.
+   */
+  async countCodesIssuedSince(params: {
+    userId: string;
+    purpose: VerificationPurpose;
+    since: Date;
+  }): Promise<number> {
+    const { userId, purpose, since } = params;
+
+    return this.prisma.verificationCode.count({
+      where: { userId, purpose, createdAt: { gte: since } },
+    });
+  }
+
+  /**
+   * Put a superseded code back in play after its replacement failed to send.
+   *
+   * Guarded on `supersededId` still holding the hash we just issued, so a
+   * concurrent resend that already superseded ours is not undone — the rollback
+   * only applies if nothing newer has happened.
+   */
+  async restoreSupersededCode(params: {
+    newCodeId: string;
+    expectedNewHash: string;
+    supersededId: string | null;
+  }): Promise<void> {
+    const { newCodeId, expectedNewHash, supersededId } = params;
+
+    await this.prisma.$transaction(async (tx) => {
+      // Only remove the code we created, and only if it is still untouched.
+      const removed = await tx.verificationCode.deleteMany({
+        where: {
+          id: newCodeId,
+          codeHash: expectedNewHash,
+          consumedAt: null,
+        },
+      });
+      if (removed.count !== 1 || !supersededId) return;
+
+      await tx.verificationCode.updateMany({
+        where: { id: supersededId, consumedAt: null },
+        data: { supersededAt: null },
+      });
     });
   }
 
   // Mark the user's email as verified
-  // Called when user clicks the verification link
+  // Called once a correct verification code has been redeemed
   async markEmailVerified(userId: string) {
     return this.prisma.user.update({
       where: { id: userId },
       data: {
         isEmailVerified: true,
+        // The legacy columns are no longer written anywhere else; clearing them
+        // here retires any value left behind by the previous flow.
         emailVerifyToken: null,
         emailVerifyExpiry: null,
       },
@@ -181,13 +365,6 @@ export class UsersService {
       },
     });
     return result.count === 1 ? owner.id : null;
-  }
-
-  // Find user by email verification token
-  async findByVerifyToken(token: string) {
-    return this.prisma.user.findFirst({
-      where: { emailVerifyToken: token },
-    });
   }
 
   // Find user by password reset token
@@ -946,6 +1123,9 @@ export class UsersService {
           select: {
             id: true,
             status: true,
+            method: true,
+            txRef: true,
+            chapaRef: true,
             createdAt: true,
             rejectionReason: true,
             plan: { select: { name: true, priceETB: true } },
