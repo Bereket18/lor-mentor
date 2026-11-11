@@ -138,6 +138,9 @@ cd apps/web && node scripts/validate-anatomy-model.mjs --system heart
 # Environment preflight for a deployment file
 npm run check:env -- .env.production --strict
 
+# Documentation links and anchors (not wired into CI)
+node scripts/check-doc-links.mjs
+
 # Smoke test against a local stack (no nginx, so the cache check is skipped)
 SMOKE_STRICT_CACHE=0 bash deploy/smoke-test.sh \
   http://127.0.0.1:4000 http://localhost:3000
