@@ -1,297 +1,120 @@
-# Lor Mentor — Production Deployment Runbook
+# Lor Mentor — start here
 
-Target: a single **Hostinger VPS** running Docker Compose, with **nginx**
-installed on the host and Let's Encrypt TLS.
+Lor Mentor is a study platform for a medical school: students read course
+material, take quizzes, use flashcards, practise anatomy models and pay for
+their subscription; staff manage courses and approve bank-transfer payments.
 
-The runbook is ordered. Do not skip the pre-flight steps — several failures
-downstream (certificates, cookie sessions, webhooks) are caused by DNS or
-firewall work that was deferred.
+This folder contains everything needed to run it in production. **You do not
+need to know the codebase to deploy it** — but you do need to follow these
+documents in the order they are numbered, and you need about half a day.
 
-> Replace `lormentor.com` with your real domain and `deploy` with your chosen
-> sudo username throughout.
-
-Related documents:
-
-- [docs/deploy/SERVER-PREREQUISITES.md](docs/deploy/SERVER-PREREQUISITES.md) — hardware, OS, packages, firewall
-- [docs/deploy/NGINX-SETUP.md](docs/deploy/NGINX-SETUP.md) — proxy, TLS, upload limits, timeouts
-- [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md) — every variable
-- [INTEGRATIONS.md](INTEGRATIONS.md) — Chapa, Resend, Gemini, DNS
-- [DATABASE_AND_BACKUPS.md](DATABASE_AND_BACKUPS.md) — migrations and restores
-- [PRODUCTION_CHECKLIST.md](PRODUCTION_CHECKLIST.md) — go/no-go gate
+> **Taking over from the previous owner?** Do
+> [91-CREDENTIAL-REPLACEMENT.md](91-CREDENTIAL-REPLACEMENT.md) first. It lists
+> every account and secret the previous owner created and how to move each one
+> to the college.
 
 ---
 
-## 1. Architecture
+## The short version
 
-```text
-                          Internet (HTTPS :443)
-                                  │
-                        ┌─────────▼──────────┐
-                        │  nginx (host)      │  TLS termination, reverse proxy
-                        │  lormentor.com     ├──────► 127.0.0.1:3000  web  (Next.js)
-                        │  api.lormentor.com ├──────► 127.0.0.1:4000  api  (NestJS)
-                        └────────────────────┘
-                                  │  docker network: internal
-   ┌───────────────┬─────────────┼───────────────┬──────────────────┐
-   ▼               ▼             ▼               ▼                  ▼
-  api            web         verifier        postgres            redis
- :4000          :3000        :8000        volume: pgdata      volume: redisdata
-   │  volume: uploads (receipts, materials, generated PDFs)
-   └── prisma migrate deploy runs before the API starts serving
-```
+You are deploying five containers to **one Linux server** behind **nginx** with
+a **Let's Encrypt** certificate:
 
-- **Only** `web` and `api` publish ports, and only on `127.0.0.1`.
-- Postgres, Redis and the verifier have **no host ports** and are reachable only
-  on the internal Docker network.
-- `prisma migrate deploy` runs automatically in the API entrypoint. It is
-  forward-only and never resets data.
+| Container | What it does |
+|---|---|
+| `web` | the website students and staff use (Next.js, port 3000) |
+| `api` | the application server (NestJS, port 4000) |
+| `verifier` | reads bank receipts and compares them with payment records |
+| `postgres` | the database (all data lives here) |
+| `redis` | cache, queues and login-token denylist |
+
+Only `web` and `api` are reachable, and only through nginx. Everything is
+started by Docker Compose; nothing is installed globally except Docker, nginx
+and certbot.
 
 ---
 
-## 2. Pre-flight (before touching the VPS)
+## Reading order
 
-- [ ] Domain purchased and DNS access available.
-- [ ] Chapa account created (test keys are issued immediately; live keys need KYC approval).
-- [ ] Resend (or another SMTP provider) account created and the sending domain verified.
-- [ ] Gemini API key created in Google AI Studio.
-- [ ] A password manager available for the generated secrets.
-- [ ] Decision made on `COOKIE_DOMAIN` (see §5).
-
-Full account walkthroughs: [INTEGRATIONS.md](INTEGRATIONS.md).
-
----
-
-## 3. Prepare the server
-
-Follow [docs/deploy/SERVER-PREREQUISITES.md](docs/deploy/SERVER-PREREQUISITES.md).
-It covers the OS check, package installs for Debian/Ubuntu **and**
-RHEL/Alma/Rocky, swap, the firewall, the non-root deploy user, clock/NTP, and
-the Hostinger-specific caveats.
-
-Minimum outcome before continuing:
-
-```bash
-docker --version          # >= 24
-docker compose version    # v2 plugin
-nginx -v                  # >= 1.20
-free -h                   # swap present
-```
-
----
-
-## 4. DNS (do this early — propagation is the usual delay)
-
-Point these records at the VPS IPv4:
-
-| Record | Type | Value |
+| # | Document | Read it when |
 |---|---|---|
-| `lormentor.com` | A | `<VPS_IP>` |
-| `www.lormentor.com` | A | `<VPS_IP>` (or CNAME to the apex) |
-| `api.lormentor.com` | A | `<VPS_IP>` |
-
-```bash
-dig +short lormentor.com api.lormentor.com
-```
-
-Certbot cannot issue a certificate until these resolve.
-
----
-
-## 5. Get the code and configure secrets
-
-```bash
-sudo mkdir -p /opt/lor-mentor && sudo chown deploy:deploy /opt/lor-mentor
-git clone <repo-url> /opt/lor-mentor     # git clone, never a zip (see §11)
-cd /opt/lor-mentor
-
-cp .env.production.example .env.production
-chmod 600 .env.production
-nano .env.production
-```
-
-Generate secrets:
-
-```bash
-openssl rand -hex 48   # JWT_ACCESS_SECRET
-openssl rand -hex 48   # JWT_REFRESH_SECRET  (must differ)
-openssl rand -hex 24   # RECEIPT_VERIFIER_TOKEN
-openssl rand -hex 24   # POSTGRES_PASSWORD  (URL-safe: no @ : / # % ?)
-```
-
-Then mirror `POSTGRES_PASSWORD` into `DATABASE_URL` — the two must always match.
-
-**The API refuses to boot** unless these are set, non-placeholder and
-non-localhost:
-
-`DATABASE_URL` · `JWT_ACCESS_SECRET` · `JWT_REFRESH_SECRET` ·
-`SMTP_HOST` · `SMTP_USER` · `SMTP_PASS` · `SMTP_FROM` ·
-`API_PUBLIC_URL` · `WEB_PUBLIC_URL` · `CORS_ORIGIN`
-
-Also required in practice:
-
-- `COOKIE_DOMAIN=.lormentor.com` — the web host must read the auth cookies set
-  by `api.lormentor.com`. Leaving it blank on a split-host deploy causes a
-  login → redirect-to-login loop.
-- `RECEIPT_VERIFIER_TOKEN` — compose always points the API at the verifier, so
-  this must be set or validation fails.
-
-**Chapa is optional at launch.** Leave `CHAPA_SECRET_KEY` and
-`CHAPA_WEBHOOK_SECRET` both blank, or set both — a half-configured gateway is
-rejected at boot. The primary payment path is bank transfer + manual review.
-
-Validate before building:
-
-```bash
-npm run check:env -- .env.production --strict
-```
-
-`check:env` needs Node. If you deliberately keep Node off the server, run it
-from a workstation against a copy of the file; the API's own boot validation
-enforces the same rules.
+| 00 | this page | now |
+| 10 | [Deployment guide](10-DEPLOYMENT-GUIDE.md) | **the main walkthrough — follow it top to bottom** |
+| 20 | [Server prerequisites](20-SERVER-PREREQUISITES.md) | before the first build (hardware, OS, firewall, users) |
+| 30 | [Database and backups](30-DATABASE-AND-BACKUPS.md) | before go-live (scheduling, restore drill) |
+| 40 | [Payments](40-PAYMENTS.md) | if Chapa or bank-receipt verification is in scope |
+| 41 | [Email setup](41-EMAIL-SETUP.md) | before go-live (verification and password-reset email) |
+| 42 | [nginx and TLS](42-NGINX-AND-TLS.md) | reference while setting up the proxy and certificate |
+| 50 | [Integrations and accounts](50-INTEGRATIONS-AND-ACCOUNTS.md) | when creating the Chapa, Resend and Gemini accounts |
+| 60 | [Environment variables](60-ENVIRONMENT-VARIABLES.md) | when filling in `.env.production` |
+| 70 | [Security](70-SECURITY.md) | before exposing the site publicly |
+| 80 | [Go/no-go gate](80-GO-NOGO-GATE.md) | the launch decision and its sign-off record |
+| 81 | [Release checklist](81-RELEASE-CHECKLIST.md) | every release, including the first |
+| 82 | [Production gates and evidence](82-PRODUCTION-GATES-AND-EVIDENCE.md) | the items that can only be closed on the real server |
+| 90 | [Secret rotation](90-SECRET-ROTATION.md) | on a schedule, or immediately after any leak |
+| 91 | [Credential replacement](91-CREDENTIAL-REPLACEMENT.md) | **first, if you are taking over the project** |
+| 92 | [Troubleshooting](92-TROUBLESHOOTING.md) | when something does not work |
 
 ---
 
-## 6. Build and start
+## Before you touch the server
 
-```bash
-docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
-```
+- [ ] **Domain** purchased, with access to its DNS records.
+- [ ] **Hostinger VPS** with Ubuntu 24.04 LTS, at least 4 GB RAM
+      (see [20-SERVER-PREREQUISITES.md](20-SERVER-PREREQUISITES.md) §1).
+- [ ] **Git access** to the repository — GitLab is the source of truth
+      (`https://gitlab.com/bereketadamsseged/lor-mentor-edu.git`); the GitHub
+      repository (`Bereket18/lor-mentor`) is a mirror.
+- [ ] **A password manager** the college owns, for the generated secrets.
+- [ ] **Resend account** for email, sending domain verified.
+- [ ] **Google AI Studio key** for the AI features (optional, but the tutor and
+      anatomy assistant are off without it).
+- [ ] **Chapa merchant account** (optional — bank transfer works without it).
+- [ ] **The college's bank account details** for the payment instructions.
 
-Builds peak above 2 GB of memory. On a 4 GB VPS with no swap this can be
-OOM-killed — see SERVER-PREREQUISITES §1.
-
-Watch startup:
-
-```bash
-docker compose -f docker-compose.prod.yml ps
-docker compose -f docker-compose.prod.yml logs -f api
-```
-
-Expect all five services to reach `(healthy)`. The API logs
-`Applying database migrations` before it serves traffic.
-
-Seed once:
-
-```bash
-docker compose -f docker-compose.prod.yml exec api npm run db:seed
-docker compose -f docker-compose.prod.yml exec api \
-  npm run db:seed:anatomy -- --reconcile --system heart
-```
-
-`SUPER_ADMIN_*` values in `.env.production` are consumed by this seed. Always
-pass `--system heart` until the other systems complete faculty review.
-
-Local checks on the box:
-
-```bash
-curl -s localhost:4000/api/v1/health        # {"status":"ok",...}
-curl -s localhost:4000/api/v1/health/ready  # database + redis up
-curl -sI localhost:3000                     # 200
-```
+Account-by-account walkthroughs: [50-INTEGRATIONS-AND-ACCOUNTS.md](50-INTEGRATIONS-AND-ACCOUNTS.md).
 
 ---
 
-## 7. nginx and HTTPS
+## Three rules that prevent most disasters
 
-Follow [docs/deploy/NGINX-SETUP.md](docs/deploy/NGINX-SETUP.md). Short version:
-
-```bash
-sudo cp deploy/nginx/lor-mentor.conf /etc/nginx/sites-available/lor-mentor
-sudo ln -sf /etc/nginx/sites-available/lor-mentor /etc/nginx/sites-enabled/lor-mentor
-sudo rm -f /etc/nginx/sites-enabled/default
-sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d lormentor.com -d www.lormentor.com -d api.lormentor.com
-```
-
-Certbot edits the **installed** file. Do not copy the repo template over it
-afterwards or the TLS blocks are lost.
+1. **Get the code with `git clone`.** Never deploy from a zip or an `rsync` that
+   rewrites line endings — the database migrations are hashed as they sit on
+   disk and will fail on redeploy.
+2. **Never run `docker compose down -v`.** The `-v` flag deletes the database,
+   Redis data and uploaded files.
+3. **`.env.production` stays `chmod 600`, outside Git, backed up in the
+   college's password manager.**
 
 ---
 
-## 8. Post-deploy verification
+## When something breaks
 
-Run every item; details in [PRODUCTION_CHECKLIST.md](PRODUCTION_CHECKLIST.md).
-
-```bash
-bash deploy/smoke-test.sh https://api.lormentor.com https://lormentor.com
-```
-
-- [ ] HTTPS loads for both hosts with a valid certificate.
-- [ ] Register → verification email arrives in the **inbox**.
-- [ ] Verify → log in → cookie is `Secure` + `HttpOnly`; protected pages work.
-- [ ] Forgot password → reset email arrives and works.
-- [ ] AI tutor / flashcards / quiz generate.
-- [ ] Bank transfer → reference verifies or lands in admin review.
-- [ ] Uploaded receipt lands in admin review; approval generates a PDF.
-- [ ] `docker compose restart` → uploads and database survive.
+Go to [92-TROUBLESHOOTING.md](92-TROUBLESHOOTING.md) first. It starts with the
+commands that show you what is wrong, then maps each common symptom to its fix.
+If you still need help, collect the exact command, its output, and
+`docker compose -f docker-compose.prod.yml logs <service> --tail=50`.
 
 ---
 
-## 9. Backups and monitoring
+## Where everything else lives
 
-Nightly database dump (14-day retention), plus off-box sync:
+| Folder | What is in it |
+|---|---|
+| [`docs/deployer/`](.) | this pack — the only folder a deployer needs |
+| [`docs/annex/`](../annex/) | project history, changelog, handover notes, third-party attribution |
+| [`docs/archive/`](../archive/) | superseded plans and progress logs (evidence, not instructions) |
+| [`docs/audit/`](../audit/) | point-in-time audit and test reports (evidence, not instructions) |
+| [`docs/anatomy/`](../anatomy/) | anatomy content, provenance and review workflow |
 
-```bash
-chmod +x deploy/backup/pg-backup.sh
-sudo crontab -e
-# 15 2 * * *  /opt/lor-mentor/deploy/backup/pg-backup.sh >> /var/log/lor-backup.log 2>&1
-# 30 2 * * *  rclone sync /var/backups/lor-mentor remote:lor-mentor-backups
-```
-
-Uploads are **not** covered by that script — back up the volume separately.
-Complete procedure and the restore drill: [DATABASE_AND_BACKUPS.md](DATABASE_AND_BACKUPS.md).
-
-Log rotation is already configured per service in `docker-compose.prod.yml`
-(json-file, 10 MB × 3). Do not also set a conflicting global driver in
-`/etc/docker/daemon.json`.
-
-Uptime monitoring: point a monitor at
-`https://api.lormentor.com/api/v1/health/ready` and `https://lormentor.com`.
+Two files stay at the repository root and are referenced by licence tooling:
+[`THIRD_PARTY_LICENSES.md`](../../THIRD_PARTY_LICENSES.md) and
+[`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md).
 
 ---
 
-## 10. Updating and rollback
+## Ownership
 
-```bash
-cd /opt/lor-mentor
-git pull
-docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
-docker compose -f docker-compose.prod.yml logs --tail=100 api   # migrations ran
-```
-
-Rollback:
-
-```bash
-git checkout <previous-tag-or-sha>
-docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
-```
-
-A code rollback does **not** undo a migration. If a release included a
-destructive migration, restore the pre-release dump —
-[DATABASE_AND_BACKUPS.md §6](DATABASE_AND_BACKUPS.md).
-
----
-
-## 11. Operational cautions
-
-- **Obtain the repo with `git clone`.** Prisma hashes `migration.sql` files
-  exactly as they sit on disk; three are pinned to CRLF in `.gitattributes`. A
-  zip download or an rsync that normalises line endings changes those hashes and
-  breaks `prisma migrate deploy` on redeploy.
-- **Do not run `docker compose down -v`.** The `-v` flag deletes `pgdata`,
-  `redisdata` and `uploads`.
-- **Keep `.env.production` mode 600** and never copy it into the repo.
-- **Base images are digest-pinned.** Updates are deliberate: resolve a new
-  digest with `docker buildx imagetools inspect <image>` and change it in a
-  commit.
-- **Single VPS is a single point of failure.** Acceptable for launch; revisit
-  redundancy and managed PostgreSQL as usage grows.
-
-## Known operational limits
-
-- **Telebirr auto-verification will not work from a non-Ethiopian IP.** Those
-  receipts fall back to manual admin review.
-- **BOA receipts never expose a receiver account** → always manual review.
-- **Chapa is dormant** until live keys are added (pending KYC).
-- **Email deliverability depends on your DNS** (SPF/DKIM/DMARC) — see
-  [INTEGRATIONS.md](INTEGRATIONS.md).
+The college is the system owner after handover. The previous owner keeps no
+production access unless the college grants it. Open items, owners and their
+status are tracked in [`docs/annex/HANDOVER.md`](../annex/HANDOVER.md).

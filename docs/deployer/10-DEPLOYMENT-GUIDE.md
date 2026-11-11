@@ -1,4 +1,4 @@
-# Lor Mentor — Go-Live Guide (follow top to bottom)
+# Lor Mentor — Deployment Guide (follow top to bottom)
 
 This is the single, beginner-friendly guide to take Lor Mentor from an empty
 Hostinger VPS to a live, secure production site. Run every command **on the VPS**
@@ -18,6 +18,33 @@ unless it says otherwise. Don't skip steps.
 
 ---
 
+## What you are building (architecture)
+
+```text
+                          Internet (HTTPS :443)
+                                  │
+                        ┌─────────▼──────────┐
+                        │  nginx (host)      │  TLS termination, reverse proxy
+                        │  lormentor.com     ├──────► 127.0.0.1:3000  web  (Next.js)
+                        │  api.lormentor.com ├──────► 127.0.0.1:4000  api  (NestJS)
+                        └────────────────────┘
+                                  │  docker network: internal
+   ┌───────────────┬─────────────┼───────────────┬──────────────────┐
+   ▼               ▼             ▼               ▼                  ▼
+  api            web         verifier        postgres            redis
+ :4000          :3000        :8000        volume: pgdata      volume: redisdata
+   │  volume: uploads (receipts, materials, generated PDFs)
+   └── prisma migrate deploy runs before the API starts serving
+```
+
+- **Only** `web` and `api` publish ports, and only on `127.0.0.1`.
+- Postgres, Redis and the verifier have **no host ports** and are reachable only
+  on the internal Docker network.
+- `prisma migrate deploy` runs automatically in the API entrypoint. It is
+  forward-only and never resets data.
+
+---
+
 ## Before you start — fill in YOUR values
 
 Write these down; you'll paste them throughout:
@@ -27,7 +54,7 @@ Write these down; you'll paste them throughout:
 | Domain | `lormentor.com` | ______ |
 | VPS public IP | `203.0.113.45` | ______ |
 | Sudo username you'll create | `deploy` | ______ |
-| Repo URL | `https://github.com/Bereket18/lor-mentor.git` | ______ |
+| Repo URL | GitLab (source of truth): `https://gitlab.com/bereketadamsseged/lor-mentor-edu.git` — GitHub mirror: `https://github.com/Bereket18/lor-mentor.git` | ______ |
 
 If you don't have a domain yet, buy one (Hostinger sells them) — you need it for
 HTTPS, email, and Chapa webhooks.
@@ -618,7 +645,41 @@ requires an API restart and a login/cookie check.
 
 ---
 
-## Getting help
-When something fails on the server, copy the exact command + its output (and
-`docker compose logs <service> --tail=50`) and bring it back — that's usually
-enough to pinpoint the fix.
+## Operational cautions
+
+- **Obtain the repo with `git clone`.** Prisma hashes `migration.sql` files
+  exactly as they sit on disk; three are pinned to CRLF in `.gitattributes`. A
+  zip download or an `rsync` that normalises line endings changes those hashes
+  and breaks `prisma migrate deploy` on redeploy.
+- **Do not run `docker compose down -v`.** The `-v` flag deletes `pgdata`,
+  `redisdata` and `uploads`.
+- **Keep `.env.production` mode 600** and never copy it into the repo.
+- **Base images are digest-pinned.** Updates are deliberate: resolve a new
+  digest with `docker buildx imagetools inspect <image>` and change it in a
+  commit.
+- **Single VPS is a single point of failure.** Acceptable for launch; revisit
+  redundancy and managed PostgreSQL as usage grows.
+
+## Known operational limits
+
+- **Telebirr auto-verification will not work from a non-Ethiopian IP.** Those
+  receipts fall back to manual admin review.
+- **BOA receipts never expose a receiver account** → always manual review.
+- **Chapa is dormant** until live keys are added (pending KYC).
+- **Email deliverability depends on your DNS** (SPF/DKIM/DMARC) — see
+  [41-EMAIL-SETUP.md](41-EMAIL-SETUP.md).
+
+---
+
+## When something goes wrong
+
+Start with [92-TROUBLESHOOTING.md](92-TROUBLESHOOTING.md). It maps the most
+common symptoms (502s, login loops, failed migrations, email not arriving,
+certificate errors) to the check or command that fixes them. If the answer is
+not there, copy the exact command and its output plus
+
+```bash
+docker compose -f docker-compose.prod.yml logs <service> --tail=50
+```
+
+and bring that back — it is usually enough to pinpoint the fix.
