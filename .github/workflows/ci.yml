@@ -1,46 +1,44 @@
 name: CI
 
-# GitHub mirror of the GitLab pipeline (.gitlab-ci.yml) with only the gates
-# that must pass before a branch can be merged. Docker / Trivy / nginx jobs are
-# report-only in GitLab, so they are intentionally left out here.
+# `origin` is GitLab and keeps .gitlab-ci.yml. This workflow is the port of
+# that file and mirrors its hard gates one-for-one:
 #
-# Triggers cover every branch shape used by this repository so feature branches
-# get a run without needing a pull request.
+#   install, prisma validate + migrate, API build, API type-check, API unit
+#   tests (including the real-Postgres race and gateway-matrix suites), API
+#   e2e, anatomy model validators + teaching-text safety tests, web lint, web
+#   type-check, web build, web unit tests, verifier tests.
+#
+# The GitLab account currently has no compute minutes left, so every job there
+# fails with `ci_quota_exceeded` before it starts. This workflow is therefore
+# the CI of record until that is resolved; keep the two matrices identical.
+#
+# Report-only in GitLab (npm audit, Docker builds, compose config, nginx
+# syntax, Trivy) is not duplicated here.
+
 on:
   push:
     branches:
-      - main
-      - "feat/**"
-      - "feature/**"
-      - "fix/**"
+      - "main"
       - "integration/**"
+      - "feature/**"
+      - "feat/**"
+      - "fix/**"
       - "ci/**"
-      - "chore/**"
   pull_request:
-    branches:
-      - main
-  workflow_dispatch:
-
-permissions:
-  contents: read
+    branches: ["main", "integration/**", "feature/**"]
 
 # Cancel superseded runs on the same ref to save minutes.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  NPM_CONFIG_FUND: "false"
-  NPM_CONFIG_AUDIT: "false"
-  NEXT_TELEMETRY_DISABLED: "1"
-
 jobs:
-  # ── API: schema, build, typecheck, unit + e2e tests ────────────────
-  api:
-    name: API (build, unit + e2e)
+  # ── API + Web (Node monorepo) ─────────────────────────────────────
+  node:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     services:
+      # Same throwaway credentials as .gitlab-ci.yml. The database lives for
+      # one job, so nothing here is a secret.
       postgres:
         image: postgres:16-alpine
         env:
@@ -64,40 +62,47 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      # Throwaway credentials for the ephemeral service container, not secrets.
-      CI: "true"
       DATABASE_URL: postgresql://lor_ci:lor_ci_password@localhost:5432/lor_mentor_ci
       REDIS_HOST: localhost
       REDIS_PORT: "6379"
+      NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "24"
+          node-version: 24
           cache: npm
 
       - name: Install (workspaces)
         run: npm ci
 
-      - name: Validate Prisma schema
+      # Schema validation is cheap and catches a malformed schema before the
+      # heavier jobs. The committed migrations are then applied to the fresh
+      # service database, so a broken migration fails here rather than on a
+      # deploy.
+      - name: Prisma generate
+        working-directory: apps/api
+        run: npx prisma generate
+
+      - name: Prisma validate
         run: npx prisma validate --schema apps/api/prisma/schema.prisma
 
-      - name: Prisma generate + migrate
+      - name: Prisma migrate deploy
         working-directory: apps/api
-        run: |
-          npx prisma generate
-          npx prisma migrate deploy
+        run: npx prisma migrate deploy
 
-      - name: Build API
+      - name: API build
         run: npm run build:api
 
-      # Nest's build only covers tsconfig.build.json; this also type-checks the
-      # test files and anything else the build config excludes.
-      - name: Typecheck API
+      # Nest's build already type-checks, but this fails fast with a readable
+      # list of errors and covers test files tsconfig.build.json excludes.
+      - name: API type-check
         run: npx tsc -p apps/api/tsconfig.json --noEmit
 
-      - name: API unit tests
+      # CI=true plus DATABASE_URL is what opts the race and gateway-matrix
+      # suites in (see payments.race.spec.ts and payments.gateway.matrix.spec.ts).
+      - name: API tests
         working-directory: apps/api
         run: npx jest --ci
 
@@ -105,76 +110,49 @@ jobs:
         working-directory: apps/api
         run: npm run test:e2e
 
-  # ── Web: lint, typecheck, unit tests, production build ────────────
-  web:
-    name: Web (lint, typecheck, unit, build)
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
+      - name: Anatomy model validators
+        working-directory: apps/web
+        run: |
+          node scripts/validate-anatomy-model.mjs --system heart
+          node scripts/validate-anatomy-model.mjs --system urinary
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: npm
+      - name: Anatomy teaching-text safety tests
+        run: npm run test:scripts
 
-      - name: Install (workspaces)
-        run: npm ci
-
-      - name: Lint
+      # Blocking, as in .gitlab-ci.yml: apps/web lints clean at the source.
+      - name: Web lint
         working-directory: apps/web
         run: npx eslint .
 
       # Route types live in .next/types and are not committed; generate them
       # without running a full production build.
-      - name: Generate route types
+      # NEXT_PUBLIC_API_URL is scoped to these two steps on purpose:
+      # api-origin.spec.ts asserts the behaviour when the variable is unset, so
+      # a job-wide value makes the unit suite fail (caught by run #8).
+      - name: Web type-check
         working-directory: apps/web
         env:
           NEXT_PUBLIC_API_URL: https://api.example.com
-        run: npx next typegen
+        run: |
+          npx next typegen
+          npx tsc -p tsconfig.json --noEmit
 
-      - name: Typecheck
-        working-directory: apps/web
-        env:
-          NEXT_PUBLIC_API_URL: https://api.example.com
-        run: npx tsc -p tsconfig.json --noEmit
-
-      - name: Unit tests
-        run: npm run test:unit --workspace=apps/web
-
-      - name: Build web
+      - name: Web build
         env:
           NEXT_PUBLIC_API_URL: https://api.example.com
         run: npm run build:web
 
-  # ── Anatomy model validators ──────────────────────────────────────
-  anatomy:
-    name: Anatomy validators
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
+      # Pure TypeScript tests; the config does not launch a browser or dev
+      # server, so no Playwright browser download is needed.
+      - name: Web unit tests
+        run: npm run test:unit --workspace=apps/web
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-
-      - name: Validate heart model
-        working-directory: apps/web
-        run: node scripts/validate-anatomy-model.mjs --system heart
-
-      - name: Validate urinary model
-        working-directory: apps/web
-        run: node scripts/validate-anatomy-model.mjs --system urinary
-
-      - name: Teaching-text safety tests
-        run: npm run test:scripts
-
-  # ── Receipt verifier (Python, stdlib + fastapi) ───────────────────
+  # ── Receipt-verifier (Python) ─────────────────────────────────────
   verifier:
-    name: Receipt verifier tests
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: services/receipt-verifier
     steps:
       - uses: actions/checkout@v4
 
@@ -182,15 +160,21 @@ jobs:
         with:
           python-version: "3.12"
 
+      # normalize.py + its tests are stdlib-only. cbe_links.py needs `requests`;
+      # the validation/auth helpers live in security.py so the security tests do
+      # not import main.py's Selenium/Chromium stack. main.py's real dependency
+      # stack is validated by the Docker build in .gitlab-ci.yml.
       - name: Install test dependencies
-        # Do not install requirements.txt: it pulls ethiobank-receipts
-        # (Selenium + Chromium), which these tests deliberately do not need.
-        run: python -m pip install --disable-pip-version-check requests==2.34.2 fastapi==0.140.0
+        run: pip install requests==2.34.2 fastapi==0.140.0
 
-      - name: Run verifier tests
-        working-directory: services/receipt-verifier
-        run: |
-          python -m py_compile normalize.py cbe_links.py security.py main.py
-          python test_normalize.py
-          python test_cbe_links.py
-          python test_security.py
+      - name: Byte-compile verifier modules
+        run: python -m py_compile normalize.py cbe_links.py security.py main.py
+
+      - name: Normalizer tests
+        run: python test_normalize.py
+
+      - name: Receipt-link tests
+        run: python test_cbe_links.py
+
+      - name: Security and authentication tests
+        run: python test_security.py

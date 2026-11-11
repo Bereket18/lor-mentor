@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   AlertTriangle,
   RotateCcw,
+  RefreshCw,
   Search,
 } from "lucide-react";
 import api from "@/lib/api";
@@ -27,10 +28,12 @@ import {
 
 import { toast } from "sonner";
 
-type PaymentStatus = "PENDING" | "APPROVED" | "REJECTED" | "REVERSED";
+type PaymentStatus = "PENDING" | "APPROVED" | "REJECTED" | "REVERSED" | "EXPIRED" | "CANCELLED";
 // "ALL" is a client-side convenience value: it simply omits the status query
-// parameter, so the server returns every payment in the queue.
-type PaymentFilter = PaymentStatus | "ALL";
+// parameter, so the server returns every payment in the queue. "EXCEPTIONS"
+// asks the server (exceptions=true) for every payment carrying a review
+// exception, whatever its status or payment method.
+type PaymentFilter = PaymentStatus | "ALL" | "EXCEPTIONS";
 
 // Normalized receipt data attached to auto-verified bank transfers (mirrors the
 // receipt-verifier contract). `reviewNote` is set when it needs manual review.
@@ -50,6 +53,10 @@ interface Verification {
   submittedReference?: string;
   submittedUrl?: string;
   submittedAccountMatched?: boolean;
+  /** Set by the API on every verified-but-not-approved outcome (refund, late
+      payment on a terminal row, verification mismatch): the Exceptions tab
+      lists these so no verified money is missed. */
+  exception?: boolean;
 }
 
 interface Payment {
@@ -63,6 +70,8 @@ interface Payment {
   bankReference?: string | null;
   verification?: Verification | null;
   reversalReason?: string | null;
+  // Set by the API when a verified Chapa payment revived a closed checkout.
+  recoveredFromStatus?: "EXPIRED" | "CANCELLED" | null;
   user: {
     fullName: string;
     email: string;
@@ -79,24 +88,45 @@ const statusColors: Record<PaymentStatus, string> = {
   APPROVED: "text-green-400 bg-green-500/10",
   REJECTED: "text-red-400 bg-red-500/10",
   REVERSED: "text-orange-400 bg-orange-500/10",
+  EXPIRED: "text-gray-400 bg-gray-500/10",
+  CANCELLED: "text-gray-400 bg-gray-500/10",
 };
 
 // Status buckets for the counts and the per-status empty states. The page
 // opens on the full queue (all statuses, newest first) and filters on demand.
 // Reversed lives in its own status (not mixed into Rejected) so the rejection
 // reason stays unambiguous.
-const TABS: { key: PaymentStatus; label: string; empty: string }[] = [
+const STATUS_TABS: { key: PaymentStatus; label: string; empty: string }[] = [
   { key: "PENDING", label: "Pending", empty: "No pending payments to review." },
   { key: "APPROVED", label: "Approved", empty: "No approved payments yet." },
   { key: "REJECTED", label: "Rejected", empty: "No rejected payments." },
   { key: "REVERSED", label: "Reversed", empty: "No reversed payments." },
+  { key: "EXPIRED", label: "Expired", empty: "No expired payments." },
+  { key: "CANCELLED", label: "Cancelled", empty: "No cancelled payments." },
 ];
 
-const EMPTY_COUNTS: Record<PaymentStatus, number> = {
+// The cross-status tab: every payment the gateway or the verifier flagged for
+// a human (a reported refund, a late payment on a terminal row, a verification
+// mismatch). It is listed first so a refund can never be missed.
+const EXCEPTIONS_TAB = {
+  key: "EXCEPTIONS",
+  label: "Exceptions",
+  empty: "No payment needs manual review.",
+} as const;
+
+const TABS: { key: PaymentFilter; label: string; empty: string }[] = [
+  EXCEPTIONS_TAB,
+  ...STATUS_TABS,
+];
+
+const EMPTY_COUNTS: Record<string, number> = {
   PENDING: 0,
   APPROVED: 0,
   REJECTED: 0,
   REVERSED: 0,
+  EXPIRED: 0,
+  CANCELLED: 0,
+  EXCEPTIONS: 0,
 };
 
 // Renders the data extracted from a bank receipt so an admin can eyeball it.
@@ -218,7 +248,7 @@ export default function AdminPaymentsPage() {
   const [search, setSearch] = useState("");
   const [payments, setPayments] = useState<Payment[]>([]);
   const [counts, setCounts] =
-    useState<Record<PaymentStatus, number>>(EMPTY_COUNTS);
+    useState<Record<string, number>>(EMPTY_COUNTS);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
   const [reverseTarget, setReverseTarget] = useState<Payment | null>(null);
@@ -234,7 +264,11 @@ export default function AdminPaymentsPage() {
     try {
       const res = await api.get("/payments/admin", {
         params: {
-          ...(status !== "ALL" ? { status } : {}),
+          ...(activeTab === "EXCEPTIONS"
+            ? { exceptions: "true" }
+            : activeTab !== "ALL"
+              ? { status: activeTab }
+              : {}),
           ...(term.trim() ? { search: term.trim() } : {}),
         },
       });
@@ -350,7 +384,27 @@ export default function AdminPaymentsPage() {
     }
   }
 
-  const totalCount = TABS.reduce((n, tab) => n + counts[tab.key], 0);
+  // The PDF is written after the approval commits, so a full disk or a
+  // permissions problem can leave an APPROVED payment without a file. The
+  // download endpoint repairs it automatically; this forces the rebuild when an
+  // admin wants it done now (and reports why it failed).
+  async function regenerateReceipt(id: string) {
+    setActionId(id);
+    try {
+      await api.post(`/payments/${id}/receipt/regenerate`);
+      toast.success("Receipt regenerated");
+      await loadPayments(activeTab, search);
+    } catch (err: unknown) {
+      toast.error(
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message ?? "Could not regenerate the receipt",
+      );
+    } finally {
+      setActionId(null);
+    }
+  }
+
+  const totalCount = STATUS_TABS.reduce((n, tab) => n + counts[tab.key], 0);
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -488,6 +542,24 @@ export default function AdminPaymentsPage() {
                     >
                       {payment.status}
                     </span>
+                    {payment.verification?.exception && (
+                      <span
+                        className="ml-1 inline-flex items-center rounded-md bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium text-red-400"
+                        title={payment.verification.reviewNote ??
+                          "Flagged for manual review"}
+                      >
+                        <AlertTriangle className="h-3 w-3 mr-0.5" />
+                        Exception
+                      </span>
+                    )}
+                    {payment.recoveredFromStatus && (
+                      <span
+                        className="ml-1 inline-flex items-center rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-400"
+                        title={`Chapa verified this payment after the checkout was ${payment.recoveredFromStatus}`}
+                      >
+                        Recovered from {payment.recoveredFromStatus.toLowerCase()}
+                      </span>
+                    )}
                     {payment.status === "REVERSED" &&
                       payment.reversalReason && (
                         <p
@@ -513,15 +585,33 @@ export default function AdminPaymentsPage() {
                     )}
 
                     {payment.status === "APPROVED" && (
-                      <button
-                        type="button"
-                        onClick={() => openReceiptPdf(payment.id)}
-                        className="flex items-center gap-1 text-xs font-medium text-secondary
-                      hover:text-primary transition-colors"
-                      >
-                        <FileText className="h-3.5 w-3.5" />
-                        PDF
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => openReceiptPdf(payment.id)}
+                          className="flex items-center gap-1 text-xs font-medium text-secondary
+                        hover:text-primary transition-colors"
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          PDF
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => regenerateReceipt(payment.id)}
+                          disabled={actionId === payment.id}
+                          title="Rebuild the PDF receipt (it is also rebuilt
+                            automatically when a download finds no file)"
+                          className="flex items-center gap-1 text-xs font-medium text-secondary
+                        hover:text-primary transition-colors disabled:opacity-50"
+                        >
+                          {actionId === payment.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-3.5 w-3.5" />
+                          )}
+                          Regenerate
+                        </button>
+                      </>
                     )}
 
                     {payment.status === "APPROVED" && isSuperAdmin && (

@@ -16,7 +16,7 @@
 | Refresh rotation | `refresh` verifies → checks denylist → **burns the presented `jti`** → reissues; reuse of a rotated token is rejected | Good |
 | Logout | Server-side revoke of the refresh `jti` (Redis denylist), not just cookie clear | Good |
 | Brute-force lockout | 5 failures → 15-minute lock; counter resets on success; each failure logged to `AuditLog` with IP | Good |
-| Email verification | Login blocked until verified; verify token random 32 bytes, 24h expiry; register rolls back if email send fails | Good |
+| Email verification | Login blocked until verified; 6-digit code from `crypto.randomInt` stored only as a bcrypt hash, 15m expiry, single-use via a guarded atomic claim, 5 attempts per code, resend cooldown + per-account hourly cap; register rolls back if the email send fails | Good |
 | Password reset | 32-byte token, 1h expiry, **atomic single-statement claim** (fixes the old TOCTOU bug) | Good |
 
 ### S-1 — Redis denylist fails **closed** (posture fixed, outage drill PASSED 2026-10-19)

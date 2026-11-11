@@ -14,10 +14,15 @@ import {
   Copy,
   Check,
   Camera,
+  ScanLine,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
+import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
+import { paymentUnderReviewMessage } from "@/lib/payment-confirmation";
+import { ReceiptQrScanner } from "@/components/payment/receipt-qr-scanner";
+import type { ReceiptScan } from "@/lib/qr-scan";
 
 interface Plan {
   id: string;
@@ -83,9 +88,9 @@ function SubscribeContent() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
-  const [successKind, setSuccessKind] = useState<"review" | "approved">(
-    "review",
-  );
+  const [successKind, setSuccessKind] = useState<
+    "review" | "approved" | "online-review"
+  >("review");
   const [file, setFile] = useState<File | null>(null);
 
   // Bank-transfer sub-mode: verify a reference (instant) or upload an image.
@@ -104,6 +109,12 @@ function SubscribeContent() {
   const [cameraError, setCameraError] = useState("");
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+
+  // Live QR reading of the receipt. The scanner fills the fields below and
+  // nothing else: submitting still goes through the reference flow, where
+  // Cheki and the bank decide whether the payment is real.
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scannedValue, setScannedValue] = useState("");
 
   // Admin-managed list of banks the college accepts (GET /payments/banks).
   const { data: bankOptions } = useQuery({
@@ -177,7 +188,28 @@ function SubscribeContent() {
     setError("");
     try {
       const res = await api.post("/payments/chapa/initialize", { planId });
-      // Hand off to Chapa's hosted checkout page.
+      if (res.data?.approved) {
+        // Lazy resolution found the previous checkout already paid by the
+        // gateway: approved through the normal path, no new checkout.
+        toast.success(res.data.message ?? "Your payment is approved.");
+        router.push("/profile");
+        return;
+      }
+      if (res.data?.review) {
+        // Lazy resolution found the previous checkout already paid by the
+        // gateway, but the payment cannot be approved automatically (a
+        // mismatch or a terminal row). Show the fixed review sentence — never
+        // a success and never a "not charged" failure.
+        setResultMessage(
+          paymentUnderReviewMessage(
+            typeof res.data.txRef === "string" ? res.data.txRef : "your payment",
+          ),
+        );
+        setSuccessKind("online-review");
+        setSuccess(true);
+        return;
+      }
+      // Hand off to Chapa's hosted checkout page (fresh or resumed checkout).
       window.location.href = res.data.checkoutUrl;
     } catch (err: unknown) {
       const message =
@@ -271,6 +303,22 @@ function SubscribeContent() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  // A scanned receipt fills the same two fields the student would type into,
+  // and selects a bank only when we can name it from the link's host AND the
+  // college actually accepts that bank. The student reviews before submitting.
+  function applyQrScan(scan: ReceiptScan) {
+    const value = scan.url ?? scan.reference ?? "";
+    if (!value) return;
+    setReference(value);
+    setReceiptUrl(value);
+    if (scan.bank && banks.some((b) => b.code === scan.bank)) {
+      setBank(scan.bank);
+    }
+    setScannedValue(scan.raw);
+    setError("");
+    setScanOpen(false);
   }
 
   async function copyAccount(accountNumber: string) {
@@ -396,12 +444,17 @@ function SubscribeContent() {
 
   if (success) {
     const approved = successKind === "approved";
+    const heading = approved
+      ? "Payment verified"
+      : successKind === "online-review"
+        ? "Payment received"
+        : "Receipt submitted";
     return (
       <div className="min-h-screen bg-base flex items-center justify-center p-6">
         <div className="max-w-md w-full text-center">
           <CheckCircle2 className="h-12 w-12 text-green-400 mx-auto mb-4" />
           <h1 className="font-display text-2xl font-semibold text-primary mb-2">
-            {approved ? "Payment verified" : "Receipt submitted"}
+            {heading}
           </h1>
           <p className="text-sm text-secondary mb-6">
             {approved ? (
@@ -410,7 +463,16 @@ function SubscribeContent() {
                 Your receipt has been generated.
               </>
             ) : resultMessage ? (
-              <>{resultMessage}</>
+              <>
+                {resultMessage}{" "}
+                <Link
+                  href="/support"
+                  className="underline underline-offset-2"
+                  style={{ color: "var(--teal)" }}
+                >
+                  Open support
+                </Link>
+              </>
             ) : (
               <>
                 Your payment for <strong>{plan.name}</strong> is pending admin
@@ -731,6 +793,34 @@ function SubscribeContent() {
                       </div>
                     )}
                   </>
+                )}
+
+                {scanOpen ? (
+                  <ReceiptQrScanner
+                    onDecoded={applyQrScan}
+                    onCancel={() => setScanOpen(false)}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCameraOpen(false);
+                      setError("");
+                      setScanOpen(true);
+                    }}
+                    className="flex items-center justify-center gap-2 w-full
+                      bg-surface border border-default rounded-xl py-2.5 text-sm
+                      text-secondary hover:text-primary hover:border-accent/50
+                      transition-colors"
+                  >
+                    <ScanLine className="h-4 w-4" />
+                    Scan the receipt&apos;s QR code instead
+                  </button>
+                )}
+                {scannedValue && (
+                  <p className="text-xs text-muted break-all font-mono">
+                    Scanned: {scannedValue}
+                  </p>
                 )}
 
                 <p className="text-xs text-muted flex items-start gap-1.5">

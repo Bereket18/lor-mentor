@@ -83,7 +83,7 @@ Legend — **Req:** R required · O optional · C conditional.
 | Name | Purpose | Req | Exp | Where the value comes from | Staging vs production |
 |---|---|---|---|---|---|
 | `CORS_ORIGIN` | Exact browser origin(s) allowed to call the API, comma-separated | R | S | Your web domain | Different |
-| `TRUST_PROXY` | Reverse-proxy hops trusted for `X-Forwarded-For` | O (blank = 1 in prod) | S | Your topology; `2` behind Cloudflare | Same |
+| `TRUST_PROXY` | Trusted reverse-proxy hops or addresses/subnets for `X-Forwarded-For` | O (blank = 1 in prod) | S | Your topology; `loopback,172.18.0.0/16` (recommended) or `2` behind Cloudflare | Same |
 | `COOKIE_DOMAIN` | Parent domain shared by the auth cookies | C (required for split-host) | S | Your registered domain, e.g. `.lormentor.com` | Each environment's own domain |
 
 Wildcards in `CORS_ORIGIN` are rejected. `COOKIE_DOMAIN` must be a bare hostname
@@ -298,7 +298,7 @@ than starting with a bad configuration:
 - `RECEIPT_VERIFIER_TOKEN`: required and ≥ 32 chars when the verifier URL is set.
 - `COMPANY_BANK_ACCOUNTS` entries: at least 8 digits each.
 - `RECEIPT_VERIFIER_TIMEOUT_MS`: integer 5000–120000.
-- `TRUST_PROXY`: non-negative integer if set.
+- `TRUST_PROXY`: a non-negative integer (proxy hops) or a comma-separated list of trusted proxy IPs/CIDRs/named ranges (`loopback`, `linklocal`, `uniquelocal`) if set.
 
 The web app validates `NEXT_PUBLIC_API_URL` separately, in its own process, at
 **build** time (`next.config.ts`) and **request** time (`/api/proxy`) — see §3.
