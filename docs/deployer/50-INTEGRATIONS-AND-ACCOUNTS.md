@@ -406,6 +406,6 @@ Chapa and Resend keys can be revoked instantly. The Gemini key is tied to the
 Google Cloud project — rotate the key rather than deleting the project, so
 billing history and quotas survive.
 
-See [`SECURITY.md`](SECURITY.md) for the full incident procedure and
-[`docs/audit/SECRET-ROTATION-RUNBOOK.md`](docs/audit/SECRET-ROTATION-RUNBOOK.md)
+See [`docs/deployer/70-SECURITY.md`](70-SECURITY.md) for the full incident procedure and
+[`docs/deployer/90-SECRET-ROTATION.md`](90-SECRET-ROTATION.md)
 for the step-by-step runbook.

@@ -221,5 +221,5 @@ remaining live payment proofs stay open.
 **Deferral note (operator decision 2026-10-19):** F-8 (Resend domain) and S-2
 (secret rotation) are scheduled to be completed **during deployment** on the
 Hostinger VPS; they remain open, **non-waivable** launch blockers. Consolidated
-procedure: `HOSTINGER-DEPLOYMENT-PLAYBOOK.md` §2–§4.
+procedure: `docs/deployer/82-PRODUCTION-GATES-AND-EVIDENCE.md` §2–§4.
 

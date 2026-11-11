@@ -10,7 +10,7 @@
 # For off-box durability, sync BACKUP_DIR to object storage (rclone/S3) after.
 #
 # A backup that has never been restored is not a backup. See
-# docs/deploy/BACKUP-RESTORE.md for the restore drill.
+# docs/deployer/30-DATABASE-AND-BACKUPS.md for the restore drill.
 set -euo pipefail
 
 # Repo root (two levels up from this script). Adjust if you relocate it.

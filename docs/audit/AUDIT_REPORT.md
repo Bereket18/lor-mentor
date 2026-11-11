@@ -111,6 +111,6 @@ Calculated against a fixed checklist (not feelings): architecture/feature comple
 - **Phase 3**: DB indexes migration (Material.courseId, Course.semesterId, Course.teacherId, QuizAttempt.userId); gate `courses/:id` to published for non-staff; audit UpdateMaterialDto fields.
 - **Phase 4**: frontend tests — Playwright for Journey 1 and Journey 5/6 (pay→activate, expired→denied); make lint blocking after paying down react-hooks debt.
 - **Phase 5**: staging deployment, smoke test, real Chapa test-mode transaction, monitoring (Sentry DSN + uptime check on /health/ready).
-- **Phase 6**: production go-live per `docs/deploy/GO-LIVE.md`.
+- **Phase 6**: production go-live per `docs/deployer/10-DEPLOYMENT-GUIDE.md`.
 
 Each phase is small, incremental, and independently committable. No architectural changes are proposed — the architecture is appropriate for this scale.

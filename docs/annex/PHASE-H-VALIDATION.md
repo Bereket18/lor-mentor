@@ -43,7 +43,7 @@ infrastructure was touched.
 
 Lint is **not clean** and was not made clean as part of this validation
 (`--fix` would rewrite unrelated files). See
-[HANDOVER.md §6](../../HANDOVER.md#6-open-items-at-handover).
+[docs/annex/HANDOVER.md §6](HANDOVER.md#6-open-items-at-handover).
 
 ## 2. Workflow validation (65/65 executed checks passed)
 
@@ -140,4 +140,4 @@ Every workflow that can be exercised in a local environment passed. The two
 things that stand between this code and a live deployment are execution, not
 open defects: a real Docker build/boot, and real provider credentials. Lint is
 not clean (pre-existing baseline plus formatting in the new anatomy-review
-files) — recorded in HANDOVER.md §6, not hidden.
+files) — recorded in docs/annex/HANDOVER.md §6, not hidden.

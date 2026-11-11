@@ -28,6 +28,6 @@ STEP 4. FACULTY REVIEW AND EDIT TOOL (in-app, as specified; the offline packet s
 8. Student and teacher views show "Faculty reviewed by <name> on <date>" or "Pending faculty review". Test that seed reconcile and publish scripts never overwrite edited text.
 9. Tests: permissions for STUDENT, TEACHER non-reviewer, TEACHER reviewer, ADMIN, SUPER_ADMIN; validation; concurrency; reset on edit; revisions. Playwright with temporary users: a reviewer edits, sees the revision, marks reviewed; a student sees the reviewed badge on a published system; a non-reviewer teacher gets 403.
 
-STEP 5. Optional files: create LICENSE and SECURITY.md ONLY if both values here are filled. Copyright holder: Bereket Adamsseged Security email: bereketadamsseged@gmail.com If blank, skip and say so.
+STEP 5. Optional files: create LICENSE and docs/deployer/70-SECURITY.md ONLY if both values here are filled. Copyright holder: Bereket Adamsseged Security email: bereketadamsseged@gmail.com If blank, skip and say so.
 
 STEP 6. Final report: one table of every step (done, partly done, not done), commands run with results, anything not run, remaining risks.

@@ -76,7 +76,7 @@ When the web app and API are on different subdomains (`lormentor.com` and
 `api.lormentor.com`), the auth cookies are set by the API host. Without
 `COOKIE_DOMAIN=.lormentor.com` the browser will not send them to the web host,
 and every protected page redirects to login. This is a **configuration
-requirement**, documented in [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md).
+requirement**, documented in [docs/deployer/60-ENVIRONMENT-VARIABLES.md](60-ENVIRONMENT-VARIABLES.md).
 It is not currently enforced at boot, so a missing value fails as a login loop
 rather than a startup error.
 
@@ -176,8 +176,8 @@ secrets and single-character repeats.
 
 ### 6.4 Rotation
 
-Full procedure: [`docs/audit/SECRET-ROTATION-RUNBOOK.md`](docs/audit/SECRET-ROTATION-RUNBOOK.md).
-Provider key rotation: [INTEGRATIONS.md §6](INTEGRATIONS.md#6-rotation-and-revocation).
+Full procedure: [`docs/deployer/90-SECRET-ROTATION.md`](90-SECRET-ROTATION.md).
+Provider key rotation: [docs/deployer/50-INTEGRATIONS-AND-ACCOUNTS.md §6](50-INTEGRATIONS-AND-ACCOUNTS.md#6-rotation-and-revocation).
 
 Rotating `JWT_ACCESS_SECRET` or `JWT_REFRESH_SECRET` invalidates every session —
 users must log in again. Do it during a quiet period and announce it.
@@ -224,7 +224,7 @@ users must log in again. Do it during a quiet period and announce it.
 
 Each is a separate processor, and each has its own terms. The college is the data
 controller and is responsible for telling students what leaves the platform. See
-[INTEGRATIONS.md](INTEGRATIONS.md) for the account and policy details.
+[docs/deployer/50-INTEGRATIONS-AND-ACCOUNTS.md](50-INTEGRATIONS-AND-ACCOUNTS.md) for the account and policy details.
 
 ---
 
@@ -279,7 +279,7 @@ accounts and investigate before re-enabling checkout.
 - Storage: a single PostgreSQL database on the college's VPS, plus the `uploads`
   volume.
 - Backups contain the same personal data — protect them like the database
-  ([DATABASE_AND_BACKUPS.md](DATABASE_AND_BACKUPS.md)).
+  ([docs/deployer/30-DATABASE-AND-BACKUPS.md](30-DATABASE-AND-BACKUPS.md)).
 - Retention, consent and student deletion requests are **college policy**; the
   platform has no automated retention job. If deletion is required, it must be
   performed deliberately (and the associated uploads and audit entries
@@ -293,7 +293,7 @@ accounts and investigate before re-enabling checkout.
 |---|---|---|
 | No MFA | Password compromise = account takeover | Long unique passwords; lockout + rate limiting; revisit before admin scale-up |
 | Single VPS, no HA | Host loss = full outage | Off-box backups; documented recovery; acceptable for launch |
-| `COOKIE_DOMAIN` not enforced at boot | Login loop instead of a clear error | Documented in env templates and NGINX-SETUP.md; fixed in a follow-up |
+| `COOKIE_DOMAIN` not enforced at boot | Login loop instead of a clear error | Documented in the env templates and [42-NGINX-AND-TLS.md](42-NGINX-AND-TLS.md); fixed in a follow-up |
 | Redis has no password | Internal-only, no host port | Do not publish Redis; adding `requirepass` needs a client change |
 | Verification/reset tokens stored raw in the DB | DB read access could mint a session | Tokens are single-use and short-lived; rotate on suspected DB access |
 | No automated dependency scanning | Vulnerable transitive package could linger | Run `npm audit` before each release |

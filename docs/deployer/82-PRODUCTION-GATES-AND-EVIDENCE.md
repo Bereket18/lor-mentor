@@ -14,10 +14,10 @@ Related documents (do not duplicate work; use them alongside this playbook):
 
 | Topic | Document |
 |---|---|
-| Step-by-step VPS setup (SSH, firewall, Docker, Nginx, certbot) | `docs/deploy/GO-LIVE.md` |
-| Resend domain detail (DNS records, troubleshooting) | `docs/audit/RESEND-DOMAIN-VERIFICATION.md`, `docs/deploy/email-setup.md` |
-| Chapa account/webhook detail | `docs/deploy/chapa-production.md` |
-| Secret rotation procedure + rollback | `docs/audit/SECRET-ROTATION-RUNBOOK.md` |
+| Step-by-step VPS setup (SSH, firewall, Docker, Nginx, certbot) | `docs/deployer/10-DEPLOYMENT-GUIDE.md` |
+| Resend domain detail (DNS records, troubleshooting) | `docs/audit/RESEND-DOMAIN-VERIFICATION.md`, `docs/deployer/41-EMAIL-SETUP.md` |
+| Chapa account/webhook detail | `docs/deployer/40-PAYMENTS.md` |
+| Secret rotation procedure + rollback | `docs/deployer/90-SECRET-ROTATION.md` |
 | Environment preflight tool | `npm run check:env -- .env.production --strict` |
 | Local rehearsal evidence (already PASSed) | `docs/audit/STAGING-GATE-RUNBOOK.md` §13 |
 
@@ -27,7 +27,7 @@ Related documents (do not duplicate work; use them alongside this playbook):
 
 ### 1.1 Base deploy
 
-Follow `GO-LIVE.md` Sections 1–3 top to bottom (Ubuntu 24.04, non-root user,
+Follow `10-DEPLOYMENT-GUIDE.md` Sections 1-3 top to bottom (Ubuntu 24.04, non-root user,
 SSH keys, UFW 22/80/443, fail2ban, Docker + Nginx + certbot, DNS A records,
 `/opt/lor-mentor`, `.env.production`, `docker compose up -d --build`, seed).
 
@@ -76,7 +76,7 @@ Expected: a Chromium version string and `{"status":"ok","banks":[...]}`.
 
 ### 1.3 Delta B — real TLS and HSTS (completes T-53 on a real host)
 
-`GO-LIVE.md` §3.6–3.7 covers Nginx + `certbot --nginx -d <domain> -d
+`10-DEPLOYMENT-GUIDE.md` §3.6-3.7 covers Nginx + `certbot --nginx -d <domain> -d
 www.<domain> -d api.<domain>`. After certbot runs, add HSTS to both TLS server
 blocks in `/etc/nginx/sites-available/lor-mentor`:
 
@@ -123,7 +123,7 @@ weeks. Production must **never reuse them**. S-2 is simply: *generate brand-new
 values at deploy time, put them only in `.env.production` on the VPS, and
 revoke the old provider keys afterwards.* There is nothing to "fix in code" —
 it is a checklist you complete once, during deployment. (The full procedure and
-rollback live in `SECRET-ROTATION-RUNBOOK.md`.)
+rollback live in `90-SECRET-ROTATION.md`.)
 
 ### 2.1 Generate the app-side secrets on the VPS
 
@@ -207,7 +207,7 @@ Short version, run during deployment:
 
 ## 4. Chapa at deployment — and how Chapa verification actually works
 
-Account/setup detail: `docs/deploy/chapa-production.md`. Keys are
+Account/setup detail: `docs/deployer/40-PAYMENTS.md`. Keys are
 **all-or-nothing** in env validation: set both `CHAPA_SECRET_KEY` and
 `CHAPA_WEBHOOK_SECRET`, or leave both blank.
 

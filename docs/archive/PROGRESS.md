@@ -394,7 +394,7 @@ Actions:
   supplied holder. The project had no licence file before this step; the
   repository already declared `UNLICENSED` in both package manifests. The
   notice points third-party components and content at their own terms.
-- Updated the existing `SECURITY.md` reporting section in place, replacing the
+- Updated the existing `docs/deployer/70-SECURITY.md` reporting section in place, replacing the
   `<security-contact@your-domain>` placeholder with the supplied email. The
   rest of the document was left intact.
 - Did **not** change the BodyParts3D/CC BY-SA attribution, the model notices,
@@ -450,7 +450,7 @@ action is listed under **Not run / not done** rather than counted as complete.
 | 4 | Playwright review suite: `E2E_RUN_ANATOMY_REVIEW=1 npm run e2e --workspace=apps/web -- e2e/anatomy-review.spec.ts --workers=1 --reporter=line,json` | **5/5 passed in 13.2 s**; report `C:\Users\berek\AppData\Local\Temp\opencode\anatomy-step4-playwright.json`; covered edit/revision/history/review/system review/HTML rejection/reset/409/re-review/revoke and STUDENT/TEACHER/ADMIN/SUPER_ADMIN access |
 | 4 | Fixture cleanup and post-cleanup verification | Removed 7 fixture audit rows, 1 fixture system, 5 temporary users; all five deleted-user logins **401**; database returned to **18 systems / 270 structures / 0 reviewed**, 0 fixture systems/users; 41/41 heart+urinary rows match the pre-Step-4 backup on the five-field hash; heart remains published/sample and urinary remains a draft |
 | 4 | Reviewer CLI on temporary TEACHER and ADMIN users | Grant dry run left flag false; `--grant --confirm` set true; revoke dry run left true; `--revoke --confirm` set false; ADMIN grant refused with exit 1 and no flag change; both users deleted, both logins **401**; no password printed |
-| 5 | Add `LICENSE`; update `SECURITY.md` contact | Proprietary "All rights reserved" notice for **Bereket Adamsseged**; placeholder replaced with **bereketadamsseged@gmail.com**; third-party wording unchanged; commit `ab5fc88` |
+| 5 | Add `LICENSE`; update `docs/deployer/70-SECURITY.md` contact | Proprietary "All rights reserved" notice for **Bereket Adamsseged**; placeholder replaced with **bereketadamsseged@gmail.com**; third-party wording unchanged; commit `ab5fc88` |
 | 6 | Documentation update and local commit | This report and the corrected status table; no code change in this step |
 
 ### Not run / not done
@@ -552,7 +552,7 @@ Done:
 - `apps/web/public/models/anatomy/NOTICE-MODELS.md` added: exact credit line and
   the exact "Licence status" paragraph copied from the attribution pages, the
   two licence statements, the licence URL, and the adaptations list.
-- `CHANGELOG.md` (v0.1.0, summarised from `git log` only; no tags).
+- `docs/annex/CHANGELOG.md` (v0.1.0, summarised from `git log` only; no tags).
 - `.gitlab/merge_request_templates/Default.md`, `.gitlab/issue_templates/bug.md`,
   `.gitlab/issue_templates/content-correction.md`.
 - `.gitattributes`: added `*.sh text eol=lf` so Windows checkouts cannot rewrite
@@ -570,7 +570,7 @@ Skipped (pending real values):
 
 - `LICENSE.md` — the copyright holder is still the placeholder
   `[YOUR LEGAL NAME OR COMPANY]`.
-- `SECURITY.md` — the security contact is still the placeholder
+- `docs/deployer/70-SECURITY.md` — the security contact is still the placeholder
   `[YOUR SECURITY EMAIL]`.
 
 Not run in Phase 1:
@@ -675,7 +675,7 @@ Done:
   - validates `RECEIPT_VERIFIER_TIMEOUT_MS` and
     `COMPANY_BANK_ACCOUNTS` the same way as the API.
 - `.env.production.example`, `apps/api/.env.example`, and
-  `docs/deploy/RELEASE-CHECKLIST.md` now state that wildcards are rejected.
+  `docs/deployer/81-RELEASE-CHECKLIST.md` now state that wildcards are rejected.
 - Tests: `config/env.validation.spec.ts` **33/33** pass, including four
   wildcard variants and a valid comma-separated allowlist. Full API suite:
   **25 suites, 287/287 tests**. `npm run build:api` passes.
@@ -758,7 +758,7 @@ Playwright:
   cleared, the run passed 2/2; this is the intended brute-force protection, not
   a product failure.
 
-`docs/deploy/RELEASE-CHECKLIST.md` now records the admin anatomy check, the
+`docs/deployer/81-RELEASE-CHECKLIST.md` now records the admin anatomy check, the
 Playwright result, and the pre-existing web-lint caveat.
 
 ## Phase 3 — faculty review packet and sign-off
@@ -792,8 +792,8 @@ Verification against the local dev database:
   structures draft, **0 reviewed rows**. No teaching text was edited.
 - `npx tsc --noEmit -p tsconfig.json`: pass. `npm run build:api`: pass.
 
-Docs updated: `docs/deploy/GO-LIVE.md` §3.4.1,
-`docs/deploy/RELEASE-CHECKLIST.md` §5, and
+Docs updated: `docs/deployer/10-DEPLOYMENT-GUIDE.md` §3.4.1,
+`docs/deployer/81-RELEASE-CHECKLIST.md` §5, and
 `docs/anatomy/provenance/README.md` §10.
 
 ## Phase 4 — remaining anatomy systems (blocked)
@@ -915,7 +915,7 @@ protected-text hash and the published flags are unchanged.
 - **Production strict smoke (20 checks) was not run.** It requires nginx/TLS;
   the local run reports 18 passing with 0 failures and skips the immutable-cache
   check.
-- **`LICENSE.md` and `SECURITY.md` remain skipped.** The copyright holder and
+- **`LICENSE.md` and `docs/deployer/70-SECURITY.md` remain skipped.** The copyright holder and
   security contact are still bracketed placeholders.
 - **Residual audit findings remain** in transitive/optional build-chain
   packages: API 4 (1 moderate, 3 high), web 9 (1 critical, 6 high, 2 moderate).
@@ -935,7 +935,7 @@ production sign-off. Before production:
    system.
 2. Complete a faculty review packet and explicit sign-off for each system; keep
    `isPublished` false until approval.
-3. Resolve the DBCLS licence question and fill `LICENSE.md` and `SECURITY.md`
+3. Resolve the DBCLS licence question and fill `LICENSE.md` and `docs/deployer/70-SECURITY.md`
    with real owner values.
 4. Run Docker image builds, container health checks, and `nginx -t` on a host
    with those tools.
@@ -944,7 +944,7 @@ production sign-off. Before production:
 
 ## Decisions
 
-- `LICENSE.md` and `SECURITY.md` are skipped until the user supplies a real
+- `LICENSE.md` and `docs/deployer/70-SECURITY.md` are skipped until the user supplies a real
   copyright holder and security email.
 - Dependency upgrades were split into three commits (Prisma stack; API; web).
   The Prisma and API commits landed directly on
@@ -1237,7 +1237,7 @@ Two local-environment problems, not application code:
 
 - This checkout's `.next` is a **local** build pointing at
   `http://localhost:4000`; never deploy it as-is (see
-  `docs/deploy/LOCAL-BUILD-NOTICE.md`).
+  `docs/annex/LOCAL-BUILD-NOTICE.md`).
 - `npm run build --workspace=apps/web` reported "Could not determine Node.js
   install directory" in this session, so the clean build was produced with
   `npx next build` from `apps/web`. Root cause was not investigated.

@@ -15,7 +15,7 @@ recorded.
 ## 0. Decisions to make before anything technical
 
 - [ ] **BLOCKER** — Named owners exist for all three roles
-      ([HANDOVER.md §1](HANDOVER.md)). **CR**
+      ([docs/annex/HANDOVER.md §1](../annex/HANDOVER.md)). **CR**
 - [ ] **BLOCKER** — Real domain chosen and the college controls its DNS. **CR**
 - [ ] Subscription prices and plans approved. **CR**
 - [ ] Payment model chosen: bank transfer + manual review, and/or Chapa. **CR**
@@ -55,7 +55,7 @@ recorded.
 - [ ] Clock/NTP synchronised (certificate and token validity depend on it). **DE**
 - [ ] PostgreSQL, Redis and the verifier have **no host ports**. **DE**
 
-Prerequisites detail: [docs/deploy/SERVER-PREREQUISITES.md](docs/deploy/SERVER-PREREQUISITES.md).
+Prerequisites detail: [docs/deployer/20-SERVER-PREREQUISITES.md](20-SERVER-PREREQUISITES.md).
 
 ---
 
@@ -70,7 +70,7 @@ Prerequisites detail: [docs/deploy/SERVER-PREREQUISITES.md](docs/deploy/SERVER-P
 - [ ] Upload limit `client_max_body_size 30m` and proxy timeout ≥ 180 s are in
       the **installed** config. **DE**
 
-Detail: [docs/deploy/NGINX-SETUP.md](docs/deploy/NGINX-SETUP.md).
+Detail: [docs/deployer/42-NGINX-AND-TLS.md](42-NGINX-AND-TLS.md).
 
 ---
 
@@ -90,7 +90,7 @@ Detail: [docs/deploy/NGINX-SETUP.md](docs/deploy/NGINX-SETUP.md).
 - [ ] `NODE_ENV=production`. **DE**
 - [ ] `REDIS_FAIL_MODE=closed`. **DE**
 
-Reference: [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md).
+Reference: [docs/deployer/60-ENVIRONMENT-VARIABLES.md](60-ENVIRONMENT-VARIABLES.md).
 
 ---
 
@@ -124,7 +124,7 @@ Reference: [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md).
       row counts for `User`, `Payment`, `Material` are non-zero. **DE**
 - [ ] Uploads volume backup scheduled. **DE**
 
-Detail: [DATABASE_AND_BACKUPS.md](DATABASE_AND_BACKUPS.md).
+Detail: [docs/deployer/30-DATABASE-AND-BACKUPS.md](30-DATABASE-AND-BACKUPS.md).
 
 ---
 
@@ -166,7 +166,7 @@ Manual — the parts a script cannot check:
 - [ ] Security contact address published and reachable. **CR**
 - [ ] Incident procedure understood by whoever is on call. **DE/CR**
 
-Detail: [SECURITY.md](SECURITY.md).
+Detail: [docs/deployer/70-SECURITY.md](70-SECURITY.md).
 
 ---
 
@@ -193,7 +193,7 @@ Detail: [SECURITY.md](SECURITY.md).
 - [ ] Chapa, Resend and Gemini terms reviewed and accepted. **CR**
 - [ ] Student privacy notice covers third-party data sharing. **CR**
 
-Detail: [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
+Detail: [THIRD_PARTY_LICENSES.md](../../THIRD_PARTY_LICENSES.md).
 
 ---
 
@@ -217,7 +217,7 @@ a code failure.
 | `feat/support-tickets` | merged in `5b08f7c` |
 | `feat/payments-hardening-p0` (`029e4a8`) | merged in `cb2cb17` |
 | `feat/email-verification-code` (`f8c90b6`) | merged |
-| `docs/deploy/payments.md` on `main` | present |
+| `docs/deployer/40-PAYMENTS.md` on `main` | present |
 | `feat/payments-gateway-money` | **exception:** the branch never existed; MR !10 (`feat/payments-hardening-p0`) covers its scope |
 | `feat/anatomy-teaching-text-batch-1` | **exception:** MR !8 merged on 2026-11-03; the branch was reused afterwards for two commits (`cc76dee`) that stay unmerged by owner decision (they add the teaching-text sync script) |
 

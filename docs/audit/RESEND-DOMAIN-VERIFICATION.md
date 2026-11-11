@@ -2,7 +2,7 @@
 
 **Status:** DEFERRED TO DEPLOYMENT (operator decision 2026-10-19) — this is the
 procedure to run on the VPS; consolidated checklist also in
-`HOSTINGER-DEPLOYMENT-PLAYBOOK.md` §3.  
+`docs/deployer/82-PRODUCTION-GATES-AND-EVIDENCE.md` §3.  
 **Owner:** Operator with Resend + DNS access  
 **Estimated time:** 15–30 minutes plus DNS propagation  
 **Why:** the current sender (`onboarding@resend.dev`) only delivers to the

@@ -6,9 +6,9 @@ AlmaLinux, Rocky, and others) and its images differ by plan and by when the VPS
 was provisioned. Nothing here depends on the Hostinger panel or on a
 pre-installed Docker.
 
-Companion documents: [GO-LIVE.md](GO-LIVE.md) (step-by-step go-live),
-[NGINX-SETUP.md](NGINX-SETUP.md) (reverse proxy + TLS),
-[DOCKER-READINESS.md](DOCKER-READINESS.md) (what was and was not verified).
+Companion documents: [10-DEPLOYMENT-GUIDE.md](10-DEPLOYMENT-GUIDE.md) (step-by-step deploy),
+[42-NGINX-AND-TLS.md](42-NGINX-AND-TLS.md) (reverse proxy + TLS),
+[DOCKER-READINESS-REPORT.md](../archive/DOCKER-READINESS-REPORT.md) (what was and was not verified).
 
 ---
 
@@ -90,7 +90,7 @@ Notes:
 | Docker Compose | **v2 plugin** (`docker compose`) | Compose files use v2 features |
 | nginx | 1.20+ | TLS termination and reverse proxy |
 | certbot + nginx plugin | current | Let's Encrypt certificates |
-| git | any | Obtain the repo (`git clone`, never a zip — see BACKUP-RESTORE.md §6) |
+| git | any | Obtain the repo (`git clone`, never a zip — see [30-DATABASE-AND-BACKUPS.md](30-DATABASE-AND-BACKUPS.md) §3.3) |
 | curl, ca-certificates, openssl | current | Health checks, TLS checks, secret generation |
 | cron or systemd timers | — | Nightly database backup |
 | ufw (Debian/Ubuntu) or firewalld (RHEL) | — | Host firewall |
@@ -321,7 +321,7 @@ own boot-time validation, which fails fast on the same rules.
   fail with a timeout that looks like an nginx problem.
 - **Backups.** hPanel backups (if your plan includes them) are **not** a
   substitute for the database/uploads backup in
-  [BACKUP-RESTORE.md](BACKUP-RESTORE.md) — restore them only into a scratch
+  [30-DATABASE-AND-BACKUPS.md](30-DATABASE-AND-BACKUPS.md) — restore them only into a scratch
   environment, and still run the documented restore drill.
 - **Reverse proxy already on the image.** Some templates ship Apache or a
   panel proxy on port 80. `sudo ss -tlnp | grep :80` will reveal it; stop and

@@ -4,7 +4,7 @@
 # Tests the things that CAN be checked without a real inbox / browser / seeded
 # data: liveness, readiness, security headers, CORS, auth rejections, input
 # validation, and rate limiting. The full user journey (register → verify email
-# → pay → admin) still needs the MANUAL checklist in DEPLOYMENT.md §6.
+# → pay → admin) still needs the MANUAL checklist in docs/deployer/10-DEPLOYMENT-GUIDE.md SECTION 7.
 #
 # Usage:
 #   deploy/smoke-test.sh https://api.lormentor.com https://lormentor.com

@@ -135,7 +135,7 @@ later. Each step is separately revertible by rolling back code.
 
 ### 4.2 The nightly dump
 
-The script lives at [`deploy/backup/pg-backup.sh`](deploy/backup/pg-backup.sh)
+The script lives at [`deploy/backup/pg-backup.sh`](../../deploy/backup/pg-backup.sh)
 and does four things beyond `pg_dump`:
 
 1. Fails loudly if `POSTGRES_USER` / `POSTGRES_DB` cannot be read from
@@ -198,14 +198,45 @@ its uploads references files that no longer exist.
 
 ## 5. Restore
 
-Full drill with expected output:
-[`docs/deploy/BACKUP-RESTORE.md`](docs/deploy/BACKUP-RESTORE.md).
-
 ### 5.1 Always drill first
 
-A backup that has never been restored is not a backup. Run the drill **once
-before go-live** and **quarterly**, on a machine that is not the production VPS.
-The drill restores into a scratch database and checks row counts.
+A backup that has never been restored is not a backup. Run this drill **once
+before go-live** and then **quarterly**, on a machine that is not the production
+VPS. It restores into a scratch database and checks row counts, so a dump that
+"restores successfully" but is empty cannot pass.
+
+```bash
+# 1. Pick the newest dump and confirm it is intact
+ls -1t /var/backups/lor-mentor/*.sql.gz | head -1
+gzip -t /var/backups/lor-mentor/<file>.sql.gz && echo "gzip OK"
+
+# 2. Restore into a throwaway database
+docker compose -f docker-compose.prod.yml --env-file .env.production \
+  exec -T postgres psql -U "$POSTGRES_USER" -d postgres \
+  -c 'CREATE DATABASE lor_restore_drill;'
+
+gunzip -c /var/backups/lor-mentor/<file>.sql.gz | \
+  docker compose -f docker-compose.prod.yml --env-file .env.production \
+  exec -T postgres psql -U "$POSTGRES_USER" -d lor_restore_drill
+
+# 3. Prove it actually contains data
+docker compose -f docker-compose.prod.yml --env-file .env.production \
+  exec -T postgres psql -U "$POSTGRES_USER" -d lor_restore_drill \
+  -c 'SELECT count(*) AS users FROM "User";' \
+  -c 'SELECT count(*) AS payments FROM "Payment";' \
+  -c 'SELECT count(*) AS materials FROM "Material";'
+
+# 4. Clean up
+docker compose -f docker-compose.prod.yml --env-file .env.production \
+  exec -T postgres psql -U "$POSTGRES_USER" -d postgres \
+  -c 'DROP DATABASE lor_restore_drill;'
+```
+
+Record the date, the dump filename and the row counts in the
+[release checklist](81-RELEASE-CHECKLIST.md). Row counts of zero mean the
+backup is worthless — investigate before go-live.
+
+Never restore over production to "test whether the dump works". Use the drill.
 
 ### 5.2 Production disaster recovery
 
@@ -293,4 +324,4 @@ payment records, and student-generated content. Access is restricted to the
   off shared storage, and delete expired ones.
 - Never copy a production dump to a laptop or into a ticket.
 - Consent, retention and deletion obligations for student data are the college's
-  policy; the mechanics are in [`SECURITY.md`](SECURITY.md).
+  policy; the mechanics are in [`docs/deployer/70-SECURITY.md`](70-SECURITY.md).

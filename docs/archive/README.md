@@ -6,7 +6,8 @@ replaced it.
 
 | File | What it was | Successor |
 |---|---|---|
-| [`PROGRESS.md`](PROGRESS.md) | Working log of every build, seed, gate and review step through 2026-11-02 | [../../PRODUCTION_CHECKLIST.md](../../PRODUCTION_CHECKLIST.md) §11 for the final gate; [../../HANDOVER.md](../../HANDOVER.md) §6 for open items |
+| [`PROGRESS.md`](PROGRESS.md) | Working log of every build, seed, gate and review step through 2026-11-02 | [80-GO-NOGO-GATE.md](../deployer/80-GO-NOGO-GATE.md) §11 for the final gate; [HANDOVER.md](../annex/HANDOVER.md) §6 for open items |
+| [`DOCKER-READINESS-REPORT.md`](DOCKER-READINESS-REPORT.md) | Engineering review of the production stack — secret scoping, proxy timeouts, log limits, verifier user, build context — November 2026 | [20-SERVER-PREREQUISITES.md](../deployer/20-SERVER-PREREQUISITES.md) §9 and [82-PRODUCTION-GATES-AND-EVIDENCE.md](../deployer/82-PRODUCTION-GATES-AND-EVIDENCE.md) |
 | [`REMEDIATION-LOG.md`](REMEDIATION-LOG.md) | Defect-by-defect remediation record, July 2026 | — (evidence only) |
 | [`PRODUCTION_READINESS_AUDIT.md`](PRODUCTION_READINESS_AUDIT.md) | July 2026 readiness review | [../audit/FINAL-PRODUCTION-READINESS-REPORT.md](../audit/FINAL-PRODUCTION-READINESS-REPORT.md) |
 | [`test-report.md`](test-report.md) | Sprint 1–2 test report, June 2026 | [../audit/REGRESSION-TEST-RESULTS.md](../audit/REGRESSION-TEST-RESULTS.md) |

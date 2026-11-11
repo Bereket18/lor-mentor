@@ -5,18 +5,18 @@ tools, payments, and an interactive 3D Anatomy Lab.
 
 > **Status:** release candidate on `main` (`5b08f7c`, 2026-11-11). The code gate
 > is green on GitHub Actions and every hardening branch is merged — see
-> [PRODUCTION_CHECKLIST.md §11](PRODUCTION_CHECKLIST.md). It has not been
+> [docs/deployer/80-GO-NOGO-GATE.md §11](docs/deployer/80-GO-NOGO-GATE.md). It has not been
 > deployed yet: the heart system is the published sample; the urinary system is
 > an unpublished draft. No anatomy teaching text has been faculty-reviewed, and
 > the DBCLS licence question remains open. Open items are in
-> [HANDOVER.md §6](HANDOVER.md); the historical working log is in
+> [docs/annex/HANDOVER.md §6](docs/annex/HANDOVER.md); the historical working log is in
 > [`docs/archive/PROGRESS.md`](docs/archive/PROGRESS.md).
 
 > **Deployment warning — local build:** this checkout's `.next` output was built
 > for local testing against `http://localhost:4000`. Do not deploy that build
 > or copy `apps/web/.env.local` to a server. Rebuild with the public API origin,
 > run the standalone server, and follow
-> [`docs/deploy/LOCAL-BUILD-NOTICE.md`](docs/deploy/LOCAL-BUILD-NOTICE.md).
+> [`docs/annex/LOCAL-BUILD-NOTICE.md`](docs/annex/LOCAL-BUILD-NOTICE.md).
 
 ## Stack
 
@@ -45,19 +45,21 @@ Start here, then follow the document for your role.
 
 | Document | Audience | What it covers |
 |---|---|---|
-| [`DEPLOYMENT.md`](DEPLOYMENT.md) | Deployment engineer | End-to-end production deployment runbook |
-| [`ENVIRONMENT_VARIABLES.md`](ENVIRONMENT_VARIABLES.md) | Deployment engineer | Every variable: purpose, required/optional, exposure, source |
-| [`INTEGRATIONS.md`](INTEGRATIONS.md) | College + engineer | Chapa, Resend, Gemini and DNS account setup |
-| [`DATABASE_AND_BACKUPS.md`](DATABASE_AND_BACKUPS.md) | Deployment engineer | Schema, migrations, backup and restore |
-| [`SECURITY.md`](SECURITY.md) | Everyone | Controls, secret handling, incident response, reporting |
-| [`PRODUCTION_CHECKLIST.md`](PRODUCTION_CHECKLIST.md) | Everyone | Go/no-go checklist with owners |
-| [`HANDOVER.md`](HANDOVER.md) | College owner | Ownership, responsibility matrix, operating model |
+| [`docs/deployer/00-START-HERE.md`](docs/deployer/00-START-HERE.md) | Deployment engineer | Map of the deployer pack, reading order, accounts you need |
+| [`docs/deployer/10-DEPLOYMENT-GUIDE.md`](docs/deployer/10-DEPLOYMENT-GUIDE.md) | Deployment engineer | End-to-end deployment, top to bottom |
+| [`docs/deployer/91-CREDENTIAL-REPLACEMENT.md`](docs/deployer/91-CREDENTIAL-REPLACEMENT.md) | College + engineer | Moving every account and secret from the previous owner to the college |
+| [`docs/deployer/60-ENVIRONMENT-VARIABLES.md`](docs/deployer/60-ENVIRONMENT-VARIABLES.md) | Deployment engineer | Every variable: purpose, required/optional, exposure, source |
+| [`docs/deployer/30-DATABASE-AND-BACKUPS.md`](docs/deployer/30-DATABASE-AND-BACKUPS.md) | Deployment engineer | Schema, migrations, backup and restore drill |
+| [`docs/deployer/70-SECURITY.md`](docs/deployer/70-SECURITY.md) | Everyone | Controls, secret handling, incident response, reporting |
+| [`docs/deployer/80-GO-NOGO-GATE.md`](docs/deployer/80-GO-NOGO-GATE.md) | Everyone | Go/no-go checklist with owners |
+| [`docs/deployer/92-TROUBLESHOOTING.md`](docs/deployer/92-TROUBLESHOOTING.md) | Deployment engineer | Symptom, cause and fix for the common failures |
+| [`docs/annex/HANDOVER.md`](docs/annex/HANDOVER.md) | College owner | Ownership, responsibility matrix, operating model |
 | [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md) | College owner | Software and content licensing obligations |
 
-Deployment-specific guides live in [`docs/deploy/`](docs/deploy/):
-`SERVER-PREREQUISITES.md`, `NGINX-SETUP.md`, `BACKUP-RESTORE.md`,
-`GO-LIVE.md`, `RELEASE-CHECKLIST.md`, `DOCKER-READINESS.md`,
-`email-setup.md`, `payments.md` (Chapa and bank-receipt lifecycles).
+The rest of the deployer pack — payments, email, nginx/TLS, integrations,
+release checklist, production gates and secret rotation — is listed in
+[`docs/deployer/00-START-HERE.md`](docs/deployer/00-START-HERE.md) and indexed in
+[`docs/README.md`](docs/README.md).
 
 The full index — the active set plus the historical audit and archive folders —
 is [`docs/README.md`](docs/README.md).
@@ -88,7 +90,7 @@ cp apps/api/.env.example apps/api/.env
 Set at minimum in `apps/api/.env`: `DATABASE_URL`, two different long
 `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET`, SMTP settings, and a Gemini key if AI
 features are needed. The root `.env` supplies Compose and operational values.
-See [`ENVIRONMENT_VARIABLES.md`](ENVIRONMENT_VARIABLES.md) for the full list.
+See [`docs/deployer/60-ENVIRONMENT-VARIABLES.md`](docs/deployer/60-ENVIRONMENT-VARIABLES.md) for the full list.
 
 Apply committed migrations to the **local dev database only**:
 
@@ -98,7 +100,7 @@ cd apps/api && npx prisma migrate deploy
 
 Never run `prisma migrate dev`, `prisma migrate reset`, or `prisma db push`
 against production. Production is forward-only (see
-[`DATABASE_AND_BACKUPS.md`](DATABASE_AND_BACKUPS.md)).
+[`docs/deployer/30-DATABASE-AND-BACKUPS.md`](docs/deployer/30-DATABASE-AND-BACKUPS.md)).
 
 Seed core data and the heart-only anatomy sample:
 
@@ -157,7 +159,7 @@ NEXT_PUBLIC_API_URL=http://localhost:4000 ALLOW_LOCAL_API_ORIGIN=1 npm run build
 
 The second form is the local-only escape hatch for smoking a production build
 against a local API; never set `ALLOW_LOCAL_API_ORIGIN` in a deployment. See
-[ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md) §3.
+[docs/deployer/60-ENVIRONMENT-VARIABLES.md](docs/deployer/60-ENVIRONMENT-VARIABLES.md) §3.
 
 The two Playwright auth tests are opt-in and need a seeded super admin:
 
@@ -173,23 +175,24 @@ E2E_ADMIN_PASSWORD='<temporary password>' npm run e2e --workspace=apps/web
 - `isPublished` and `isReviewed` are **content decisions, not test switches**.
 - Faculty review uses the operator script (`npm run anatomy:review --workspace=apps/api -- …`).
   `--export` and `--validate` never change teaching text, `isReviewed`, or
-  `isPublished`. See [`docs/deploy/GO-LIVE.md`](docs/deploy/GO-LIVE.md) §3.4.1.
+  `isPublished`. See [`docs/deployer/10-DEPLOYMENT-GUIDE.md`](docs/deployer/10-DEPLOYMENT-GUIDE.md) §3.4.1.
 - Model credit and licence wording live in
   [`apps/web/public/models/anatomy/NOTICE-MODELS.md`](apps/web/public/models/anatomy/NOTICE-MODELS.md).
   Do not shorten or rewrite the licence statements.
 
 ## Deployment
 
-Follow [`PRODUCTION_CHECKLIST.md`](PRODUCTION_CHECKLIST.md), then
-[`DEPLOYMENT.md`](DEPLOYMENT.md). `docker-compose.prod.yml` publishes only the
+Follow [`docs/deployer/80-GO-NOGO-GATE.md`](docs/deployer/80-GO-NOGO-GATE.md), then
+[`docs/deployer/00-START-HERE.md`](docs/deployer/00-START-HERE.md). `docker-compose.prod.yml` publishes only the
 web and API ports, and only on `127.0.0.1`; Nginx terminates TLS.
 
 ## Security and licensing
 
-Report vulnerabilities as described in [`SECURITY.md`](SECURITY.md) — never in a
+Report vulnerabilities as described in [`docs/deployer/70-SECURITY.md`](docs/deployer/70-SECURITY.md) — never in a
 public issue. Licensing obligations for code, 3D models and teaching text are in
 [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md) and
 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
 The project itself currently has **no LICENSE file**; unless the college chooses
-one, it is "all rights reserved" by default. See HANDOVER.md.
+one, it is "all rights reserved" by default. See
+[`docs/annex/HANDOVER.md`](docs/annex/HANDOVER.md).

@@ -1,4 +1,4 @@
-# Lor Mentor — Go-Live Guide (follow top to bottom)
+# Lor Mentor — Deployment Guide (follow top to bottom)
 
 This is the single, beginner-friendly guide to take Lor Mentor from an empty
 Hostinger VPS to a live, secure production site. Run every command **on the VPS**
@@ -13,8 +13,35 @@ unless it says otherwise. Don't skip steps.
 > **Audit gates & deferred items:** secret rotation (S-2), Resend domain
 > verification (F-8), Chapa live setup, and the remaining audit gates
 > (T-45 evidence, T-46/T-47/T-48, full verifier build, real TLS) are consolidated
-> in **`docs/audit/HOSTINGER-DEPLOYMENT-PLAYBOOK.md`**. This guide gets the site
+> in **`docs/deployer/82-PRODUCTION-GATES-AND-EVIDENCE.md`**. This guide gets the site
 > running; the playbook closes the production gates.
+
+---
+
+## What you are building (architecture)
+
+```text
+                          Internet (HTTPS :443)
+                                  │
+                        ┌─────────▼──────────┐
+                        │  nginx (host)      │  TLS termination, reverse proxy
+                        │  lormentor.com     ├──────► 127.0.0.1:3000  web  (Next.js)
+                        │  api.lormentor.com ├──────► 127.0.0.1:4000  api  (NestJS)
+                        └────────────────────┘
+                                  │  docker network: internal
+   ┌───────────────┬─────────────┼───────────────┬──────────────────┐
+   ▼               ▼             ▼               ▼                  ▼
+  api            web         verifier        postgres            redis
+ :4000          :3000        :8000        volume: pgdata      volume: redisdata
+   │  volume: uploads (receipts, materials, generated PDFs)
+   └── prisma migrate deploy runs before the API starts serving
+```
+
+- **Only** `web` and `api` publish ports, and only on `127.0.0.1`.
+- Postgres, Redis and the verifier have **no host ports** and are reachable only
+  on the internal Docker network.
+- `prisma migrate deploy` runs automatically in the API entrypoint. It is
+  forward-only and never resets data.
 
 ---
 
@@ -27,7 +54,7 @@ Write these down; you'll paste them throughout:
 | Domain | `lormentor.com` | ______ |
 | VPS public IP | `203.0.113.45` | ______ |
 | Sudo username you'll create | `deploy` | ______ |
-| Repo URL | `https://github.com/Bereket18/lor-mentor.git` | ______ |
+| Repo URL | GitLab (source of truth): `https://gitlab.com/bereketadamsseged/lor-mentor-edu.git` — GitHub mirror: `https://github.com/Bereket18/lor-mentor.git` | ______ |
 
 If you don't have a domain yet, buy one (Hostinger sells them) — you need it for
 HTTPS, email, and Chapa webhooks.
@@ -156,7 +183,7 @@ TRUST_PROXY=1
   `true`; either form prevents clients from spoofing their address. Verify it
   after go-live by sending one request and reading the client IP the API
   recorded in `AuditLog.ipAddress` (the exact steps are in
-  [payments.md](payments.md) 1.6.1). A wrong value collapses every per-IP rate
+  [40-PAYMENTS.md](40-PAYMENTS.md) 1.6.1). A wrong value collapses every per-IP rate
   limit into one shared bucket.
 - The application's rate-limit counters are **in memory**: they are correct for
   the single `api` service in `docker-compose.prod.yml`, but if you ever run
@@ -397,7 +424,7 @@ Run once after the stack is up, before opening the site to users:
 # SECTION 4 — Production email (verification + password reset)
 
 Your app already sends real emails with expiring tokens — you only need a provider
-and DNS. Full detail in `docs/deploy/email-setup.md`; the short version:
+and DNS. Full detail in `docs/deployer/41-EMAIL-SETUP.md`; the short version:
 
 1. **Choose a provider** — **Resend** is recommended (simplest, great delivery).
    Alternatives: SendGrid, Mailgun, AWS SES.
@@ -444,9 +471,10 @@ You're now live on the real domain but password-protected. During this window:
   sudo crontab -e
   # add:  15 2 * * *  /opt/lor-mentor/deploy/backup/pg-backup.sh >> /var/log/lor-backup.log 2>&1
   ```
-- Cap Docker log growth: create `/etc/docker/daemon.json` with
-  `{"log-driver":"json-file","log-opts":{"max-size":"10m","max-file":"3"}}` then
-  `sudo systemctl restart docker`.
+- Log rotation is already configured per service in `docker-compose.prod.yml`
+  (json-file, 10 MB × 3). Do **not** also set a global driver in
+  `/etc/docker/daemon.json` — a conflicting value there changes behaviour for
+  containers that rely on the compose setting.
 
 ---
 
@@ -454,7 +482,7 @@ You're now live on the real domain but password-protected. During this window:
 
 Chapa is **optional** — your launch payment path is bank transfer + manual review,
 which needs no Chapa. Do this when you want card/Telebirr checkout. Full detail in
-`docs/deploy/chapa-production.md`.
+`docs/deployer/40-PAYMENTS.md`.
 
 ### 6.1 The critical distinction
 - The **school's settlement bank account** (where Chapa deposits your money) is set
@@ -483,8 +511,8 @@ This is what makes payments trustworthy. In **Settings → Webhooks**:
 
 > **How verification works + production tests** (server-side re-verify with
 > Chapa's verify endpoint, amount policy, idempotent finalize, spoofed-webhook
-> test): see `docs/audit/HOSTINGER-DEPLOYMENT-PLAYBOOK.md` §4 and
-> `docs/deploy/chapa-production.md` §5.
+> test): see `docs/deployer/82-PRODUCTION-GATES-AND-EVIDENCE.md` §4 and
+> `docs/deployer/40-PAYMENTS.md` §5.
 
 ### 6.5 Put the keys in the app
 In `.env.production` (both required together — the app enforces all-or-nothing):
@@ -618,7 +646,41 @@ requires an API restart and a login/cookie check.
 
 ---
 
-## Getting help
-When something fails on the server, copy the exact command + its output (and
-`docker compose logs <service> --tail=50`) and bring it back — that's usually
-enough to pinpoint the fix.
+## Operational cautions
+
+- **Obtain the repo with `git clone`.** Prisma hashes `migration.sql` files
+  exactly as they sit on disk; three are pinned to CRLF in `.gitattributes`. A
+  zip download or an `rsync` that normalises line endings changes those hashes
+  and breaks `prisma migrate deploy` on redeploy.
+- **Do not run `docker compose down -v`.** The `-v` flag deletes `pgdata`,
+  `redisdata` and `uploads`.
+- **Keep `.env.production` mode 600** and never copy it into the repo.
+- **Base images are digest-pinned.** Updates are deliberate: resolve a new
+  digest with `docker buildx imagetools inspect <image>` and change it in a
+  commit.
+- **Single VPS is a single point of failure.** Acceptable for launch; revisit
+  redundancy and managed PostgreSQL as usage grows.
+
+## Known operational limits
+
+- **Telebirr auto-verification will not work from a non-Ethiopian IP.** Those
+  receipts fall back to manual admin review.
+- **BOA receipts never expose a receiver account** → always manual review.
+- **Chapa is dormant** until live keys are added (pending KYC).
+- **Email deliverability depends on your DNS** (SPF/DKIM/DMARC) — see
+  [41-EMAIL-SETUP.md](41-EMAIL-SETUP.md).
+
+---
+
+## When something goes wrong
+
+Start with [92-TROUBLESHOOTING.md](92-TROUBLESHOOTING.md). It maps the most
+common symptoms (502s, login loops, failed migrations, email not arriving,
+certificate errors) to the check or command that fixes them. If the answer is
+not there, copy the exact command and its output plus
+
+```bash
+docker compose -f docker-compose.prod.yml logs <service> --tail=50
+```
+
+and bring that back — it is usually enough to pinpoint the fix.

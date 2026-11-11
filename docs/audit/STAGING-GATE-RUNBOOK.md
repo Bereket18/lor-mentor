@@ -205,7 +205,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/t30-redis-drill.ps1
 
 The ordered, step-by-step VPS playbook (full verifier build, TLS/HSTS, the
 deferred F-8/S-2/Chapa items, and the T-45/T-46/T-47/T-48 procedures) is
-`HOSTINGER-DEPLOYMENT-PLAYBOOK.md`. The notes below are the short version.
+`docs/deployer/82-PRODUCTION-GATES-AND-EVIDENCE.md`. The notes below are the short version.
 
 - Build the **full verifier image on the VPS** (`docker compose -f
   docker-compose.prod.yml --env-file .env.production build verifier`). The

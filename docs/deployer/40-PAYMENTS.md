@@ -443,7 +443,7 @@ most commonly `0` or unset outside production - every request appears to come
 from the proxy's loopback address, all per-IP buckets collapse into one, and
 the 120/min ceiling is shared by the whole internet-facing service.
 `env.validation.ts` rejects an entry that is neither a non-negative integer nor
-a valid IP/CIDR/named range, and `docs/deploy/GO-LIVE.md` records the expected
+a valid IP/CIDR/named range, and `docs/deployer/10-DEPLOYMENT-GUIDE.md` records the expected
 value per topology.
 
 **Verification step (do this on staging and again after go-live):**
@@ -673,10 +673,10 @@ statuses are rejected and cannot be overridden from the admin dashboard.
 
 ## 3. Where to look next
 
-- Account setup and costs: `INTEGRATIONS.md` §4.
+- Account setup and costs: `docs/deployer/50-INTEGRATIONS-AND-ACCOUNTS.md` §4.
 - Status/event ledger semantics: `apps/api/src/modules/payments/payment-state-machine.ts`
   and `payment-event.types.ts`.
-- Operator handover and known deployment prerequisites: `HANDOVER.md`
+- Operator handover and known deployment prerequisites: `docs/annex/HANDOVER.md`
   (rows 24–28).
-- Historical deployment checklist: `docs/deploy/GO-LIVE.md` and
-  `docs/audit/HOSTINGER-DEPLOYMENT-PLAYBOOK.md` §4 (production test matrix).
+- Historical deployment checklist: `docs/deployer/10-DEPLOYMENT-GUIDE.md` and
+  `docs/deployer/82-PRODUCTION-GATES-AND-EVIDENCE.md` §4 (production test matrix).
