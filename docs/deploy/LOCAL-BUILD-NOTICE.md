@@ -125,5 +125,5 @@ TEACHER accounts can be granted the flag.
   notifies reviewers and students; returning to draft notifies reviewers only.
   ADMIN / SUPER_ADMIN still get `403` on these routes.
 
-See `docs/PROGRESS.md` (Steps 7-9) for the local verification record and
+See `docs/archive/PROGRESS.md` (Steps 7-9) for the local verification record and
 remaining risks.

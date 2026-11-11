@@ -81,7 +81,7 @@ Teaching notes, quizzes, structure descriptions and interface copy in
 original Lor Mentor content, **not** copied from BodyParts3D.
 
 Status: **pending faculty review**. Content accuracy is a clinical risk, not a
-licensing one, but both gate publication. See `docs/PROGRESS.md`.
+licensing one, but both gate publication. See `docs/archive/PROGRESS.md`.
 
 ---
 

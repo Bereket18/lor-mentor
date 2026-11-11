@@ -297,7 +297,7 @@ accounts and investigate before re-enabling checkout.
 | Redis has no password | Internal-only, no host port | Do not publish Redis; adding `requirepass` needs a client change |
 | Verification/reset tokens stored raw in the DB | DB read access could mint a session | Tokens are single-use and short-lived; rotate on suspected DB access |
 | No automated dependency scanning | Vulnerable transitive package could linger | Run `npm audit` before each release |
-| Anatomy content not faculty-reviewed | Clinical-accuracy risk, not a security risk | Gate publication on review; see `docs/PROGRESS.md` |
+| Anatomy content not faculty-reviewed | Clinical-accuracy risk, not a security risk | Gate publication on review; see `docs/archive/PROGRESS.md` |
 | No web application firewall | Generic attacks reach the app | Rate limiting, validation and headers; add a WAF only if traffic justifies it |
 
 ---

@@ -6,7 +6,7 @@ tools, payments, and an interactive 3D Anatomy Lab.
 > **Status:** release-hardening branch, not yet a production release. The heart
 > system is the published sample; the urinary system is an unpublished draft. No
 > anatomy teaching text has been faculty-reviewed, and the DBCLS licence
-> question remains open. See [`docs/PROGRESS.md`](docs/PROGRESS.md) for current
+> question remains open. See [`docs/archive/PROGRESS.md`](docs/archive/PROGRESS.md) for the working log of
 > gate results and open blockers.
 
 > **Deployment warning — local build:** this checkout's `.next` output was built
