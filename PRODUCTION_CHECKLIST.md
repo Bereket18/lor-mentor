@@ -197,7 +197,39 @@ Detail: [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
 
 ---
 
-## 11. Sign-off
+## 11. Release gate record
+
+Recorded 2026-11-11 against `origin/main` `5b08f7c`. This is the code-side gate
+that must be green before the go/no-go below can be signed; the items above
+still have to be executed on the real server.
+
+**CI of record: GitHub Actions** (`.github/workflows/ci.yml`). GitLab CI does not
+run for this project — every pipeline is rejected by the runner quota
+(`ci_quota_exceeded`, 0 jobs started), so a red GitLab badge is not evidence of
+a code failure.
+
+| Gate condition | Result |
+|---|---|
+| CI of record green | GitHub Actions runs on the five branches below: all green |
+| `ci/github-actions-gate` | merged in `39f73a2` |
+| `fix/chapa-receipt-ux` | merged in `95510ed` |
+| `feat/live-qr-scanner` | merged in `0d88a30` |
+| `feat/support-tickets` | merged in `5b08f7c` |
+| `feat/payments-hardening-p0` (`029e4a8`) | merged in `cb2cb17` |
+| `feat/email-verification-code` (`f8c90b6`) | merged |
+| `docs/deploy/payments.md` on `main` | present |
+| `feat/payments-gateway-money` | **exception:** the branch never existed; MR !10 (`feat/payments-hardening-p0`) covers its scope |
+| `feat/anatomy-teaching-text-batch-1` | **exception:** MR !8 merged on 2026-11-03; the branch was reused afterwards for two commits (`cc76dee`) that stay unmerged by owner decision (they add the teaching-text sync script) |
+
+Both exceptions are owner-approved and do not block the handover.
+
+Delivered in this release: the live QR scanner pre-fills the payment reference
+only — `POST /payments/verify` remains the sole approver; support tickets are
+database-backed threads answered from the admin inbox (`/admin/support`).
+
+---
+
+## 12. Sign-off
 
 | Gate | Result | Name | Date |
 |---|---|---|---|
