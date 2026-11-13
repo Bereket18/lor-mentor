@@ -11,6 +11,7 @@ import type { PrismaService } from '../../prisma/prisma.service';
 import type { NotificationsService } from '../notifications/notifications.service';
 import type { MailService } from '../mail/mail.service';
 import type { AuditService } from '../audit/audit.service';
+import type { ConfigService } from '@nestjs/config';
 import type { RequestUser } from '../../common/types/request-user';
 import { SupportService } from './support.service';
 import { SupportAttachmentsService } from './support-attachments.service';
@@ -87,7 +88,10 @@ describe('SupportService', () => {
   const audit = { record: createAudit } as unknown as AuditService;
 
   const service = new SupportService(prisma, notifications, mail);
-  const attachments = new SupportAttachmentsService(prisma, audit);
+  const config = {
+    get: () => undefined,
+  } as unknown as ConfigService;
+  const attachments = new SupportAttachmentsService(prisma, audit, config);
 
   const student: RequestUser = {
     id: 'student-1',

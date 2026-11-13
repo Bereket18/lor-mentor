@@ -5,6 +5,7 @@ import {
   NotFoundException,
   PayloadTooLargeException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Prisma } from '@prisma/client';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
@@ -22,18 +23,13 @@ import {
   MAX_ATTACHMENT_PIXELS,
   MAX_ATTACHMENTS_PER_MESSAGE,
 } from './support.constants';
-
-/**
- * Files are stored OUTSIDE the web-served upload directory
- * (`uploads/support`, never `apps/web/public`), under a random name, and are
- * only ever read back through `openForDownload()`.
- */
-const ATTACHMENT_DIR = path.join(process.cwd(), 'uploads', 'support');
-
-/** Where the bytes on disk live. Created on first use, never in `public/`. */
-export function attachmentDirectory(): string {
-  return ATTACHMENT_DIR;
-}
+import {
+  ensureSupportUploadDir,
+  purgeClosedAttachments,
+  removeAttachmentFiles,
+  resolveSupportUploadDir,
+  type SupportPurgeSummary,
+} from './support-attachments.storage';
 
 /** The subset of multer's `Express.Multer.File` this service needs. */
 export interface UploadedImage {
@@ -85,11 +81,18 @@ const FORMAT_FOR: Record<AllowedImageMime, 'jpeg' | 'png' | 'webp'> = {
 export class SupportAttachmentsService {
   private readonly logger = new Logger(SupportAttachmentsService.name);
   private directoryReady = false;
+  /** Absolute path of the private store (SUPPORT_UPLOAD_DIR, not public). */
+  private readonly directory: string;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
-  ) {}
+    config: ConfigService,
+  ) {
+    this.directory = resolveSupportUploadDir(
+      config.get<string>('SUPPORT_UPLOAD_DIR'),
+    );
+  }
 
   /** Validates, re-encodes and writes each image; returns metadata rows. */
   async storeAll(files: UploadedImage[] | undefined): Promise<StoredImage[]> {
@@ -154,7 +157,7 @@ export class SupportAttachmentsService {
     this.ensureDirectory();
     const storedName = `${crypto.randomBytes(16).toString('hex')}${EXTENSION_FOR[detected]}`;
     await fs.promises.writeFile(
-      path.join(ATTACHMENT_DIR, storedName),
+      path.join(this.directory, storedName),
       encoded.data,
       {
         mode: 0o600,
@@ -199,24 +202,17 @@ export class SupportAttachmentsService {
 
   private ensureDirectory(): void {
     if (this.directoryReady) return;
-    fs.mkdirSync(ATTACHMENT_DIR, { recursive: true, mode: 0o700 });
+    ensureSupportUploadDir(this.directory);
     this.directoryReady = true;
   }
 
   async removeFiles(storedNames: string[]): Promise<void> {
-    await Promise.all(
-      storedNames.map((name) =>
-        fs.promises
-          .rm(path.join(ATTACHMENT_DIR, path.basename(name)), { force: true })
-          .catch((error: unknown) => {
-            this.logger.warn(
-              `Could not delete attachment ${name}: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            );
-          }),
-      ),
-    );
+    const removed = await removeAttachmentFiles(this.directory, storedNames);
+    if (removed !== storedNames.length) {
+      this.logger.warn(
+        `Deleted ${removed} of ${storedNames.length} support attachment files`,
+      );
+    }
   }
 
   /**
@@ -258,7 +254,7 @@ export class SupportAttachmentsService {
     }
 
     const absolutePath = path.join(
-      ATTACHMENT_DIR,
+      this.directory,
       path.basename(attachment.storedName),
     );
     if (!fs.existsSync(absolutePath)) {
@@ -287,56 +283,15 @@ export class SupportAttachmentsService {
     };
   }
 
-  /** Retention job: delete files for tickets closed before `cutoff`. */
+  /**
+   * Retention job: delete files (and rows) for tickets closed before `cutoff`.
+   * The CLI wrapper is `src/scripts/support-retention.ts`; it defaults to a dry
+   * run and needs `--apply` to delete anything.
+   */
   async purgeClosedBefore(
     cutoff: Date,
     options: { dryRun: boolean },
-  ): Promise<{
-    tickets: number;
-    attachments: number;
-    files: number;
-    ticketNumbers: number[];
-  }> {
-    const rows = await this.prisma.supportAttachment.findMany({
-      where: {
-        message: {
-          ticket: {
-            status: 'CLOSED',
-            OR: [
-              { closedAt: { lt: cutoff } },
-              { closedAt: null, updatedAt: { lt: cutoff } },
-            ],
-          },
-        },
-      },
-      select: {
-        id: true,
-        storedName: true,
-        message: { select: { ticket: { select: { id: true, number: true } } } },
-      },
-    });
-
-    const ticketIds = new Set(rows.map((row) => row.message.ticket.id));
-    const ticketNumbers = Array.from(
-      new Set(rows.map((row) => row.message.ticket.number)),
-    ).sort((a, b) => a - b);
-
-    let files = 0;
-    if (!options.dryRun) {
-      await this.removeFiles(rows.map((row) => row.storedName));
-      files = rows.length;
-      if (rows.length) {
-        await this.prisma.supportAttachment.deleteMany({
-          where: { id: { in: rows.map((row) => row.id) } },
-        });
-      }
-    }
-
-    return {
-      tickets: ticketIds.size,
-      attachments: rows.length,
-      files,
-      ticketNumbers,
-    };
+  ): Promise<SupportPurgeSummary> {
+    return purgeClosedAttachments(this.prisma, this.directory, cutoff, options);
   }
 }

@@ -36,6 +36,11 @@ import {
  * Attachments arrive in the same multipart request as the message so a message
  * is never saved without the images the student chose, and the route-level
  * throttle (per user, not per IP) covers the upload as well as the text.
+ *
+ * Read routes below carry no @Throttle: they are covered by the GLOBAL
+ * AppThrottlerGuard, which keys `global:user:<id>` from the signed
+ * `access_token` cookie and only falls back to `global:ip:<ip>` when the
+ * caller is unauthenticated — so the limit is user-aware, never purely per IP.
  */
 @Controller('support')
 @UseGuards(JwtAuthGuard)

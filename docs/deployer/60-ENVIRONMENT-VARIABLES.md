@@ -156,6 +156,20 @@ values are the most sensitive in the file.
 `SMTP_FROM` must contain a valid address, and `@resend.dev` senders are rejected
 at boot: they only deliver to the account owner. See [docs/deployer/50-INTEGRATIONS-AND-ACCOUNTS.md](50-INTEGRATIONS-AND-ACCOUNTS.md).
 
+### Support inbox and attachments
+
+| Name | Purpose | Req | Exp | Where the value comes from | Staging vs production |
+|---|---|---|---|---|---|
+| `SUPPORT_EMAIL` | Inbox for new-ticket notifications; blank falls back to `SMTP_FROM` | O | S | The college's support mailbox | Same |
+| `SUPPORT_UPLOAD_DIR` | Private directory for ticket attachment images | O (`uploads/support`) | S | Compose sets `/app/apps/api/uploads/support` (the `support_uploads` volume) | Same |
+
+`SUPPORT_EMAIL` is validated as an email address when set. `SUPPORT_UPLOAD_DIR`
+is refused at boot if it contains `..` or points inside a `public` directory:
+attachments are private and are only served through the authorised API route.
+Back the directory up with the `uploads` volumes (§4.5 of
+[30-DATABASE-AND-BACKUPS.md](30-DATABASE-AND-BACKUPS.md)) and prune old closed
+tickets with `support:retention` (§4.6).
+
 ### AI
 
 | Name | Purpose | Req | Exp | Where the value comes from | Staging vs production |

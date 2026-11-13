@@ -1,4 +1,5 @@
 import { resolveTrustProxy } from './trust-proxy';
+import { validateSupportUploadDir } from '../modules/support/support-attachments.storage';
 
 /**
  * Fail-fast environment validation. Runs once at boot via ConfigModule.
@@ -346,6 +347,13 @@ export function validateEnv(
     if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(config.SUPPORT_EMAIL.trim())) {
       errors.push('SUPPORT_EMAIL must be a valid email address');
     }
+  }
+
+  // Private directory for support-ticket attachments. Relative paths resolve
+  // against the API working directory and must stay outside any web root.
+  const uploadDirProblem = validateSupportUploadDir(config.SUPPORT_UPLOAD_DIR);
+  if (uploadDirProblem) {
+    errors.push(uploadDirProblem);
   }
 
   if (errors.length > 0) {
