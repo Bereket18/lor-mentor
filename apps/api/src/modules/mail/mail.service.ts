@@ -165,20 +165,20 @@ export class MailService {
    * Notification to the college's support mailbox that a student opened a
    * ticket, or wrote back on one the college had already answered.
    *
+   * Deliberately minimal: the email carries ONLY the ticket number, category
+   * and subject - never the message body, the student's name or their email
+   * address. A support mailbox is often a shared inbox and is the easiest copy
+   * of student data to leak; the agent opens the app (authenticated and
+   * audited) to read the conversation.
+   *
    * The mailbox is SUPPORT_EMAIL when set and SMTP_FROM's address otherwise,
-   * so a deployment that never configured a dedicated inbox still works. The
-   * student's address is shown in the body but is deliberately NOT set as
-   * Reply-To: a reply sent straight from the mail client would bypass the
-   * thread and the student would never see it in the app.
+   * so a deployment that never configured a dedicated inbox still works.
    */
   async sendSupportTicketCreated(input: {
     subject: string;
     category: string;
-    body: string;
-    studentName: string;
-    studentEmail: string;
-    reference: string | null;
     ticketId: string;
+    ticketNumber?: string;
   }): Promise<void> {
     const to = this.supportAddress();
     if (!to) {
@@ -192,24 +192,18 @@ export class MailService {
     const college =
       this.config.get<string>('COLLEGE_NAME') ?? 'Lorcan Medical College';
     const subject = oneLine(`[Support] ${input.subject}`);
-    const name = oneLine(input.studentName);
-    const email = oneLine(input.studentEmail);
     const category = oneLine(input.category);
-    const reference = input.reference ? oneLine(input.reference) : '';
-    const inboxUrl = this.webUrl(`/admin/support?ticket=${input.ticketId}`);
+    const ticketLabel = oneLine(input.ticketNumber ?? input.ticketId);
+    const inboxUrl = this.webUrl(`/admin/support/${input.ticketId}`);
 
     const lines = [
       `New support ticket at ${appName}`,
       '',
-      `From: ${name} <${email}>`,
+      `Ticket: ${ticketLabel}`,
       `Category: ${category}`,
-      ...(reference ? [`Reference: ${reference}`] : []),
       `Subject: ${oneLine(input.subject)}`,
-      `Ticket: ${input.ticketId}`,
       '',
-      input.body,
-      '',
-      ...(inboxUrl ? [`Open the admin inbox: ${inboxUrl}`, ''] : []),
+      ...(inboxUrl ? [`Open the ticket: ${inboxUrl}`, ''] : []),
       `${college}`,
     ];
 
@@ -221,30 +215,20 @@ export class MailService {
         <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.5;color:#0f172a;max-width:600px">
           <h2 style="margin:0 0 12px">New support ticket</h2>
           <p style="margin:0 0 12px">
-            <strong>${escapeHtml(name)}</strong>
-            &lt;${escapeHtml(email)}&gt;<br>
-            Category: ${escapeHtml(category)}${
-              reference
-                ? `<br>Reference: <code>${escapeHtml(reference)}</code>`
-                : ''
-            }
+            <strong>${escapeHtml(ticketLabel)}</strong><br>
+            Category: ${escapeHtml(category)}<br>
+            Subject: ${escapeHtml(oneLine(input.subject))}
           </p>
-          <p style="margin:0 0 8px"><strong>${escapeHtml(
-            oneLine(input.subject),
-          )}</strong></p>
-          <div style="white-space:pre-wrap;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;margin:0 0 16px">${escapeHtml(
-            input.body,
-          )}</div>
           ${
             inboxUrl
               ? `<p style="margin:0 0 16px"><a href="${escapeHtml(
                   inboxUrl,
-                )}" style="display:inline-block;background:#147878;color:white;text-decoration:none;padding:10px 16px;border-radius:8px">Open the admin inbox</a></p>`
+                )}" style="display:inline-block;background:#147878;color:white;text-decoration:none;padding:10px 16px;border-radius:8px">Open the ticket</a></p>`
               : ''
           }
-          <p style="margin:0;font-size:12px;color:#64748b">Ticket ${escapeHtml(
-            input.ticketId,
-          )} · ${escapeHtml(college)}</p>
+          <p style="margin:0;font-size:12px;color:#64748b">The conversation and any images are in the admin inbox. · ${escapeHtml(
+            college,
+          )}</p>
         </div>
       `,
     });
@@ -255,6 +239,7 @@ export class MailService {
    *
    * Only the new reply is included, never the rest of the thread: the message
    * may be forwarded, and earlier messages can contain payment details.
+   * Attachments are never emailed - they stay behind the authorised endpoint.
    */
   async sendSupportReply(input: {
     to: string;
@@ -262,13 +247,14 @@ export class MailService {
     subject: string;
     body: string;
     ticketId: string;
+    ticketNumber?: string;
   }): Promise<void> {
     const appName = this.config.get<string>('APP_NAME') ?? 'Lor Mentor';
     const college =
       this.config.get<string>('COLLEGE_NAME') ?? 'Lorcan Medical College';
     const name = oneLine(input.fullName);
     const ticketSubject = oneLine(input.subject);
-    const threadUrl = this.webUrl(`/support?ticket=${input.ticketId}`);
+    const threadUrl = this.webUrl(`/support/tickets/${input.ticketId}`);
 
     const lines = [
       `Hello ${name},`,
@@ -278,7 +264,7 @@ export class MailService {
       input.body,
       '',
       ...(threadUrl ? [`Answer in the app: ${threadUrl}`, ''] : []),
-      `If you no longer need help with this, you can close the ticket from the Support page.`,
+      `If this is solved, you can mark the ticket as resolved from the Support page.`,
       '',
       `${college}`,
     ];
@@ -304,7 +290,7 @@ export class MailService {
                 )}" style="display:inline-block;background:#147878;color:white;text-decoration:none;padding:10px 16px;border-radius:8px">Open the ticket</a></p>`
               : ''
           }
-          <p style="margin:0 0 12px;font-size:13px;color:#64748b">If you no longer need help with this, you can close the ticket from the Support page.</p>
+          <p style="margin:0 0 12px;font-size:13px;color:#64748b">If this is solved, you can mark the ticket as resolved from the Support page.</p>
           <p style="margin:0;font-size:13px;color:#64748b">${escapeHtml(
             college,
           )}</p>

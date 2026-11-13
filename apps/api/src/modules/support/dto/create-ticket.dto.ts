@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import {
   IsIn,
   IsNotEmpty,
@@ -18,6 +19,13 @@ export const SUPPORT_CATEGORIES = [
 
 export type SupportCategory = (typeof SUPPORT_CATEGORIES)[number];
 
+/** Multipart bodies send every field as a string; `''` means "not supplied". */
+const optionalTrimmed = ({ value }: { value: unknown }): unknown => {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  return trimmed === '' ? undefined : trimmed;
+};
+
 export class CreateTicketDto {
   @IsString()
   @MinLength(4)
@@ -36,14 +44,25 @@ export class CreateTicketDto {
   body!: string;
 
   /**
-   * Optional reference the student already has at hand (payment reference,
-   * receipt number). Kept as free text: it is a hint for the agent, never an
-   * identifier the server trusts.
+   * Free text the student already has at hand (payment reference, or the
+   * number of an older ticket when filing "about T-000123"). A hint for the
+   * agent, never an identifier the server trusts.
    */
   @IsOptional()
+  @Transform(optionalTrimmed)
   @IsString()
   @MaxLength(120)
   reference?: string;
+
+  /**
+   * One of the caller's OWN payments. The service re-checks ownership; the
+   * field is only an id, never a copied amount or plan.
+   */
+  @IsOptional()
+  @Transform(optionalTrimmed)
+  @IsString()
+  @MaxLength(64)
+  paymentId?: string;
 }
 
 export class ReplyTicketDto {
@@ -51,4 +70,19 @@ export class ReplyTicketDto {
   @IsNotEmpty()
   @MaxLength(4000)
   body!: string;
+}
+
+export class CreateInternalNoteDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(4000)
+  body!: string;
+}
+
+export class AssignTicketDto {
+  /** `null` unassigns. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  assignedToId?: string | null;
 }

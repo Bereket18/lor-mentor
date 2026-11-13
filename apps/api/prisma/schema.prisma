@@ -168,8 +168,10 @@ model User {
   reviewedStructures AnatomyStructure[]      @relation("AnatomyStructureReviewer")
   publicationApprovals AnatomySystem[]       @relation("AnatomySystemPublicationApprover")
   verificationCodes VerificationCode[]
-  supportTickets   SupportTicket[]
+  supportTickets   SupportTicket[]  @relation("SupportTicketOwner")
+  assignedSupportTickets SupportTicket[] @relation("SupportTicketAssignee")
   supportMessages  SupportMessage[]  @relation("SupportMessageAuthor")
+  supportInternalNotes SupportInternalNote[] @relation("SupportInternalNoteAuthor")
 
   @@index([email])
   @@index([role])
@@ -315,6 +317,7 @@ model Payment {
   plan         SubscriptionPlan @relation(fields: [planId], references: [id])
   subscription Subscription?    @relation(fields: [subscriptionId], references: [id])
   events       PaymentEvent[]
+  supportTickets SupportTicket[]
 
   @@index([userId, status])
   @@index([status])
@@ -887,24 +890,42 @@ model Report {
 // history is kept like payment history, so deleting an account that has
 // tickets must be a deliberate admin action, never a cascade.
 model SupportTicket {
-  id            String                @id @default(cuid())
-  userId        String
-  subject       String
-  category      SupportTicketCategory @default(OTHER)
-  status        SupportTicketStatus   @default(OPEN)
-  // Optional reference the student quotes (payment ref, receipt number) so an
-  // admin does not have to ask for it before looking the payment up.
-  reference     String?
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @updatedAt
+  id                String                @id @default(cuid())
+  // Human-facing number, shown as T-000123. Unique and autoincrement so it
+  // can be quoted on the phone; the cuid stays the internal key in URLs.
+  number            Int                   @unique @default(autoincrement())
+  userId            String
+  subject           String
+  category          SupportTicketCategory @default(OTHER)
+  status            SupportTicketStatus   @default(OPEN)
+  // Free text from before tickets could link a payment. Existing rows keep
+  // it untouched; new tickets use paymentId (or this field for "about T-n").
+  reference         String?
+  // Real link to one of the student's own payments, validated server-side.
+  paymentId         String?
+  assignedToId      String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
   // Drives the admin queue order without a join on the messages table.
-  lastMessageAt DateTime              @default(now())
+  lastMessageAt     DateTime              @default(now())
+  // Read markers: a side has "unread" when lastMessageAt is newer than its own
+  // marker AND the newest message was written by the other side.
+  lastStudentReadAt DateTime?
+  lastStaffReadAt   DateTime?
+  resolvedAt        DateTime?
+  closedAt          DateTime?
 
-  user     User             @relation(fields: [userId], references: [id])
-  messages SupportMessage[]
+  user          User                  @relation("SupportTicketOwner", fields: [userId], references: [id])
+  assignedTo    User?                 @relation("SupportTicketAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  payment       Payment?              @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  messages      SupportMessage[]
+  internalNotes SupportInternalNote[]
 
   @@index([userId, status])
   @@index([status, lastMessageAt])
+  @@index([assignedToId])
+  @@index([paymentId])
+  @@index([status, resolvedAt])
 }
 
 model SupportMessage {
@@ -917,9 +938,43 @@ model SupportMessage {
   isStaff   Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  author User          @relation("SupportMessageAuthor", fields: [authorId], references: [id])
+  ticket      SupportTicket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author      User                @relation("SupportMessageAuthor", fields: [authorId], references: [id])
+  attachments SupportAttachment[]
 
   @@index([ticketId, createdAt])
   @@index([authorId])
+}
+
+// A re-encoded image attached to one message. `storedName` is random and is the
+// only name on disk; the original file name is never kept. Files live in the
+// private upload directory and are only served by an authorised endpoint.
+model SupportAttachment {
+  id         String   @id @default(cuid())
+  messageId  String
+  storedName String   @unique
+  mimeType   String
+  sizeBytes  Int
+  width      Int
+  height     Int
+  createdAt  DateTime @default(now())
+
+  message SupportMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+}
+
+// Staff-only notes live in their own table, never as a flag on SupportMessage,
+// so no message query can ever return one by mistake.
+model SupportInternalNote {
+  id        String   @id @default(cuid())
+  ticketId  String
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User          @relation("SupportInternalNoteAuthor", fields: [authorId], references: [id])
+
+  @@index([ticketId, createdAt])
 }
