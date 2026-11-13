@@ -53,6 +53,8 @@ that never became healthy, or DNS/TLS not being ready yet.
 | `permission denied` reading the env file, or Compose sees an empty variable | File owned by another user, or CRLF line endings | `sudo chown deploy:deploy .env.production && chmod 600 .env.production`; reformat to LF: `sed -i 's/\r$//' .env.production` |
 | `verifier` is unhealthy | The verifier image was built without its browser dependencies, or `RECEIPT_VERIFIER_TOKEN` differs between the two services | Rebuild `verifier`; Compose passes the token to both sides, so re-run `up -d api verifier` |
 | Postgres restarts with `database files are incompatible` | An existing `pgdata` volume from an older major version | Restore the matching dump, or start from an empty volume **after** taking a backup ([30-DATABASE-AND-BACKUPS.md](30-DATABASE-AND-BACKUPS.md)) |
+| API exits with `FATAL: sharp could not load a working native binary` | The image was built for the wrong libc (Alpine base with glibc binaries, or the reverse), or npm skipped optional packages | Rebuild `api` **on the deployment host** with `--no-cache`. The base is Debian/glibc (`node:24-slim`) and must keep the `@img/sharp-linux-*` packages; Alpine needs `libc6-compat` **and** `@img/sharp-linuxmusl-*`. The entrypoint now refuses to start without a working sharp, so the failure cannot hide until the first upload |
+| Support attachment uploads fail with "That image could not be processed" while the container is up | An older API image that predates the sharp self-check | Redeploy the current image; the entrypoint runs `scripts/check-sharp.js` before migrations. Confirm with `docker compose … exec api node scripts/check-sharp.js` |
 
 ---
 
