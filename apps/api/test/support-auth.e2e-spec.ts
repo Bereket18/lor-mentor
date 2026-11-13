@@ -38,12 +38,35 @@ import {
  *
  * It skips itself unless DATABASE_URL names a database that looks disposable
  * (it creates and then deletes rows), so it can never wipe a real environment
- * by accident.
+ * by accident. The CI service database (`lor_mentor_ci`) is in the allowlist,
+ * which is what makes this matrix run in the api:e2e job instead of skipping.
  */
 jest.setTimeout(120_000);
 
+/**
+ * True only for a database this suite may create and delete rows in.
+ *
+ * Accepted:
+ *  - any name containing e2e / test / disposable / qa (local disposable DBs)
+ *  - exactly `lor_mentor_ci`, the throwaway database of the api:e2e CI job
+ *
+ * The name is parsed from the URL's path, so a host or query string that
+ * happens to contain "test" cannot open the gate.
+ */
+export function isDisposableDatabaseUrl(url: string): boolean {
+  if (!url) return false;
+  let name: string;
+  try {
+    name = decodeURIComponent(new URL(url).pathname.replace(/^\//, ''));
+  } catch {
+    return false;
+  }
+  if (!name) return false;
+  return /(e2e|test|disposable|qa)/i.test(name) || name === 'lor_mentor_ci';
+}
+
 const DATABASE_URL = process.env.DATABASE_URL ?? '';
-const DISPOSABLE_DB = /(e2e|test|disposable|qa)/i.test(DATABASE_URL);
+const DISPOSABLE_DB = isDisposableDatabaseUrl(DATABASE_URL);
 
 if (!DATABASE_URL || !DISPOSABLE_DB) {
   describe.skip('Support authorisation matrix (set DATABASE_URL to a disposable database)', () => {
