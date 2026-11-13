@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment -- Jest's asymmetric
+   matchers (expect.any, expect.objectContaining) are typed as `any`, so using
+   them inside a toHaveBeenCalledWith payload is unavoidable here. */
 import {
   BadRequestException,
   ConflictException,
@@ -794,6 +797,7 @@ describe('SupportService', () => {
     });
 
     it('writes an audit row for every staff view', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.spyOn needs the mutable CommonJS exports, not the ESM namespace.
       const fs = require('fs') as typeof import('fs');
       const exists = jest.spyOn(fs, 'existsSync').mockReturnValue(true);
       findUniqueAttachment.mockResolvedValue({
