@@ -7,6 +7,7 @@ import {
   LayoutDashboard, BookOpen, Bot, CreditCard, MessageSquare,
   BarChart3, User, Bell, LogOut, GraduationCap, Layers,
   ChevronLeft, ChevronRight, ShieldAlert, Landmark, HeartPulse, LifeBuoy,
+  CircleHelp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -22,7 +23,6 @@ const studentNav = [
   { href: "/forum",         icon: MessageSquare,   label: "Forum" },
   { href: "/progress",      icon: BarChart3,       label: "Progress" },
   { href: "/notifications", icon: Bell,            label: "Notifications" },
-  { href: "/support",       icon: LifeBuoy,        label: "Support" },
 ];
 
 const adminNav = [
@@ -44,7 +44,6 @@ const teacherNav = [
   { href: "/anatomy",           icon: HeartPulse,      label: "Anatomy Lab" },
   { href: "/forum",             icon: MessageSquare,   label: "Forum" },
   { href: "/teacher/analytics", icon: BarChart3,       label: "Analytics" },
-  { href: "/support",           icon: LifeBuoy,        label: "Support" },
 ];
 
 interface SidebarProps {
@@ -227,6 +226,62 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           );
         })}
       </nav>
+
+      {/* -- Divider ------------------------------------------- */}
+      <div
+        className="relative z-10 mx-3"
+        style={{ borderTop: "1px solid var(--glass-border)" }}
+      />
+
+      {/* -- Help and support (own bottom group) ---------------- */}
+      <div className="relative z-10 px-2 py-2">
+        <Link href="/support">
+          <div
+            title={collapsed ? "Help and support" : undefined}
+            className={cn(
+              "flex items-center rounded-xl text-sm font-medium cursor-pointer transition-all duration-150",
+              collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2.5",
+            )}
+            style={
+              pathname === "/support" || pathname.startsWith("/support/")
+                ? {
+                    background: "var(--teal-dim)",
+                    color: "var(--teal)",
+                    boxShadow: "inset 0 0 0 1px var(--teal-glow)",
+                  }
+                : { color: "var(--text-secondary)" }
+            }
+            onMouseEnter={(e) => {
+              if (pathname !== "/support") {
+                (e.currentTarget as HTMLElement).style.background = "var(--teal-dim)";
+                (e.currentTarget as HTMLElement).style.color = "var(--text-primary)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (pathname !== "/support") {
+                (e.currentTarget as HTMLElement).style.background = "";
+                (e.currentTarget as HTMLElement).style.color = "var(--text-secondary)";
+              }
+            }}
+          >
+            <CircleHelp className="h-4 w-4 flex-shrink-0" />
+            <AnimatePresence initial={false}>
+              {!collapsed && (
+                <motion.span
+                  key="support"
+                  initial={{ opacity: 0, width: 0 }}
+                  animate={{ opacity: 1, width: "auto" }}
+                  exit={{ opacity: 0, width: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="overflow-hidden whitespace-nowrap"
+                >
+                  Help and support
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </div>
+        </Link>
+      </div>
 
       {/* -- Divider ------------------------------------------- */}
       <div

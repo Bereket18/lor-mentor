@@ -36,7 +36,7 @@ export function ThemeToggle({
       <div
         aria-hidden
         className={`${
-          variant === "icon" ? "w-9 h-9 rounded-xl" : "h-[34px] w-[84px] rounded-full"
+          variant === "icon" ? "w-11 h-11 rounded-xl" : "h-[34px] w-[84px] rounded-full"
         } ${className}`}
       />
     );
@@ -49,7 +49,7 @@ export function ThemeToggle({
         onClick={handleToggle}
         aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
         className={`
-          w-9 h-9 rounded-xl flex items-center justify-center
+          w-11 h-11 rounded-xl flex items-center justify-center
           transition-all duration-200
           text-white/60 hover:text-white
           hover:bg-white/10

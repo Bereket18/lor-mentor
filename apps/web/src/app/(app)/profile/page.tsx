@@ -5,13 +5,14 @@ import Link from "next/link";
 import {
   Loader2, User, Mail, Phone, ShieldCheck, ShieldAlert, CalendarDays,
   Building2, GraduationCap, CreditCard, BookOpen, ArrowRight, Layers,
-  Download, ExternalLink,
+  Download, ExternalLink, CircleHelp,
   KeyRound,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import api from "@/lib/api";
 import { formatDisplayDate } from "@/lib/dates";
 import { chapaReceiptUrl } from "@/lib/chapa-receipt";
+import { newPaymentTicketHref, shouldOfferPaymentSupport } from "@/lib/support";
 import { ConfirmationEndStateMessage } from "@/components/payment/confirmation-end-state";
 import type { FullProfile } from "@/types";
 
@@ -497,6 +498,20 @@ export default function ProfilePage() {
                         >
                           Cancel
                         </button>
+                      )}
+                      {/* Rejected, expired, reversed, or a pending manual
+                          receipt well past the review window: support is the
+                          right next step, and the ticket is prefilled with this
+                          payment. Never offered for an in-flight payment. */}
+                      {shouldOfferPaymentSupport(p) && (
+                        <Link
+                          href={newPaymentTicketHref(p.id)}
+                          className="inline-flex h-11 items-center gap-1 text-[11px] font-semibold transition-colors"
+                          style={{ color: "var(--teal)" }}
+                        >
+                          <CircleHelp className="h-3 w-3" aria-hidden="true" />
+                          Get help
+                        </Link>
                       )}
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                         style={statusStyle(p.status)}>
