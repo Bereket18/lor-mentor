@@ -344,6 +344,33 @@ describe('SupportService', () => {
       });
     });
 
+    it('maps the list through the student view without staff-only fields', async () => {
+      findManyTickets.mockResolvedValue([
+        { ...ticketRow, _count: { messages: 2 } },
+      ]);
+      countTickets.mockResolvedValue(1);
+
+      const list = await service.findMine('student-1', {});
+
+      expect(list.items).toHaveLength(1);
+      expect(list.items[0].ticketNumber).toBe('T-000001');
+      expect(list.items[0]).not.toHaveProperty('assignedToId');
+      expect(list.items[0]).not.toHaveProperty('lastStaffReadAt');
+      expect(list.items[0]._count).toEqual({ messages: 2 });
+      // The only message is the student's own, so nothing is unread.
+      expect(list.items[0].unread).toBe(false);
+    });
+
+    it('does not mark a legacy ticket unread when it has no read marker', async () => {
+      findManyTickets.mockResolvedValue([
+        { ...ticketRow, lastStudentReadAt: null },
+      ]);
+      countTickets.mockResolvedValue(1);
+
+      const list = await service.findMine('student-1', {});
+      expect(list.items[0].unread).toBe(false);
+    });
+
     it("never returns another student's ticket", async () => {
       findFirstTicket.mockResolvedValue(null);
 

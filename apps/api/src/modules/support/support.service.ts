@@ -272,7 +272,10 @@ export class SupportService {
     ]);
 
     return {
-      items: items.map((item) => this.withNumber(item)),
+      // Same student-facing shape as the detail view, so the list carries the
+      // unread flag and the reply window the UI needs, and never the
+      // staff-only columns (assignee, staff read marker).
+      items: items.map((item) => this.forStudent(item)),
       total,
       take,
       skip,
@@ -830,6 +833,7 @@ export class SupportService {
         lastMessageAt: copy.lastMessageAt as Date,
         lastStudentReadAt:
           (copy.lastStudentReadAt as Date | null | undefined) ?? null,
+        createdAt: copy.createdAt as Date,
       }),
       canReply:
         status !== 'CLOSED' &&
@@ -861,8 +865,14 @@ export class SupportService {
   private studentUnread(ticket: {
     lastMessageAt: Date;
     lastStudentReadAt: Date | null;
+    createdAt: Date;
   }): boolean {
-    if (!ticket.lastStudentReadAt) return true;
+    // Legacy rows predate the read marker. Treat the creation as "read": only
+    // a later message (which must be a staff reply, since the student's first
+    // message is the creation) makes the ticket unread.
+    if (!ticket.lastStudentReadAt) {
+      return ticket.lastMessageAt > ticket.createdAt;
+    }
     return ticket.lastMessageAt > ticket.lastStudentReadAt;
   }
 
