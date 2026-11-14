@@ -35,6 +35,8 @@ service tests, and do not access other students' data to prove a point.
 | JWT signing secrets | `.env.production` | Forge any session, including admin |
 | Payment records | `Payment`, `Subscription` | Money, entitlement disputes |
 | Uploaded receipts | `uploads` volume | Personal and banking data |
+| Support conversations | `SupportTicket`, `SupportMessage`, `SupportInternalNote` | Payment references, account details, private context |
+| Support attachments | `support_uploads` volume (`uploads/support`) | Receipts, screenshots, account details |
 | Provider keys (Chapa, Resend, Gemini) | `.env.production` | Financial loss, impersonation, spend |
 | Student data (email, progress, AI content) | PostgreSQL | Privacy, regulatory duties |
 
@@ -123,6 +125,10 @@ ownership for anything keyed by a user-supplied id.
 | Payment activation | Idempotent — a replayed webhook cannot double-activate a subscription |
 | Receipt verifier | Isolated container, one shared token, drives Chromium as a non-root user (uid 10001); it never receives JWT, SMTP, Chapa or Gemini credentials |
 | Anatomy review writes | Throttled to 30 writes/min; public anatomy reads 20/min |
+| Support tickets | Student reads and writes are scoped by `userId` from the JWT, never by a query parameter. Staff endpoints require `ADMIN` or `SUPER_ADMIN`. Internal notes live in `SupportInternalNote`, a separate table, and are never merged into a student response |
+| Support attachments | At most **3 images** per message, **5 MB** each, JPEG/PNG/WebP, re-encoded with sharp. Bytes are served only through an authenticated route (owner or staff) with `Cache-Control: private, no-store`; nothing is written under `public/` |
+| Support retention | The retention script is **dry-run by default**; `--apply` is required and it refuses to run without `DATABASE_URL`. Attachments older than `ATTACHMENT_RETENTION_DAYS` (default 180) are deleted with their ticket |
+| Support upload directory | `SUPPORT_UPLOAD_DIR` is validated to reject `..` and any segment named `public`, so a misconfiguration cannot publish ticket images |
 
 ### 5.1 The receipt verifier is treated as hostile input
 
@@ -135,6 +141,29 @@ headless browser. That is the most exposed component, which is why it:
 - cannot reach the database directly.
 
 Do not merge it into the API container to "simplify" deployment.
+
+### 5.2 Support tickets and their attachments
+
+Support conversations are the most personal text the product stores: students
+describe payment problems, sign-in failures and account details, often with a
+screenshot of a bank receipt. The rules that keep that material private are:
+
+- a student can only ever read their own tickets — the service selects by
+  `userId` from the JWT and returns 404 for anyone else's id;
+- staff endpoints are behind `ADMIN` / `SUPER_ADMIN`; a teacher cannot read the
+  inbox;
+- internal notes are a separate table and a separate endpoint, and the student
+  response is built from a fixed allowlist, so a new staff column cannot leak by
+  accident;
+- attachments are re-encoded with sharp (the real bytes, not the declared MIME
+  type), stored outside `public/`, and downloaded through an authenticated
+  route that re-checks ownership on every request;
+- the retention job deletes attachments with the closed ticket after
+  `ATTACHMENT_RETENTION_DAYS`; run it without `--apply` first and read the
+  count before deleting anything ([30-DATABASE-AND-BACKUPS.md](30-DATABASE-AND-BACKUPS.md)).
+
+Support staff should not ask a student to send a password, a full card number
+or a second copy of a receipt. The help centre says the same thing to students.
 
 ---
 

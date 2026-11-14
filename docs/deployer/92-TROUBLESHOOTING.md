@@ -118,6 +118,21 @@ Full payment lifecycle, including the two rails and their test steps:
 
 ---
 
+## 5.1 Support inbox and ticket attachments
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| A student gets `429` when opening a ticket | The policy limits are **3 open tickets** and **5 new tickets per rolling day** | Answer or resolve an existing ticket, or wait. The limits are in `support.constants.ts`, not an env var |
+| The staff notification email does not arrive, but the ticket exists in the inbox | Staff email is best-effort; a mail failure is logged and must not fail the student's request | Check `logs api` for "Could not email the support address"; fix SMTP ([41-EMAIL-SETUP.md](41-EMAIL-SETUP.md)) |
+| Ticket replies reach the inbox but not the student's email | Same as above — the in-app thread is the source of truth | Check the mail log; the reply is not lost |
+| A student uploads an image and gets "That image could not be processed" | sharp cannot decode the file, or the API image predates the native-binary fix | Confirm `docker compose . exec api node scripts/check-sharp.js`; only JPEG/PNG/WebP, ≤ 5 MB, ≤ 3 per message |
+| An attachment link returns `404` after a restore | The `support_uploads` volume was not restored alongside `uploads` | Restore both volumes ([30-DATABASE-AND-BACKUPS.md](30-DATABASE-AND-BACKUPS.md) §5.3) |
+| The retention script reports `0 deleted` | It is **dry-run by default** | Re-run with `--apply` after reading the count; set `--days=N` to override 180 |
+| An admin cannot open the support inbox | Their role is `TEACHER` or `STUDENT` | Support inbox is `ADMIN` / `SUPER_ADMIN` only |
+| A student says they cannot see a staff reply | The reply was written as an **internal note** | Notes are admin-only by design; send a normal reply instead |
+
+---
+
 ## 6. Database and backups
 
 | Symptom | Cause | Fix |

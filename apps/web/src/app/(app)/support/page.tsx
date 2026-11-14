@@ -110,7 +110,7 @@ export default function HelpCentrePage() {
           style={{
             borderColor: "var(--glass-border)",
             background: "var(--bg-glass)",
-            color: "var(--text-muted)",
+            color: "var(--text-secondary)",
           }}
         >
           These articles are draft guidance and are being reviewed by the
@@ -128,7 +128,7 @@ export default function HelpCentrePage() {
             >
               Common questions
             </h2>
-            <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+            <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
               {articles.length} of {SUPPORT_FAQ_ARTICLES.length} articles
             </span>
           </div>
@@ -141,7 +141,7 @@ export default function HelpCentrePage() {
               <Search
                 aria-hidden="true"
                 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
-                style={{ color: "var(--text-muted)" }}
+                style={{ color: "var(--text-secondary)" }}
               />
               <input
                 id="faq-search"
@@ -199,7 +199,7 @@ export default function HelpCentrePage() {
             >
               <CircleHelp
                 className="mx-auto h-6 w-6"
-                style={{ color: "var(--text-muted)" }}
+                style={{ color: "var(--text-secondary)" }}
                 aria-hidden="true"
               />
               <p className="mt-2 text-sm font-medium text-primary">
@@ -246,13 +246,13 @@ export default function HelpCentrePage() {
                       </span>
                       <span
                         className="hidden flex-shrink-0 text-[11px] font-medium sm:block"
-                        style={{ color: "var(--text-muted)" }}
+                        style={{ color: "var(--text-secondary)" }}
                       >
                         {categoryLabel(article.category)}
                       </span>
                       <ArrowRight
                         className="h-4 w-4 flex-shrink-0 transition-transform group-open:rotate-90"
-                        style={{ color: "var(--text-muted)" }}
+                        style={{ color: "var(--text-secondary)" }}
                         aria-hidden="true"
                       />
                     </summary>
@@ -295,7 +295,7 @@ export default function HelpCentrePage() {
               email. Include a payment reference or ticket number if you have
               one.
             </p>
-            <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
+            <p className="mt-2 text-xs" style={{ color: "var(--text-secondary)" }}>
               {SUPPORT_EXPECTED_REPLY_NOTE}
             </p>
             <Link
@@ -361,7 +361,7 @@ export default function HelpCentrePage() {
                           </span>
                           <span
                             className="mt-0.5 block text-[11px]"
-                            style={{ color: "var(--text-muted)" }}
+                            style={{ color: "var(--text-secondary)" }}
                           >
                             {ticket.ticketNumber} ·{" "}
                             {relativeTime(ticket.lastMessageAt)}

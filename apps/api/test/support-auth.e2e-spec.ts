@@ -23,6 +23,9 @@ import {
   MAX_OPEN_TICKETS,
   MAX_TICKETS_PER_DAY,
 } from '../src/modules/support/support.constants';
+import { isDisposableDatabaseUrl } from '../src/common/utils/disposable-database';
+
+export { isDisposableDatabaseUrl };
 
 /**
  * REAL-HTTP authorisation matrix for support tickets.
@@ -46,24 +49,10 @@ jest.setTimeout(120_000);
 /**
  * True only for a database this suite may create and delete rows in.
  *
- * Accepted:
- *  - any name containing e2e / test / disposable / qa (local disposable DBs)
- *  - exactly `lor_mentor_ci`, the throwaway database of the api:e2e CI job
- *
- * The name is parsed from the URL's path, so a host or query string that
- * happens to contain "test" cannot open the gate.
+ * The rule lives in `src/common/utils/disposable-database.ts` so the fixture
+ * seeder cannot drift from it; see that file for what is accepted (any name
+ * containing e2e / test / disposable / qa, or exactly `lor_mentor_ci`).
  */
-export function isDisposableDatabaseUrl(url: string): boolean {
-  if (!url) return false;
-  let name: string;
-  try {
-    name = decodeURIComponent(new URL(url).pathname.replace(/^\//, ''));
-  } catch {
-    return false;
-  }
-  if (!name) return false;
-  return /(e2e|test|disposable|qa)/i.test(name) || name === 'lor_mentor_ci';
-}
 
 const DATABASE_URL = process.env.DATABASE_URL ?? '';
 const DISPOSABLE_DB = isDisposableDatabaseUrl(DATABASE_URL);

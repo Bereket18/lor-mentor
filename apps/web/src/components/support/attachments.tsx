@@ -110,7 +110,7 @@ function AttachmentTile({
         <span className="flex h-24 w-32 items-center justify-center">
           <Loader2
             className="h-5 w-5 animate-spin"
-            style={{ color: "var(--text-muted)" }}
+            style={{ color: "var(--text-secondary)" }}
             aria-hidden="true"
           />
           <span className="sr-only">Loading attachment {index + 1}</span>
@@ -166,14 +166,20 @@ function LocalPreview({
         onClick={onRemove}
         aria-label={`Remove ${file.name}`}
         title={`Remove ${file.name}`}
-        className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full text-white shadow-lg"
-        style={{ background: "var(--state-error)" }}
+        className="absolute -right-3 -top-3 flex h-11 w-11 items-center justify-center"
       >
-        <X className="h-4 w-4" />
+        {/* 44 px hit area; the visible disc stays small enough not to cover
+            the preview. */}
+        <span
+          className="flex h-7 w-7 items-center justify-center rounded-full text-white shadow-lg"
+          style={{ background: "var(--state-error)" }}
+        >
+          <X className="h-4 w-4" aria-hidden="true" />
+        </span>
       </button>
       <p
         className="mt-1 max-w-32 truncate text-[11px]"
-        style={{ color: "var(--text-muted)" }}
+        style={{ color: "var(--text-secondary)" }}
       >
         {bytesLabel(file.size)}
       </p>
@@ -227,7 +233,7 @@ export function AttachmentPicker({
           className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors"
           style={{
             borderColor: "var(--glass-border)",
-            color: canAddMore ? "var(--text-secondary)" : "var(--text-muted)",
+            color: canAddMore ? "var(--text-secondary)" : "var(--text-secondary)",
             opacity: disabled || !canAddMore ? 0.55 : 1,
             pointerEvents: disabled || !canAddMore ? "none" : undefined,
           }}
@@ -247,7 +253,7 @@ export function AttachmentPicker({
           }}
           className="sr-only"
         />
-        <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+        <span className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
           JPEG, PNG or WebP · up to 5 MB each ·{" "}
           {SUPPORT_ATTACHMENTS_PER_MESSAGE - files.length} of{" "}
           {SUPPORT_ATTACHMENTS_PER_MESSAGE} slots left
@@ -281,7 +287,7 @@ export function AttachmentPicker({
         </ul>
       )}
 
-      <p className="mt-2 text-[11px]" style={{ color: "var(--text-muted)" }}>
+      <p className="mt-2 text-[11px]" style={{ color: "var(--text-secondary)" }}>
         Attachments are private: only you and college support staff can open
         them. Do not attach screenshots that show your password or full card
         number.

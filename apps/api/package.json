@@ -24,7 +24,8 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "support:retention": "ts-node src/scripts/support-retention.ts"
+    "support:retention": "ts-node src/scripts/support-retention.ts",
+    "seed:support-fixtures": "ts-node src/scripts/seed-support-fixtures.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

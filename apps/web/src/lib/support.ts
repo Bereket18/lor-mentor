@@ -60,7 +60,8 @@ export const SUPPORT_STATUS_META: Record<
   },
   CLOSED: {
     label: "Closed",
-    color: "var(--text-muted)",
+    // --text-muted is below AA on the glass background in both themes.
+    color: "var(--text-secondary)",
     background: "rgba(71, 85, 105, 0.18)",
   },
 };

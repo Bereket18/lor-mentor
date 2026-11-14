@@ -101,7 +101,7 @@ export default function StudentTicketThreadPage() {
       <div className="flex items-center justify-center p-10">
         <Loader2
           className="h-5 w-5 animate-spin"
-          style={{ color: "var(--text-muted)" }}
+          style={{ color: "var(--text-secondary)" }}
           aria-hidden="true"
         />
         <span className="sr-only">Loading ticket</span>
@@ -171,19 +171,19 @@ export default function StudentTicketThreadPage() {
           <div className="flex flex-wrap items-center gap-2">
             <span
               className="text-[11px] font-semibold uppercase tracking-wide"
-              style={{ color: "var(--text-muted)" }}
+              style={{ color: "var(--text-secondary)" }}
             >
               {detail.ticketNumber}
             </span>
             <StatusPill status={detail.status} />
-            <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+            <span className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
               {categoryLabel(detail.category)}
             </span>
           </div>
           <h1 className="mt-1 font-display text-xl font-semibold text-primary sm:text-2xl">
             {detail.subject}
           </h1>
-          <p className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
+          <p className="mt-1 text-[11px]" style={{ color: "var(--text-secondary)" }}>
             Opened {formatDisplayDate(detail.createdAt)}
             {detail.reference ? ` · Reference ${detail.reference}` : ""}
           </p>
@@ -205,25 +205,25 @@ export default function StudentTicketThreadPage() {
           </h2>
           <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:grid-cols-4">
             <div>
-              <dt style={{ color: "var(--text-muted)" }}>Amount</dt>
+              <dt style={{ color: "var(--text-secondary)" }}>Amount</dt>
               <dd style={{ color: "var(--text-secondary)" }}>
                 {formatPaymentAmount(detail.payment.amount, detail.payment.currency)}
               </dd>
             </div>
             <div>
-              <dt style={{ color: "var(--text-muted)" }}>Plan</dt>
+              <dt style={{ color: "var(--text-secondary)" }}>Plan</dt>
               <dd style={{ color: "var(--text-secondary)" }}>
                 {detail.payment.planName ?? "—"}
               </dd>
             </div>
             <div>
-              <dt style={{ color: "var(--text-muted)" }}>Status</dt>
+              <dt style={{ color: "var(--text-secondary)" }}>Status</dt>
               <dd style={{ color: "var(--text-secondary)" }}>
                 {detail.payment.status}
               </dd>
             </div>
             <div>
-              <dt style={{ color: "var(--text-muted)" }}>Receipt</dt>
+              <dt style={{ color: "var(--text-secondary)" }}>Receipt</dt>
               <dd className="truncate" style={{ color: "var(--text-secondary)" }}>
                 {detail.payment.receiptNumber ?? "Not issued"}
               </dd>
@@ -260,7 +260,7 @@ export default function StudentTicketThreadPage() {
                 {detail.reopenUntil ? formatDisplayDate(detail.reopenUntil) : "the window ends"}{" "}
                 reopens this ticket.
               </span>
-              <span className="inline-flex items-center gap-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
+              <span className="inline-flex items-center gap-1 text-[11px]" style={{ color: "var(--text-secondary)" }}>
                 <RotateCcw className="h-3 w-3" aria-hidden="true" />
                 Reply below to reopen
               </span>

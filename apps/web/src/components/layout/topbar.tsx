@@ -127,7 +127,7 @@ export function Topbar({ onMenuToggle, drawerOpen = false }: TopbarProps) {
             aria-haspopup="dialog"
             aria-expanded={drawerOpen}
             aria-controls="mobile-navigation"
-            className="lg:hidden -ml-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl transition-colors"
+            className="lg:hidden -ml-1 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl transition-colors"
             style={{ color: "var(--text-secondary)" }}
             onMouseEnter={(e) => {
               (e.currentTarget as HTMLElement).style.background = "var(--teal-dim)";
@@ -243,22 +243,25 @@ export function Topbar({ onMenuToggle, drawerOpen = false }: TopbarProps) {
               setMenuOpen((open) => !open);
               setHelpOpen(false);
             }}
-            className={cn(
-              "w-8 h-8 rounded-full flex items-center justify-center",
-              "text-white text-xs font-bold cursor-pointer select-none",
-            )}
-            style={{
-              background: "linear-gradient(135deg, #147878 0%, #1A9494 100%)",
-              boxShadow: "0 0 12px rgba(45,212,191,0.3)",
-            }}
+            className="flex h-11 w-11 items-center justify-center rounded-full cursor-pointer"
           >
-            {user?.fullName ? getInitials(user.fullName) : "?"}
+            {/* 44 px target; the visible circle stays 32 px so the header does
+                not grow. */}
+            <span
+              className="flex h-8 w-8 select-none items-center justify-center rounded-full text-xs font-bold text-white"
+              style={{
+                background: "linear-gradient(135deg, #147878 0%, #1A9494 100%)",
+                boxShadow: "0 0 12px rgba(45,212,191,0.3)",
+              }}
+            >
+              {user?.fullName ? getInitials(user.fullName) : "?"}
+            </span>
           </button>
 
           {menuOpen && (
             <div
               role="menu"
-              className="absolute right-0 top-10 z-50 w-56 rounded-xl border p-1.5 shadow-2xl"
+              className="absolute right-0 top-12 z-50 w-56 rounded-xl border p-1.5 shadow-2xl"
               style={{
                 background: "var(--bg-elevated)",
                 borderColor: "var(--glass-border)",

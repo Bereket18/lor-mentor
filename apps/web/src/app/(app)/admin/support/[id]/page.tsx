@@ -210,7 +210,7 @@ export default function AdminTicketThreadPage() {
       <div className="flex items-center justify-center p-10">
         <Loader2
           className="h-5 w-5 animate-spin"
-          style={{ color: "var(--text-muted)" }}
+          style={{ color: "var(--text-secondary)" }}
           aria-hidden="true"
         />
         <span className="sr-only">Loading ticket</span>
@@ -278,7 +278,7 @@ export default function AdminTicketThreadPage() {
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
             Support inbox
           </Link>
-          <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+          <span className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
             Last student activity {relativeTime(detail.lastMessageAt)}
           </span>
         </div>
@@ -286,15 +286,15 @@ export default function AdminTicketThreadPage() {
           <div className="flex flex-wrap items-center gap-2">
             <span
               className="text-[11px] font-semibold uppercase tracking-wide"
-              style={{ color: "var(--text-muted)" }}
+              style={{ color: "var(--text-secondary)" }}
             >
               {detail.ticketNumber}
             </span>
             <StatusPill status={detail.status} admin />
-            <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+            <span className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
               {categoryLabel(detail.category)}
             </span>
-            <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+            <span className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
               Opened {formatDisplayDate(detail.createdAt)}
             </span>
           </div>
@@ -442,7 +442,7 @@ export default function AdminTicketThreadPage() {
               </p>
 
               {detail.internalNotes.length === 0 ? (
-                <p className="py-4 text-center text-sm" style={{ color: "var(--text-muted)" }}>
+                <p className="py-4 text-center text-sm" style={{ color: "var(--text-secondary)" }}>
                   No internal notes yet.
                 </p>
               ) : (
@@ -458,7 +458,7 @@ export default function AdminTicketThreadPage() {
                     >
                       <p
                         className="text-[11px] font-semibold"
-                        style={{ color: "var(--text-muted)" }}
+                        style={{ color: "var(--text-secondary)" }}
                       >
                         {item.author.fullName} · {relativeTime(item.createdAt)}
                       </p>
@@ -531,39 +531,39 @@ export default function AdminTicketThreadPage() {
             </h2>
             <dl className="mt-3 space-y-1.5 text-xs">
               <div>
-                <dt style={{ color: "var(--text-muted)" }}>Name</dt>
+                <dt style={{ color: "var(--text-secondary)" }}>Name</dt>
                 <dd style={{ color: "var(--text-secondary)" }}>
                   {detail.user.fullName}
                 </dd>
               </div>
               <div>
-                <dt style={{ color: "var(--text-muted)" }}>Email</dt>
+                <dt style={{ color: "var(--text-secondary)" }}>Email</dt>
                 <dd className="break-all" style={{ color: "var(--text-secondary)" }}>
                   {detail.user.email}
                 </dd>
               </div>
               {detail.user.phoneNumber && (
                 <div>
-                  <dt style={{ color: "var(--text-muted)" }}>Phone</dt>
+                  <dt style={{ color: "var(--text-secondary)" }}>Phone</dt>
                   <dd style={{ color: "var(--text-secondary)" }}>
                     {detail.user.phoneNumber}
                   </dd>
                 </div>
               )}
               <div>
-                <dt style={{ color: "var(--text-muted)" }}>Role</dt>
+                <dt style={{ color: "var(--text-secondary)" }}>Role</dt>
                 <dd style={{ color: "var(--text-secondary)" }}>
                   {detail.user.role}
                 </dd>
               </div>
               <div>
-                <dt style={{ color: "var(--text-muted)" }}>Joined</dt>
+                <dt style={{ color: "var(--text-secondary)" }}>Joined</dt>
                 <dd style={{ color: "var(--text-secondary)" }}>
                   {formatDisplayDate(detail.user.createdAt)}
                 </dd>
               </div>
               <div>
-                <dt style={{ color: "var(--text-muted)" }}>Account</dt>
+                <dt style={{ color: "var(--text-secondary)" }}>Account</dt>
                 <dd style={{ color: "var(--text-secondary)" }}>
                   {detail.user.isActive ? "Active" : "Inactive"}
                 </dd>
@@ -589,7 +589,7 @@ export default function AdminTicketThreadPage() {
               </h2>
               <dl className="mt-3 space-y-1.5 text-xs">
                 <div>
-                  <dt style={{ color: "var(--text-muted)" }}>Amount</dt>
+                  <dt style={{ color: "var(--text-secondary)" }}>Amount</dt>
                   <dd style={{ color: "var(--text-secondary)" }}>
                     {formatPaymentAmount(
                       detail.payment.amount,
@@ -598,32 +598,32 @@ export default function AdminTicketThreadPage() {
                   </dd>
                 </div>
                 <div>
-                  <dt style={{ color: "var(--text-muted)" }}>Status</dt>
+                  <dt style={{ color: "var(--text-secondary)" }}>Status</dt>
                   <dd style={{ color: "var(--text-secondary)" }}>
                     {detail.payment.status}
                   </dd>
                 </div>
                 <div>
-                  <dt style={{ color: "var(--text-muted)" }}>Method</dt>
+                  <dt style={{ color: "var(--text-secondary)" }}>Method</dt>
                   <dd style={{ color: "var(--text-secondary)" }}>
                     {detail.payment.method}
                   </dd>
                 </div>
                 <div>
-                  <dt style={{ color: "var(--text-muted)" }}>Plan</dt>
+                  <dt style={{ color: "var(--text-secondary)" }}>Plan</dt>
                   <dd style={{ color: "var(--text-secondary)" }}>
                     {detail.payment.planName ?? "—"}
                   </dd>
                 </div>
                 <div>
-                  <dt style={{ color: "var(--text-muted)" }}>Receipt</dt>
+                  <dt style={{ color: "var(--text-secondary)" }}>Receipt</dt>
                   <dd className="break-all" style={{ color: "var(--text-secondary)" }}>
                     {detail.payment.receiptNumber ?? "Not issued"}
                   </dd>
                 </div>
                 {detail.payment.txRef && (
                   <div>
-                    <dt style={{ color: "var(--text-muted)" }}>Gateway ref</dt>
+                    <dt style={{ color: "var(--text-secondary)" }}>Gateway ref</dt>
                     <dd className="break-all" style={{ color: "var(--text-secondary)" }}>
                       {detail.payment.txRef}
                     </dd>
@@ -705,19 +705,19 @@ export default function AdminTicketThreadPage() {
 
             <dl className="space-y-1 border-t pt-2 text-[11px]" style={{ borderColor: "var(--glass-border)" }}>
               <div className="flex justify-between gap-2">
-                <dt style={{ color: "var(--text-muted)" }}>Resolved</dt>
+                <dt style={{ color: "var(--text-secondary)" }}>Resolved</dt>
                 <dd style={{ color: "var(--text-secondary)" }}>
                   {detail.resolvedAt ? formatDisplayDate(detail.resolvedAt) : "—"}
                 </dd>
               </div>
               <div className="flex justify-between gap-2">
-                <dt style={{ color: "var(--text-muted)" }}>Closed</dt>
+                <dt style={{ color: "var(--text-secondary)" }}>Closed</dt>
                 <dd style={{ color: "var(--text-secondary)" }}>
                   {detail.closedAt ? formatDisplayDate(detail.closedAt) : "—"}
                 </dd>
               </div>
               <div className="flex justify-between gap-2">
-                <dt style={{ color: "var(--text-muted)" }}>Read by staff</dt>
+                <dt style={{ color: "var(--text-secondary)" }}>Read by staff</dt>
                 <dd style={{ color: "var(--text-secondary)" }}>
                   {detail.lastStaffReadAt
                     ? relativeTime(detail.lastStaffReadAt)

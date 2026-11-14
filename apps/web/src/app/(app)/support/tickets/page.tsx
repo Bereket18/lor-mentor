@@ -109,7 +109,7 @@ export default function SupportTicketsPage() {
           <div className="flex items-center justify-center rounded-2xl border p-10">
             <Loader2
               className="h-5 w-5 animate-spin"
-              style={{ color: "var(--text-muted)" }}
+              style={{ color: "var(--text-secondary)" }}
               aria-hidden="true"
             />
             <span className="sr-only">Loading tickets</span>
@@ -141,7 +141,7 @@ export default function SupportTicketsPage() {
           >
             <Ticket
               className="mx-auto h-7 w-7"
-              style={{ color: "var(--text-muted)" }}
+              style={{ color: "var(--text-secondary)" }}
               aria-hidden="true"
             />
             <p className="mt-2 text-sm font-medium text-primary">
@@ -183,7 +183,7 @@ export default function SupportTicketsPage() {
                   )}
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-2">
-                      <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+                      <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--text-secondary)" }}>
                         {ticket.ticketNumber}
                       </span>
                       <StatusPill status={ticket.status} />
@@ -201,7 +201,7 @@ export default function SupportTicketsPage() {
                     </span>
                     <span
                       className="mt-1 block text-[11px]"
-                      style={{ color: "var(--text-muted)" }}
+                      style={{ color: "var(--text-secondary)" }}
                     >
                       Updated {relativeTime(ticket.lastMessageAt)} ·{" "}
                       {ticket._count.messages}{" "}
@@ -210,7 +210,7 @@ export default function SupportTicketsPage() {
                   </span>
                   <ChevronRight
                     className="mt-1 h-4 w-4 flex-shrink-0"
-                    style={{ color: "var(--text-muted)" }}
+                    style={{ color: "var(--text-secondary)" }}
                     aria-hidden="true"
                   />
                 </Link>

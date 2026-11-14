@@ -44,7 +44,7 @@ function MessageBubble({
             dateTime={message.createdAt}
             title={formatDisplayDate(message.createdAt)}
             className="text-[11px]"
-            style={{ color: "var(--text-muted)" }}
+            style={{ color: "var(--text-secondary)" }}
           >
             {relativeTime(message.createdAt)}
           </time>
@@ -74,7 +74,7 @@ export function TicketThread({
 }) {
   if (messages.length === 0) {
     return (
-      <p className="py-6 text-center text-sm" style={{ color: "var(--text-muted)" }}>
+      <p className="py-6 text-center text-sm" style={{ color: "var(--text-secondary)" }}>
         {emptyText}
       </p>
     );
@@ -180,7 +180,7 @@ export function MessageComposer({
         idPrefix="composer"
       />
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+        <span className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
           {value.length}/4000 · Ctrl/⌘ + Enter to send
         </span>
         <button

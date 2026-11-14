@@ -142,7 +142,7 @@ function NewTicketForm() {
             One clear message gets you a faster answer. You can add up to three
             screenshots.
           </p>
-          <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+          <p className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>
             {SUPPORT_EXPECTED_REPLY_NOTE}
           </p>
         </div>
@@ -200,7 +200,7 @@ function NewTicketForm() {
               style={{ color: "var(--text-secondary)" }}
             >
               Related payment{" "}
-              <span style={{ color: "var(--text-muted)" }}>(optional)</span>
+              <span style={{ color: "var(--text-secondary)" }}>(optional)</span>
             </span>
             <Select
               value={paymentId || "none"}
@@ -214,7 +214,7 @@ function NewTicketForm() {
             {selectedPayment && (
               <p
                 className="mt-1 text-[11px]"
-                style={{ color: "var(--text-muted)" }}
+                style={{ color: "var(--text-secondary)" }}
               >
                 Linked to {formatPaymentAmount(
                   selectedPayment.amount,
@@ -240,7 +240,7 @@ function NewTicketForm() {
               style={{ color: "var(--text-secondary)" }}
             >
               Payment reference or ticket number{" "}
-              <span style={{ color: "var(--text-muted)" }}>(optional)</span>
+              <span style={{ color: "var(--text-secondary)" }}>(optional)</span>
             </label>
             <input
               id="ticket-reference"
@@ -278,7 +278,7 @@ function NewTicketForm() {
           <p
             id="ticket-body-hint"
             className="mt-1 text-[11px]"
-            style={{ color: "var(--text-muted)" }}
+            style={{ color: "var(--text-secondary)" }}
           >
             {body.length}/4000 · at least 10 characters
           </p>
@@ -290,7 +290,7 @@ function NewTicketForm() {
             style={{ color: "var(--text-secondary)" }}
           >
             Screenshots{" "}
-            <span style={{ color: "var(--text-muted)" }}>(optional)</span>
+            <span style={{ color: "var(--text-secondary)" }}>(optional)</span>
           </span>
           <AttachmentPicker
             files={files}
@@ -301,7 +301,7 @@ function NewTicketForm() {
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4" style={{ borderColor: "var(--glass-border)" }}>
-          <p className="max-w-md text-[11px]" style={{ color: "var(--text-muted)" }}>
+          <p className="max-w-md text-[11px]" style={{ color: "var(--text-secondary)" }}>
             By sending this you agree the college may contact you by email
             about this ticket. Do not include passwords or full card numbers.
           </p>
@@ -330,7 +330,7 @@ function NewTicketForm() {
         </div>
       </form>
 
-      <p className="flex items-start gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
+      <p className="flex items-start gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
         <MessageSquarePlus className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
         You can have three open tickets at once. If you already have an open
         ticket about this problem, reply there instead so the history stays in
@@ -347,7 +347,7 @@ export default function NewTicketPage() {
         <div className="flex items-center justify-center p-10">
           <Loader2
             className="h-5 w-5 animate-spin"
-            style={{ color: "var(--text-muted)" }}
+            style={{ color: "var(--text-secondary)" }}
             aria-hidden="true"
           />
           <span className="sr-only">Loading form</span>

@@ -260,7 +260,7 @@ export default function AdminSupportQueuePage() {
             <Search
               aria-hidden="true"
               className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
-              style={{ color: "var(--text-muted)" }}
+              style={{ color: "var(--text-secondary)" }}
             />
             <input
               id="admin-support-search"
@@ -291,7 +291,7 @@ export default function AdminSupportQueuePage() {
           <div className="flex items-center justify-center rounded-2xl border p-10">
             <Loader2
               className="h-5 w-5 animate-spin"
-              style={{ color: "var(--text-muted)" }}
+              style={{ color: "var(--text-secondary)" }}
               aria-hidden="true"
             />
             <span className="sr-only">Loading queue</span>
@@ -321,7 +321,7 @@ export default function AdminSupportQueuePage() {
           >
             <Inbox
               className="mx-auto h-7 w-7"
-              style={{ color: "var(--text-muted)" }}
+              style={{ color: "var(--text-secondary)" }}
               aria-hidden="true"
             />
             <p className="mt-2 text-sm font-medium text-primary">
@@ -356,14 +356,14 @@ export default function AdminSupportQueuePage() {
                     <span className="flex flex-wrap items-center gap-2">
                       <span
                         className="text-[11px] font-semibold uppercase tracking-wide"
-                        style={{ color: "var(--text-muted)" }}
+                        style={{ color: "var(--text-secondary)" }}
                       >
                         {ticket.ticketNumber}
                       </span>
                       <StatusPill status={ticket.status} admin />
                       <span
                         className="text-[11px]"
-                        style={{ color: "var(--text-muted)" }}
+                        style={{ color: "var(--text-secondary)" }}
                       >
                         {categoryLabel(ticket.category)}
                       </span>
@@ -381,7 +381,7 @@ export default function AdminSupportQueuePage() {
                     </span>
                     <span
                       className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]"
-                      style={{ color: "var(--text-muted)" }}
+                      style={{ color: "var(--text-secondary)" }}
                     >
                       <span className="truncate">
                         {ticket.user.fullName} · {ticket.user.email}
@@ -398,7 +398,7 @@ export default function AdminSupportQueuePage() {
                   </span>
                   <ChevronRight
                     className="mt-1 h-4 w-4 flex-shrink-0"
-                    style={{ color: "var(--text-muted)" }}
+                    style={{ color: "var(--text-secondary)" }}
                     aria-hidden="true"
                   />
                 </Link>
