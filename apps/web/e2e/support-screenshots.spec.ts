@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { deflateSync } from "node:zlib";
 import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
@@ -126,19 +126,38 @@ async function settle(page: Page) {
   ).resolves.toBe(true);
 }
 
-async function shot(page: Page, name: string, width: number, theme: Theme) {
+async function shot(
+  page: Page,
+  name: string,
+  width: number,
+  theme: Theme,
+  bringIntoView?: Locator,
+) {
+  if (bringIntoView) {
+    await bringIntoView.evaluate((element) =>
+      element.scrollIntoView({ block: "center", behavior: "instant" }),
+    );
+    await page.waitForTimeout(200);
+  }
   await settle(page);
   const file = path.join(OUT_DIR, `${name}-${width}-${theme}.png`);
   await page.screenshot({ path: file, fullPage: true, animations: "disabled" });
   console.log(`SCREENSHOT ${file}`);
 }
 
-for (const width of WIDTHS) {
-  for (const theme of THEMES) {
-    test(`student screens, ${width}px ${theme}`, async ({ page }) => {
+/**
+ * One sign-in per role, then every width and theme. The API allows five
+ * sign-ins a minute, so a test per screenshot would trip the throttle.
+ */
+test("student screens: help centre, new ticket, thread", async ({ page }) => {
+  await signIn(page, STUDENT_EMAIL, STUDENT_PASSWORD);
+
+  const threadHref = await paymentTicketHref(page, "/support/tickets");
+
+  for (const width of WIDTHS) {
+    for (const theme of THEMES) {
       await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
       await setTheme(page, theme);
-      await signIn(page, STUDENT_EMAIL, STUDENT_PASSWORD);
 
       await page.goto("/support", { waitUntil: "networkidle" });
       await expect(page.locator("main h1, main h2").first()).toBeVisible();
@@ -169,26 +188,45 @@ for (const width of WIDTHS) {
       await expect(
         page.getByRole("button", { name: "Remove transfer-confirmation.png" }),
       ).toBeVisible();
-      await shot(page, "new-ticket", width, theme);
+      await shot(
+        page,
+        "new-ticket",
+        width,
+        theme,
+        page.getByRole("button", { name: "Remove bank-receipt.png" }),
+      );
 
-      const threadHref = await paymentTicketHref(page, "/support/tickets");
-      await page.goto(threadHref, { waitUntil: "networkidle" });
-      await expect(page.getByText(/We have your transfer in the review queue/i)).toBeVisible({
-        timeout: 45_000,
+      await page.setViewportSize({
+        width,
+        height: width === 390 ? 1000 : 900,
       });
+      await page.goto(threadHref, { waitUntil: "networkidle" });
+      await expect(
+        page.getByText(/We have your transfer in the review queue/i),
+      ).toBeVisible({ timeout: 45_000 });
       await expect(page.getByLabel("Related payment")).toBeVisible();
       await expect(
         page.getByRole("button", { name: /open attachment 1/i }).first(),
       ).toBeVisible();
+      // Unscrolled: the payment card and the staff reply fit together.
       await shot(page, "ticket-thread", width, theme);
-    });
+      await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
+    }
+  }
+});
 
-    test(`admin screens, ${width}px ${theme}`, async ({ page }) => {
+test("admin screens: queue and the thread with internal notes open", async ({
+  page,
+}) => {
+  await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD, "admin");
+
+  const threadHref = await paymentTicketHref(page, "/admin/support");
+
+  for (const width of WIDTHS) {
+    for (const theme of THEMES) {
       await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
       await setTheme(page, theme);
-      await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD, "admin");
 
-      const threadHref = await paymentTicketHref(page, "/admin/support");
       await page.goto("/admin/support", { waitUntil: "networkidle" });
       await expect(
         page.getByRole("link", { name: /transfer is still marked pending/i }).first(),
@@ -199,6 +237,6 @@ for (const width of WIDTHS) {
       await page.getByRole("tab", { name: /internal notes/i }).click();
       await expect(page.getByText(/Checked the CBE statement/i)).toBeVisible();
       await shot(page, "admin-thread-notes", width, theme);
-    });
+    }
   }
-}
+});
