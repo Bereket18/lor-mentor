@@ -49,7 +49,7 @@ interface TopbarProps {
 
 export function Topbar({ onMenuToggle, drawerOpen = false }: TopbarProps) {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -163,73 +163,76 @@ export function Topbar({ onMenuToggle, drawerOpen = false }: TopbarProps) {
         {/* Notifications — live unread count, links to /notifications */}
         <NotificationBell />
 
-        {/* Help and support. Shared by desktop and the phone header, so the
-            top bar is one place to reach the help centre from any page. */}
-        <div ref={helpRef} className="relative">
-          <button
-            type="button"
-            aria-label="Help and support"
-            aria-haspopup="menu"
-            aria-expanded={helpOpen}
-            onClick={() => {
-              setHelpOpen((open) => !open);
-              setMenuOpen(false);
-            }}
-            className={cn(
-              "flex h-11 w-11 items-center justify-center rounded-xl transition-colors",
-              "hover:bg-[var(--teal-dim)] hover:text-[var(--text-primary)]",
-            )}
-            style={{ color: "var(--text-secondary)" }}
-          >
-            <CircleHelp className="h-5 w-5" aria-hidden="true" />
-          </button>
-
-          {helpOpen && (
-            <div
-              role="menu"
+        {/* Help and support. Hidden for administrators: the student help
+            centre redirects them, so their support entry point is the
+            "Support inbox" item in the sidebar. */}
+        {!isAdmin && (
+          <div ref={helpRef} className="relative">
+            <button
+              type="button"
               aria-label="Help and support"
-              className="absolute right-0 top-12 z-50 w-64 rounded-xl border p-1.5 shadow-2xl"
-              style={{
-                background: "var(--bg-elevated)",
-                borderColor: "var(--glass-border)",
+              aria-haspopup="menu"
+              aria-expanded={helpOpen}
+              onClick={() => {
+                setHelpOpen((open) => !open);
+                setMenuOpen(false);
               }}
+              className={cn(
+                "flex h-11 w-11 items-center justify-center rounded-xl transition-colors",
+                "hover:bg-[var(--teal-dim)] hover:text-[var(--text-primary)]",
+              )}
+              style={{ color: "var(--text-secondary)" }}
             >
-              <p
-                className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide"
-                style={{ color: "var(--text-muted)" }}
+              <CircleHelp className="h-5 w-5" aria-hidden="true" />
+            </button>
+
+            {helpOpen && (
+              <div
+                role="menu"
+                aria-label="Help and support"
+                className="absolute right-0 top-12 z-50 w-64 rounded-xl border p-1.5 shadow-2xl"
+                style={{
+                  background: "var(--bg-elevated)",
+                  borderColor: "var(--glass-border)",
+                }}
               >
-                Help and support
-              </p>
-              <Link
-                href="/support"
-                role="menuitem"
-                onClick={() => setHelpOpen(false)}
-                className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-secondary transition-colors hover:bg-[var(--teal-dim)] hover:text-primary"
-              >
-                <CircleHelp className="h-4 w-4" aria-hidden="true" />
-                Help centre
-              </Link>
-              <Link
-                href="/support/tickets"
-                role="menuitem"
-                onClick={() => setHelpOpen(false)}
-                className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-secondary transition-colors hover:bg-[var(--teal-dim)] hover:text-primary"
-              >
-                <Ticket className="h-4 w-4" aria-hidden="true" />
-                My tickets
-              </Link>
-              <Link
-                href="/support/new"
-                role="menuitem"
-                onClick={() => setHelpOpen(false)}
-                className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-secondary transition-colors hover:bg-[var(--teal-dim)] hover:text-primary"
-              >
-                <MessageSquarePlus className="h-4 w-4" aria-hidden="true" />
-                New ticket
-              </Link>
-            </div>
-          )}
-        </div>
+                <p
+                  className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Help and support
+                </p>
+                <Link
+                  href="/support"
+                  role="menuitem"
+                  onClick={() => setHelpOpen(false)}
+                  className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-secondary transition-colors hover:bg-[var(--teal-dim)] hover:text-primary"
+                >
+                  <CircleHelp className="h-4 w-4" aria-hidden="true" />
+                  Help centre
+                </Link>
+                <Link
+                  href="/support/tickets"
+                  role="menuitem"
+                  onClick={() => setHelpOpen(false)}
+                  className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-secondary transition-colors hover:bg-[var(--teal-dim)] hover:text-primary"
+                >
+                  <Ticket className="h-4 w-4" aria-hidden="true" />
+                  My tickets
+                </Link>
+                <Link
+                  href="/support/new"
+                  role="menuitem"
+                  onClick={() => setHelpOpen(false)}
+                  className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-secondary transition-colors hover:bg-[var(--teal-dim)] hover:text-primary"
+                >
+                  <MessageSquarePlus className="h-4 w-4" aria-hidden="true" />
+                  New ticket
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Avatar + account menu. The sidebar is desktop-only, so this is
             the phone's route to Profile and Log out. */}

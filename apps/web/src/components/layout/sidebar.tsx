@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, BookOpen, Bot, CreditCard, MessageSquare,
   BarChart3, User, Bell, LogOut, GraduationCap, Layers,
-  ChevronLeft, ChevronRight, ShieldAlert, Landmark, HeartPulse, LifeBuoy,
+  ChevronLeft, ChevronRight, ShieldAlert, Landmark, HeartPulse,
   CircleHelp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -35,7 +35,9 @@ const adminNav = [
   { href: "/admin/courses",    icon: BookOpen,        label: "Courses" },
   { href: "/admin/moderation", icon: ShieldAlert,     label: "Moderation" },
   { href: "/admin/audit",      icon: BarChart3,       label: "Audit Logs" },
-  { href: "/admin/support",    icon: LifeBuoy,        label: "Support inbox" },
+  // A question mark, to match the help centre. Administrators answer the
+  // tickets, so the inbox reads as "support", not "emergency".
+  { href: "/admin/support",    icon: CircleHelp,      label: "Support inbox" },
 ];
 
 const teacherNav = [
@@ -233,55 +235,67 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         style={{ borderTop: "1px solid var(--glass-border)" }}
       />
 
-      {/* -- Help and support (own bottom group) ---------------- */}
-      <div className="relative z-10 px-2 py-2">
-        <Link href="/support">
+      {/* -- Help and support (own bottom group) ----------------
+          Hidden for administrators: they answer the tickets from "Support
+          inbox" in the main nav, and the student help centre redirects them
+          away, so the link would be dead weight and a second support entry. */}
+      {!isAdmin && (
+        <>
           <div
-            title={collapsed ? "Help and support" : undefined}
-            className={cn(
-              "flex items-center rounded-xl text-sm font-medium cursor-pointer transition-all duration-150",
-              collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2.5",
-            )}
-            style={
-              pathname === "/support" || pathname.startsWith("/support/")
-                ? {
-                    background: "var(--teal-dim)",
-                    color: "var(--teal)",
-                    boxShadow: "inset 0 0 0 1px var(--teal-glow)",
+            className="relative z-10 mx-3"
+            style={{ borderTop: "1px solid var(--glass-border)" }}
+          />
+
+          <div className="relative z-10 px-2 py-2">
+            <Link href="/support">
+              <div
+                title={collapsed ? "Help and support" : undefined}
+                className={cn(
+                  "flex items-center rounded-xl text-sm font-medium cursor-pointer transition-all duration-150",
+                  collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2.5",
+                )}
+                style={
+                  pathname === "/support" || pathname.startsWith("/support/")
+                    ? {
+                        background: "var(--teal-dim)",
+                        color: "var(--teal)",
+                        boxShadow: "inset 0 0 0 1px var(--teal-glow)",
+                      }
+                    : { color: "var(--text-secondary)" }
+                }
+                onMouseEnter={(e) => {
+                  if (pathname !== "/support") {
+                    (e.currentTarget as HTMLElement).style.background = "var(--teal-dim)";
+                    (e.currentTarget as HTMLElement).style.color = "var(--text-primary)";
                   }
-                : { color: "var(--text-secondary)" }
-            }
-            onMouseEnter={(e) => {
-              if (pathname !== "/support") {
-                (e.currentTarget as HTMLElement).style.background = "var(--teal-dim)";
-                (e.currentTarget as HTMLElement).style.color = "var(--text-primary)";
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (pathname !== "/support") {
-                (e.currentTarget as HTMLElement).style.background = "";
-                (e.currentTarget as HTMLElement).style.color = "var(--text-secondary)";
-              }
-            }}
-          >
-            <CircleHelp className="h-4 w-4 flex-shrink-0" />
-            <AnimatePresence initial={false}>
-              {!collapsed && (
-                <motion.span
-                  key="support"
-                  initial={{ opacity: 0, width: 0 }}
-                  animate={{ opacity: 1, width: "auto" }}
-                  exit={{ opacity: 0, width: 0 }}
-                  transition={{ duration: 0.15 }}
-                  className="overflow-hidden whitespace-nowrap"
-                >
-                  Help and support
-                </motion.span>
-              )}
-            </AnimatePresence>
+                }}
+                onMouseLeave={(e) => {
+                  if (pathname !== "/support") {
+                    (e.currentTarget as HTMLElement).style.background = "";
+                    (e.currentTarget as HTMLElement).style.color = "var(--text-secondary)";
+                  }
+                }}
+              >
+                <CircleHelp className="h-4 w-4 flex-shrink-0" />
+                <AnimatePresence initial={false}>
+                  {!collapsed && (
+                    <motion.span
+                      key="support"
+                      initial={{ opacity: 0, width: 0 }}
+                      animate={{ opacity: 1, width: "auto" }}
+                      exit={{ opacity: 0, width: 0 }}
+                      transition={{ duration: 0.15 }}
+                      className="overflow-hidden whitespace-nowrap"
+                    >
+                      Help and support
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </div>
+            </Link>
           </div>
-        </Link>
-      </div>
+        </>
+      )}
 
       {/* -- Divider ------------------------------------------- */}
       <div
