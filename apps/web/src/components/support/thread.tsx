@@ -34,7 +34,7 @@ function MessageBubble({
           {message.isStaff && (
             <span
               className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
-              style={{ background: "var(--teal-dim)", color: "var(--teal)" }}
+              style={{ background: "var(--teal-dim)", color: "var(--teal-text)" }}
             >
               <Lock className="h-2.5 w-2.5" aria-hidden="true" />
               Staff

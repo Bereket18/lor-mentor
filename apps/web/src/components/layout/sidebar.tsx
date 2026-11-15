@@ -415,7 +415,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold"
               style={{
                 background: "var(--teal-dim)",
-                color: "var(--teal)",
+                color: "var(--teal-text)",
                 border: "1px solid var(--teal-glow)",
               }}
             >

@@ -50,7 +50,7 @@ export const SUPPORT_STATUS_META: Record<
   },
   AWAITING_STUDENT: {
     label: "Waiting for you",
-    color: "var(--teal)",
+    color: "var(--teal-text)",
     background: "var(--teal-dim)",
   },
   RESOLVED: {
@@ -71,7 +71,7 @@ export const SUPPORT_ADMIN_STATUS_META: typeof SUPPORT_STATUS_META = {
   ...SUPPORT_STATUS_META,
   AWAITING_STUDENT: {
     label: "Waiting for student",
-    color: "var(--teal)",
+    color: "var(--teal-text)",
     background: "var(--teal-dim)",
   },
   OPEN: {

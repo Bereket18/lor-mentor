@@ -94,6 +94,7 @@
 
   /* -- Secondary accent — Medical Teal ------------------------- */
   --teal: #14B8A6;
+  --teal-text: #14B8A6;
   --teal-hover: #2DD4BF;
   --teal-dim: rgba(20, 184, 166, 0.12);
   --teal-glow: rgba(20, 184, 166, 0.25);
@@ -144,6 +145,8 @@
   --accent-dim:     rgba(14, 122, 122, 0.10);
   --accent-glow:    rgba(14, 122, 122, 0.22);
   --teal:           #0D9488;
+  /* Teal as TEXT on a teal tint: --teal is 3.3:1 there, this is above 4.5:1. */
+  --teal-text:      #0B5F58;
   --teal-hover:     #14B8A6;
   --teal-dim:       rgba(13, 148, 136, 0.10);
   --teal-glow:      rgba(13, 148, 136, 0.22);

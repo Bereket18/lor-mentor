@@ -1,4 +1,13 @@
 import { test, expect, type Page } from "@playwright/test";
+import {
+  ADMIN_EMAIL,
+  ADMIN_PASSWORD,
+  PAYMENT_TICKET_SUBJECT,
+  STUDENT_EMAIL,
+  STUDENT_PASSWORD,
+  SUPPORT_ENABLED,
+  signIn,
+} from "./support-helpers";
 
 /**
  * Support centre UI tests against the seeded fixture database.
@@ -17,19 +26,6 @@ import { test, expect, type Page } from "@playwright/test";
  *   - the student thread never renders internal notes, even though the same
  *     ticket has one and the admin thread does render it.
  */
-const ENABLED = process.env.E2E_RUN_SUPPORT === "1";
-
-const STUDENT_EMAIL =
-  process.env.E2E_SUPPORT_STUDENT_EMAIL ?? "student.support@lorcan.edu.et";
-const STUDENT_PASSWORD =
-  process.env.E2E_SUPPORT_STUDENT_PASSWORD ?? "SupportStudent!2026";
-const ADMIN_EMAIL =
-  process.env.E2E_SUPPORT_ADMIN_EMAIL ?? "admin.support@lorcan.edu.et";
-const ADMIN_PASSWORD =
-  process.env.E2E_SUPPORT_ADMIN_PASSWORD ?? "SupportAdmin!2026";
-
-/** The seeded ticket whose thread carries an attachment and an internal note. */
-const PAYMENT_TICKET_SUBJECT = "My transfer is still marked pending";
 const INTERNAL_NOTE_SNIPPET = "Checked the CBE statement";
 
 /** A 1×1 PNG; small enough to upload, real enough to pass the magic-byte check. */
@@ -39,36 +35,13 @@ const TINY_PNG = Buffer.from(
 );
 
 test.skip(
-  !ENABLED,
+  !SUPPORT_ENABLED,
   "Set E2E_RUN_SUPPORT=1 and seed the support fixtures (npm run seed:support-fixtures) to enable these tests.",
 );
 
 test.beforeEach(() => {
   test.setTimeout(120_000);
 });
-
-async function signIn(
-  page: Page,
-  email: string,
-  password: string,
-  kind: "student" | "admin" = "student",
-) {
-  await page.goto(kind === "admin" ? "/admin-login" : "/login", {
-    waitUntil: "networkidle",
-  });
-  await page.locator('input[type="email"]').fill(email);
-  await page.locator('input[type="password"]').fill(password);
-  await page
-    .getByRole("button", {
-      name: kind === "admin" ? /sign in to admin/i : /sign in to lor mentor/i,
-    })
-    .click();
-  // Both pages stay on their own URL until the API accepts the credentials.
-  await expect(page).not.toHaveURL(
-    kind === "admin" ? /\/admin-login/ : /\/login/,
-    { timeout: 20_000 },
-  );
-}
 
 async function openPaymentTicketAsStudent(page: Page) {
   await signIn(page, STUDENT_EMAIL, STUDENT_PASSWORD);
@@ -94,7 +67,9 @@ test.describe("student help centre", () => {
       page.getByText(/We have your transfer in the review queue/i),
     ).toBeVisible();
     // The seeded attachment renders through the authenticated endpoint.
-    await expect(page.getByRole("button", { name: /open attachment 1/i })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /open attachment 1/i }).first(),
+    ).toBeVisible();
 
     // The staff-only note exists on this ticket (the admin test below proves
     // it), but neither its tab nor its body may appear for a student.
@@ -117,8 +92,10 @@ test.describe("student help centre", () => {
   }) => {
     await openPaymentTicketAsStudent(page);
 
-    // Two thumbnails after the reply: the seeded one and the new one.
-    await expect(page.getByRole("button", { name: /open attachment \d+/i })).toHaveCount(1);
+    // The reply below adds a message, so earlier runs leave extra thumbnails.
+    const thumbnails = page.getByRole("button", { name: /open attachment \d+/i });
+    await expect(thumbnails.first()).toBeVisible();
+    const before = await thumbnails.count();
 
     await page.locator('input[type="file"]').setInputFiles({
       name: "screenshot.png",
@@ -141,10 +118,8 @@ test.describe("student help centre", () => {
     await expect(page.getByText(/Reply sent\./i)).toBeVisible({ timeout: 20_000 });
     // The server re-encoded the image and the second thumbnail came back from
     // the authenticated blob endpoint, so the whole pipeline worked.
-    await expect(page.getByRole("button", { name: /open attachment \d+/i })).toHaveCount(2, {
-      timeout: 20_000,
-    });
-    await expect(page.getByText(/Attaching the bank screenshot/i)).toBeVisible();
+    await expect(thumbnails).toHaveCount(before + 1, { timeout: 20_000 });
+    await expect(page.getByText(/Attaching the bank screenshot/i).first()).toBeVisible();
   });
 });
 
