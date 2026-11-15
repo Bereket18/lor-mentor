@@ -1,67 +1,34 @@
 "use client";
 
-import { Suspense, useState, type FormEvent } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft,
+  ChevronRight,
+  Inbox,
   Loader2,
-  Mail,
   RefreshCw,
-  Send,
-  ShieldCheck,
+  Search,
+  TimerReset,
 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
+import { useConfirm } from "@/components/ui/confirm-dialog-provider";
+import { useSupportPolling } from "@/hooks/use-support-polling";
 import {
   apiErrorMessage,
   categoryLabel,
   relativeTime,
-  SUPPORT_ADMIN_STATUS_META,
   SUPPORT_CATEGORY_OPTIONS,
-  type SupportCategory,
-  type SupportStatus,
 } from "@/lib/support";
-import { formatDisplayDate } from "@/lib/dates";
-
-interface AdminTicket {
-  id: string;
-  subject: string;
-  category: SupportCategory;
-  status: SupportStatus;
-  reference: string | null;
-  createdAt: string;
-  updatedAt: string;
-  lastMessageAt: string;
-  _count: { messages: number };
-  user: { id: string; fullName: string; email: string; role: string };
-}
-
-interface TicketMessage {
-  id: string;
-  body: string;
-  isStaff: boolean;
-  createdAt: string;
-  author: { id: string; fullName: string; role: string };
-}
-
-interface AdminTicketDetail extends Omit<AdminTicket, "_count" | "user"> {
-  reference: string | null;
-  user: {
-    id: string;
-    fullName: string;
-    email: string;
-    role: string;
-    phoneNumber: string | null;
-  };
-  messages: TicketMessage[];
-}
-
-interface TicketList {
-  items: AdminTicket[];
-  total: number;
-  hasMore: boolean;
-}
+import type {
+  AdminTicketSummary,
+  PagedResult,
+  SupportCategory,
+  SupportStatus,
+} from "@/lib/support-types";
+import { Select } from "@/components/ui/select";
+import { StatusPill, UnreadDot } from "@/components/support/status-pill";
 
 const STATUS_FILTERS: Array<{ value: SupportStatus | "ALL"; label: string }> = [
   { value: "ALL", label: "All statuses" },
@@ -71,494 +38,375 @@ const STATUS_FILTERS: Array<{ value: SupportStatus | "ALL"; label: string }> = [
   { value: "CLOSED", label: "Closed" },
 ];
 
-function StatusPill({ status }: { status: SupportStatus }) {
-  const meta = SUPPORT_ADMIN_STATUS_META[status];
-  return (
-    <span
-      className="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold"
-      style={{ color: meta.color, background: meta.background }}
-    >
-      {meta.label}
-    </span>
-  );
-}
+const ASSIGNED_FILTERS = [
+  { value: "ALL", label: "Anyone" },
+  { value: "me", label: "Assigned to me" },
+  { value: "unassigned", label: "Unassigned" },
+];
 
-function AdminSupportContent() {
+export default function AdminSupportQueuePage() {
   const queryClient = useQueryClient();
-  const searchParams = useSearchParams();
+  const confirm = useConfirm();
+  const polling = useSupportPolling();
 
   const [status, setStatus] = useState<SupportStatus | "ALL">("ALL");
   const [category, setCategory] = useState<SupportCategory | "ALL">("ALL");
+  const [assignedTo, setAssignedTo] = useState("ALL");
+  const [unreadOnly, setUnreadOnly] = useState(false);
   const [searchDraft, setSearchDraft] = useState("");
   const [search, setSearch] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(() =>
-    searchParams.get("ticket"),
-  );
-  const [reply, setReply] = useState("");
-  const [statusDraft, setStatusDraft] = useState<SupportStatus | null>(null);
-
-  const listKey = [
-    "admin",
-    "support",
-    "tickets",
-    status,
-    category,
-    search,
-  ] as const;
-  const detailKey = (id: string) => ["admin", "support", "ticket", id] as const;
 
   const listQuery = useQuery({
-    queryKey: listKey,
+    queryKey: [
+      "admin",
+      "support",
+      "tickets",
+      status,
+      category,
+      assignedTo,
+      unreadOnly,
+      search,
+    ],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (status !== "ALL") params.set("status", status);
       if (category !== "ALL") params.set("category", category);
+      if (assignedTo !== "ALL") params.set("assignedTo", assignedTo);
+      if (unreadOnly) params.set("unreadOnly", "true");
       if (search.trim()) params.set("search", search.trim());
       const query = params.toString();
       return (
         (
-          await api.get<TicketList>(
+          await api.get<PagedResult<AdminTicketSummary>>(
             `/admin/support/tickets${query ? `?${query}` : ""}`,
           )
         ).data ?? { items: [], total: 0, hasMore: false }
       );
     },
+    refetchInterval: (query) => polling.intervalFor(query.state.fetchFailureCount),
+    refetchIntervalInBackground: false,
+    staleTime: 15_000,
   });
 
-  const detailQuery = useQuery({
-    queryKey: detailKey(selectedId ?? ""),
-    enabled: Boolean(selectedId),
-    queryFn: async () =>
-      (
-        await api.get<AdminTicketDetail>(
-          `/admin/support/tickets/${selectedId}`,
-        )
-      ).data,
-  });
-
-  function refresh(id?: string) {
-    queryClient.invalidateQueries({ queryKey: ["admin", "support"] });
-    if (id) queryClient.invalidateQueries({ queryKey: detailKey(id) });
-  }
-
-  const sendReply = useMutation({
-    mutationFn: async () =>
-      api.post(`/admin/support/tickets/${selectedId}/messages`, {
-        body: reply.trim(),
-      }),
-    onSuccess: () => {
-      setReply("");
-      refresh(selectedId ?? undefined);
-      toast.success("Reply sent to the student.");
+  const bulkClose = useMutation({
+    mutationFn: async (olderThanDays: number) => {
+      const response = await api.post<{ closed: number; numbers: number[] }>(
+        "/admin/support/tickets/bulk-close-resolved",
+        { olderThanDays },
+      );
+      return response.data;
     },
-    onError: (err: unknown) =>
-      toast.error(apiErrorMessage(err, "Could not send the reply.")),
-  });
-
-  const updateStatus = useMutation({
-    mutationFn: async (next: SupportStatus) =>
-      api.patch(`/admin/support/tickets/${selectedId}/status`, {
-        status: next,
-      }),
-    onSuccess: () => {
-      refresh(selectedId ?? undefined);
-      toast.success("Ticket status updated.");
+    onSuccess: (result) => {
+      void queryClient.invalidateQueries({ queryKey: ["admin", "support"] });
+      toast.success(
+        result.closed === 0
+          ? "No resolved tickets were old enough to close."
+          : `${result.closed} resolved ${result.closed === 1 ? "ticket" : "tickets"} closed.`,
+      );
     },
-    onError: (err: unknown) =>
-      toast.error(apiErrorMessage(err, "Could not update the status.")),
+    onError: (error: unknown) =>
+      toast.error(apiErrorMessage(error, "Could not run the bulk close.")),
   });
 
   const tickets = listQuery.data?.items ?? [];
-  const detail = detailQuery.data;
-  const effectiveStatus = statusDraft ?? detail?.status ?? "OPEN";
+  const total = listQuery.data?.total ?? tickets.length;
 
-  function openTicket(id: string) {
-    setSelectedId(id);
-    setReply("");
-    setStatusDraft(null);
+  async function runBulkClose() {
+    const ok = await confirm({
+      title: "Close resolved tickets?",
+      description:
+        "This closes every ticket that has been RESOLVED for more than seven days and has had no new activity. Students are told to open a new ticket if they still need help.",
+      confirmLabel: "Close resolved tickets",
+      destructive: true,
+    });
+    if (ok) bulkClose.mutate(7);
   }
 
-  function applyFilters(event: FormEvent) {
+  function applySearch(event: FormEvent) {
     event.preventDefault();
     setSearch(searchDraft.trim());
   }
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-semibold text-primary">
             Support inbox
           </h1>
           <p className="mt-1 text-sm text-secondary">
-            Answer student tickets. Replies reach the student in the app and by
-            email.
+            {total} {total === 1 ? "ticket" : "tickets"} in this view. Replies
+            reach the student in the app and by email; internal notes never do.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => refresh()}
-          disabled={listQuery.isFetching}
-          className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium text-secondary transition-colors hover:text-primary disabled:opacity-50"
-          style={{ borderColor: "var(--glass-border)" }}
-        >
-          <RefreshCw
-            className={`h-4 w-4 ${listQuery.isFetching ? "animate-spin" : ""}`}
-          />
-          Refresh
-        </button>
-      </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void listQuery.refetch()}
+            disabled={listQuery.isFetching}
+            className="inline-flex h-11 items-center gap-2 rounded-xl border px-3 text-sm font-medium transition-colors hover:bg-[var(--teal-dim)] disabled:opacity-50"
+            style={{
+              borderColor: "var(--glass-border)",
+              color: "var(--text-secondary)",
+            }}
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${listQuery.isFetching ? "animate-spin" : ""}`}
+              aria-hidden="true"
+            />
+            Refresh
+          </button>
+          <button
+            type="button"
+            onClick={() => void runBulkClose()}
+            disabled={bulkClose.isPending}
+            className="inline-flex h-11 items-center gap-2 rounded-xl border px-3 text-sm font-medium transition-colors hover:bg-[var(--teal-dim)] disabled:opacity-50"
+            style={{
+              borderColor: "var(--glass-border)",
+              color: "var(--text-secondary)",
+            }}
+          >
+            {bulkClose.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <TimerReset className="h-4 w-4" aria-hidden="true" />
+            )}
+            Close stale resolved
+          </button>
+        </div>
+      </header>
 
-      <form
-        className="flex flex-wrap items-end gap-2 rounded-2xl border p-3"
+      <section
+        className="rounded-2xl border p-3 sm:p-4"
         style={{
-          background: "var(--bg-glass)",
           borderColor: "var(--glass-border)",
+          background: "var(--bg-glass)",
         }}
-        onSubmit={applyFilters}
+        aria-label="Ticket filters"
       >
-        <label className="block text-xs">
-          <span className="mb-1 block font-medium text-secondary">Status</span>
-          <select
-            value={status}
-            onChange={(event) =>
-              setStatus(event.target.value as SupportStatus | "ALL")
-            }
-            className="h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            {STATUS_FILTERS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="block text-xs">
-          <span className="mb-1 block font-medium text-secondary">
-            Category
-          </span>
-          <select
-            value={category}
-            onChange={(event) =>
-              setCategory(event.target.value as SupportCategory | "ALL")
-            }
-            className="h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            <option value="ALL">All categories</option>
-            {SUPPORT_CATEGORY_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="block min-w-48 flex-1 text-xs">
-          <span className="mb-1 block font-medium text-secondary">
-            Search
-          </span>
-          <input
-            value={searchDraft}
-            onChange={(event) => setSearchDraft(event.target.value)}
-            placeholder="Subject, reference, student name or email"
-            className="h-9 w-full rounded-lg border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-          />
-        </label>
-
-        <button
-          type="submit"
-          className="h-9 rounded-lg px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-          style={{ background: "var(--teal)" }}
-        >
-          Apply
-        </button>
-      </form>
-
-      <div className="grid gap-4 lg:grid-cols-5">
-        <section
-          className={`space-y-2 lg:col-span-2 ${selectedId ? "hidden lg:block" : ""}`}
-          aria-label="Ticket queue"
-        >
-          {listQuery.isPending ? (
-            <div className="flex items-center justify-center rounded-2xl border p-8">
-              <Loader2 className="h-5 w-5 animate-spin text-muted" />
-            </div>
-          ) : listQuery.isError ? (
-            <div className="rounded-2xl border p-5 text-sm text-secondary">
-              Could not load the queue.
-            </div>
-          ) : tickets.length === 0 ? (
-            <div
-              className="rounded-2xl border p-6 text-center"
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <span
+              className="mb-1 block text-xs font-medium"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              Status
+            </span>
+            <Select
+              value={status}
+              onValueChange={(value) =>
+                setStatus(value as SupportStatus | "ALL")
+              }
+              options={STATUS_FILTERS}
+              ariaLabel="Filter by status"
+            />
+          </div>
+          <div>
+            <span
+              className="mb-1 block text-xs font-medium"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              Category
+            </span>
+            <Select
+              value={category}
+              onValueChange={(value) =>
+                setCategory(value as SupportCategory | "ALL")
+              }
+              options={[
+                { value: "ALL", label: "All categories" },
+                ...SUPPORT_CATEGORY_OPTIONS,
+              ]}
+              ariaLabel="Filter by category"
+            />
+          </div>
+          <div>
+            <span
+              className="mb-1 block text-xs font-medium"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              Assignment
+            </span>
+            <Select
+              value={assignedTo}
+              onValueChange={setAssignedTo}
+              options={ASSIGNED_FILTERS}
+              ariaLabel="Filter by assignment"
+            />
+          </div>
+          <div className="flex items-end gap-2">
+            <button
+              type="button"
+              aria-pressed={unreadOnly}
+              onClick={() => setUnreadOnly((value) => !value)}
+              className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors"
               style={{
-                background: "var(--bg-glass)",
-                borderColor: "var(--glass-border)",
+                borderColor: unreadOnly ? "var(--teal)" : "var(--glass-border)",
+                background: unreadOnly ? "var(--teal-dim)" : "transparent",
+                color: unreadOnly ? "var(--teal)" : "var(--text-secondary)",
               }}
             >
-              <p className="text-sm font-medium text-primary">
-                Nothing in this view
-              </p>
-              <p className="mt-1 text-sm text-secondary">
-                Change the filters, or the queue is clear.
-              </p>
-            </div>
-          ) : (
-            tickets.map((ticket) => {
-              const active = ticket.id === selectedId;
-              return (
-                <button
-                  key={ticket.id}
-                  type="button"
-                  onClick={() => openTicket(ticket.id)}
-                  className="w-full rounded-xl border p-3 text-left transition-colors"
+              <Inbox className="h-4 w-4" aria-hidden="true" />
+              Unread only
+            </button>
+          </div>
+        </div>
+
+        <form onSubmit={applySearch} className="mt-3 flex flex-wrap gap-2">
+          <label htmlFor="admin-support-search" className="sr-only">
+            Search tickets
+          </label>
+          <div className="relative min-w-0 flex-1">
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
+              style={{ color: "var(--text-secondary)" }}
+            />
+            <input
+              id="admin-support-search"
+              type="search"
+              value={searchDraft}
+              onChange={(event) => setSearchDraft(event.target.value)}
+              placeholder="Subject, ticket number, reference, student name or email"
+              className="h-11 w-full rounded-lg border pl-9 pr-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              style={{
+                borderColor: "var(--glass-border)",
+                background: "var(--bg-elevated)",
+                color: "var(--text-primary)",
+              }}
+            />
+          </div>
+          <button
+            type="submit"
+            className="inline-flex h-11 items-center rounded-lg px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            style={{ background: "var(--teal)" }}
+          >
+            Apply
+          </button>
+        </form>
+      </section>
+
+      <section aria-label="Ticket queue" aria-busy={listQuery.isFetching}>
+        {listQuery.isPending ? (
+          <div className="flex items-center justify-center rounded-2xl border p-10">
+            <Loader2
+              className="h-5 w-5 animate-spin"
+              style={{ color: "var(--text-secondary)" }}
+              aria-hidden="true"
+            />
+            <span className="sr-only">Loading queue</span>
+          </div>
+        ) : listQuery.isError ? (
+          <div
+            className="rounded-2xl border p-5 text-sm text-secondary"
+            style={{ borderColor: "var(--glass-border)" }}
+          >
+            Could not load the queue.
+            <button
+              type="button"
+              onClick={() => void listQuery.refetch()}
+              className="ml-2 inline-flex h-11 items-center font-semibold"
+              style={{ color: "var(--teal)" }}
+            >
+              Try again
+            </button>
+          </div>
+        ) : tickets.length === 0 ? (
+          <div
+            className="rounded-2xl border p-8 text-center"
+            style={{
+              borderColor: "var(--glass-border)",
+              background: "var(--bg-glass)",
+            }}
+          >
+            <Inbox
+              className="mx-auto h-7 w-7"
+              style={{ color: "var(--text-secondary)" }}
+              aria-hidden="true"
+            />
+            <p className="mt-2 text-sm font-medium text-primary">
+              Nothing in this view
+            </p>
+            <p className="mt-1 text-sm text-secondary">
+              Change the filters, or wait for a student to write in.
+            </p>
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {tickets.map((ticket) => (
+              <li key={ticket.id}>
+                <Link
+                  href={`/admin/support/${ticket.id}`}
+                  className="flex items-start gap-3 rounded-xl border p-4 transition-colors hover:bg-[var(--teal-dim)]"
                   style={{
-                    background: active ? "var(--teal-dim)" : "var(--bg-glass)",
-                    borderColor: active
-                      ? "var(--teal-glow)"
-                      : "var(--glass-border)",
+                    borderColor: "var(--glass-border)",
+                    background: "var(--bg-glass)",
                   }}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="line-clamp-2 text-sm font-semibold text-primary">
+                  {ticket.unread ? (
+                    <UnreadDot className="mt-1.5" />
+                  ) : (
+                    <span
+                      aria-hidden="true"
+                      className="mt-1.5 h-2.5 w-2.5 rounded-full"
+                      style={{ background: "var(--glass-border)" }}
+                    />
+                  )}
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span
+                        className="text-[11px] font-semibold uppercase tracking-wide"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
+                        {ticket.ticketNumber}
+                      </span>
+                      <StatusPill status={ticket.status} admin />
+                      <span
+                        className="text-[11px]"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
+                        {categoryLabel(ticket.category)}
+                      </span>
+                      {ticket.unread && (
+                        <span
+                          className="text-[11px] font-semibold"
+                          style={{ color: "var(--teal)" }}
+                        >
+                          Unread
+                        </span>
+                      )}
+                    </span>
+                    <span className="mt-1 block truncate text-sm font-semibold text-primary">
                       {ticket.subject}
                     </span>
-                    <StatusPill status={ticket.status} />
-                  </div>
-                  <p className="mt-1 truncate text-xs text-secondary">
-                    {ticket.user.fullName} · {ticket.user.email}
-                  </p>
-                  <p className="mt-0.5 text-xs text-secondary">
-                    {categoryLabel(ticket.category)} ·{" "}
-                    {relativeTime(ticket.lastMessageAt)} ·{" "}
-                    {ticket._count.messages}{" "}
-                    {ticket._count.messages === 1 ? "message" : "messages"}
-                  </p>
-                </button>
-              );
-            })
-          )}
-        </section>
-
-        <section
-          className={`lg:col-span-3 ${selectedId ? "" : "hidden lg:block"}`}
-          aria-label="Ticket"
-        >
-          {!selectedId ? (
-            <div
-              className="flex h-full min-h-48 items-center justify-center rounded-2xl border p-6 text-center"
-              style={{
-                background: "var(--bg-glass)",
-                borderColor: "var(--glass-border)",
-              }}
-            >
-              <p className="text-sm text-secondary">
-                Select a ticket to read it and reply.
-              </p>
-            </div>
-          ) : detailQuery.isPending ? (
-            <div className="flex min-h-48 items-center justify-center rounded-2xl border p-6">
-              <Loader2 className="h-5 w-5 animate-spin text-muted" />
-            </div>
-          ) : detailQuery.isError || !detail ? (
-            <div className="rounded-2xl border p-5 text-sm">
-              <p className="text-secondary">Could not load this ticket.</p>
-              <button
-                type="button"
-                onClick={() => detailQuery.refetch()}
-                className="mt-2 text-sm font-semibold"
-                style={{ color: "var(--teal)" }}
-              >
-                Try again
-              </button>
-            </div>
-          ) : (
-            <div
-              className="rounded-2xl border"
-              style={{
-                background: "var(--bg-glass)",
-                borderColor: "var(--glass-border)",
-              }}
-            >
-              <div
-                className="border-b p-4"
-                style={{ borderColor: "var(--glass-border)" }}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h2 className="text-base font-semibold text-primary">
-                      {detail.subject}
-                    </h2>
-                    <p className="mt-1 text-xs text-secondary">
-                      {detail.user.fullName} ·{" "}
-                      <a
-                        href={`mailto:${detail.user.email}`}
-                        className="inline-flex items-center gap-1 underline-offset-2 hover:underline"
-                        style={{ color: "var(--teal)" }}
-                      >
-                        <Mail className="h-3 w-3" />
-                        {detail.user.email}
-                      </a>
-                    </p>
-                    <p className="mt-1 text-xs text-secondary">
-                      {categoryLabel(detail.category)} · opened{" "}
-                      {formatDisplayDate(detail.createdAt)}
-                      {detail.reference ? ` · ref ${detail.reference}` : ""}
-                      {detail.user.phoneNumber
-                        ? ` · ${detail.user.phoneNumber}`
-                        : ""}
-                    </p>
-                  </div>
-                  <StatusPill status={detail.status} />
-                </div>
-
-                <div className="mt-4 flex flex-wrap items-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedId(null)}
-                    className="inline-flex items-center gap-1 text-sm text-secondary transition-colors hover:text-primary lg:hidden"
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                    Queue
-                  </button>
-
-                  <label className="ml-auto block text-xs">
-                    <span className="mb-1 block font-medium text-secondary">
-                      Status
-                    </span>
-                    <select
-                      value={effectiveStatus}
-                      onChange={(event) =>
-                        setStatusDraft(event.target.value as SupportStatus)
-                      }
-                      className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                    <span
+                      className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]"
+                      style={{ color: "var(--text-secondary)" }}
                     >
-                      {STATUS_FILTERS.filter(
-                        (option) => option.value !== "ALL",
-                      ).map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {SUPPORT_ADMIN_STATUS_META[option.value as SupportStatus]
-                            .label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <button
-                    type="button"
-                    onClick={() => updateStatus.mutate(effectiveStatus)}
-                    disabled={
-                      updateStatus.isPending ||
-                      effectiveStatus === detail.status
-                    }
-                    className="h-8 rounded-lg px-3 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-                    style={{ background: "var(--teal)" }}
-                  >
-                    {updateStatus.isPending ? "Saving…" : "Update"}
-                  </button>
-                </div>
-              </div>
-
-              <div className="max-h-[26rem] space-y-3 overflow-y-auto p-4">
-                {detail.messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className="rounded-xl border p-3"
-                    style={{
-                      background: message.isStaff
-                        ? "var(--teal-dim)"
-                        : "var(--bg-subtle)",
-                      borderColor: message.isStaff
-                        ? "var(--teal-glow)"
-                        : "var(--glass-border)",
-                    }}
-                  >
-                    <div className="mb-1 flex items-center justify-between gap-2 text-[11px] text-secondary">
-                      <span className="inline-flex items-center gap-1 font-semibold">
-                        {message.isStaff && (
-                          <ShieldCheck className="h-3 w-3" />
-                        )}
-                        {message.isStaff
-                          ? message.author.fullName
-                          : detail.user.fullName}
+                      <span className="truncate">
+                        {ticket.user.fullName} · {ticket.user.email}
                       </span>
-                      <span>{relativeTime(message.createdAt)}</span>
-                    </div>
-                    <p className="whitespace-pre-wrap break-words text-sm text-primary">
-                      {message.body}
-                    </p>
-                  </div>
-                ))}
-              </div>
-
-              <div
-                className="border-t p-4"
-                style={{ borderColor: "var(--glass-border)" }}
-              >
-                {detail.status === "CLOSED" ? (
-                  <p className="text-sm text-secondary">
-                    This ticket is closed. Set it to “Needs an answer” above to
-                    reopen it before replying.
-                  </p>
-                ) : (
-                  <form
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      if (reply.trim()) sendReply.mutate();
-                    }}
-                  >
-                    <label className="block text-sm">
-                      <span className="mb-1 block font-medium text-secondary">
-                        Reply to the student
+                      <span aria-hidden="true">·</span>
+                      <span>Updated {relativeTime(ticket.lastMessageAt)}</span>
+                      <span aria-hidden="true">·</span>
+                      <span>
+                        {ticket.assignedTo
+                          ? `Assigned to ${ticket.assignedTo.fullName}`
+                          : "Unassigned"}
                       </span>
-                      <textarea
-                        value={reply}
-                        onChange={(event) => setReply(event.target.value)}
-                        maxLength={4000}
-                        rows={4}
-                        placeholder="Answer in plain language; the student sees this in the app and by email."
-                        className="w-full resize-y rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                      />
-                    </label>
-                    <div className="mt-2 flex items-center justify-between gap-3">
-                      <p className="text-xs text-secondary">
-                        Sending marks the ticket “Waiting for student”.
-                      </p>
-                      <button
-                        type="submit"
-                        disabled={!reply.trim() || sendReply.isPending}
-                        className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                        style={{ background: "var(--teal)" }}
-                      >
-                        {sendReply.isPending ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Send className="h-4 w-4" />
-                        )}
-                        Send reply
-                      </button>
-                    </div>
-                  </form>
-                )}
-              </div>
-            </div>
-          )}
-        </section>
-      </div>
+                    </span>
+                  </span>
+                  <ChevronRight
+                    className="mt-1 h-4 w-4 flex-shrink-0"
+                    style={{ color: "var(--text-secondary)" }}
+                    aria-hidden="true"
+                  />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
-  );
-}
-
-export default function AdminSupportPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-48 items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-muted" />
-        </div>
-      }
-    >
-      <AdminSupportContent />
-    </Suspense>
   );
 }

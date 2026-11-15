@@ -15,14 +15,17 @@ volume.
 |---|---|---|---|
 | PostgreSQL | All application data (32 models) | `pgdata` | `restart`, `down`, re-`up`, image rebuild |
 | Uploads | Receipt images, material files, generated receipt PDFs | `uploads` | Same |
+| Support attachments | Ticket images (private, API-only access) | `support_uploads` | Same |
 | Redis | Cache, rate-limit counters, BullMQ queue, revoked-token denylist | `redisdata` | Same |
 
 None is deleted by `docker compose restart` or `docker compose up -d --build`.
-**All three are deleted by `docker compose down -v`** — never run that in
+**All four are deleted by `docker compose down -v`** — never run that in
 production.
 
 Redis is reconstructible: losing it forces re-login and re-queues background
-work, nothing more. The database and uploads are not.
+work, nothing more. The database and uploads are not. `support_uploads` is
+mounted on top of `uploads/support`; back it up like `uploads`, and prune it
+with `support:retention` (§4.6).
 
 ---
 
@@ -130,6 +133,7 @@ later. Each step is separately revertible by rolling back code.
 |---|---|---|
 | PostgreSQL | `deploy/backup/pg-backup.sh` | Yes, once scheduled |
 | Uploads volume | Manual `tar` (§4.5) | **No — must be scheduled separately** |
+| Support attachments volume | Manual `tar` (§4.5) | **No — must be scheduled separately** |
 | Redis | Nothing | Not needed |
 | `.env.production` | Your password manager | Manual |
 
@@ -179,20 +183,63 @@ is indistinguishable from no backup at all until you need one.
 For an academic platform, 24 hours is usually acceptable. If the college wants
 better, run the dump twice daily — the script is safe to run ad hoc.
 
-### 4.5 Backing up uploads
+### 4.5 Backing up uploads and support attachments
+
+Back up **both** volumes in the same run as the database dump: `uploads`
+(receipts/materials) and `support_uploads` (private ticket images).
 
 ```bash
 docker run --rm \
   -v lor-mentor_uploads:/data:ro \
   -v /var/backups/lor-mentor:/backup \
   alpine tar czf /backup/uploads-$(date +%Y%m%d).tar.gz -C /data .
+
+docker run --rm \
+  -v lor-mentor_support_uploads:/data:ro \
+  -v /var/backups/lor-mentor:/backup \
+  alpine tar czf /backup/support-uploads-$(date +%Y%m%d).tar.gz -C /data .
 ```
 
-Check the actual volume name first with `docker volume ls | grep uploads` — it
-is prefixed with the Compose project name (`lor-mentor_uploads` by default).
+Check the actual volume names first with `docker volume ls | grep uploads` —
+they are prefixed with the Compose project name (`lor-mentor_` by default).
 
 Run this **before** or alongside the database dump. A database restored without
-its uploads references files that no longer exist.
+its uploads references files that no longer exist, and a ticket thread restored
+without `support_uploads` loses every attachment.
+
+### 4.6 Retention: pruning old ticket attachments
+
+Attachments on tickets that were closed more than `ATTACHMENT_RETENTION_DAYS`
+(180) days ago are deleted by a script. **It defaults to a dry run**; nothing is
+deleted without `--apply`.
+
+```bash
+# 1. Dry run first — read the count and the ticket numbers it prints.
+docker compose -f docker-compose.prod.yml --env-file .env.production \
+  exec api node dist/src/scripts/support-retention.js
+
+# 2. Only then, apply.
+docker compose -f docker-compose.prod.yml --env-file .env.production \
+  exec api node dist/src/scripts/support-retention.js --apply
+```
+
+`--days=N` overrides the retention window. The script only considers tickets
+whose status is `CLOSED` and uses `closedAt` (not `updatedAt`), so reopening a
+ticket removes it from the cutoff. It needs `DATABASE_URL` and honours
+`SUPPORT_UPLOAD_DIR`.
+
+Schedule the dry run first and keep its output; only switch the cron entry to
+`--apply` once a dry run shows the expected tickets:
+
+```bash
+# Monthly, 03:15 on the 1st. Start with the dry run form.
+15 3 1 * *  docker compose -f /opt/lor-mentor/docker-compose.prod.yml \
+  --env-file /opt/lor-mentor/.env.production exec -T api \
+  node dist/src/scripts/support-retention.js >> /var/log/lor-support-retention.log 2>&1
+```
+
+Retention never touches ticket messages or the database rows of live tickets,
+so it does not replace the backups above — keep taking both.
 
 ---
 
@@ -266,7 +313,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.production \
   -c 'SELECT count(*) FROM "User";' -c 'SELECT count(*) FROM "Payment";'
 ```
 
-Then restore uploads into the `uploads` volume (§4.5 in reverse), and run the
+Then restore both uploads volumes (§4.5 in reverse, see §5.3), and run the
 smoke test.
 
 **Do not** restore over production to "test whether the dump works." Use the
@@ -279,7 +326,17 @@ docker run --rm \
   -v lor-mentor_uploads:/data \
   -v /var/backups/lor-mentor:/backup:ro \
   alpine sh -c 'cd /data && tar xzf /backup/uploads-<date>.tar.gz'
+
+# Support-ticket attachments are a separate volume; restore them too.
+docker run --rm \
+  -v lor-mentor_support_uploads:/data \
+  -v /var/backups/lor-mentor:/backup:ro \
+  alpine sh -c 'cd /data && tar xzf /backup/support-uploads-<date>.tar.gz'
 ```
+
+If `support_uploads` is restored while the API is running, the API does not need
+a restart — it reads files per request. A missing volume is otherwise invisible
+until someone opens an old ticket's image.
 
 ---
 
@@ -310,6 +367,8 @@ row — read Prisma's error output and fix the cause.
 | `password authentication failed` | `POSTGRES_PASSWORD` and `DATABASE_URL` disagree | Make them match; restart `api` |
 | Restore "succeeded" but app is empty | `.sql.gz` restored into the wrong database | Check the `-d` argument |
 | Uploads 404 after restore | `uploads` volume not restored | §5.3 |
+| Support-ticket attachments not found after restore | `support_uploads` volume not restored, or `SUPPORT_UPLOAD_DIR` is not the mounted path | Restore it (§5.3); confirm `docker compose … config` shows `support_uploads` on the `api` service |
+| Retention dry run lists nothing | No ticket has been CLOSED for longer than the retention window | Expected; check the cutoff line the script prints |
 | Backup log shows nothing | cron not running, or script not executable | `chmod +x`, check `/var/log/lor-backup.log` |
 
 ---

@@ -4,6 +4,7 @@ import { GeistMono } from "geist/font/mono";
 import { Inter } from "next/font/google";
 import { QueryProvider } from "@/lib/query-provider";
 import { ThemeProvider } from "@/lib/theme-provider";
+import { MotionProvider } from "@/components/shared/motion-provider";
 import { ConfirmDialogProvider } from "@/components/ui/confirm-dialog-provider";
 import "./globals.css";
 
@@ -49,7 +50,9 @@ export default function RootLayout({
             data-theme before paint — no manual inline <script> needed. */}
         <QueryProvider>
           <ThemeProvider>
-            <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
+            <MotionProvider>
+              <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
+            </MotionProvider>
           </ThemeProvider>
         </QueryProvider>
       </body>

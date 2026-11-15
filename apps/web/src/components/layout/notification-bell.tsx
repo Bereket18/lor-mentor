@@ -27,11 +27,11 @@ export function NotificationBell() {
       aria-label={
         count > 0 ? `Notifications, ${count} unread` : "Notifications"
       }
-      className="relative w-9 h-9 flex items-center justify-center rounded-xl
+      className="relative w-11 h-11 flex items-center justify-center rounded-xl
         transition-all text-[var(--text-secondary)]
         hover:text-[var(--text-primary)] hover:bg-[var(--teal-dim)]"
     >
-      <Bell className="h-4 w-4" />
+      <Bell className="h-5 w-5" />
       {count > 0 && (
         <span
           className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full

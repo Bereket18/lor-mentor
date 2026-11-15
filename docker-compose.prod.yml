@@ -127,9 +127,17 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       RECEIPT_VERIFIER_URL: http://verifier:8000
+      # Private support-ticket attachments. Inside the support_uploads volume
+      # below; the API validates this path at boot.
+      SUPPORT_UPLOAD_DIR: /app/apps/api/uploads/support
     volumes:
       # Persist uploaded bank receipts + generated PDF receipts across deploys.
       - uploads:/app/apps/api/uploads
+      # Support-ticket attachments get their own volume on top of `uploads` so
+      # they can be backed up, tracked and (via support:retention) pruned
+      # independently of receipts. Back up BOTH volumes; see
+      # docs/deployer/30-DATABASE-AND-BACKUPS.md.
+      - support_uploads:/app/apps/api/uploads/support
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -194,6 +202,8 @@ volumes:
   pgdata:
   redisdata:
   uploads:
+  # Support-ticket attachments (private; the API's SUPPORT_UPLOAD_DIR).
+  support_uploads:
 
 networks:
   internal:

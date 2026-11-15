@@ -27,6 +27,19 @@ services:
 
   api:
     labels: { com.lormentor.env: staging }
+    # Mirrors docker-compose.prod.yml so the overlay is also correct if it is
+    # ever used without the base file. Compose merges these by mount target, so
+    # the support_uploads volume is declared once, not twice.
+    environment:
+      SUPPORT_UPLOAD_DIR: /app/apps/api/uploads/support
+    volumes:
+      - uploads:/app/apps/api/uploads
+      - support_uploads:/app/apps/api/uploads/support
 
   web:
     labels: { com.lormentor.env: staging }
+
+volumes:
+  uploads:
+  # Private support-ticket attachments; back up alongside `uploads`.
+  support_uploads:

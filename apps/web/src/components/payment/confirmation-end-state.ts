@@ -27,7 +27,10 @@ export function ConfirmationEndStateMessage({
     createElement(
       "a",
       {
-        href: "/support",
+        // A payment ticket, prefilled with the reference support needs to find
+        // the payment. The payment id is not known here, so the reference is
+        // the hint; the student's own payments are offered on the form.
+        href: `/support/new?category=PAYMENT&reference=${encodeURIComponent(reference)}`,
         style: { color: "var(--teal)", textDecoration: "underline" },
       },
       "Open support",
@@ -56,7 +59,7 @@ export function PaymentUnderReviewMessage({
     createElement(
       "a",
       {
-        href: "/support",
+        href: `/support/new?category=PAYMENT&reference=${encodeURIComponent(reference)}`,
         style: { color: "var(--teal)", textDecoration: "underline" },
       },
       "Open support",

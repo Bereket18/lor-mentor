@@ -53,6 +53,8 @@ that never became healthy, or DNS/TLS not being ready yet.
 | `permission denied` reading the env file, or Compose sees an empty variable | File owned by another user, or CRLF line endings | `sudo chown deploy:deploy .env.production && chmod 600 .env.production`; reformat to LF: `sed -i 's/\r$//' .env.production` |
 | `verifier` is unhealthy | The verifier image was built without its browser dependencies, or `RECEIPT_VERIFIER_TOKEN` differs between the two services | Rebuild `verifier`; Compose passes the token to both sides, so re-run `up -d api verifier` |
 | Postgres restarts with `database files are incompatible` | An existing `pgdata` volume from an older major version | Restore the matching dump, or start from an empty volume **after** taking a backup ([30-DATABASE-AND-BACKUPS.md](30-DATABASE-AND-BACKUPS.md)) |
+| API exits with `FATAL: sharp could not load a working native binary` | The image was built for the wrong libc (Alpine base with glibc binaries, or the reverse), or npm skipped optional packages | Rebuild `api` **on the deployment host** with `--no-cache`. The base is Debian/glibc (`node:24-slim`) and must keep the `@img/sharp-linux-*` packages; Alpine needs `libc6-compat` **and** `@img/sharp-linuxmusl-*`. The entrypoint now refuses to start without a working sharp, so the failure cannot hide until the first upload |
+| Support attachment uploads fail with "That image could not be processed" while the container is up | An older API image that predates the sharp self-check | Redeploy the current image; the entrypoint runs `scripts/check-sharp.js` before migrations. Confirm with `docker compose … exec api node scripts/check-sharp.js` |
 
 ---
 
@@ -113,6 +115,21 @@ that never became healthy, or DNS/TLS not being ready yet.
 
 Full payment lifecycle, including the two rails and their test steps:
 [40-PAYMENTS.md](40-PAYMENTS.md).
+
+---
+
+## 5.1 Support inbox and ticket attachments
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| A student gets `429` when opening a ticket | The policy limits are **3 open tickets** and **5 new tickets per rolling day** | Answer or resolve an existing ticket, or wait. The limits are in `support.constants.ts`, not an env var |
+| The staff notification email does not arrive, but the ticket exists in the inbox | Staff email is best-effort; a mail failure is logged and must not fail the student's request | Check `logs api` for "Could not email the support address"; fix SMTP ([41-EMAIL-SETUP.md](41-EMAIL-SETUP.md)) |
+| Ticket replies reach the inbox but not the student's email | Same as above — the in-app thread is the source of truth | Check the mail log; the reply is not lost |
+| A student uploads an image and gets "That image could not be processed" | sharp cannot decode the file, or the API image predates the native-binary fix | Confirm `docker compose . exec api node scripts/check-sharp.js`; only JPEG/PNG/WebP, ≤ 5 MB, ≤ 3 per message |
+| An attachment link returns `404` after a restore | The `support_uploads` volume was not restored alongside `uploads` | Restore both volumes ([30-DATABASE-AND-BACKUPS.md](30-DATABASE-AND-BACKUPS.md) §5.3) |
+| The retention script reports `0 deleted` | It is **dry-run by default** | Re-run with `--apply` after reading the count; set `--days=N` to override 180 |
+| An admin cannot open the support inbox | Their role is `TEACHER` or `STUDENT` | Support inbox is `ADMIN` / `SUPER_ADMIN` only |
+| A student says they cannot see a staff reply | The reply was written as an **internal note** | Notes are admin-only by design; send a normal reply instead |
 
 ---
 

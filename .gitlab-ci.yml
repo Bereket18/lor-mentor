@@ -100,8 +100,10 @@ api:e2e:
     REDIS_HOST: redis
     REDIS_PORT: "6379"
   script:
-    # Same fresh-database proof as api:test. The e2e spec mocks Prisma and
-    # Redis, so this is the only part of the job that touches the real schema.
+    # Same fresh-database proof as api:test. app.e2e-spec mocks Prisma and
+    # Redis; support-auth.e2e-spec is a real-HTTP authorisation matrix that
+    # runs against THIS service database (it recognises the CI database name
+    # `lor_mentor_ci` as disposable) and cleans up only the rows it created.
     - (cd apps/api && npx prisma generate && npx prisma migrate deploy)
     - (cd apps/api && npm run test:e2e)
 
