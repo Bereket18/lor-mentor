@@ -6,6 +6,13 @@ import { resolveApiOrigin } from "./src/lib/api-base";
 // 1. Define the base configuration options first
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Record why this app is on this Next.js patch: `next upgrade --agent` defaults
+  // to the `security` policy, which is what moved 16.4.3 to 16.4.6. Keeping the
+  // policy here also makes `next dev`/`next build` surface the next advisory as
+  // a reminder instead of silently running a vulnerable version.
+  experimental: {
+    agentUpgrade: "security",
+  },
   // Emit a self-contained server bundle (.next/standalone) for a small,
   // dependency-traced production Docker image. outputFileTracingRoot points at
   // the monorepo root so workspace-hoisted node_modules are traced correctly.
