@@ -27,6 +27,25 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+
+  /**
+   * The passwordless pages handle email link secrets and one-time proofs.
+   * They must not be cached, indexed, or allowed to leak a path through a
+   * Referer header. (The link secret itself travels in a fragment, which is
+   * never sent to the server; these headers cover the rest.)
+   */
+  async headers() {
+    const hardened = [
+      { key: "Referrer-Policy", value: "no-referrer" },
+      { key: "X-Robots-Tag", value: "noindex, nofollow" },
+      { key: "Cache-Control", value: "no-store" },
+    ];
+    return [
+      { source: "/login", headers: hardened },
+      { source: "/auth/email/confirm", headers: hardened },
+      { source: "/complete-profile", headers: hardened },
+    ];
+  },
 };
 
 // 2. Wrap the fully defined configuration object with the analyzer wrapper
