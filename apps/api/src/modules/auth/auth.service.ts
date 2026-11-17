@@ -16,6 +16,8 @@ import { LoginDto } from './dto/login.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TokenDenylistService } from '../../common/redis/token-denylist.service';
 import { VerificationPurpose } from '@prisma/client';
+import { AuthMethod } from '@prisma/client';
+import { isAdminRole } from './auth-policy';
 import {
   CODE_TTL_MINUTES,
   CODE_TTL_MS,
@@ -35,6 +37,10 @@ interface RefreshPayload {
   exp?: number;
   /** Issued-at, epoch seconds. Assigned by jsonwebtoken on every token. */
   iat?: number;
+  /** Session version at issue time. Absent on tokens minted before this field. */
+  ver?: number;
+  /** Authentication method. Absent on legacy tokens, which are password-only. */
+  am?: string;
 }
 
 // Brute-force lockout policy: after MAX_FAILED consecutive failures the account
@@ -365,7 +371,12 @@ export class AuthService {
 
     // 5. Compare the password with the stored hash
     const passwordMatch = await bcrypt.compare(dto.password, user.passwordHash);
-    if (!passwordMatch) {
+    // `passwordLoginEnabled` is the second gate on purpose. A recovered account
+    // stores a hash of a discarded secret, so the comparison already fails; this
+    // check makes the rule explicit and keeps it true even if a hash were ever
+    // restored by mistake. The response is the same either way, so the endpoint
+    // still cannot be used to discover which addresses have a password.
+    if (!passwordMatch || !user.passwordLoginEnabled) {
       await this.recordFailedLogin(user.id, user.failedLoginCount, ip);
       throw new UnauthorizedException('Invalid email or password');
     }
@@ -379,7 +390,7 @@ export class AuthService {
     }
 
     // 7. Create the JWT tokens
-    const tokens = await this.generateTokens(user.id, user.email, user.role);
+    const tokens = await this.generateTokens(user, AuthMethod.PASSWORD);
 
     return {
       message: 'Login successful',
@@ -434,13 +445,71 @@ export class AuthService {
   }
 
   // ── REFRESH TOKEN ─────────────────────────────────────
-  async refreshTokens(userId: string) {
-    const user = await this.usersService.findById(userId);
+  /**
+   * Issue a replacement pair, after re-checking the account against the
+   * session version and auth method carried by the presented refresh token.
+   *
+   * The version check is what makes revocation immediate for access tokens too:
+   * a rotation bumps nothing, but a recovery or password reset increments the
+   * column, and every token minted before that increment fails here.
+   */
+  async refreshTokens(
+    userId: string,
+    presentedVersion: number | undefined,
+    presentedMethod: string | undefined,
+  ) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
+    if (!user.isActive) {
+      throw new UnauthorizedException('Your account has been deactivated');
+    }
 
-    return this.generateTokens(userId, user.email, user.role);
+    const claimedVersion = presentedVersion ?? 0;
+    if (claimedVersion !== user.sessionVersion) {
+      throw new UnauthorizedException(
+        'Session has been revoked. Please sign in again.',
+      );
+    }
+
+    const method = this.readMethod(presentedMethod);
+    if (method !== AuthMethod.PASSWORD && isAdminRole(user.role)) {
+      throw new UnauthorizedException(
+        'Administrators must sign in with a password.',
+      );
+    }
+
+    return this.generateTokens(user, method);
+  }
+
+  /**
+   * Issue a session after a passwordless proof. Called only by the passwordless
+   * service, which has already re-read the account inside its own transaction.
+   */
+  async issueSession(userId: string, method: AuthMethod) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+    if (!user.isActive) {
+      throw new UnauthorizedException('Your account has been deactivated');
+    }
+    if (isAdminRole(user.role)) {
+      // Belt and braces: the caller refuses earlier, but a future call site
+      // must not be able to mint an admin passwordless session either.
+      throw new UnauthorizedException(
+        'Administrators must sign in with a password.',
+      );
+    }
+    return this.generateTokens(user, method);
+  }
+
+  /** Legacy tokens carry no method claim and were all password sessions. */
+  private readMethod(value: string | undefined): AuthMethod {
+    if (value === AuthMethod.GOOGLE) return AuthMethod.GOOGLE;
+    if (value === AuthMethod.EMAIL_LINK) return AuthMethod.EMAIL_LINK;
+    return AuthMethod.PASSWORD;
   }
 
   async verifyRefreshToken(token: string): Promise<RefreshPayload> {
@@ -549,10 +618,20 @@ export class AuthService {
   }
 
   // ── PRIVATE: Generate JWT Tokens ──────────────────────
-  private async generateTokens(userId: string, email: string, role: string) {
-    // The payload is the data stored inside the token
-    // Keep it small — only what we need to identify the user
-    const payload = { sub: userId, email, role };
+  private async generateTokens(
+    user: { id: string; email: string; role: string; sessionVersion: number },
+    method: AuthMethod,
+  ) {
+    // The payload is the data stored inside the token. Keep it small — only
+    // what identifies the user and what the guards must re-check: the session
+    // version and the authentication method.
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      ver: user.sessionVersion,
+      am: method,
+    };
 
     // Access token — short lived (15 minutes)
     const accessToken = await this.jwtService.signAsync(payload, {
@@ -561,9 +640,16 @@ export class AuthService {
     });
 
     // Refresh token — longer lived (7 days). The `jti` (unique token id) lets
-    // us revoke this exact token server-side on logout / rotation.
+    // us revoke this exact token server-side on logout / rotation; `ver` and
+    // `am` let the refresh path reject a token whose session was revoked or
+    // whose account may no longer hold a passwordless session.
     const refreshToken = await this.jwtService.signAsync(
-      { sub: userId, jti: crypto.randomUUID() },
+      {
+        sub: user.id,
+        jti: crypto.randomUUID(),
+        ver: user.sessionVersion,
+        am: method,
+      },
       {
         secret: this.config.get('JWT_REFRESH_SECRET'),
         expiresIn: this.config.get('JWT_REFRESH_EXPIRES_IN') ?? '7d',

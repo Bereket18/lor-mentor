@@ -18,21 +18,7 @@ import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
-
-function cookieOptions(config: ConfigService) {
-  const domain = config.get<string>('COOKIE_DOMAIN')?.trim();
-  return {
-    httpOnly: true,
-    secure: config.get<string>('NODE_ENV') === 'production',
-    sameSite: 'lax' as const,
-    path: '/',
-    // Optional shared parent domain. The web edge guard (apps/web/src/proxy.ts)
-    // and /api/proxy read cookies on the WEB host, so when the API lives on
-    // api.<domain> and the web app on <domain>, both must use the same
-    // parent-domain cookie (for example COOKIE_DOMAIN=.example.com).
-    ...(domain ? { domain } : {}),
-  };
-}
+import { sessionCookieOptions } from '../../common/session-cookies';
 
 // All routes in this controller start with /api/v1/auth
 @Controller('auth')
@@ -75,12 +61,12 @@ export class AuthController {
     // Store tokens in HTTP-only cookies
     // JavaScript cannot read these — they are secure
     res.cookie('access_token', result.accessToken, {
-      ...cookieOptions(this.config),
+      ...sessionCookieOptions(this.config),
       maxAge: 15 * 60 * 1000, // 15 minutes in milliseconds
     });
 
     res.cookie('refresh_token', result.refreshToken, {
-      ...cookieOptions(this.config),
+      ...sessionCookieOptions(this.config),
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
     });
 
@@ -119,15 +105,19 @@ export class AuthController {
       // Rotation reuse-detection: burn the presented token so a stolen copy
       // can't be replayed after the legitimate client rotates.
       await this.authService.revokeRefreshPayload(payload);
-      const tokens = await this.authService.refreshTokens(payload.sub);
+      const tokens = await this.authService.refreshTokens(
+        payload.sub,
+        payload.ver,
+        payload.am,
+      );
 
       res.cookie('access_token', tokens.accessToken, {
-        ...cookieOptions(this.config),
+        ...sessionCookieOptions(this.config),
         maxAge: 15 * 60 * 1000,
       });
 
       res.cookie('refresh_token', tokens.refreshToken, {
-        ...cookieOptions(this.config),
+        ...sessionCookieOptions(this.config),
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 
@@ -149,8 +139,8 @@ export class AuthController {
       await this.authService.revokeRefreshToken(refreshToken);
     }
 
-    res.clearCookie('access_token', cookieOptions(this.config));
-    res.clearCookie('refresh_token', cookieOptions(this.config));
+    res.clearCookie('access_token', sessionCookieOptions(this.config));
+    res.clearCookie('refresh_token', sessionCookieOptions(this.config));
     return { message: 'Logged out successfully' };
   }
 

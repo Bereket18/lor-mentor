@@ -88,6 +88,9 @@ export class UsersService {
         isEmailVerified: true,
         isAnatomyReviewer: true,
         createdAt: true,
+        sessionVersion: true,
+        passwordLoginEnabled: true,
+        profileCompletedAt: true,
       },
     });
   }
@@ -362,6 +365,13 @@ export class UsersService {
         lockoutUntil: null,
         passwordResetToken: null,
         passwordResetExpiry: null,
+        // Setting a password is the deliberate route back to password login
+        // for a passwordless or recovered account.
+        passwordLoginEnabled: true,
+        // And it ends every session that existed before the reset. The
+        // denylist call in AuthService covers refresh tokens; this column is
+        // what also invalidates already-issued access tokens.
+        sessionVersion: { increment: 1 },
       },
     });
     return result.count === 1 ? owner.id : null;

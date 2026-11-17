@@ -12,6 +12,10 @@ interface JwtPayload {
   sub: string; // user ID
   email: string;
   role: string;
+  /** Session version at issue time; absent on tokens minted before this field. */
+  ver?: number;
+  /** Authentication method; absent on legacy password tokens. */
+  am?: string;
 }
 
 @Injectable()
@@ -66,6 +70,27 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 
     if (!user.isActive) {
       throw new UnauthorizedException('Your account has been deactivated');
+    }
+
+    // Session version: a password reset or account recovery increments the
+    // column, which invalidates every access token minted before it. Legacy
+    // tokens without the claim are treated as version 0, which is correct while
+    // an account has never been revoked.
+    const version = payload.ver ?? 0;
+    if (version !== user.sessionVersion) {
+      throw new UnauthorizedException(
+        'Session has been revoked. Please sign in again.',
+      );
+    }
+
+    // Administrator roles may only hold password sessions. Checked here as well
+    // as at issue and refresh time, so a promotion takes effect on the very
+    // next request instead of at token expiry.
+    const method = payload.am ?? 'PASSWORD';
+    if (method !== 'PASSWORD' && (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN')) {
+      throw new UnauthorizedException(
+        'Administrators must sign in with a password.',
+      );
     }
 
     // This gets attached to request.user everywhere

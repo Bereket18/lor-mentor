@@ -20,4 +20,10 @@ export interface RequestUser {
   isEmailVerified: boolean;
   isAnatomyReviewer: boolean;
   createdAt: Date;
+  /** Current session version; a token carrying an older value is rejected. */
+  sessionVersion: number;
+  /** False for recovered/passwordless accounts until a password is set. */
+  passwordLoginEnabled: boolean;
+  /** Null until a passwordless account finishes the profile step. */
+  profileCompletedAt: Date | null;
 }
