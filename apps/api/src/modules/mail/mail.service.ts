@@ -87,6 +87,62 @@ export class MailService {
       `,
     });
   }
+
+  /**
+   * The passwordless sign-in email: one six-digit code and one link, both for
+   * the same challenge.
+   *
+   * The link carries its secret in a URL fragment, so it never reaches the
+   * server's access log or a referrer header. The copy is deliberately plain
+   * about what opening the link does, because a mail scanner or a forwarded
+   * message must not be able to turn "opened" into "signed in".
+   *
+   * Sent for both existing accounts (purpose LOGIN) and new addresses (purpose
+   * SIGNUP) with identical content, so the message itself cannot be used to
+   * discover whether an account exists.
+   */
+  async sendAuthSignIn(input: {
+    to: string;
+    code: string;
+    confirmationLink: string;
+    expiresInMinutes: number;
+  }): Promise<void> {
+    const appName = this.config.get<string>('APP_NAME') ?? 'Lor Mentor';
+    const college =
+      this.config.get<string>('COLLEGE_NAME') ?? 'Lorcan Medical College';
+    const code = input.code;
+    const link = escapeHtml(input.confirmationLink);
+
+    await this.sendMail({
+      to: input.to,
+      subject: `Your ${appName} sign-in link and code`,
+      text:
+        `Sign in to ${appName}\n\n` +
+        `Your six-digit code is:\n\n    ${code}\n\n` +
+        `Enter this code on the device where you started, or open this link:\n${input.confirmationLink}\n\n` +
+        `The link opens a confirmation page. Choose "Continue here" to sign in on that device, or enter this code on your original device. Opening the link alone does not sign you in.\n\n` +
+        `Both expire in ${input.expiresInMinutes} minutes and can be used once. A newer email replaces them.\n` +
+        `Never share this email, link or code. ${appName} staff will never ask for them.\n` +
+        `If you did not request this, ignore this email; no sign-in has occurred.\n\n` +
+        `${college}`,
+      html: `
+        <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.5;color:#0f172a;max-width:520px">
+          <h2 style="margin:0 0 12px">Sign in to ${escapeHtml(appName)}</h2>
+          <p style="margin:0 0 12px">Your six-digit code is:</p>
+          <div style="font-family:'Courier New',Courier,monospace;font-size:34px;font-weight:bold;letter-spacing:8px;color:#0f172a;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:10px;padding:18px 24px;text-align:center;margin:0 0 20px">${code}</div>
+          <p style="margin:0 0 12px">Enter this code on the device where you started, or open the confirmation page.</p>
+          <p style="margin:0 0 16px">
+            <a href="${link}" style="display:inline-block;background:#0b5f58;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:8px">Open sign-in confirmation</a>
+          </p>
+          <p style="margin:0 0 12px">Choose &ldquo;Continue here&rdquo; to sign in on this device, or enter this code on your original device. Opening the link alone does not sign you in.</p>
+          <p style="margin:0 0 12px">Both expire in ${input.expiresInMinutes} minutes and can be used once. A newer email replaces them.</p>
+          <p style="margin:0;font-size:13px;color:#64748b">Never share this email, link or code. ${escapeHtml(appName)} staff will never ask for them. If you did not request this, ignore this email; no sign-in has occurred.</p>
+          <p style="margin:8px 0 0;font-size:13px;color:#64748b">${escapeHtml(college)}</p>
+        </div>
+      `,
+    });
+  }
+
   async sendPasswordReset(to: string, resetUrl: string): Promise<void> {
     const appName = this.config.get<string>('APP_NAME') ?? 'Lor Mentor';
     const college =

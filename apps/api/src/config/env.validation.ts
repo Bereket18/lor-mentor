@@ -356,6 +356,37 @@ export function validateEnv(
     errors.push(uploadDirProblem);
   }
 
+  // Passwordless sign-in flags are strict booleans, defaulting to off. When the
+  // email method is switched on, its hashing pepper is mandatory: a missing
+  // pepper would silently fall back to an unpeppered hash, which is not the
+  // reviewed design.
+  for (const key of ['AUTH_GOOGLE_ENABLED', 'AUTH_EMAIL_LINK_ENABLED']) {
+    const value = config[key];
+    if (value === undefined || value === null || value === '') continue;
+    const normalized = String(value).trim().toLowerCase();
+    if (normalized !== 'true' && normalized !== 'false') {
+      errors.push(`${key} must be either "true" or "false"`);
+    }
+  }
+
+  const emailLinkEnabled =
+    String(config.AUTH_EMAIL_LINK_ENABLED ?? '').trim().toLowerCase() ===
+    'true';
+  if (emailLinkEnabled) {
+    for (const key of ['AUTH_CODE_PEPPER', 'AUTH_RATE_KEY_SECRET']) {
+      const value = config[key];
+      if (typeof value !== 'string' || value.trim().length < 32) {
+        errors.push(
+          `${key} must be at least 32 characters when AUTH_EMAIL_LINK_ENABLED is true`,
+        );
+      } else if (looksLikePlaceholder(value)) {
+        errors.push(
+          `${key} must not use a placeholder when AUTH_EMAIL_LINK_ENABLED is true`,
+        );
+      }
+    }
+  }
+
   if (errors.length > 0) {
     throw new Error(
       `Invalid environment configuration:\n  - ${errors.join('\n  - ')}`,
