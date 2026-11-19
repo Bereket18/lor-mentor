@@ -1,527 +1,693 @@
-# Passwordless login design
+# Passwordless login: as-built design and remaining work
 
-Status: **proposed — awaiting approval; no implementation authorised yet**.
-Date: 2026-11-15. Branch: `feat/passwordless-login`.
+Status: **approved for continued implementation; email link + six-digit code is implemented.**
+Production enablement: **not yet approved** until the P0 defects in section 9 are closed.
+Date: 2026-11-19. Branch: `feat/passwordless-login`. HEAD: `1c74a0b`.
 Base: `origin/main` at `63e31f019490fa02e0ad34256d8815e72feef9b4`.
 
-## 1. Preconditions and existing behaviour
+This revision replaces the earlier "proposed — awaiting approval; no implementation
+authorised" document. The implementation described below exists and was verified on
+this branch. Where the earlier design and the code differ, section 8 records the
+correction and section 9 records the remaining defect. The document is therefore an
+as-built design plus a gated plan, not a proposal for code that has yet to be written.
 
-The support-centre tip `d2344dc` is an ancestor of the base above. The base
-contains `apps/api/src/modules/auth/verification-code.ts`, its tests, the
-`VerificationCode` model, and migration
-`20261104120000_add_verification_codes`. Both prerequisites were checked before
-creating this branch in a new worktree.
+## 1. Scope and decision summary
 
-Existing verification codes verify an already-created user; they do not log the
-user in. Their policy is six cryptographically random digits, bcrypt cost 10,
-15-minute expiry, five guesses, 60-second resend cooldown, and five issuances per
-hour. Password registration currently requires name, phone, department and year.
-`User.passwordHash` is required; `VerificationCode.userId` is required.
+Approved and implemented:
 
-Existing authentication issues HTTP-only access/refresh cookies. Refresh tokens
-have a denylist and user revocation marker. **Access tokens currently do not check
-that marker:** `JwtStrategy` loads the user but checks only existence and activity.
-Immediate revocation of both token types is therefore part of the implementation,
-not a capability we can assume. The existing OriginGuard also accepts missing
-Origin headers; the new browser-auth POSTs need stricter CSRF handling.
+- Email sign-in with one challenge that can be redeemed either by a six-digit code on
+  the initiating browser or by an emailed link on any browser, with an explicit
+  "Continue here" POST.
+- A restricted profile-completion grant for a verified newcomer, producing a
+  `STUDENT` account only after the profile POST.
+- Session versioning (`User.sessionVersion`) and an authentication-method claim
+  (`am`) on access and refresh tokens. Administrator roles remain password-only at
+  issuance, refresh and access-token validation.
+- Redis-atomic request budgets with HMAC keys and fail-closed 503 behaviour.
+- Database-backed issuance caps as a second layer.
+- Pre-hijack recovery for an unverified password account that proves its email.
 
-## 2. Invariants and scope
+Deferred, not implemented:
 
-- Two independently enforced server flags: `AUTH_GOOGLE_ENABLED=false` and
-  `AUTH_EMAIL_LINK_ENABLED=false` by default. Hiding a button is not enforcement.
-- Existing password login remains available. `/admin-login` remains password-only.
-  `ADMIN` and `SUPER_ADMIN` may never obtain or refresh a Google/email-link
-  session, including when a role changes during an in-flight challenge.
-- Roles and privileges come exclusively from the database. New users are
-  `STUDENT`; Google claims, email domains and client fields never grant a role.
-- GET/HEAD never consume an email link or OAuth transaction, create a user, link
-  an identity, exchange an OAuth authorization code, or establish a session.
-  Completion requires a deliberate, CSRF-protected POST.
-- Email initiation/resend responses are identical for existing, unknown,
-  unverified, inactive and administrator addresses. No account-existence field,
-  purpose, masked account profile, or different delivery result is exposed.
-- A link and its six-digit code are alternative proofs for one challenge. A
-  successful POST consumes both, atomically and exactly once.
-- No plaintext credentials, codes, tokens, cookies, OAuth parameters or sign-in
-  links in application, proxy, access, audit, telemetry or test-report logs.
-- Step 1 adds this design only. Migrations, code, dependencies, gates and
-  screenshots belong to Step 2 after explicit approval.
+- Google/OIDC sign-in. The schema (`AuthIdentity`, `AuthProvider`, `AuthMethod.GOOGLE`)
+  is additive and ready, but there are no routes, UI, transaction store or token
+  verifier. `AUTH_GOOGLE_ENABLED` must remain `false` until that work is complete.
+- A queue-backed mail worker. Mail is currently sent synchronously (section 9, P0-3).
+- A scheduled cleanup job for expired challenges and grants (section 9, P1-4).
+- A Content-Security-Policy and Fetch-Metadata checks (section 9, P1-5).
+- Screenshot and accessibility evidence at the paths required by the acceptance plan
+  (section 12).
 
-## 3. User journeys
+Out of scope for this document: the separate account-cleanup script that is waiting
+on the user-marked list in `02-marking-sheet.sql`, and the role-scoped portal
+enforcement study in `docs/design/role-scoped-sign-in.md`.
 
-### 3.1 Email link and code (one sign-in/sign-up entry point)
+## 2. Verified implementation evidence
 
-1. On `/login`, choose **Continue with email**, enter an email and submit.
-   Normalise using the existing trim/lowercase utility; do not remove Gmail dots
-   or plus suffixes. Validate shape/length independently of account existence.
-2. Browser obtains a CSRF bootstrap, then POSTs email and an optional return path.
-   Server generates a 256-bit browser-binding nonce in an HTTP-only cookie and
-   returns an opaque random challenge handle with the generic 202 response.
-   Every well-formed request gets the same response/cookie shape, even if delivery
-   is suppressed. A handle alone is never authentication.
-3. In a bounded background delivery path, issue an eligible challenge and send
-   the same email template for login and signup. Existing users use purpose
-   `LOGIN`; absent users use `SIGNUP`. Purpose is server-selected and private.
-   Inactive and admin users receive no sign-in credential. Apply the same
-   per-address budgets and generic outward behaviour to all addresses.
-4. Show **Check your email** with one six-digit input, **Continue**, **Send a new
-   email** (available after 60 seconds), and **Use a different email**. No polling
-   can automatically log this browser in when another device opens the link.
-5. Code route: submit `{challengeId, code}` from the original browser. Require
-   its nonce cookie and CSRF token; compare the code only within that challenge.
-   Missing/wrong browser is rejected, even with the correct code. Do not accept
-   email-plus-code as an unbound fallback.
-6. Link route: open `WEB_PUBLIC_URL/auth/email/confirm#challenge=<id>&token=<secret>`.
-   The fragment keeps the secret out of normal HTTP access logs and referrers.
-   A minimal first-party page captures it in memory and immediately removes it
-   from the address bar with `history.replaceState`. No local/session storage,
-   analytics, third-party resources, prefetch, or automatic redemption.
-7. The confirmation page always offers:
-   - **Continue here** — “Sign in on this device. Only continue if you requested
-     this email.” Clicking POSTs the link proof, CSRF token, and explicit
-     `destination: current-browser` consent.
-   - **Enter this code on your original device** — “Use the six-digit code in
-     your email on the device where you started. Leave this page open or close
-     it; opening the link does not sign you in.” This choice does not consume
-     anything. The numeric code is in the email; it cannot be recovered from its
-     stored hash and is not included in the URL or returned by a preview API.
-8. Same-browser link completion validates the original binding. Cross-device
-   completion deliberately permits a missing/different original binding **only
-   on the link-confirm POST**, after an explicit click, valid high-entropy link
-   proof and CSRF validation for the receiving browser. Create a fresh receiving
-   browser binding; never transplant the original cookie. This narrowly scoped
-   exception enables “Continue here”; it does not relax code verification.
-9. Recheck user existence, active state, role and current credentials in the
-   consume transaction. Existing verified users receive a new session. Unknown
-   users receive only a restricted profile-completion grant. Existing unverified
-   password accounts follow the takeover-recovery policy in section 4.
-10. The other device's code/link is now invalid. No success notification or
-    session is delivered to the initiating device after cross-device completion.
+These checks were run on the code at `1c74a0b`; this document-only change does not
+alter them.
 
-Resend uses the bound handle and issues a new challenge, preserving the validated
-return path. It supersedes all earlier active email-auth challenges for the
-normalised address (across LOGIN/SIGNUP), not email-verification/reset codes.
-Issuance and supersession are serialised per address. Old links/codes fail with
-the same generic message. Delivery failure does not revive a superseded proof;
-the user can retry after the cooldown. This fail-closed rule avoids restoration
-races and is stated in troubleshooting.
-
-### 3.2 Google
-
-1. **Continue with Google** performs a CSRF-protected POST to start OAuth. Generate
-   independent random state, OIDC nonce, browser-binding nonce and PKCE verifier;
-   PKCE is S256 only. Store a ten-minute, browser-bound server transaction. Request
-   only `openid email profile`, with account selection and no offline access.
-2. Navigate to the fixed Google authorization endpoint. Use an exact registered
-   redirect URI; do not derive issuer, callback, token endpoint or JWKS location
-   from request headers, client input, or token `jku`/`x5u` values.
-3. Google returns to the web `/auth/google/callback`. Its GET renders a minimal
-   page; it does not redeem the authorization code or log in. Capture `code` and
-   `state` in memory, scrub the query immediately, and show **Continue with
-   Google**. Provider errors show **Google sign-in was not completed. Try again
-   or use another method.** No raw provider diagnostics reach the UI.
-4. An explicit click POSTs code/state with the bound cookie and CSRF token to the
-   API. Atomically claim the OAuth transaction, compare state, enforce expiry
-   and browser binding, and exchange the code server-side using the stored PKCE
-   verifier and configured client credentials. A failed exchange burns the
-   transaction; restart rather than allowing replay.
-5. Verify the ID-token signature with Google's trusted JWKS, allowed algorithm,
-   issuer, exact audience, `azp` when applicable, expiry, issued-at (bounded clock
-   skew), nonempty subject, transaction nonce, and **`email_verified === true`**.
-   A browser-supplied decoded token or email is never accepted as proof.
-6. Resolve by `(provider=GOOGLE, subject)` first, then apply section 4 for first
-   linking. Read role/activity again before issuing any grant/session. Existing
-   identity subject changing its email does not silently merge accounts or
-   rewrite the local address. Address conflicts fail safely and require support.
-7. Existing eligible users receive a fresh session. New users go to profile
-   completion. Delete transient OAuth secrets; do not retain Google access,
-   refresh or ID tokens. A suggested display name is editable plain text only.
-
-### 3.3 New-user profile completion
-
-- Proof produces a random, hashed, HTTP-only, browser-bound ten-minute enrollment
-  grant. It is not an access/refresh JWT and cannot call ordinary authenticated
-  endpoints. Reloading the page may read its safe status; expiry requires sign-in
-  again. Do not create a partial User merely on an email request or OAuth start.
-- `/complete-profile` asks for full name (2–100 characters), phone (current
-  registration constraints), department and academic year. Server verifies that
-  department/year exist, are active, and the year belongs to the department.
-  Email is locked to the verified grant. Role, user ID, verified flags, password,
-  subscription and privileges are rejected as unexpected inputs.
-- On POST, consume the grant and create the verified STUDENT in one transaction.
-  Generate a random unusable password hash and set `passwordLoginEnabled=false`.
-  Mark `profileCompletedAt`, attach Google identity if applicable, then issue new
-  session cookies and navigate to the validated return path/default dashboard.
-- If an account appeared meanwhile, re-resolve it under the same identity,
-  administrator, linking and recovery rules. Never overwrite another profile or
-  reuse proof to escalate privileges. Unique-email/subject races have one winner.
-- Existing users with completed profiles skip this page. Unverified accounts
-  recovered from pre-hijack must reconfirm name/phone/academic details; do not
-  trust the preparer's values. Grant permits only that user's profile completion.
-
-## 4. Linking, pre-hijack recovery and sessions
-
-| Account state after verified proof | Decision |
+| Check | Result |
 |---|---|
-| ADMIN or SUPER_ADMIN, including an already-linked subject | Refuse Google/email completion; no identity mutation, verification, revocation or session issuance. Password admin login remains the route. |
-| Inactive user | Refuse generically; do not reactivate. |
-| No user | Restricted enrollment grant; new STUDENT only after valid profile POST. |
-| Verified password user, no Google identity | Verified matching Google email may link once; retain password and local role. Existing email proof may log in. |
-| Unverified password user | Treat the old password as attacker-controlled: atomically replace its hash with a hash of a discarded random secret, disable password login, clear reset tokens, supersede old verification/auth challenges, increment session version, and mark email verified. Google identity is linked only after this invalidation. Require profile reconfirmation. Apply the same recovery to email proof. |
-| Subject already linked to another user, or different Google subject already linked to this user | Refuse; no automatic merge, transfer, or overwrite. |
+| API unit/integration suite | 51 suites / 811 tests passed; 2 suites / 21 skipped |
+| Web unit suite | 89 tests passed |
+| API `tsc --noEmit` | clean |
+| Web `tsc --noEmit` | clean |
+| Web ESLint | exit 0; one pre-existing warning in `admin/payments/page.tsx` |
+| Real-HTTP passwordless smoke | 39/39 checks passed |
+| Next.js production standalone | serves `/login`, `/auth/email/confirm` and `/complete-profile` with `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex, nofollow`, `Cache-Control: no-store` |
+| Browser verification | login method toggle, email confirmation page and profile-completion UI exercised manually |
+| Screenshots / a11y manifest | **not produced**; `C:\Users\berek\Desktop\lor-screens\passwordless-login\` does not exist |
 
-Add `User.sessionVersion Int @default(0)` and include it in **all newly issued**
-access and refresh JWTs. Every API access and refresh checks the current database
-version; missing version is interpreted as zero only while the user's version is
-zero. Incrementing it revokes old access and refresh tokens immediately, including
-legacy tokens. Continue refresh rotation/denylisting. Revocation and account
-recovery happen in the same DB transaction; Redis failure cannot resurrect an old
-version. Password reset also increments the version. Do not cache stale versions.
+The disposable-QA environment used PostgreSQL `55433`, Redis `56379`, SMTP sink
+`1025`, API `4000` and web `3000`, with a local mail sink writing `.eml` files outside
+the repository. No real credentials, production database or production mail
+transport was used. The Next.js security upgrade is commit `81da5a4` on this branch;
+the separate local branch `chore/next-security-upgrade-16.4.6` (`e06d5c8`) is not part
+of the delivered history.
 
-Add JWT authentication method (`PASSWORD`, `GOOGLE`, `EMAIL_LINK`) and reject
-non-password sessions for administrator roles at access and refresh time, even
-after promotion. Legacy missing method means PASSWORD only for existing legacy
-tokens; unsigned/client input never sets it. Role guards continue reading the
-database role. Grant/session completion rechecks role within the locked user
-transaction. Promotion/version changes must be included in the abuse matrix.
+## 3. Invariants and their as-built status
 
-Successful authentication overwrites access/refresh cookies with fresh tokens,
-new refresh JTI and current version, revokes any presented prior refresh token,
-and clears challenge/enrollment cookies. Never adopt a caller-supplied session ID.
-Browser binding is not a session. An existing session for a different user must
-show an explicit account-switch confirmation before replacement.
-
-Password reset remains the explicit route to setting a password for a recovered
-or passwordless account; successful reset sets `passwordLoginEnabled=true` and
-revokes sessions. Turning method flags off does not resurrect invalidated
-passwords. Once recovery/session-version enforcement is deployed, rollback must
-retain those checks; reverting to pre-version authentication is unsafe.
-
-## 5. Additive data model
-
-Choose a separate **AuthChallenge**, rather than extending VerificationCode:
-signup must exist before a User, and login tokens must never be accepted as email
-verification or password-reset codes. Reuse random-code/hash helpers, not the
-existing verification consumption endpoint.
-
-| Model / field | Proposed semantics |
+| Invariant | Status |
 |---|---|
-| AuthChallenge.id | Unguessable random handle (at least 128 bits). |
-| purpose | New enum `LOGIN`, `SIGNUP`; selected server-side, never disclosed at initiation. |
-| email / userId? | Normalised destination; nullable user FK; re-resolve at consumption. |
-| linkTokenHash | Unique SHA-256 digest of independently generated 256-bit link secret. |
-| codeHash | bcrypt cost 10 over an HMAC-SHA-256 of `challengeId + code` under a dedicated pepper. Reuse existing six-digit generation and bcrypt primitives; no bare fast hash of six digits. |
-| browserNonceHash | SHA-256 of a random 256-bit nonce; plaintext only in HTTP-only cookie. |
-| attempts | Integer default zero, constrained 0–5. Reserve an attempt under lock before expensive comparison; concurrent requests cannot exceed five guesses. |
-| expiresAt / consumedAt / supersededAt / createdAt | 15-minute fixed lifetime; nullable terminal timestamps. Expiry is checked on every claim, not dependent on cleanup. |
-| returnPath | Canonical, server-allowlisted local path captured at initiation. |
-| AuthIdentity | id, userId, provider=GOOGLE, subject, createdAt. Unique `(provider, subject)` and `(userId, provider)`. Email is not the provider identity key. |
-| EnrollmentGrant | id, unique tokenHash, email, optional userId, method, optional Google subject, browserNonceHash, returnPath, expiresAt, consumedAt, createdAt. No password, link token or Google token. |
-| User additions | `passwordLoginEnabled Boolean @default(true)`, `sessionVersion Int @default(0)`, `profileCompletedAt DateTime?`. Existing passwordHash remains required; new passwordless users receive a discarded-random-secret bcrypt hash. |
-| OAuth transaction (Redis, 10-minute TTL) | Hash-keyed random handle, state hash, nonce hash, browser hash, encrypted PKCE verifier, validated return path, pending/claimed state. Atomic claim; no refresh token storage. |
+| Both passwordless flags default to `false` and are enforced server-side. | Met. Disabled methods fail closed with 503, not merely hidden UI. |
+| Password login and `/admin-login` remain available; `ADMIN`/`SUPER_ADMIN` never receive or refresh a passwordless session. | Met. `issueSession`, refresh and the JWT strategy re-read the role; access tokens also check the method. |
+| Roles and privileges come only from the database. | Met. Email domain, request fields and (future) Google claims never set a role. New users are `STUDENT`. |
+| GET/HEAD never consume a link, create a user, or establish a session. | Met. The confirmation page captures the fragment, scrubs it, and waits for a click. |
+| A challenge is consumed at most once, atomically. | Met for the claim (`updateMany` with `consumedAt: null`, `supersededAt: null`, unexpired). See P1-1 for concurrent *issuance*. |
+| Codes are stored as a slow peppered hash; link secrets as a fast digest of 256-bit material; plaintext never reaches the database. | Met. `bcrypt(10)` over `HMAC-SHA256(AUTH_CODE_PEPPER, challengeId:code)`; link and binding values are SHA-256 digests. |
+| Rate limits are cross-instance, HMAC-keyed and fail closed. | Met. Redis Lua `INCR` + `PEXPIRE`; raw email/IP/cookie values are never stored; Redis failure returns a uniform 503. |
+| Email-link secrets travel in a fragment and confirmation is an explicit CSRF-protected POST. | Met. |
+| Cross-device link confirmation is allowed only with `destination: "current-browser"`. | Met. The server ignores the original binding on `POST /email/confirm` but still requires the high-entropy link token and receiving-browser CSRF. |
+| Initiation is indistinguishable for existing, unknown, inactive and administrator addresses. | **Not met.** See P0-1 and P0-3. |
+| One challenge per address is active at a time. | **Not met under concurrency.** See P1-1. |
+| No plaintext credential is logged. | Implemented by construction; a canary-secret test is still missing from the acceptance evidence. |
+| Schema changes are additive. | Met. No drops, renames or nullability changes to existing columns. |
+| Password reset invalidates existing access and refresh tokens. | Met. `claimResetToken` increments `sessionVersion`; the denylist also revokes refresh tokens issued before the reset. |
 
-Indexes: challenge `(email, createdAt)`, `(userId, purpose, createdAt)`, expiry and
-unique link hash; enrollment expiry/token hash; identity constraints above. Use
-transaction-scoped per-normalised-address locks for issuance/consumption/signup
-races, and user row locks for recovery. Recheck expiry, supersession, attempts,
-role/activity and proof in the final compare-and-consume transaction. Exactly one
-of code/link/concurrent submissions may commit. Failure must never issue cookies.
+## 4. As-built flows
 
-Add tables/enums/columns/indexes only; no drops, renames, destructive rewrites or
-nullability changes to existing columns. Existing users with valid registration
-details are treated as complete without a mandatory bulk update. Old verification
-and reset purposes remain isolated. Apply the new migration first with flags off.
-Daily cleanup removes expired/terminal challenges and enrollment grants after
-24 hours; rate counters persist for their full windows independently of cleanup.
-Security audit metadata follows the existing audit retention policy; do not keep
-expired credential hashes indefinitely. Test fixtures use a disposable database.
+### 4.1 Start
 
-## 6. Endpoint contract
+1. `POST /api/v1/auth/email/start` passes `AuthCsrfGuard`, then the per-IP Redis
+   budgets (10/minute and 50/hour).
+2. The service refuses with 503 if `AUTH_EMAIL_LINK_ENABLED` is false.
+3. The email is trimmed/lowercased with the shared normaliser and checked for a
+   plausible shape and bounded length. A malformed value returns 400 with a
+   shape-only message.
+4. The user is looked up by email.
+   - Administrator: write `AUTH_PASSWORDLESS_ADMIN_REFUSED` and return the generic
+     suppressed result.
+   - Inactive: return the generic suppressed result.
+5. If a challenge for the address was created less than 60 seconds ago, return that
+   challenge's id with `retryAfterSeconds: 60`; nothing new is written or sent.
+6. Otherwise `mayIssue` consumes the Redis 5/hour and 10/day address budgets and then
+   checks the durable `AuthChallenge` counts. A refusal returns the generic result.
+7. A challenge is created with purpose `LOGIN` when a user exists and `SIGNUP`
+   otherwise. All still-active email challenges for the address are marked
+   `supersededAt` in the same array transaction as the insert.
+8. The plaintext six-digit code and 256-bit link secret exist only in memory. The row
+   stores `bcrypt(HMAC(pepper, id:code))`, `sha256(linkToken)`, `sha256(browserNonce)`
+   and the validated return path.
+9. The email is sent through `MailService` in the request path. A delivery failure is
+   logged as a safe category and audited; the API still returns 202, and the challenge
+   remains valid until expiry.
+10. The response is `202 {message, challengeId, retryAfterSeconds: 60}`. A binding
+    cookie is set only when a challenge was actually issued (see P0-1).
 
-API prefix is `/api/v1/auth`. Browser UI and transient cookies use the web-origin
-API proxy so new binding cookies can be host-only. Verify proxy preservation of
-Origin/CSRF headers and Set-Cookie; do not widen `COOKIE_DOMAIN` for new cookies.
-All responses here are `Cache-Control: no-store`; pages also use
-`Referrer-Policy: no-referrer` and a restrictive CSP.
+### 4.2 Resend
 
-| Method and path | Input / binding | Response / effect |
+`POST /api/v1/auth/email/resend` requires the `auth_ch_` binding cookie. A missing or
+wrong binding, an unknown challenge, and a cooldown hit all return the same 202 shape
+and change nothing. An eligible resend creates a new challenge, supersedes every
+active email challenge for the address, sends a new email and rotates the binding
+cookie. Administrator addresses produce the suppressed shape.
+
+### 4.3 Code proof
+
+`POST /api/v1/auth/email/code` accepts exactly six digits, preserving leading zeroes.
+The order is deliberate:
+
+1. Shape check; a malformed code spends one timing-equaliser bcrypt comparison.
+2. Challenge lookup; an unknown id also spends the equaliser.
+3. Address-wide Redis budget (20/hour across resends), counted before the binding
+   check so a wrong-browser submission still spends the address budget.
+4. Binding check: the submitted cookie's SHA-256 must equal `browserNonceHash` in
+   constant time. A correct code from the wrong browser is rejected.
+5. Attempt reservation: a conditional `UPDATE` increments `attempts` only while
+   `attempts < 5`, the row is unconsumed, unsuperseded and unexpired. The database,
+   not a read-then-write check, enforces the cap.
+6. Constant-time digest comparison through bcrypt.
+7. Atomic claim (`consumedAt` set) and finalisation.
+
+Every failure is the same 400 message. No remaining-attempt count or eligibility
+detail is returned.
+
+### 4.4 Link proof and cross-device confirmation
+
+`POST /api/v1/auth/email/confirm` accepts `{challengeId, token, destination}`. The
+token must be a string of at least 20 characters; its SHA-256 is compared with the
+stored unique digest in constant time. The original browser binding is intentionally
+not required, because the link may be opened on a phone after sign-in started on a
+laptop. The explicit `destination: "current-browser"` value is the consent record.
+On success the challenge is claimed atomically and finalised. The initiating device's
+code/link becomes invalid; no session is pushed to it.
+
+The current implementation does **not** mint a fresh receiving-browser binding on
+cross-device success; it clears the challenge cookie. That is consistent with the
+link being a bearer capability held in the email, but the earlier design's wording
+about a "fresh receiving browser binding" was inaccurate.
+
+### 4.5 Finalisation
+
+After a successful claim, the account is re-read by the challenge's normalised email:
+
+- Administrator or inactive: audit where appropriate, return the uniform 400 proof
+  failure. No session, identity mutation or grant is produced.
+- No user: issue a ten-minute `EnrollmentGrant` and return
+  `{next: "complete_profile", redirectTo: "/complete-profile"}`. The grant token is
+  written only as an HttpOnly cookie; no access/refresh JWT is issued.
+- Unverified email: treat the existing password as attacker-controlled. In one
+  transaction, replace the password hash with a hash of a discarded random secret,
+  set `passwordLoginEnabled=false`, mark the email verified, clear reset tokens and
+  lockout state, clear `profileCompletedAt`, increment `sessionVersion`, and supersede
+  pending challenges and verification codes. Then issue a recovery grant.
+- A passwordless signup that never finished its profile (`profileCompletedAt` null
+  and `passwordLoginEnabled` false): issue a grant.
+- Otherwise: issue new session tokens with the current `sessionVersion` and
+  `am=EMAIL_LINK`, and redirect to the validated return path or the role home.
+
+### 4.6 Profile completion
+
+`GET /api/v1/auth/profile-completion` reads the grant cookie and returns
+`{email, existingAccount, expiresAt}` without consuming anything. An invalid, expired
+or already-consumed grant returns 404. A disabled method returns 503.
+
+`POST /api/v1/auth/profile-completion`:
+
+1. Finds the unconsumed, unexpired grant by token hash and checks that its method is
+   still enabled.
+2. Validates the department (exists, not archived) and academic year (exists, not
+   archived, belongs to that department).
+3. Consumes the grant with a conditional `UPDATE`.
+4. Looks up a user by the grant's email. A mismatch with a non-null `grant.userId`
+   returns 409.
+5. In a transaction, updates an existing user's profile (recovery path) or creates a
+   new verified `STUDENT` with a discarded random password hash and
+   `passwordLoginEnabled=false`.
+6. Audits `AUTH_PROFILE_COMPLETED`, issues a session through `issueSession`, and
+   returns `{next: "signed_in", redirectTo, user}`.
+
+This order contains a P0 defect: the existing-user branch can mutate an account that
+appeared after a newcomer grant, and can disable an administrator's password login.
+See P0-2.
+
+### 4.7 Session issuance, refresh and revocation
+
+- Access and refresh tokens carry `ver` (session version) and `am` (auth method).
+  Legacy tokens without them are read as version 0 and method `PASSWORD`.
+- `JwtStrategy` loads the user, rejects inactivity, compares `ver` with the database,
+  and rejects a non-password method for `ADMIN`/`SUPER_ADMIN`.
+- Refresh repeats the same version and method checks before rotating.
+- `issueSession` re-reads the user and refuses admins and inactive accounts even if a
+  future caller forgets the earlier checks.
+- Password login checks `passwordLoginEnabled` as a second gate, so a recovered
+  account with a discarded hash cannot be opened with an old password even if the
+  hash comparison were somehow restored.
+- Password reset sets `passwordLoginEnabled=true`, increments `sessionVersion`, and
+  revokes pre-reset refresh tokens through the denylist.
+- Logout and refresh rotation use the existing JWT denylist.
+
+## 5. As-built data model
+
+The migration `20261116120000_passwordless_auth` is additive.
+
+| Model / field | Actual semantics |
+|---|---|
+| `AuthChallenge.id` | 256-bit base64url random handle, primary key. |
+| `purpose` | `LOGIN` or `SIGNUP`; selected server-side and never disclosed at initiation. |
+| `email` | Normalised destination. Re-resolved to a user at consumption. |
+| `userId?` | Nullable relation recording who the challenge was issued for, if anyone. |
+| `linkTokenHash` | Unique SHA-256 of a 256-bit link secret. |
+| `codeHash` | bcrypt cost 10 over `HMAC-SHA256(AUTH_CODE_PEPPER, challengeId:code)`. |
+| `browserNonceHash` | SHA-256 of the 256-bit value in the `auth_ch_` cookie. |
+| `attempts` | Integer default 0. The cap is enforced by conditional updates requiring `attempts < 5`; there is **no** database CHECK constraint. |
+| `expiresAt`, `consumedAt`, `supersededAt`, `createdAt` | 15-minute fixed lifetime; nullable terminal timestamps; expiry checked on every claim. |
+| `returnPath?` | Canonical local path from the fixed allowlist. |
+| `AuthIdentity` | `id`, `userId`, `provider=GOOGLE`, `subject`, `createdAt`; unique `(provider, subject)` and `(userId, provider)`. Currently unused. |
+| `EnrollmentGrant` | `id`, unique `tokenHash`, `email`, optional `userId`, `method`, optional `googleSubject`, `browserNonceHash`, `returnPath`, `expiresAt`, `consumedAt`, `createdAt`. |
+| `User.passwordLoginEnabled` | Default `true`; set false for passwordless/recovered accounts until a deliberate password reset. |
+| `User.sessionVersion` | Default 0; included in both token types and checked on every access and refresh. |
+| `User.profileCompletedAt` | Set when a passwordless user finishes the profile step; existing registrations are treated as complete without a bulk update. |
+
+`EnrollmentGrant.browserNonceHash` is currently set to `sha256(grantToken)`, the same
+value as `tokenHash`. There is no independent grant-binding nonce; the grant is a
+bearer capability held in an HttpOnly cookie. The implementation and documentation
+must describe it that way unless a separate nonce is added.
+
+There is no CHECK constraint on `attempts`. The conditional `UPDATE` is the effective
+control; a CHECK is recommended as defence in depth (P1-8).
+
+## 6. As-built API contract
+
+All routes are under `/api/v1/auth`. The web app proxies them same-origin. State-changing
+routes require JSON, an exact allowed `Origin`, and the double-submit CSRF header.
+
+| Method and path | As-built behaviour |
+|---|---|
+| `GET /methods` | 200 `{googleEnabled, emailLinkEnabled}`; flags only. Redis-backed 60/IP/minute; 503 if Redis is unavailable. |
+| `GET /csrf` | 200 `{csrfToken}`; sets the `auth_cs_` cookie (15-minute max age). 60/IP/minute. |
+| `POST /email/start` | 202 `{message, challengeId, retryAfterSeconds: 60}`. Sets `auth_ch_` only when a challenge is issued. 10/IP/minute and 50/IP/hour. |
+| `POST /email/resend` | 202 with the same body shape; requires the original `auth_ch_` binding. 10/IP/minute and 50/IP/hour. |
+| `POST /email/code` | 200 completion on success; otherwise 400 generic proof failure. 30/IP/10 minutes, 10/browser/10 minutes, 20/address/hour. |
+| `POST /email/confirm` | 200 completion on success; otherwise 400 generic proof failure. `destination` must be `"current-browser"`. 30/IP/10 minutes, 10/browser/10 minutes. |
+| `GET /profile-completion` | 200 `{email, existingAccount, expiresAt}`; **404** for an invalid/expired/consumed grant; 503 if the grant's method is disabled. No rate limit is applied. |
+| `POST /profile-completion` | 200 completion; 400 for an invalid grant or field error; 409 for the email-conflict path; 503 if the method is disabled. 30/IP/10 minutes and 5/grant/10 minutes. |
+
+A disabled method returns **503**
+`{"statusCode":503,"message":"Sign-in is not available right now"}`. It does not return
+404. The `AuthMethodsConfig` comment that still says 404 is a stale comment, not the
+contract.
+
+Success bodies:
+
+- Signed in: `{next: "signed_in", redirectTo, user}` with session cookies.
+- Profile needed: `{next: "complete_profile", redirectTo: "/complete-profile"}` with an
+  enrollment cookie.
+- No access/refresh/link/grant token is ever returned in JSON.
+
+The generic proof failure is:
+
+> We couldn't complete sign-in. Request a new email and try again.
+
+The generic initiation message is:
+
+> If this address can use email sign-in, you'll receive a link and a six-digit code.
+> You can also create your student account this way.
+
+## 7. Cookies, CSRF, redirects and rate limits
+
+### 7.1 Cookies
+
+Base names are `auth_cs_`, `auth_ch_` and `auth_en_`. In production each is prefixed
+with `__Host-` and set with `Secure`, `HttpOnly`, `SameSite=Lax`, `Path=/` and no
+`Domain`. Development uses the unprefixed names without `Secure`.
+
+| Cookie | Lifetime | Purpose |
 |---|---|---|
-| GET `/methods` | None | 200 `{googleEnabled,emailLinkEnabled}`; flags only, never account-dependent. |
-| GET `/csrf` | Anonymous browser | 200 CSRF token plus opaque bootstrap cookie; no authentication or proof consumption. |
-| POST `/email/start` | email, optional returnTo; CSRF | 202 `{message,challengeId,retryAfterSeconds:60}`; opaque handle/cookie regardless of eligibility or suppressed mail. |
-| POST `/email/resend` | challengeId; original binding, CSRF | Same 202 shape with a fresh opaque handle; eligible issue supersedes old challenge. |
-| POST `/email/code` | challengeId, six-digit code; original binding, CSRF | 200 next step on success, otherwise uniform 400. Atomically consumes on success. |
-| POST `/email/confirm` | challengeId, linkToken, destination=current-browser; receiving-browser CSRF | 200 next step on success; same uniform 400 otherwise. Explicit cross-device exception described above. |
-| POST `/google/start` | optional returnTo; CSRF | 200 fixed-provider authorization URL; sets binding, creates transaction. Response is never logged. |
-| POST `/google/complete` | authorization code, state; original binding, CSRF | 200 next step after claimed transaction, exchange, verified ID token and policy checks; generic 400 on rejection. |
-| GET `/profile-completion` | Bound enrollment cookie | 200 locked email and safe completion status, or generic 401. No consumption; only proof-holders see email. |
-| POST `/profile-completion` | fullName, phoneNumber, departmentId, academicYearId; enrollment binding, CSRF | 200 session result; 400 field errors for this authenticated grant, 401 invalid grant, 409 safe conflict/restart if not resolvable. |
+| `auth_cs_` | 15 minutes | CSRF synchronizer value; also the current browser key for request budgets. |
+| `auth_ch_` | 15 minutes | Challenge browser binding; rotated on a new/resend-issued challenge. |
+| `auth_en_` | 10 minutes | Profile-completion grant token. |
 
-Success result is `{next:"signed_in",redirectTo}` with session cookies or
-`{next:"complete_profile",redirectTo:"/complete-profile"}` with a restricted grant.
-Never send access/refresh/link tokens back in JSON. Differences after possession
-of valid proof may reveal that user's next step; initiation cannot reveal account
-existence. Invalid/expired/used/superseded/wrong-browser/exhausted/admin/inactive
-email proofs share: **“We couldn't complete sign-in. Request a new email and try
-again.”** No remaining-attempt count or account eligibility detail.
+These are host-only and separate from the existing session cookies, so a parent-domain
+session cookie is never widened to cover them. Session cookies remain the existing
+access/refresh pair.
 
-UI GET routes: `/login`, `/auth/email/confirm`, `/auth/google/callback`,
-`/complete-profile`; none consumes credentials. Callback query redaction is
-required at the web server, proxy and error collector before Google is enabled.
-No auto-submit on page load or hydration, including callback pages.
+### 7.2 CSRF
 
-Disabled method POSTs return the same 404 feature-unavailable envelope independent
-of email; disabling applies to in-flight completions too. Existing issued sessions
-continue under normal policy; flags are issuance switches, not global logout.
-Profile grants remember their method and are refused if that method is disabled.
+`AuthCsrfGuard` enforces:
 
-## 7. Binding, redirects, CSRF and rates
+1. `Content-Type` includes `application/json`;
+2. `Origin` is present and exactly matches one of `CORS_ORIGIN`, `WEB_PUBLIC_URL` or
+   `API_PUBLIC_URL` (after trimming a trailing slash and lowercasing);
+3. the `x-auth-csrf` header equals the `auth_cs_` cookie in constant time.
 
-Production binding/bootstrap/enrollment cookies: `Secure`, `HttpOnly`,
-`SameSite=Lax`, `Path=/`, no Domain, `__Host-` prefix; distinct purpose-specific
-names. Development HTTP uses clearly separate non-prefixed names. Lifetimes are
-bounded by the corresponding 10/15-minute transaction. Rotate binding on a new
-attempt; explain that starting again supersedes the earlier browser attempt.
-No tokens in localStorage. Cross-device completion obtains its own CSRF bootstrap.
+There is no Fetch-Metadata check. The guard is in addition to `SameSite=Lax` and CORS.
+It is attached to every passwordless POST. GET/HEAD/OPTIONS pass through.
 
-All new browser POSTs require JSON, an exact allowed Origin (missing/null is
-rejected), a synchronizer token tied to the bootstrap cookie, and consistent
-Fetch-Metadata when present. SameSite and CORS are defense in depth. Trusted
-same-origin proxy must preserve/validate the original Origin, never manufacture
-trust from arbitrary forwarded headers. OAuth state is unpredictable, bound,
-single-use and independent of CSRF token; nonce and PKCE are also mandatory.
+### 7.3 Redirect allowlist
 
-Return targets are parsed once and stored server-side. Default `/dashboard` for
-students, `/teacher` for existing teachers. Initial exact path allowlist:
+The exact allowlist is:
+
 `/dashboard`, `/courses`, `/support`, `/support/tickets`, `/profile`, `/teacher`.
-Reject schemes, protocol-relative URLs, backslashes, control characters,
-credentials, encoded separator tricks, query strings and fragments. No prefix
-matching and no `next` chaining. Reject inaccessible role destinations, falling
-back to the role home. Revalidate on completion. `/admin` is never a destination
-for these methods. OAuth callback URI is a separate fixed configured absolute URL.
 
-New limits are enforced atomically across instances using Redis plus durable DB
-attempt/issuance constraints. Do not rely solely on existing in-process Nest
-throttling. Keys for addresses use a dedicated keyed HMAC, never raw email.
+`sanitizeReturnPath` rejects schemes, protocol-relative forms, backslashes, control
+characters, encoded separators, query strings and fragments, and any value not in the
+list. The fallback is `/dashboard`, with `/teacher` for a teacher role. The current
+implementation does not reject a role-inaccessible destination at completion (for
+example, a student asking for `/teacher`); the destination page's own guard is the
+remaining control. This is P1-9.
 
-| Action | Initial policy |
+### 7.4 Rate limits
+
+| Action | Policy |
 |---|---|
-| Email start/resend | 60-second address cooldown; 5 emails/address/hour and 10/day; 10 requests/IP/minute and 50/hour. Same buckets for unknown/admin addresses. |
-| Code verification | At most 5 submitted comparisons/challenge; 20/address/hour across resends; 30/IP/10 minutes and 10/browser/10 minutes. Wrong browser never bypasses IP/browser budgets. |
-| Link confirmation | 10/browser/10 minutes and 30/IP/10 minutes; random invalid handles count too. A failed link proof does not reset any code budget. |
-| Google start / completion | 10/browser/10 minutes; 30/IP/10 minutes; 1 completion claim per transaction. |
-| Profile POST | 5/grant/10 minutes; 30/IP/10 minutes; one successful consumption. |
-| CSRF bootstrap / public reads | 60/IP/minute in addition to global limits. |
+| Start/resend | 60-second address cooldown; 5/address/hour and 10/day (Redis + durable counts); 10/IP/minute and 50/IP/hour. |
+| Code | 5 submitted comparisons/challenge (conditional `UPDATE`); 20/address/hour; 30/IP/10 minutes; 10/browser/10 minutes. |
+| Link confirm | 30/IP/10 minutes; 10/browser/10 minutes. |
+| Profile POST | 30/IP/10 minutes; 5/grant/10 minutes. |
+| Methods/CSRF | 60/IP/minute. |
 
-Address delivery caps/cooldowns always return generic 202; an IP/browser-wide
-limit may return generic 429 with Retry-After independent of existence. Missing
-proof paths perform a dummy bcrypt comparison where needed, with bounded work
-after throttling. Initiation schedules work without waiting for SMTP/account
-lookup; equalise response work and test timing distributions rather than claiming
-perfect constant network latency. Bound queue/backlog and CPU concurrency. If
-Redis is unavailable, fail new authentication uniformly with 503, not unbounded
-attempts; keep existing password/admin operations under their current policy.
-Do not permanently lock accounts based on anonymous email traffic.
+Address caps, cooldowns and admin/inactive suppression return the generic 202. An
+IP/browser-wide limit returns 429 with `Retry-After`. A Redis failure returns a
+uniform 503; password and admin flows do not call this service and keep working.
 
-Mail delivery uses a restricted TTL queue item encrypted at rest under a dedicated
-key (including email/link/code), never plaintext BullMQ job data. Retain jobs only
-for bounded retries before challenge expiry; no failed-job payload logging.
-Decrypt only in worker memory and delete on delivery/expiry. Mail-sink content
-is intentionally readable only in disposable local tests and is not a log.
+The browser bucket is keyed by the CSRF cookie. Because `GET /csrf` can mint a new
+value, a caller can reset the browser budget by fetching a new token. The IP budget
+still applies. See P1-2.
 
-## 8. Threat model and mitigations
+## 8. Corrections to the earlier design
 
-| Threat | Required mitigation / residual boundary |
-|---|---|
-| Mail scanners, preview bots, browser prefetch | GET/HEAD and hydration are inert; fragment proof; explicit POST button; no auto-login. A scanner that actively submits forms cannot be perfectly distinguished from a person; bind/CSRF and explicit confirmation reduce this risk. |
-| Email enumeration | Same initiation/resend status, body shape, cookie shape, template and budget behaviour; opaque handles; no eligibility preview; asynchronous bounded mail work and timing tests. Existing legacy password registration's duplicate-email response is outside this method's guarantee and must not be called by the new flow. |
-| Six-digit brute force / distributed guessing | Secure unbiased generation incl. leading zeroes, peppered slow hash, short expiry, bound original browser, atomic five-comparison cap, cross-resend address budget and distributed IP/browser limits. |
-| Pre-hijacked password registration / Google linking | Require verified Google email; verified local email may link; unverified local password and all sessions are invalidated before linking. Clear reset proofs and reconfirm untrusted profile. |
-| Admin bypass, role spoofing | DB role checks at issue, consume, profile creation, access and refresh. Reject supplied role fields; domain/Google profile is never authority. |
-| OAuth login CSRF / mix-up / interception | Explicit start POST, exact state + browser binding, nonce, S256 PKCE, trusted issuer/endpoints, server ID-token verification and exact callback. Wrong browser burns no other user's session. |
-| Link login CSRF / unsolicited login | Explicit confirmation wording, new-browser CSRF and account-switch confirmation. Link possession remains a bearer capability; do not use forwarded/shared links. |
-| Open redirects | Exact canonical local-path allowlist; no client callback URLs; role-aware revalidation. |
-| Session fixation / stale access JWT | Rotate cookies/JTI, revoke previous refresh, DB sessionVersion enforced on both token types. No sessions from proof GETs or enrollment grants. |
-| Replay, races, expired/superseded proof | Locked atomic consume/claim and unique constraints; one winner across both proof modes/devices; server clock expiry, no client clock trust. |
-| Token leakage / XSS / observability | Fragment email secrets, immediate URL scrub, no-store/no-referrer/CSP, escaped templates/profile text, no third parties or analytics on auth pages, redact OAuth query and all secret bodies/headers before logging. |
-| Queue/database read | Hash proofs; encrypt transient mail/PKCE secrets with separate keys; least-privilege access and short retention. Mailbox compromise still permits email login; this feature is not MFA. |
-| Recovery downgrade | Password-disable and session-version checks stay active even with both method flags off; prevent rollback to code ignoring them. |
+| Earlier claim | As-built reality | Action |
+|---|---|---|
+| Status was "proposed — awaiting approval; no implementation authorised". | The email flow, schema, UI, tests and Next.js upgrade are implemented and pushed at `1c74a0b`. | Replaced by this as-built document. |
+| Disabled methods return 404. | They return 503. | Contract corrected; stale code comment is P2-4. |
+| `GET /profile-completion` returns 401 for an invalid grant. | It returns 404. | Contract corrected. |
+| `POST /profile-completion` returns 401 for an invalid grant. | It returns 400 (and 409 for the email-conflict case). | Contract corrected. |
+| `attempts` has a database 0–5 constraint. | A conditional `UPDATE ... WHERE attempts < 5` enforces the cap; there is no CHECK. | Document corrected; add CHECK as P1-8. |
+| `AUTH_TRANSIENT_ENCRYPTION_KEY` and `AUTH_POST_LOGIN_PATHS` are configuration. | Neither variable exists. The path allowlist is a fixed constant; mail payloads are not encrypted because there is no queue. | Removed from the current contract; both belong to the remaining plan. |
+| Mail is delivered by a bounded, encrypted BullMQ job. | `MailService` sends synchronously with Nodemailer in the request path. | Corrected; P0-3. |
+| A daily cleanup job removes expired challenges/grants. | No scheduled job exists. | Corrected; P1-4. |
+| Auth pages carry a restrictive CSP and Fetch-Metadata checks. | Next.js sets `Referrer-Policy`, `X-Robots-Tag` and `Cache-Control` on the three pages; there is no CSP and the guard does not inspect Fetch-Metadata. | Corrected; P1-5. |
+| The profile grant is consumed and the user is created in one transaction. | The grant is consumed first; user creation/recovery is a separate transaction. | Corrected; P1-3 and P0-2. |
+| A successful sign-in revokes the presented prior refresh token. | A new refresh cookie is written, but the previous refresh token is not explicitly denylisted at login. | Corrected; P1-7. |
+| A different signed-in user must confirm an account switch. | No account-switch confirmation exists; the new cookies overwrite the old session. | Corrected; P1-6. |
+| The initiating response is identical in body, cookie and timing for eligible and suppressed addresses. | Suppressed responses set no binding cookie; a cooldown repeat returns the existing id for eligible addresses but a fresh random id for suppressed ones; eligible delivery awaits SMTP while suppression does not. | **Open P0**; P0-1/P0-3. |
+| Issuance and supersession are serialised per address. | There is no per-address lock or partial unique index; concurrent starts can create two active challenges. | **Open P1**; P1-1. |
+| Cross-device confirmation creates a fresh receiving-browser binding. | It clears the challenge cookie and issues the session; no new binding is minted. | Wording corrected; the link remains a bearer capability. |
+| The profile grant is browser-bound by an independent nonce. | `browserNonceHash` equals `sha256(grantToken)`; the grant is a bearer cookie. | Wording corrected; independent binding is optional P2-1. |
 
-## 9. Audit events and logging contract
+## 9. Open defects and risk register
 
-Use the existing AuditLog with explicit metadata allowlists. Events:
-`AUTH_EMAIL_REQUESTED`, `AUTH_EMAIL_SUPPRESSED`, `AUTH_EMAIL_DELIVERY_FAILED`,
-`AUTH_CHALLENGE_REJECTED`, `AUTH_CHALLENGE_CONSUMED`, `AUTH_CHALLENGE_SUPERSEDED`,
-`AUTH_RATE_LIMITED`, `AUTH_GOOGLE_STARTED`, `AUTH_GOOGLE_REJECTED`,
-`AUTH_IDENTITY_LINKED`, `AUTH_PREHIJACK_RECOVERED`, `AUTH_SESSIONS_REVOKED`,
-`AUTH_PROFILE_COMPLETED`, `AUTH_PASSWORDLESS_LOGIN_SUCCEEDED`,
-`AUTH_PASSWORDLESS_ADMIN_REFUSED`.
+Severity means "before production enablement", not "before the next commit".
 
-Metadata may contain method, internal purpose, coarse reason enum, request ID,
-safe internal audit correlation ID, timestamp, user ID after resolution and
-version change. Anonymous actor remains null. Use keyed email pseudonym only
-where needed for abuse correlation; restrict IP access/retention under existing
-audit policy. Do not use a challenge/token hash or public challenge handle as the
-audit correlation ID. Rejection reasons are internal, never reflected to users.
-Never serialise DTOs, request URLs/query, headers, SMTP payloads, provider response
-bodies, cookies or exception objects containing secrets. Tests inject canary
-secrets and assert they are absent in captured application/proxy/test logs.
+### P0 — must close before any production enablement
 
-## 10. UI states and email templates
+**P0-1: Initiation is an account-existence oracle.**
+`startEmail` sets `auth_ch_` only when it issues a challenge. A suppressed response
+(administrator or inactive) sets no cookie. A repeated start inside the cooldown
+returns the existing challenge id for an eligible address, while a suppressed address
+gets a fresh random id. The response body alone looks identical, but the cookie and
+the id comparison are not. This directly contradicts the enumeration invariant.
 
-### UI and accessibility
+Fix: persist a challenge-shaped record for every well-formed start that reaches the
+issuance step, including suppressed addresses, and always set a fresh binding cookie.
+The record must be marked non-deliverable (for example, `deliverable=false`) so no
+mail is sent. On cooldown, return the most recent record for the address for both
+eligible and suppressed cases and rotate its binding. Use a queue/outbox so the
+response does not await SMTP. Tests must compare status, body keys, cookie presence,
+id stability and a timing distribution across existing/unknown/inactive/admin
+addresses.
 
-- Login idle: password form plus only enabled methods. Labels: **Continue with
-  Google**, **Continue with email**; admin form shows neither.
-- Sending: **Sending your sign-in email…**; disable duplicate submit, preserve
-  input. Success: **If this address can use email sign-in, you'll receive a link
-  and a six-digit code. You can also create your student account this way.**
-- Waiting: **Check your email**; **Six-digit code**; **Continue**; **Send a new
-  email**; **Use a different email**. Explain “A new email replaces the previous
-  link and code.” Support password-manager paste/one-time-code autocomplete.
-- Use one text input (`inputmode=numeric`, six-character validation), not six
-  inaccessible focus traps. Leading zeroes survive. Never announce the code.
-- Confirmation copy is the two choices in section 3.1; no page-load submission.
-  Shared-device hint: **Only continue here on a device you trust.**
-- Failed/expired/used/wrong-browser: generic proof error from section 6, with
-  **Request a new email**. Browser-specific guidance is static: **If you started
-  on another device, enter the code there or open the email link here.**
-- Throttled: **Too many requests. Please wait and try again.** Delivery failure
-  is not account-specific: waiting page offers resend after the cooldown.
-- Profile: **Finish setting up your account**, locked email, explicit labels,
-  associated field errors and **Create student account** (or **Confirm profile**
-  for recovery). Session success navigates only after server confirmation.
-- Keyboard operation and visible focus; status/error live regions; focus errors
-  and confirmation heading appropriately; 44px touch targets; no colour-only
-  state; reduced motion; ≥4.5:1 normal text and ≥3:1 meaningful control/focus
-  boundaries. Light/dark layouts at 320px without horizontal scrolling.
-- No auth secrets in screenshots, traces, videos or HTML attachments. Capture
-  UI with synthetic placeholders, not usable challenge links or mailbox codes.
+**P0-2: Profile completion can mutate an existing account, including an administrator.**
+The grant is consumed before the user transaction. The existing-user branch updates
+by email whenever a user exists; it only rejects a mismatch when `grant.userId` is
+non-null. Therefore:
 
-### Shared plain-text email (LOGIN and SIGNUP)
+- A newcomer grant (`userId=null`) followed by an account appearing at that address
+  updates that account's name, phone, department and year, marks it verified and sets
+  `passwordLoginEnabled=false`.
+- If the account was promoted to `ADMIN`/`SUPER_ADMIN` after the grant was issued,
+  the same update disables its password login; `issueSession` then refuses the
+  passwordless session, leaving the administrator with no working sign-in route.
 
-Subject: **Your Lor Mentor sign-in link and code**
+Fix: perform the re-resolution and the grant consumption in one transaction with a
+row lock. Require `existing.id === grant.userId` for a recovery grant. If a newcomer
+grant now finds an existing user, refuse with a safe restart/conflict response rather
+than updating it. Reject administrator and inactive accounts before any mutation.
+Never set `passwordLoginEnabled=false` on an existing account unless the recovery path
+has explicitly invalidated that account and the role check has passed.
 
-```text
-Sign in to Lor Mentor
+**P0-3: Synchronous SMTP creates a timing oracle and a request-path DoS.**
+`deliver` awaits `MailService.sendAuthSignIn`, which awaits Nodemailer. Eligible
+addresses therefore take SMTP time; suppressed addresses return earlier. A slow or
+unreachable SMTP server also holds the API request open.
 
-Your six-digit code is:
+Fix: use the existing BullMQ dependency (already configured for AI generation) or a
+durable outbox. Enqueue a job containing only an encrypted payload under a dedicated
+`AUTH_TRANSIENT_ENCRYPTION_KEY`; send from a bounded worker with limited retries; never
+log the payload. Always enqueue a job, including for suppressed addresses, so the
+enqueue path is shape- and latency-similar; the worker skips non-deliverable records.
+Add a boot-time validation that refuses email enablement without a working queue and
+SMTP configuration.
 
-    {{code}}
+**P0-4: `AUTH_GOOGLE_ENABLED=true` is accepted without a Google implementation.**
+`AuthMethodsConfig` reads the flag and `/auth/methods` reports it, but there are no
+Google routes, UI, transaction store or verifier. A deployer can advertise a method
+that does not exist.
 
-Enter this code on the device where you started, or open this link:
-{{confirmationLink}}
+Fix: until the Google phase lands, reject `AUTH_GOOGLE_ENABLED=true` at boot with an
+actionable error and keep the flag out of the effective methods response. When Google
+is implemented, require the client id/secret/redirect URI at boot in the same change.
 
-The link opens a confirmation page. Choose “Continue here” to sign in on that
-device, or enter this code on your original device. Opening the link alone
-does not sign you in.
+### P1 — should close before production enablement or immediately after
 
-Both expire in 15 minutes and can be used once. A newer email replaces them.
-Never share this email, link or code. Lor Mentor staff will never ask for them.
-If you did not request this, ignore this email; no sign-in has occurred.
+**P1-1: Concurrent starts can create multiple active challenges.**
+`createChallenge` runs `updateMany` + `create` in an array transaction, but two
+transactions for the same address can both see no recent row and both insert. The
+"newest email replaces the previous one" guarantee then depends on whichever code is
+used. Fix: a transaction-scoped PostgreSQL advisory lock keyed by an HMAC of the
+address, or a partial unique index on active challenges for `(email)` where
+`consumedAt IS NULL AND supersededAt IS NULL`. Add a concurrent-start test.
 
-Lorcan Medical College
-```
+**P1-2: The browser rate-limit bucket is resettable.**
+`browserId` returns the `auth_cs_` cookie. A caller can call `GET /csrf` for a new
+value and reset the browser budget. The IP budget remains, but the browser budget is
+not a stable identity. Fix: add a separate long-lived, HttpOnly browser id cookie set
+on the first passwordless interaction, or key the browser bucket to the challenge
+binding and accept rotation on a new attempt. Document the chosen trade-off.
 
-### HTML email skeleton
+**P1-3: The grant is consumed outside the user transaction.**
+A validation, conflict or database failure after consumption burns the grant and
+forces a new email. Fix: consume the grant with the conditional update inside the same
+transaction that creates/updates the user, after all re-resolution checks, so a
+failure rolls back both.
 
-```html
-<div style="font-family:Arial,sans-serif;line-height:1.5;color:#0f172a;max-width:520px">
-  <h1 style="font-size:24px">Sign in to Lor Mentor</h1>
-  <p>Your six-digit code is:</p>
-  <p style="font-family:monospace;font-size:34px;font-weight:bold;letter-spacing:6px;background:#f1f5f9;padding:18px;text-align:center">{{escapedCode}}</p>
-  <p>Enter this code on the device where you started, or open the confirmation page.</p>
-  <p><a href="{{escapedConfirmationLink}}" style="display:inline-block;background:#0b5f58;color:#fff;padding:12px 18px">Open sign-in confirmation</a></p>
-  <p>Choose “Continue here” to sign in on this device, or enter this code on your original device. Opening the link alone does not sign you in.</p>
-  <p>Both expire in 15 minutes and can be used once. A newer email replaces them.</p>
-  <p>Never share this email, link or code. Lor Mentor staff will never ask for them. If you did not request this, ignore this email; no sign-in has occurred.</p>
-  <p>Lorcan Medical College</p>
-</div>
-```
+**P1-4: No cleanup job.**
+Expired/terminal challenges and grants accumulate indefinitely. Fix: a scheduled job
+(guarded so only one instance runs it, or use a Redis lock) deleting terminal rows
+older than 24 hours and expired rows past a small grace period. Keep rate counters for
+their full windows; do not delete audit metadata early. Add an operational metric for
+rows removed and failures.
 
-Send multipart text/HTML using existing MailService; escape all interpolated
-values and derive links only from validated configuration. No user-supplied
-subject/HTML, remote images, tracking pixels, click tracking or provider link
-rewriting. Prominent selectable code remains usable when a mail client strips
-fragments or changes links. SMTP failure logs a safe category only.
+**P1-5: No CSP.**
+The pages have `Referrer-Policy`, `X-Robots-Tag` and `Cache-Control`, but no
+Content-Security-Policy. Fix: add a CSP for the auth pages (and preferably the app)
+via Next.js headers or middleware, with a nonce if inline scripts require it. Keep
+`default-src 'self'`, disallow third-party analytics/images on auth pages, and test
+that the confirmation page still hydrates.
 
-## 11. Configuration and deployment plan (Step 2)
+**P1-6: No account-switch confirmation.**
+If a different user is already signed in, a successful passwordless completion
+overwrites the session cookies without an explicit switch. Fix: detect an existing
+session at completion and require an explicit confirmation before replacing it, or
+sign the old session out and show a clear "signed in as …" transition.
 
-| Variable | Default / contract |
-|---|---|
-| `AUTH_GOOGLE_ENABLED` | `false`; strict boolean, enforced server-side. |
-| `AUTH_EMAIL_LINK_ENABLED` | `false`; strict boolean, enforced server-side. |
-| `GOOGLE_CLIENT_ID` | Required only with Google enabled; exact audience. |
-| `GOOGLE_CLIENT_SECRET` | Required only with Google enabled; secret store, never NEXT_PUBLIC. |
-| `GOOGLE_REDIRECT_URI` | Exact `WEB_PUBLIC_URL/auth/google/callback`; HTTPS in production, explicitly permitted loopback in disposable tests. |
-| `AUTH_CODE_PEPPER` | Independent ≥32 random bytes; required with email enabled; rotation invalidates pending codes. |
-| `AUTH_RATE_KEY_SECRET` | Independent ≥32 random bytes; required with either method; HMAC address keys; coordinated rotation must not reset effective budgets. |
-| `AUTH_TRANSIENT_ENCRYPTION_KEY` | Independent 32-byte encryption key for AEAD mail jobs/PKCE, required with either method; fresh nonce per ciphertext; rotation expires pending transactions safely. |
-| `AUTH_POST_LOGIN_PATHS` | Exact subset of the code-reviewed local-path allowlist in section 7; unset uses that list; invalid entries fail startup. Cannot add arbitrary external URLs. |
-| Existing `WEB_PUBLIC_URL`, `API_PUBLIC_URL`, `CORS_ORIGIN`, `TRUST_PROXY` | Explicit trusted deployment URLs/proxies; never reflect Host or untrusted forwarded host. |
-| Existing `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Required working mail transport when email enabled. Local sink uses dummy credentials; production secrets injected by deployer. |
-| Existing `REDIS_HOST`, `REDIS_PORT`, JWT and database settings | Reuse established services; new auth limit/transaction operations fail closed. |
+**P1-7: The prior refresh token is not revoked on a new sign-in.**
+A new refresh cookie overwrites the browser's copy, but a previously captured refresh
+token remains valid until expiry or rotation. Fix: read the presented refresh cookie
+on successful completion and denylist its `jti` before writing the new pair; keep the
+existing refresh-rotation behaviour.
 
-TTL/attempt/rate numbers are central reviewed constants, not freely weakened by
-environment variables. Production issuer/authorization/token/JWKS endpoints are
-fixed Google endpoints. Mock-provider injection is available only to a dedicated
-test bootstrap that refuses production and non-disposable databases; no public
-request or production environment override selects arbitrary issuers.
+**P1-8: No database CHECK on `attempts`.**
+The conditional update is correct, but a future code path or manual write could store
+an out-of-range value. Fix: add a CHECK constraint `attempts >= 0 AND attempts <= 5`
+after confirming existing rows comply. This is a small, safe schema addition.
 
-Step 2 deployer docs will include Google Cloud OAuth consent-screen configuration,
-Web application credentials, exact development/staging/production callback URIs,
-test users/publishing/domain verification as applicable, secret injection, and
-the `openid email profile` scopes. No real keys are needed for implementation
-tests. Expose only effective method booleans to the browser via `/auth/methods`.
+**P1-9: Role-inaccessible return paths are not rejected.**
+`sanitizeReturnPath` is path-only; it does not know the role. A student can request
+`/teacher` and be sent there, relying on the destination page's guard. Fix: at
+completion, compare the requested path with the role's allowed destinations and fall
+back to the role home. Keep `/admin` out of the allowlist.
 
-Troubleshooting rows: missing/mismatched redirect URI; unverified Google email;
-state/nonce/PKCE or browser-binding failure; blocked cookie/proxy header; delayed
-mail/spam; fragment-stripping email client (use code); expired/superseded proof;
-rate limiting; Redis outage; admin refusal (use password login); identity conflict;
-incomplete profile; callback access-log redaction; flags off. Never request that a
-user paste a code, URL or token into support logs.
+**P1-10: Profile status GET is unthrottled, and `Cache-Control` is incomplete.**
+`GET /profile-completion` has no IP budget, and start/resend do not set
+`Cache-Control: no-store` themselves (only the completion paths and the Next.js page
+headers do). Fix: add the 60/IP/minute public-read budget and set `no-store` on every
+passwordless response, ideally with a controller-level interceptor.
 
-Rollout: additive migration → deploy version-aware auth and both flags off →
-mock-provider/local-sink gates → deployer validates configuration and logging →
-enable one method at a time. Rollback disables issuance and expires grants while
-retaining password-disable/session-version enforcement and additive schema.
-No new library in Step 1. Step 2 must justify any library, pin its exact version,
-update lockfile and `THIRD_PARTY_NOTICES.md`, and use a maintained OIDC verifier
-rather than hand-writing JWT signature verification.
+**P1-11: Email enablement does not validate SMTP at boot.**
+`MailService` throws only when a send is attempted, and the service swallows that as a
+delivery failure. A deployment can be "enabled" with no usable transport. Fix: validate
+the required SMTP variables when `AUTH_EMAIL_LINK_ENABLED=true`, and surface queue/worker
+health in the same check.
 
-## 12. Approval gate and implementation acceptance plan
+**P1-12: Missing audit events.**
+`AUTH_EMAIL_SUPPRESSED` and `AUTH_SESSIONS_REVOKED` are listed in the design but not
+written. Fix: add them with the same metadata allowlist; do not include the address,
+challenge handle or token hash.
 
-After design approval, implement only on this branch and push only to `origin`.
-Use no real keys, `.env` files, system/service edits or non-disposable databases;
-no GitHub/gh operations or merge requests. Runtime variables are process-scoped.
+### P2 — correctness and polish
 
-Required Step 2 evidence:
+- **P2-1:** `EnrollmentGrant.browserNonceHash` duplicates `tokenHash`; either add an
+  independent binding nonce or document the grant as a bearer cookie (this document
+  does the latter).
+- **P2-2:** Department/year validation happens before the user transaction; an
+  archive can race the create. Re-read inside the transaction.
+- **P2-3:** `confirmationLink` reads `process.env.WEB_PUBLIC_URL` directly instead of
+  `ConfigService`; use the validated configuration accessor.
+- **P2-4:** `AuthMethodsConfig`'s comment says disabled methods return 404; the code
+  returns 503. Fix the comment.
+- **P2-5:** `GET /profile-completion` uses 404 while the POST uses 400/409; this is
+  acceptable but should be documented as intentional and covered by tests.
+- **P2-6:** A failed link proof has no per-challenge attempt counter; only the
+  IP/browser budgets apply. The 256-bit token makes guessing infeasible, but a
+  per-challenge counter would make the abuse matrix uniform.
+- **P2-7:** The canary-secret redaction test and the screenshot/a11y manifest are
+  still missing from the evidence set.
 
-1. Unit tests for flags, DTO whitelists, email normalisation, code generation and
-   hashes, expiry, counters, redirects, ID-token claims, linking and revocation.
-2. Real-HTTP authorization/abuse matrix against migrated disposable PostgreSQL
-   and Redis: enumeration incl. response/cookie/timing behaviour; distributed and
-   parallel guessing; replay and simultaneous link/code; scanner GET/HEAD;
-   wrong browser; explicit cross-device link success without original-browser
-   login; expired and superseded proofs; both admin roles; inactive/changed roles;
-   verified/unverified linking; conflicting subject; password/reset invalidation;
-   rejection of old access AND refresh tokens; enrollment scope; CSRF/state/nonce/
-   PKCE failures; feature flags disabled mid-flow; dependency/delivery failure.
-3. Playwright with a local mocked Google provider and local mail sink; exercise
-   actual redirect/exchange/signature verification and email delivery. Cover
-   registration, recovery, account-switch and cross-device browser contexts.
-4. Accessibility and 320px overflow checks in both themes for login, code entry,
-   email confirmation, Google confirmation, error and profile-completion states.
-   Screenshots at 390/1280px in light/dark saved outside the repository under
-   `C:\Users\berek\Desktop\lor-screens\passwordless-login\`, with a manifest.
-5. Prisma validation/migration, API/web typechecks, lint, unit and real-HTTP
-   suites, production build, and Playwright against dev and production with real
-   commands/exit codes/counts/skips. Redaction assertions cover logs and artifacts.
-6. Deployer docs, exact dependency notices where needed, clean branch-only push
-   to origin, and a gate-evidence report outside the repository distinguishing
-   executed checks from exclusions. Then report results and wait.
+## 10. Remaining implementation plan
 
-**Current approval requested:** the separate AuthChallenge model, inert GET plus
-explicit POST confirmation (including Google callback), explicit cross-device
-link exception, pre-hijack recovery/session-version policy, and restricted
-profile-completion flow described above. Implementation starts only after approval.
+The order is chosen so that each phase either removes an enumeration/privilege risk or
+adds an operational control without widening the attack surface. Each phase ends with
+tests and a gate; do not enable production email sign-in before Phase 1 is complete.
+
+### Phase 0 — Freeze and document (current change)
+
+- Mark the design approved for implementation, not for production enablement.
+- Record the verified evidence and the P0/P1 defects above.
+- Keep `AUTH_GOOGLE_ENABLED=false`.
+- Confirm the working tree and branch; do not push to any remote other than `origin`.
+
+Gate: this document is committed and pushed; no code changes in this phase.
+
+### Phase 1 — Close P0 (enumeration, profile mutation, delivery, Google flag)
+
+1. Add a `deliverable` (or equivalent) marker to `AuthChallenge` and make every
+   well-formed start persist a challenge-shaped record, including suppressed
+   addresses. Always set a fresh binding cookie. Return the same id/cookie shape on
+   cooldown. Do not send mail for non-deliverable records.
+2. Add an encrypted, bounded mail queue using the existing BullMQ setup:
+   `AUTH_TRANSIENT_ENCRYPTION_KEY` in env validation, an `auth-mail` queue and
+   processor, AES-256-GCM payloads with a fresh nonce, bounded retries, no payload
+   logging, and a worker that skips non-deliverable records. Enqueue on every start so
+   the request path is uniform.
+3. Rewrite `completeProfile` as one transaction with a locked re-resolution:
+   require a recovery grant's user id to match; never update a user that appeared for
+   a newcomer grant; refuse admins/inactive before mutation; consume the grant only
+   after those checks; roll back on any failure.
+4. Reject `AUTH_GOOGLE_ENABLED=true` at boot until the Google module exists.
+
+Tests: initiation shape/cookie/id/timing matrix (known, unknown, inactive, admin,
+cooldown, cap); profile race with an account appearing mid-grant; admin-promotion race;
+grant rollback; queue payload redaction; boot refusal for Google.
+
+Gate: P0 tests pass, `tsc`/lint clean, and a real-HTTP smoke run covers the new
+branches. Production email enablement is still held.
+
+### Phase 2 — P1 correctness and operations
+
+1. Serialise issuance per address (advisory lock or partial unique index) and add a
+   concurrency test.
+2. Replace the resettable browser key with a stable browser identifier or document and
+   test the accepted trade-off.
+3. Add the scheduled cleanup job with a single-runner guard and metrics.
+4. Add CSP for the auth pages (and the app if feasible) without breaking hydration.
+5. Add account-switch confirmation and prior-refresh-token revocation on new sign-in.
+6. Add the DB CHECK on `attempts`, role-aware return-path validation, the profile GET
+   rate limit, `no-store` on all passwordless responses, SMTP/queue boot validation,
+   and the missing audit events.
+7. Add the canary redaction test and the accessibility/screenshot evidence at the
+   required external path.
+
+Gate: P1 tests pass; a production-like standalone build serves the auth pages with the
+new headers; the abuse matrix includes concurrent starts, browser-budget reset,
+account switch and cleanup.
+
+### Phase 3 — Google/OIDC (deferred feature)
+
+Use a maintained OIDC verifier; do not hand-write JWT signature verification. The
+implementation must add:
+
+- A ten-minute, browser-bound, single-use OAuth transaction store with encrypted PKCE
+  verifier, state and nonce.
+- Fixed Google authorization/token/JWKS endpoints, exact redirect URI, `openid email
+  profile`, no offline access.
+- An inert callback page that captures `code`/`state`, scrubs the query, and requires
+  an explicit POST.
+- Server-side code exchange and ID-token verification (signature, issuer, audience,
+  expiry/issued-at with bounded skew, nonce, nonempty subject, `email_verified`).
+- Identity resolution by `(GOOGLE, subject)`, the same role/active/admin rules, and a
+  linking/recovery path that never merges by email.
+- Full tests with a local mock provider and the same canary/redaction rules.
+
+Gate: the Google flag remains false until every item above is implemented, tested and
+reviewed. Do not expose a button or a `/methods` true value earlier.
+
+### Phase 4 — Production enablement
+
+1. Apply the additive migration with both flags off.
+2. Deploy the version-aware auth code; verify password/admin login and session
+   revocation behaviour.
+3. Configure Redis, SMTP/queue, `AUTH_CODE_PEPPER`, `AUTH_RATE_KEY_SECRET` and (once
+   Phase 1 lands) `AUTH_TRANSIENT_ENCRYPTION_KEY`.
+4. Enable `AUTH_EMAIL_LINK_ENABLED` on a staging environment with a real sink; run the
+   HTTP abuse matrix and Playwright; capture screenshots and a11y results.
+5. Enable in production only after the P0 gate and the staged evidence.
+6. Rollback: disable issuance, let grants expire, keep the additive schema, the
+   password-disable flag and the session-version checks. Never revert to authentication
+   that ignores `sessionVersion` or `passwordLoginEnabled`.
+
+## 11. Google sign-in: deferred design (not implemented)
+
+This section is retained so the schema and security decisions are not lost; it is not
+a description of shipped behaviour.
+
+- Google is a separate server-side OIDC flow with state, nonce and S256 PKCE, a
+  browser-bound ten-minute transaction and a fixed redirect URI.
+- The callback GET is inert; a deliberate POST redeems the transaction.
+- The ID token must be verified with a maintained library against Google's JWKS,
+  allowed algorithm, issuer, exact audience, `azp` where applicable, expiry, bounded
+  issued-at skew, nonce and `email_verified === true`.
+- Identity is resolved by `(provider=GOOGLE, subject)`; email is never the identity
+  key. A conflicting subject or address fails safely and requires support.
+- Role, activity and admin rules are re-read at completion. Administrators remain
+  password-only.
+- New users receive the same restricted profile grant; no partial user is created at
+  OAuth start.
+- Do not retain Google access/refresh/ID tokens after completion.
+
+Prerequisites: the Phase 3 work above, a maintained OIDC verifier, encrypted
+transaction storage, a local mock provider for tests, and deployer documentation for
+the consent screen and callback URIs.
+
+## 12. Acceptance evidence still required
+
+The current evidence covers unit tests, typechecks, lint, a 39-check HTTP smoke run,
+a production standalone page check and manual browser use. Before production
+enablement, add:
+
+1. The P0/P1 tests named in section 10, including timing-distribution and concurrent
+   issuance checks.
+2. Playwright coverage for start, code, link, cross-device confirmation, profile
+   completion, expiry, supersession, wrong browser, admin refusal and Redis outage.
+3. Accessibility and 320px/390px/1280px light/dark screenshots, saved outside the
+   repository at `C:\Users\berek\Desktop\lor-screens\passwordless-login\`, with a
+   manifest. The directory does not currently exist.
+4. Log/artifact redaction assertions with injected canary values (no code, token,
+   cookie, link or raw email).
+5. A production-like build and smoke run with the new CSP and queue worker.
+6. A gate report distinguishing executed checks from exclusions; then stop and report.
+
+## 13. Approval record
+
+Approved on 2026-11-19:
+
+- The `AuthChallenge` / `AuthIdentity` / `EnrollmentGrant` model split and the additive
+  `User` columns.
+- Peppered bcrypt code hashes and SHA-256 link/binding digests.
+- Fragment-based link delivery, inert confirmation page and explicit POST with
+  `destination: "current-browser"`; cross-device confirmation is allowed only through
+  that path.
+- Session versioning plus the `am` claim, including admin password-only enforcement at
+  issue, refresh and access time.
+- Redis-atomic limits with HMAC keys and fail-closed 503; durable address caps as a
+  second layer.
+- Pre-hijack recovery that invalidates an unverified password before linking.
+- The restricted profile-completion grant and the `STUDENT`-only creation rule.
+
+Not approved:
+
+- Production enablement before P0-1, P0-2, P0-3 and P0-4 are closed.
+- Enabling Google before Phase 3 is complete.
+- Any rollback that removes `sessionVersion` or `passwordLoginEnabled` enforcement.
+- Any change that logs or returns a code, link, token, cookie or raw email address.
+
+Open decisions for the next review:
+
+1. Whether the browser budget should use a stable new cookie or the rotating challenge
+   binding (P1-2).
+2. Whether a newcomer grant that finds an existing account should hard-fail (safest) or
+   enter a fresh recovery flow after a new proof.
+3. Whether the grant should remain a bearer cookie or gain an independent binding
+   nonce (P2-1).
