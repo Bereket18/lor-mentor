@@ -82,8 +82,11 @@ export class GeminiService {
     );
     // Keep the model configurable so a provider-side model retirement does
     // not require a code change. The fallback matches the hardened AI jobs.
+    // GEMINI_MODEL is the single switch for every AI path. The fallback must be
+    // a model that is currently served: gemini-3.8-flash started returning 503
+    // "high demand" for every call, which surfaced to users as "the AI is down".
     this.modelName =
-      this.config.get<string>('GEMINI_MODEL')?.trim() || 'gemini-3.8-flash';
+      this.config.get<string>('GEMINI_MODEL')?.trim() || 'gemini-3.6-flash';
   }
 
   private getModel(generationConfig?: GenerationConfig) {
@@ -105,9 +108,9 @@ export class GeminiService {
     const notesTarget = notesLengthTarget(sourceChars);
 
     const model = this.client.getGenerativeModel({
-      // Check Google AI Studio for the current recommended Flash model
-      // name when you actually run this — the lineup changes often
-      model: 'gemini-3.8-flash',
+      // Honour GEMINI_MODEL here too: this path used to pin its own model,
+      // so changing the env var left material generation on a retired one.
+      model: this.modelName,
       // Force strict JSON output. Without this the model frequently wraps the
       // payload in prose or code fences, or truncates the large flashcard/quiz
       // array — any of which makes JSON.parse throw and the job FAIL. JSON mode
@@ -198,7 +201,7 @@ ${truncated}
   // instruct the model to prefer it; otherwise it answers from general
   // medical knowledge. Returns plain text suitable for a chat bubble.
   async answerQuestion(question: string, context: string): Promise<string> {
-    const model = this.client.getGenerativeModel({ model: 'gemini-3.8-flash' });
+    const model = this.client.getGenerativeModel({ model: this.modelName });
 
     const grounding = context
       ? `Use the following course material as your primary reference. If the answer is not covered by it, say so briefly and then answer from general medical knowledge.\n\n--- COURSE MATERIAL ---\n${context.slice(0, 30_000)}\n--- END MATERIAL ---\n`
