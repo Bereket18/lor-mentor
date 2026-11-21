@@ -24,6 +24,16 @@ function looksLikePlaceholder(value: unknown): boolean {
   );
 }
 
+/** Environment values arrive as unknown; only a string can be an env value. */
+function stringValue(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+/** Strict flag reader: only the literal (case-insensitive) string "true". */
+function flagIsTrue(value: unknown): boolean {
+  return stringValue(value).trim().toLowerCase() === 'true';
+}
+
 // A bare DNS hostname, optionally prefixed with the RFC 6265 dot form. This
 // rejects schemes, ports, paths, wildcards, whitespace, and malformed labels
 // before the value can reach res.cookie()/res.clearCookie().
@@ -363,17 +373,19 @@ export function validateEnv(
   for (const key of ['AUTH_GOOGLE_ENABLED', 'AUTH_EMAIL_LINK_ENABLED']) {
     const value = config[key];
     if (value === undefined || value === null || value === '') continue;
-    const normalized = String(value).trim().toLowerCase();
+    const normalized = stringValue(value).trim().toLowerCase();
     if (normalized !== 'true' && normalized !== 'false') {
       errors.push(`${key} must be either "true" or "false"`);
     }
   }
 
-  const emailLinkEnabled =
-    String(config.AUTH_EMAIL_LINK_ENABLED ?? '').trim().toLowerCase() ===
-    'true';
+  const emailLinkEnabled = flagIsTrue(config.AUTH_EMAIL_LINK_ENABLED);
   if (emailLinkEnabled) {
-    for (const key of ['AUTH_CODE_PEPPER', 'AUTH_RATE_KEY_SECRET']) {
+    for (const key of [
+      'AUTH_CODE_PEPPER',
+      'AUTH_RATE_KEY_SECRET',
+      'AUTH_TRANSIENT_ENCRYPTION_KEY',
+    ]) {
       const value = config[key];
       if (typeof value !== 'string' || value.trim().length < 32) {
         errors.push(
@@ -385,6 +397,29 @@ export function validateEnv(
         );
       }
     }
+
+    // Each secret has a different job: pepper binds code hashes, the rate key
+    // keys address HMACs, and the encryption key protects queued mail. Reusing
+    // one value would widen the blast radius of a single leak.
+    const emailSecrets = [
+      'AUTH_CODE_PEPPER',
+      'AUTH_RATE_KEY_SECRET',
+      'AUTH_TRANSIENT_ENCRYPTION_KEY',
+    ].map((key) => stringValue(config[key]).trim());
+    if (new Set(emailSecrets).size !== emailSecrets.length) {
+      errors.push(
+        'AUTH_CODE_PEPPER, AUTH_RATE_KEY_SECRET and AUTH_TRANSIENT_ENCRYPTION_KEY must be independent secrets',
+      );
+    }
+  }
+
+  // Google sign-in has no verifier yet. Starting the API with the flag on would
+  // advertise an endpoint that cannot complete a sign-in, so refuse at boot
+  // rather than failing per request.
+  if (flagIsTrue(config.AUTH_GOOGLE_ENABLED)) {
+    errors.push(
+      'AUTH_GOOGLE_ENABLED=true is not supported yet; Google sign-in has no OIDC verifier',
+    );
   }
 
   if (errors.length > 0) {

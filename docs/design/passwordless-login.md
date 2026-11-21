@@ -1,8 +1,8 @@
 # Passwordless login: as-built design and remaining work
 
-Status: **approved for continued implementation; email link + six-digit code is implemented.**
-Production enablement: **not yet approved** until the P0 defects in section 9 are closed.
-Date: 2026-11-19. Branch: `feat/passwordless-login`. HEAD: `1c74a0b`.
+Status: **approved for continued implementation; email link + six-digit code is implemented and its P0 defects are closed.**
+Production enablement: **not yet approved** until the remaining P1 items in section 9 are closed and a production-like smoke run passes.
+Date: 2026-11-21. Branch: `feat/passwordless-login`. Phase 1 closes P0-1 to P0-4.
 Base: `origin/main` at `63e31f019490fa02e0ad34256d8815e72feef9b4`.
 
 This revision replaces the earlier "proposed — awaiting approval; no implementation
@@ -20,6 +20,8 @@ Approved and implemented:
   "Continue here" POST.
 - A restricted profile-completion grant for a verified newcomer, producing a
   `STUDENT` account only after the profile POST.
+- An AES-256-GCM encrypted, bounded BullMQ `auth-mail` queue. The request path only
+  enqueues ciphertext; a worker sends and skips non-deliverable decoys.
 - Session versioning (`User.sessionVersion`) and an authentication-method claim
   (`am`) on access and refresh tokens. Administrator roles remain password-only at
   issuance, refresh and access-token validation.
@@ -31,8 +33,7 @@ Deferred, not implemented:
 
 - Google/OIDC sign-in. The schema (`AuthIdentity`, `AuthProvider`, `AuthMethod.GOOGLE`)
   is additive and ready, but there are no routes, UI, transaction store or token
-  verifier. `AUTH_GOOGLE_ENABLED` must remain `false` until that work is complete.
-- A queue-backed mail worker. Mail is currently sent synchronously (section 9, P0-3).
+  verifier. `AUTH_GOOGLE_ENABLED=true` is refused at boot until that work is complete.
 - A scheduled cleanup job for expired challenges and grants (section 9, P1-4).
 - A Content-Security-Policy and Fetch-Metadata checks (section 9, P1-5).
 - Screenshot and accessibility evidence at the paths required by the acceptance plan
@@ -44,8 +45,8 @@ enforcement study in `docs/design/role-scoped-sign-in.md`.
 
 ## 2. Verified implementation evidence
 
-These checks were run on the code at `1c74a0b`; this document-only change does not
-alter them.
+The table below is the pre-Phase-1 baseline at `1c74a0b`. The Phase 1 re-verification
+is recorded after it.
 
 | Check | Result |
 |---|---|
@@ -59,7 +60,20 @@ alter them.
 | Browser verification | login method toggle, email confirmation page and profile-completion UI exercised manually |
 | Screenshots / a11y manifest | **not produced**; `C:\Users\berek\Desktop\lor-screens\passwordless-login\` does not exist |
 
-The disposable-QA environment used PostgreSQL `55433`, Redis `56379`, SMTP sink
+Phase 1 (2026-11-21) was re-verified on the pre-commit working tree: the Prisma schema
+validates; 26/26 migrations applied to a fresh disposable PostgreSQL database and
+`migrate status` reports up to date; API `tsc --noEmit` and ESLint are clean on the
+touched files; the API suite is 54 passed suites / 841 passed tests / 21 skipped. A
+real-HTTP run against the built API passed 39/39 checks (existing, unknown and new
+users, code and link sign-in, binding enforcement, single use, cross-device
+confirmation, administrator suppression and queued delivery). A dedicated
+initiation-parity run passed 18/18 checks: identical body keys for eligible and
+suppressed addresses, a binding cookie on every start, distinct handles, stable
+handles on cooldown with a fresh binding, and no mail for administrator or inactive
+addresses. Mail now arrives from the worker after the 202, so the harness polls the
+sink briefly.
+
+The disposable-QA environment used PostgreSQL `55433`/`55434`, Redis `6379`, SMTP sink
 `1025`, API `4000` and web `3000`, with a local mail sink writing `.eml` files outside
 the repository. No real credentials, production database or production mail
 transport was used. The Next.js security upgrade is commit `81da5a4` on this branch;
@@ -79,8 +93,9 @@ of the delivered history.
 | Rate limits are cross-instance, HMAC-keyed and fail closed. | Met. Redis Lua `INCR` + `PEXPIRE`; raw email/IP/cookie values are never stored; Redis failure returns a uniform 503. |
 | Email-link secrets travel in a fragment and confirmation is an explicit CSRF-protected POST. | Met. |
 | Cross-device link confirmation is allowed only with `destination: "current-browser"`. | Met. The server ignores the original binding on `POST /email/confirm` but still requires the high-entropy link token and receiving-browser CSRF. |
-| Initiation is indistinguishable for existing, unknown, inactive and administrator addresses. | **Not met.** See P0-1 and P0-3. |
+| Initiation is indistinguishable for existing, unknown, inactive and administrator addresses. | Met. Every well-formed start after validation persists a challenge-shaped row and returns a handle plus a fresh binding cookie; suppressed rows are `deliverable=false` and enqueued as decoys the worker drops. |
 | One challenge per address is active at a time. | **Not met under concurrency.** See P1-1. |
+| Profile completion cannot mutate an account that appeared mid-grant, including an administrator. | Met. One transaction re-reads and locks an existing user, refuses admin/inactive/identity mismatch before mutation, consumes the grant inside the transaction, and maps a create race to 409. |
 | No plaintext credential is logged. | Implemented by construction; a canary-secret test is still missing from the acceptance evidence. |
 | Schema changes are additive. | Met. No drops, renames or nullability changes to existing columns. |
 | Password reset invalidates existing access and refresh tokens. | Met. `claimResetToken` increments `sessionVersion`; the denylist also revokes refresh tokens issued before the reset. |
@@ -96,32 +111,34 @@ of the delivered history.
    plausible shape and bounded length. A malformed value returns 400 with a
    shape-only message.
 4. The user is looked up by email.
-   - Administrator: write `AUTH_PASSWORDLESS_ADMIN_REFUSED` and return the generic
-     suppressed result.
-   - Inactive: return the generic suppressed result.
-5. If a challenge for the address was created less than 60 seconds ago, return that
-   challenge's id with `retryAfterSeconds: 60`; nothing new is written or sent.
+   - Administrator: write `AUTH_PASSWORDLESS_ADMIN_REFUSED`; the row is still created
+     as a non-deliverable decoy.
+   - Inactive: the row is created as a non-deliverable decoy.
+5. If an active challenge for the address was created less than 60 seconds ago,
+   return that challenge's id with `retryAfterSeconds: 60`, rotate its binding, and
+   return a fresh cookie. Nothing new is written or sent.
 6. Otherwise `mayIssue` consumes the Redis 5/hour and 10/day address budgets and then
-   checks the durable `AuthChallenge` counts. A refusal returns the generic result.
+   checks the durable `AuthChallenge` counts. A refusal still creates a decoy.
 7. A challenge is created with purpose `LOGIN` when a user exists and `SIGNUP`
    otherwise. All still-active email challenges for the address are marked
    `supersededAt` in the same array transaction as the insert.
 8. The plaintext six-digit code and 256-bit link secret exist only in memory. The row
-   stores `bcrypt(HMAC(pepper, id:code))`, `sha256(linkToken)`, `sha256(browserNonce)`
-   and the validated return path.
-9. The email is sent through `MailService` in the request path. A delivery failure is
-   logged as a safe category and audited; the API still returns 202, and the challenge
-   remains valid until expiry.
-10. The response is `202 {message, challengeId, retryAfterSeconds: 60}`. A binding
-    cookie is set only when a challenge was actually issued (see P0-1).
+   stores `bcrypt(HMAC(pepper, id:code))`, `sha256(linkToken)`, `sha256(browserNonce)`,
+   the `deliverable` marker and the validated return path.
+9. An encrypted BullMQ job is enqueued for every start, including decoys. Redis holds
+   only an AES-256-GCM envelope; the worker decrypts it in memory, sends only when
+   `deliverable=true`, and audits success or a safe failure category. A queue failure
+   is audited and does not change the response.
+10. The response is `202 {message, challengeId, retryAfterSeconds: 60}` and always sets
+    a fresh `auth_ch_` binding cookie.
 
 ### 4.2 Resend
 
 `POST /api/v1/auth/email/resend` requires the `auth_ch_` binding cookie. A missing or
 wrong binding, an unknown challenge, and a cooldown hit all return the same 202 shape
 and change nothing. An eligible resend creates a new challenge, supersedes every
-active email challenge for the address, sends a new email and rotates the binding
-cookie. Administrator addresses produce the suppressed shape.
+active email challenge for the address, enqueues a new email and rotates the binding
+cookie. A suppressed address gets the same shape with a non-deliverable decoy row.
 
 ### 4.3 Code proof
 
@@ -185,22 +202,20 @@ or already-consumed grant returns 404. A disabled method returns 503.
 
 `POST /api/v1/auth/profile-completion`:
 
-1. Finds the unconsumed, unexpired grant by token hash and checks that its method is
-   still enabled.
+1. Finds the unconsumed, unexpired grant and checks that its method is still enabled.
 2. Validates the department (exists, not archived) and academic year (exists, not
    archived, belongs to that department).
-3. Consumes the grant with a conditional `UPDATE`.
-4. Looks up a user by the grant's email. A mismatch with a non-null `grant.userId`
-   returns 409.
-5. In a transaction, updates an existing user's profile (recovery path) or creates a
-   new verified `STUDENT` with a discarded random password hash and
-   `passwordLoginEnabled=false`.
+3. Re-reads any user by the grant's email and locks the row (`FOR UPDATE`) before
+   reading its role and activity. A newcomer grant whose address now has an account,
+   a recovery grant whose user vanished, or a different account at the address is a
+   409 conflict. An administrator or inactive account is refused before mutation.
+4. Consumes the grant with a conditional `UPDATE` inside the same transaction, after
+   every check. A later failure rolls the consumption back.
+5. Updates the existing user's profile (recovery path, without touching the password
+   policy) or creates a new verified `STUDENT` with a discarded random password hash
+   and `passwordLoginEnabled=false`. A P2002 create race becomes a 409 conflict.
 6. Audits `AUTH_PROFILE_COMPLETED`, issues a session through `issueSession`, and
    returns `{next: "signed_in", redirectTo, user}`.
-
-This order contains a P0 defect: the existing-user branch can mutate an account that
-appeared after a newcomer grant, and can disable an administrator's password login.
-See P0-2.
 
 ### 4.7 Session issuance, refresh and revocation
 
@@ -257,7 +272,7 @@ routes require JSON, an exact allowed `Origin`, and the double-submit CSRF heade
 |---|---|
 | `GET /methods` | 200 `{googleEnabled, emailLinkEnabled}`; flags only. Redis-backed 60/IP/minute; 503 if Redis is unavailable. |
 | `GET /csrf` | 200 `{csrfToken}`; sets the `auth_cs_` cookie (15-minute max age). 60/IP/minute. |
-| `POST /email/start` | 202 `{message, challengeId, retryAfterSeconds: 60}`. Sets `auth_ch_` only when a challenge is issued. 10/IP/minute and 50/IP/hour. |
+| `POST /email/start` | 202 `{message, challengeId, retryAfterSeconds: 60}`. Always sets a fresh `auth_ch_` and persists a challenge-shaped record; suppressed addresses get a non-deliverable decoy. 10/IP/minute and 50/IP/hour. |
 | `POST /email/resend` | 202 with the same body shape; requires the original `auth_ch_` binding. 10/IP/minute and 50/IP/hour. |
 | `POST /email/code` | 200 completion on success; otherwise 400 generic proof failure. 30/IP/10 minutes, 10/browser/10 minutes, 20/address/hour. |
 | `POST /email/confirm` | 200 completion on success; otherwise 400 generic proof failure. `destination` must be `"current-browser"`. 30/IP/10 minutes, 10/browser/10 minutes. |
@@ -355,14 +370,14 @@ still applies. See P1-2.
 | `GET /profile-completion` returns 401 for an invalid grant. | It returns 404. | Contract corrected. |
 | `POST /profile-completion` returns 401 for an invalid grant. | It returns 400 (and 409 for the email-conflict case). | Contract corrected. |
 | `attempts` has a database 0–5 constraint. | A conditional `UPDATE ... WHERE attempts < 5` enforces the cap; there is no CHECK. | Document corrected; add CHECK as P1-8. |
-| `AUTH_TRANSIENT_ENCRYPTION_KEY` and `AUTH_POST_LOGIN_PATHS` are configuration. | Neither variable exists. The path allowlist is a fixed constant; mail payloads are not encrypted because there is no queue. | Removed from the current contract; both belong to the remaining plan. |
-| Mail is delivered by a bounded, encrypted BullMQ job. | `MailService` sends synchronously with Nodemailer in the request path. | Corrected; P0-3. |
+| `AUTH_TRANSIENT_ENCRYPTION_KEY` and `AUTH_POST_LOGIN_PATHS` are configuration. | `AUTH_TRANSIENT_ENCRYPTION_KEY` now exists and is required when email sign-in is enabled; it encrypts queued mail. The path allowlist remains a fixed constant. | Contract corrected for the encryption key; post-login paths remain code. |
+| Mail is delivered by a bounded, encrypted BullMQ job. | The `auth-mail` queue carries AES-256-GCM envelopes only; a worker sends deliverable payloads with three bounded retries and skips decoys. | Closed; P0-3. |
 | A daily cleanup job removes expired challenges/grants. | No scheduled job exists. | Corrected; P1-4. |
 | Auth pages carry a restrictive CSP and Fetch-Metadata checks. | Next.js sets `Referrer-Policy`, `X-Robots-Tag` and `Cache-Control` on the three pages; there is no CSP and the guard does not inspect Fetch-Metadata. | Corrected; P1-5. |
-| The profile grant is consumed and the user is created in one transaction. | The grant is consumed first; user creation/recovery is a separate transaction. | Corrected; P1-3 and P0-2. |
+| The profile grant is consumed and the user is created in one transaction. | `completeProfile` re-reads the grant and locks an existing user inside one transaction, consumes only after checks, and lets a failure roll both back. | Closed; P1-3 and P0-2. |
 | A successful sign-in revokes the presented prior refresh token. | A new refresh cookie is written, but the previous refresh token is not explicitly denylisted at login. | Corrected; P1-7. |
 | A different signed-in user must confirm an account switch. | No account-switch confirmation exists; the new cookies overwrite the old session. | Corrected; P1-6. |
-| The initiating response is identical in body, cookie and timing for eligible and suppressed addresses. | Suppressed responses set no binding cookie; a cooldown repeat returns the existing id for eligible addresses but a fresh random id for suppressed ones; eligible delivery awaits SMTP while suppression does not. | **Open P0**; P0-1/P0-3. |
+| The initiating response is identical in body, cookie and timing for eligible and suppressed addresses. | Suppressed addresses also get a challenge-shaped row, the same body, a fresh binding cookie and an enqueued decoy; the worker sends nothing. | Closed; P0-1/P0-3. |
 | Issuance and supersession are serialised per address. | There is no per-address lock or partial unique index; concurrent starts can create two active challenges. | **Open P1**; P1-1. |
 | Cross-device confirmation creates a fresh receiving-browser binding. | It clears the challenge cookie and issues the session; no new binding is minted. | Wording corrected; the link remains a bearer capability. |
 | The profile grant is browser-bound by an independent nonce. | `browserNonceHash` equals `sha256(grantToken)`; the grant is a bearer cookie. | Wording corrected; independent binding is optional P2-1. |
@@ -371,14 +386,14 @@ still applies. See P1-2.
 
 Severity means "before production enablement", not "before the next commit".
 
-### P0 — must close before any production enablement
+### P0 — closed in Phase 1 (must remain closed before any production enablement)
 
 **P0-1: Initiation is an account-existence oracle.**
-`startEmail` sets `auth_ch_` only when it issues a challenge. A suppressed response
-(administrator or inactive) sets no cookie. A repeated start inside the cooldown
-returns the existing challenge id for an eligible address, while a suppressed address
-gets a fresh random id. The response body alone looks identical, but the cookie and
-the id comparison are not. This directly contradicts the enumeration invariant.
+`startEmail` used to set `auth_ch_` only when it issued a challenge. A suppressed response
+(administrator or inactive) set no cookie. A repeated start inside the cooldown
+returned the existing challenge id for an eligible address, while a suppressed address
+got a fresh random id. The response body alone looked identical, but the cookie and
+the id comparison were not. This directly contradicted the enumeration invariant.
 
 Fix: persist a challenge-shaped record for every well-formed start that reaches the
 issuance step, including suppressed addresses, and always set a fresh binding cookie.
@@ -389,10 +404,16 @@ response does not await SMTP. Tests must compare status, body keys, cookie prese
 id stability and a timing distribution across existing/unknown/inactive/admin
 addresses.
 
+Closed: `AuthChallenge.deliverable` (migration `20261121120000_passwordless_delivery`)
+marks decoys. Every well-formed start after validation persists a row, returns a
+handle and rotates the binding; cooldown reuses the active row for every address. The
+response no longer awaits SMTP (P0-3). Unit tests cover body-key parity, cookie
+presence, decoy flags and cooldown id stability.
+
 **P0-2: Profile completion can mutate an existing account, including an administrator.**
-The grant is consumed before the user transaction. The existing-user branch updates
-by email whenever a user exists; it only rejects a mismatch when `grant.userId` is
-non-null. Therefore:
+The grant used to be consumed before the user transaction. The existing-user branch
+updated by email whenever a user existed; it only rejected a mismatch when
+`grant.userId` was non-null. Therefore:
 
 - A newcomer grant (`userId=null`) followed by an account appearing at that address
   updates that account's name, phone, department and year, marks it verified and sets
@@ -408,10 +429,16 @@ than updating it. Reject administrator and inactive accounts before any mutation
 Never set `passwordLoginEnabled=false` on an existing account unless the recovery path
 has explicitly invalidated that account and the role check has passed.
 
+Closed: `completeProfile` now runs one interactive transaction. It re-reads the grant,
+locks any existing user row with `SELECT ... FOR UPDATE`, refuses admin/inactive and
+any newcomer/missing-target identity mismatch before mutation, consumes the grant only
+after those checks, and maps a P2002 create race to 409. The recovery branch no longer
+writes `passwordLoginEnabled`.
+
 **P0-3: Synchronous SMTP creates a timing oracle and a request-path DoS.**
-`deliver` awaits `MailService.sendAuthSignIn`, which awaits Nodemailer. Eligible
-addresses therefore take SMTP time; suppressed addresses return earlier. A slow or
-unreachable SMTP server also holds the API request open.
+`deliver` used to await `MailService.sendAuthSignIn`, which awaits Nodemailer. Eligible
+addresses therefore took SMTP time; suppressed addresses returned earlier. A slow or
+unreachable SMTP server also held the API request open.
 
 Fix: use the existing BullMQ dependency (already configured for AI generation) or a
 durable outbox. Enqueue a job containing only an encrypted payload under a dedicated
@@ -421,14 +448,24 @@ enqueue path is shape- and latency-similar; the worker skips non-deliverable rec
 Add a boot-time validation that refuses email enablement without a working queue and
 SMTP configuration.
 
+Closed: the `auth-mail` BullMQ queue carries only AES-256-GCM envelopes keyed by
+`AUTH_TRANSIENT_ENCRYPTION_KEY`; the worker decrypts in memory, sends deliverable
+payloads with three bounded retries and drops decoys. Both start and resend enqueue
+before returning. Env validation requires the encryption key when email sign-in is
+enabled and refuses reused passwordless secrets. SMTP and Redis queue connectivity
+remain deployment checks (P1-11 still covers an end-to-end boot probe).
+
 **P0-4: `AUTH_GOOGLE_ENABLED=true` is accepted without a Google implementation.**
-`AuthMethodsConfig` reads the flag and `/auth/methods` reports it, but there are no
-Google routes, UI, transaction store or verifier. A deployer can advertise a method
-that does not exist.
+`AuthMethodsConfig` read the flag and `/auth/methods` reported it, but there were no
+Google routes, UI, transaction store or verifier. A deployer could advertise a method
+that did not exist.
 
 Fix: until the Google phase lands, reject `AUTH_GOOGLE_ENABLED=true` at boot with an
 actionable error and keep the flag out of the effective methods response. When Google
 is implemented, require the client id/secret/redirect URI at boot in the same change.
+
+Closed: both `validateEnv` and `AuthMethodsConfig` refuse `AUTH_GOOGLE_ENABLED=true`
+with a boot error; tests cover the refusal. The flag stays false in both env examples.
 
 ### P1 — should close before production enablement or immediately after
 
@@ -541,29 +578,31 @@ tests and a gate; do not enable production email sign-in before Phase 1 is compl
 
 Gate: this document is committed and pushed; no code changes in this phase.
 
-### Phase 1 — Close P0 (enumeration, profile mutation, delivery, Google flag)
+### Phase 1 — P0 closure (completed)
 
-1. Add a `deliverable` (or equivalent) marker to `AuthChallenge` and make every
-   well-formed start persist a challenge-shaped record, including suppressed
-   addresses. Always set a fresh binding cookie. Return the same id/cookie shape on
-   cooldown. Do not send mail for non-deliverable records.
-2. Add an encrypted, bounded mail queue using the existing BullMQ setup:
-   `AUTH_TRANSIENT_ENCRYPTION_KEY` in env validation, an `auth-mail` queue and
-   processor, AES-256-GCM payloads with a fresh nonce, bounded retries, no payload
-   logging, and a worker that skips non-deliverable records. Enqueue on every start so
-   the request path is uniform.
-3. Rewrite `completeProfile` as one transaction with a locked re-resolution:
-   require a recovery grant's user id to match; never update a user that appeared for
-   a newcomer grant; refuse admins/inactive before mutation; consume the grant only
-   after those checks; roll back on any failure.
-4. Reject `AUTH_GOOGLE_ENABLED=true` at boot until the Google module exists.
+Implemented on 2026-11-21:
 
-Tests: initiation shape/cookie/id/timing matrix (known, unknown, inactive, admin,
-cooldown, cap); profile race with an account appearing mid-grant; admin-promotion race;
-grant rollback; queue payload redaction; boot refusal for Google.
+1. Added `AuthChallenge.deliverable` (migration `20261121120000_passwordless_delivery`).
+   Every well-formed start after validation persists a challenge-shaped row, returns a
+   handle and a fresh binding cookie, and reuses the active row on cooldown for every
+   address. Suppressed rows are decoys; no mail is sent for them.
+2. Added the encrypted `auth-mail` BullMQ queue and worker. Payloads are AES-256-GCM
+   envelopes under `AUTH_TRANSIENT_ENCRYPTION_KEY` with a fresh nonce; three bounded
+   retries; decoys are dropped; no payload or provider error is logged. Every start and
+   resend enqueues, so the request path is uniform.
+3. Rewrote `completeProfile` as one interactive transaction with a row-locked
+   re-resolution, identity checks, admin/inactive refusal before mutation, consumption
+   only after checks, and P2002-to-409 mapping.
+4. `validateEnv` and `AuthMethodsConfig` reject `AUTH_GOOGLE_ENABLED=true` at boot.
 
-Gate: P0 tests pass, `tsc`/lint clean, and a real-HTTP smoke run covers the new
-branches. Production email enablement is still held.
+Verification: Prisma schema validates; all 26 migrations apply cleanly to a fresh
+disposable PostgreSQL database; `tsc --noEmit` and ESLint are clean on the touched
+files; the API suite is 54 passed suites (21 skipped tests), 841 passed tests. Added
+focused tests for crypto round-trip/tamper/key failure, initiation parity/cooldown/
+cap fail-closed, profile conflicts/admin refusal/order/race, and Google boot refusal.
+A real-HTTP run against the built API passed 39/39 checks, and the initiation-parity
+run passed 18/18, so Phase 1 is complete. Production email enablement remains held
+until the P1 items below close.
 
 ### Phase 2 — P1 correctness and operations
 
@@ -609,14 +648,15 @@ reviewed. Do not expose a button or a `/methods` true value earlier.
 1. Apply the additive migration with both flags off.
 2. Deploy the version-aware auth code; verify password/admin login and session
    revocation behaviour.
-3. Configure Redis, SMTP/queue, `AUTH_CODE_PEPPER`, `AUTH_RATE_KEY_SECRET` and (once
-   Phase 1 lands) `AUTH_TRANSIENT_ENCRYPTION_KEY`.
+3. Configure Redis and SMTP, then set independent `AUTH_CODE_PEPPER`,
+   `AUTH_RATE_KEY_SECRET` and `AUTH_TRANSIENT_ENCRYPTION_KEY` values.
 4. Enable `AUTH_EMAIL_LINK_ENABLED` on a staging environment with a real sink; run the
    HTTP abuse matrix and Playwright; capture screenshots and a11y results.
-5. Enable in production only after the P0 gate and the staged evidence.
+5. Enable in production only after the remaining P1 gate and the staged evidence.
 6. Rollback: disable issuance, let grants expire, keep the additive schema, the
    password-disable flag and the session-version checks. Never revert to authentication
-   that ignores `sessionVersion` or `passwordLoginEnabled`.
+   that ignores `sessionVersion` or `passwordLoginEnabled`. Queued jobs expire with the
+   challenges; rotating `AUTH_TRANSIENT_ENCRYPTION_KEY` abandons undelivered jobs.
 
 ## 11. Google sign-in: deferred design (not implemented)
 
@@ -643,8 +683,9 @@ the consent screen and callback URIs.
 
 ## 12. Acceptance evidence still required
 
-The current evidence covers unit tests, typechecks, lint, a 39-check HTTP smoke run,
-a production standalone page check and manual browser use. Before production
+The current evidence covers unit tests (841 passed), typechecks, lint, two real-HTTP
+runs against the Phase 1 build (39 core checks and 18 initiation-parity checks), a
+production standalone page check and manual browser use. Before production
 enablement, add:
 
 1. The P0/P1 tests named in section 10, including timing-distribution and concurrent
@@ -678,8 +719,9 @@ Approved on 2026-11-19:
 
 Not approved:
 
-- Production enablement before P0-1, P0-2, P0-3 and P0-4 are closed.
-- Enabling Google before Phase 3 is complete.
+- Production enablement before the remaining P1 items in section 9 are closed and the
+  staged HTTP/Playwright evidence exists.
+- Enabling Google before Phase 3 is complete; the flag is refused at boot until then.
 - Any rollback that removes `sessionVersion` or `passwordLoginEnabled` enforcement.
 - Any change that logs or returns a code, link, token, cookie or raw email address.
 

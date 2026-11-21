@@ -12,10 +12,10 @@ import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
-import { MailService } from '../mail/mail.service';
 import { UsersService } from '../users/users.service';
 import { normalizeEmail } from '../../common/normalize-email';
 import { AuthMethodsConfig } from './auth-methods.config';
+import { AuthMailService } from './auth-mail.service';
 import { AuthRateLimitService } from './auth-rate-limit.service';
 import { AuthService } from './auth.service';
 import {
@@ -61,7 +61,10 @@ export type AuthCompletion =
 /** Public result of starting or resending a challenge. */
 export interface ChallengeStart {
   result: ChallengeStartResult;
-  /** Plaintext binding nonce for the cookie, or null when nothing was issued. */
+  /**
+   * Plaintext binding nonce for the cookie. Always present for a well-formed
+   * start, including a suppressed one; null only for a malformed resend handle.
+   */
   browserNonce: string | null;
 }
 
@@ -88,7 +91,7 @@ export class PasswordlessAuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly users: UsersService,
-    private readonly mail: MailService,
+    private readonly mail: AuthMailService,
     private readonly methods: AuthMethodsConfig,
     private readonly limits: AuthRateLimitService,
     private readonly auth: AuthService,
@@ -107,12 +110,16 @@ export class PasswordlessAuthService {
   /**
    * Start an email challenge.
    *
-   * Returns the same 202-equivalent data for every well-formed address. When
-   * the address belongs to an administrator, is inactive, or is inside the
-   * cooldown, no new row is written and no mail is sent — but the caller cannot
-   * tell.
+   * Every well-formed request after validation has the same observable shape:
+   * a challenge handle, a 60-second retry hint and a fresh binding cookie. An
+   * address that must not receive mail (administrator, inactive, or over the
+   * delivery cap) gets a challenge-shaped decoy row instead of a different
+   * response. Only the worker knows whether the record is deliverable.
    */
-  async startEmail(rawEmail: string, returnTo?: unknown): Promise<ChallengeStart> {
+  async startEmail(
+    rawEmail: string,
+    returnTo?: unknown,
+  ): Promise<ChallengeStart> {
     this.assertEmailEnabled();
 
     const email = normalizeEmail(rawEmail);
@@ -122,33 +129,48 @@ export class PasswordlessAuthService {
 
     const returnPath = sanitizeReturnPath(returnTo);
     const user = await this.users.findByEmail(email);
-
-    if (user && isAdminRole(user.role)) {
-      await this.audit('AUTH_PASSWORDLESS_ADMIN_REFUSED', user.id, {
-        method: 'EMAIL_LINK',
-      });
-      return this.suppressed();
-    }
-    if (user && !user.isActive) {
-      return this.suppressed();
-    }
+    const admin = Boolean(user && isAdminRole(user.role));
+    const inactive = Boolean(user && !user.isActive);
 
     const recent = await this.prisma.authChallenge.findFirst({
-      where: { email },
+      where: {
+        email,
+        consumedAt: null,
+        supersededAt: null,
+        expiresAt: { gt: new Date() },
+      },
       orderBy: { createdAt: 'desc' },
       select: { id: true, createdAt: true },
     });
-    if (recent && Date.now() - recent.createdAt.getTime() < RESEND_COOLDOWN_MS) {
-      // Answer with the challenge already issued so the code in the email that
-      // just went out still works. Nothing new is sent or written.
+    if (
+      recent &&
+      Date.now() - recent.createdAt.getTime() < RESEND_COOLDOWN_MS
+    ) {
+      // Reuse the active challenge so the code in the email that just went out
+      // still works. Rotate the binding so the response always carries one.
       return {
         result: this.genericResult(recent.id),
-        browserNonce: null,
+        browserNonce: await this.rotateBinding(recent.id),
       };
     }
 
-    if (!(await this.mayIssue(email))) {
-      return this.suppressed();
+    const allowed = await this.mayIssue(email);
+    const deliverable = !admin && !inactive && allowed;
+
+    if (admin) {
+      await this.audit('AUTH_PASSWORDLESS_ADMIN_REFUSED', user!.id, {
+        method: 'EMAIL_LINK',
+      });
+    }
+    if (!deliverable) {
+      await this.audit('AUTH_EMAIL_SUPPRESSED', user?.id ?? null, {
+        method: 'EMAIL_LINK',
+        reason: admin ? 'ADMIN' : inactive ? 'INACTIVE' : 'CAP',
+      });
+      if (!admin && !inactive) {
+        // Kept for operators; the caller still receives the generic 202.
+        this.logger.warn('Email challenge issuance cap reached');
+      }
     }
 
     const purpose = user
@@ -160,9 +182,18 @@ export class PasswordlessAuthService {
       email,
       userId: user?.id ?? null,
       returnPath,
+      deliverable,
     });
 
-    await this.deliver(email, issued, user?.id ?? null, purpose);
+    // Enqueue even for a decoy: the request path, Redis work and response shape
+    // must not depend on whether the address is allowed to receive mail.
+    await this.enqueueMail(
+      email,
+      issued,
+      user?.id ?? null,
+      purpose,
+      deliverable,
+    );
 
     return {
       result: this.genericResult(issued.challenge.id),
@@ -197,17 +228,26 @@ export class PasswordlessAuthService {
     if (Date.now() - challenge.createdAt.getTime() < RESEND_COOLDOWN_MS) {
       return {
         result: this.genericResult(challenge.id),
-        browserNonce: null,
+        browserNonce: await this.rotateBinding(challenge.id),
       };
     }
 
     const user = await this.users.findByEmail(challenge.email);
-    if (user && isAdminRole(user.role)) {
-      return this.suppressed();
-    }
+    const admin = Boolean(user && isAdminRole(user.role));
+    const inactive = Boolean(user && !user.isActive);
+    const allowed = await this.mayIssue(challenge.email);
+    const deliverable = !admin && !inactive && allowed;
 
-    if (!(await this.mayIssue(challenge.email))) {
-      return this.suppressed();
+    if (admin) {
+      await this.audit('AUTH_PASSWORDLESS_ADMIN_REFUSED', user!.id, {
+        method: 'EMAIL_LINK',
+      });
+    }
+    if (!deliverable) {
+      await this.audit('AUTH_EMAIL_SUPPRESSED', user?.id ?? null, {
+        method: 'EMAIL_LINK',
+        reason: admin ? 'ADMIN' : inactive ? 'INACTIVE' : 'CAP',
+      });
     }
 
     const issued = await this.createChallenge({
@@ -215,13 +255,15 @@ export class PasswordlessAuthService {
       email: challenge.email,
       userId: user?.id ?? null,
       returnPath: challenge.returnPath ?? undefined,
+      deliverable,
     });
 
-    await this.deliver(
+    await this.enqueueMail(
       challenge.email,
       issued,
       user?.id ?? null,
       challenge.purpose,
+      deliverable,
     );
 
     await this.audit('AUTH_CHALLENGE_SUPERSEDED', user?.id ?? null, {
@@ -340,7 +382,8 @@ export class PasswordlessAuthService {
     const expected = Buffer.from(challenge.linkTokenHash, 'utf8');
     const actual = Buffer.from(sha256(linkToken), 'utf8');
     const matches =
-      expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+      expected.length === actual.length &&
+      crypto.timingSafeEqual(expected, actual);
     if (!matches) {
       await this.audit('AUTH_CHALLENGE_REJECTED', challenge.userId, {
         method: 'EMAIL_LINK',
@@ -377,6 +420,12 @@ export class PasswordlessAuthService {
    * Only the fields the student may choose are read from the request. Email is
    * locked to the grant, and role, identifiers and verification flags are never
    * accepted — a client cannot ask to be a teacher.
+   *
+   * The grant is re-read and consumed inside the same transaction that creates
+   * or updates the user. An account that appeared after a newcomer grant is a
+   * conflict, not a profile to overwrite; an administrator or inactive account
+   * is refused before any mutation. The user row is locked while its role and
+   * activity are checked, so a promotion racing this request is seen here.
    */
   async completeProfile(
     grantToken: string | undefined,
@@ -388,59 +437,103 @@ export class PasswordlessAuthService {
     },
   ): Promise<AuthCompletion> {
     const grant = await this.findGrant(grantToken);
-    if (!grant) throw new BadRequestException('Invalid or expired profile link');
-    this.assertGrantMethodEnabled(grant.method);
-
-    const department = await this.prisma.department.findUnique({
-      where: { id: input.departmentId },
-    });
-    if (!department || department.isArchived) {
-      throw new BadRequestException('Selected department is not valid');
-    }
-
-    const academicYear = await this.prisma.academicYear.findUnique({
-      where: { id: input.academicYearId },
-    });
-    if (
-      !academicYear ||
-      academicYear.isArchived ||
-      academicYear.departmentId !== input.departmentId
-    ) {
-      throw new BadRequestException(
-        'Selected academic year does not belong to the selected department',
-      );
-    }
-
-    const consumed = await this.prisma.enrollmentGrant.updateMany({
-      where: {
-        id: grant.id,
-        consumedAt: null,
-        expiresAt: { gt: new Date() },
-      },
-      data: { consumedAt: new Date() },
-    });
-    if (consumed.count !== 1) {
+    if (!grant)
       throw new BadRequestException('Invalid or expired profile link');
-    }
-
-    const existing = await this.prisma.user.findUnique({
-      where: { email: grant.email },
-      select: { id: true },
-    });
-
-    if (existing && grant.userId && existing.id !== grant.userId) {
-      // The address was taken by a different account while the grant was open.
-      // Refuse rather than overwrite; support resolves it.
-      throw new ConflictException(
-        'This email address is no longer available. Start again.',
-      );
-    }
 
     const user = await this.prisma.$transaction(async (tx) => {
+      const current = await tx.enrollmentGrant.findFirst({
+        where: {
+          tokenHash: grant.tokenHash,
+          consumedAt: null,
+          expiresAt: { gt: new Date() },
+        },
+      });
+      if (!current) {
+        throw new BadRequestException('Invalid or expired profile link');
+      }
+      this.assertGrantMethodEnabled(current.method);
+
+      const department = await tx.department.findUnique({
+        where: { id: input.departmentId },
+      });
+      if (!department || department.isArchived) {
+        throw new BadRequestException('Selected department is not valid');
+      }
+
+      const academicYear = await tx.academicYear.findUnique({
+        where: { id: input.academicYearId },
+      });
+      if (
+        !academicYear ||
+        academicYear.isArchived ||
+        academicYear.departmentId !== input.departmentId
+      ) {
+        throw new BadRequestException(
+          'Selected academic year does not belong to the selected department',
+        );
+      }
+
+      const byEmail = await tx.user.findUnique({
+        where: { email: current.email },
+        select: { id: true },
+      });
+
+      let existing: { id: string; role: string; isActive: boolean } | null =
+        null;
+      if (byEmail) {
+        // Lock the row, then read the values from inside the lock. A role
+        // promotion that is already committed is visible; one that is waiting
+        // on this lock runs after the profile transaction.
+        const rows = await tx.$queryRaw<
+          Array<{ id: string; role: string; isActive: boolean }>
+        >`
+          SELECT "id", "role"::text AS "role", "isActive"
+          FROM "User"
+          WHERE "id" = ${byEmail.id}
+          FOR UPDATE
+        `;
+        existing = rows[0] ?? null;
+      }
+
       if (existing) {
-        // Recovery path: the grant's user exists (unverified account whose
-        // password was invalidated). Trust only the fields the student just
-        // re-entered; never the preparer's values.
+        if (!current.userId || existing.id !== current.userId) {
+          // The address was taken by a different account, or an account
+          // appeared after a newcomer grant. Never overwrite it.
+          throw new ConflictException(
+            'This email address is no longer available. Start again.',
+          );
+        }
+        if (!existing.isActive || isAdminRole(existing.role)) {
+          throw new BadRequestException(
+            'This account cannot finish profile setup. Start again or contact support.',
+          );
+        }
+      } else if (current.userId) {
+        // The recovery target vanished while the grant was open. Creating a
+        // fresh account from this grant would silently change its meaning.
+        throw new ConflictException(
+          'This profile is no longer available. Start again.',
+        );
+      }
+
+      // Consume only after every re-resolution check has passed. A later
+      // failure rolls this back with the user write.
+      const consumed = await tx.enrollmentGrant.updateMany({
+        where: {
+          id: current.id,
+          consumedAt: null,
+          expiresAt: { gt: new Date() },
+        },
+        data: { consumedAt: new Date() },
+      });
+      if (consumed.count !== 1) {
+        throw new BadRequestException('Invalid or expired profile link');
+      }
+
+      if (existing) {
+        // Recovery path: trust only the fields the student just re-entered;
+        // never the preparer's values. Password login is already disabled by
+        // the recovery step; do not change it again here.
         return tx.user.update({
           where: { id: existing.id },
           data: {
@@ -450,7 +543,6 @@ export class PasswordlessAuthService {
             academicYearId: input.academicYearId,
             isEmailVerified: true,
             profileCompletedAt: new Date(),
-            passwordLoginEnabled: false,
           },
         });
       }
@@ -459,20 +551,32 @@ export class PasswordlessAuthService {
       // discarded random secret, so password login cannot succeed until the
       // student deliberately sets one through the reset flow.
       const discarded = await bcrypt.hash(randomToken(32), 12);
-      return tx.user.create({
-        data: {
-          email: grant.email,
-          passwordHash: discarded,
-          fullName: input.fullName,
-          phoneNumber: input.phoneNumber,
-          departmentId: input.departmentId,
-          academicYearId: input.academicYearId,
-          isEmailVerified: true,
-          passwordLoginEnabled: false,
-          profileCompletedAt: new Date(),
-          role: 'STUDENT',
-        },
-      });
+      try {
+        return await tx.user.create({
+          data: {
+            email: current.email,
+            passwordHash: discarded,
+            fullName: input.fullName,
+            phoneNumber: input.phoneNumber,
+            departmentId: input.departmentId,
+            academicYearId: input.academicYearId,
+            isEmailVerified: true,
+            passwordLoginEnabled: false,
+            profileCompletedAt: new Date(),
+            role: 'STUDENT',
+          },
+        });
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          throw new ConflictException(
+            'This email address is no longer available. Start again.',
+          );
+        }
+        throw error;
+      }
     });
 
     await this.audit('AUTH_PROFILE_COMPLETED', user.id, {
@@ -536,6 +640,7 @@ export class PasswordlessAuthService {
     email: string;
     userId: string | null;
     returnPath?: string;
+    deliverable: boolean;
   }): Promise<{
     challenge: { id: string; code: string; linkToken: string };
     browserNonce: string;
@@ -561,6 +666,7 @@ export class PasswordlessAuthService {
           linkTokenHash: sha256(linkToken),
           codeHash,
           browserNonceHash: sha256(browserNonce),
+          deliverable: input.deliverable,
           expiresAt: new Date(Date.now() + CHALLENGE_TTL_MS),
           returnPath: input.returnPath ?? null,
         },
@@ -570,17 +676,23 @@ export class PasswordlessAuthService {
     return { challenge: { id, code, linkToken }, browserNonce };
   }
 
-  /** Send the sign-in email. Best-effort; never turns into an account oracle. */
-  private async deliver(
+  /**
+   * Put the mail on the encrypted queue. Best-effort: a queue failure must not
+   * turn into an account oracle, so the caller still gets the generic 202 and
+   * the failure is audited without the payload.
+   */
+  private async enqueueMail(
     email: string,
     issued: {
       challenge: { id: string; code: string; linkToken: string };
     },
     userId: string | null,
     purpose: AuthChallengePurpose,
+    deliverable: boolean,
   ): Promise<void> {
     try {
-      await this.mail.sendAuthSignIn({
+      await this.mail.enqueue({
+        challengeId: issued.challenge.id,
         to: email,
         code: issued.challenge.code,
         confirmationLink: this.confirmationLink(
@@ -588,19 +700,33 @@ export class PasswordlessAuthService {
           issued.challenge.linkToken,
         ),
         expiresInMinutes: CHALLENGE_TTL_MS / 60_000,
+        deliverable,
+        userId,
+        purpose,
       });
     } catch {
-      this.logger.error('Could not send a sign-in email (SMTP failure)');
+      this.logger.error('Could not enqueue a sign-in email');
       await this.audit('AUTH_EMAIL_DELIVERY_FAILED', userId, {
         method: 'EMAIL_LINK',
       });
-      return;
     }
+  }
 
-    await this.audit('AUTH_EMAIL_REQUESTED', userId, {
-      method: 'EMAIL_LINK',
-      purpose,
+  /**
+   * Rotate the browser binding for an existing challenge.
+   *
+   * Cooldown responses return the same handle, so the user's open tab keeps
+   * working, but they still receive a fresh binding cookie just like a newly
+   * issued challenge. This removes the cookie-presence difference between
+   * eligible and suppressed addresses.
+   */
+  private async rotateBinding(challengeId: string): Promise<string> {
+    const browserNonce = randomToken(32);
+    await this.prisma.authChallenge.update({
+      where: { id: challengeId },
+      data: { browserNonceHash: sha256(browserNonce) },
     });
+    return browserNonce;
   }
 
   /** Atomically mark a challenge consumed. Returns the row for the winner only. */
@@ -618,7 +744,9 @@ export class PasswordlessAuthService {
     return this.prisma.authChallenge.findUnique({ where: { id: challengeId } });
   }
 
-  private async findChallenge(challengeId: string): Promise<AuthChallenge | null> {
+  private async findChallenge(
+    challengeId: string,
+  ): Promise<AuthChallenge | null> {
     if (typeof challengeId !== 'string' || challengeId.length < 16) return null;
     return this.prisma.authChallenge.findUnique({ where: { id: challengeId } });
   }
@@ -642,7 +770,8 @@ export class PasswordlessAuthService {
     const expected = Buffer.from(challenge.browserNonceHash, 'utf8');
     const actual = Buffer.from(sha256(browserNonce), 'utf8');
     return (
-      expected.length === actual.length && crypto.timingSafeEqual(expected, actual)
+      expected.length === actual.length &&
+      crypto.timingSafeEqual(expected, actual)
     );
   }
 
@@ -826,23 +955,22 @@ export class PasswordlessAuthService {
     };
   }
 
-  /** The generic 202 shape used when nothing was actually issued. */
-  private suppressed(): ChallengeStart {
-    return { result: this.genericResult(randomToken()), browserNonce: null };
-  }
-
   private requirePepper(): string {
     const pepper = this.methods.codePepper();
     if (!pepper) {
       // Fail closed: without the pepper a code hash is not the reviewed shape.
-      throw new ServiceUnavailableException('Sign-in is not available right now');
+      throw new ServiceUnavailableException(
+        'Sign-in is not available right now',
+      );
     }
     return pepper;
   }
 
   private assertEmailEnabled(): void {
     if (!this.methods.emailLinkEnabled) {
-      throw new ServiceUnavailableException('Sign-in is not available right now');
+      throw new ServiceUnavailableException(
+        'Sign-in is not available right now',
+      );
     }
   }
 
@@ -857,7 +985,9 @@ export class PasswordlessAuthService {
       return;
     }
     if (method === AuthMethod.GOOGLE && !this.methods.googleEnabled) {
-      throw new ServiceUnavailableException('Sign-in is not available right now');
+      throw new ServiceUnavailableException(
+        'Sign-in is not available right now',
+      );
     }
   }
 

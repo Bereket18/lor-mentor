@@ -269,9 +269,7 @@ describe('validateEnv', () => {
           ...secureProductionConfig,
           TRUST_PROXY: trustProxy,
         }),
-      ).toThrow(
-        /TRUST_PROXY must be a non-negative integer \(proxy hops\)/,
-      );
+      ).toThrow(/TRUST_PROXY must be a non-negative integer \(proxy hops\)/);
     },
   );
 
@@ -407,5 +405,78 @@ describe('validateEnv', () => {
     ).toThrow(
       /RECEIPT_VERIFIER_TIMEOUT_MS must be an integer between 5000 and 120000/,
     );
+  });
+
+  it('refuses to boot with Google sign-in advertised but unimplemented', () => {
+    expect(() =>
+      validateEnv({
+        NODE_ENV: 'test',
+        JWT_ACCESS_SECRET: 'test-access',
+        JWT_REFRESH_SECRET: 'test-refresh',
+        DATABASE_URL: 'postgresql://localhost/test',
+        AUTH_GOOGLE_ENABLED: 'TRUE',
+      }),
+    ).toThrow(/AUTH_GOOGLE_ENABLED=true is not supported yet/);
+  });
+
+  it('still accepts an explicit false Google flag', () => {
+    const config = {
+      NODE_ENV: 'test',
+      JWT_ACCESS_SECRET: 'test-access',
+      JWT_REFRESH_SECRET: 'test-refresh',
+      DATABASE_URL: 'postgresql://localhost/test',
+      AUTH_GOOGLE_ENABLED: 'false',
+    };
+
+    expect(validateEnv({ ...config })).toEqual(config);
+  });
+
+  it('requires the transient encryption key when email sign-in is enabled', () => {
+    expect(() =>
+      validateEnv({
+        NODE_ENV: 'test',
+        JWT_ACCESS_SECRET: 'test-access',
+        JWT_REFRESH_SECRET: 'test-refresh',
+        DATABASE_URL: 'postgresql://localhost/test',
+        AUTH_EMAIL_LINK_ENABLED: 'true',
+        AUTH_CODE_PEPPER: 'p'.repeat(32),
+        AUTH_RATE_KEY_SECRET: 'r'.repeat(32),
+      }),
+    ).toThrow(
+      /AUTH_TRANSIENT_ENCRYPTION_KEY must be at least 32 characters when AUTH_EMAIL_LINK_ENABLED is true/,
+    );
+  });
+
+  it('rejects reused passwordless secrets', () => {
+    const shared = 's'.repeat(32);
+    expect(() =>
+      validateEnv({
+        NODE_ENV: 'test',
+        JWT_ACCESS_SECRET: 'test-access',
+        JWT_REFRESH_SECRET: 'test-refresh',
+        DATABASE_URL: 'postgresql://localhost/test',
+        AUTH_EMAIL_LINK_ENABLED: 'true',
+        AUTH_CODE_PEPPER: shared,
+        AUTH_RATE_KEY_SECRET: shared,
+        AUTH_TRANSIENT_ENCRYPTION_KEY: shared,
+      }),
+    ).toThrow(
+      /AUTH_CODE_PEPPER, AUTH_RATE_KEY_SECRET and AUTH_TRANSIENT_ENCRYPTION_KEY must be independent secrets/,
+    );
+  });
+
+  it('accepts a complete passwordless email configuration', () => {
+    const config = {
+      NODE_ENV: 'test',
+      JWT_ACCESS_SECRET: 'test-access',
+      JWT_REFRESH_SECRET: 'test-refresh',
+      DATABASE_URL: 'postgresql://localhost/test',
+      AUTH_EMAIL_LINK_ENABLED: 'true',
+      AUTH_CODE_PEPPER: 'p'.repeat(32),
+      AUTH_RATE_KEY_SECRET: 'r'.repeat(32),
+      AUTH_TRANSIENT_ENCRYPTION_KEY: 'e'.repeat(32),
+    };
+
+    expect(validateEnv({ ...config })).toEqual(config);
   });
 });

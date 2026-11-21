@@ -282,6 +282,10 @@ model AuthChallenge {
   linkTokenHash    String               @unique
   codeHash         String
   browserNonceHash String
+  // False for a challenge-shaped record created for an address that must not
+  // receive mail (administrator, inactive, or over the delivery cap). The row
+  // exists so initiation has one observable shape; the worker never sends it.
+  deliverable      Boolean              @default(true)
   // Submitted comparisons against this row. The claim and increment statements
   // require attempts < 5, so the cap is enforced by the database.
   attempts         Int                  @default(0)
