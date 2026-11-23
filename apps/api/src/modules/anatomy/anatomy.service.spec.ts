@@ -493,6 +493,55 @@ describe('AnatomyService', () => {
     expect(generateAnatomyQuiz).not.toHaveBeenCalled();
   });
 
+  it.each(previewRoles)(
+    'allows %s to run AI tools against an unpublished draft system',
+    async (role) => {
+      findSystem.mockResolvedValue({
+        id: 'system-2',
+        slug: 'urinary',
+        name: 'Urinary system',
+        isPublished: false,
+        isSample: false,
+      });
+      findStructure.mockResolvedValue(aorta);
+      ensureActiveForStudent.mockResolvedValue(undefined);
+      explainAnatomyStructure.mockResolvedValue('Preview explanation');
+      generateAnatomyQuiz.mockResolvedValue({ questions: [] });
+
+      await expect(
+        service.explainStructure(userWithRole(role), 'urinary', 'aorta', {}),
+      ).resolves.toEqual({ explanation: 'Preview explanation' });
+      await expect(
+        service.generateStructureQuiz(userWithRole(role), 'urinary', 'aorta'),
+      ).resolves.toEqual({
+        system: { slug: 'urinary', name: 'Urinary system' },
+        structure: { slug: 'aorta', name: 'Aorta', latinName: 'Aorta' },
+        questions: [],
+      });
+    },
+  );
+
+  it('still hides an unpublished system from AI tools for a student', async () => {
+    findSystem.mockResolvedValue({
+      id: 'system-2',
+      slug: 'urinary',
+      name: 'Urinary system',
+      isPublished: false,
+      isSample: false,
+    });
+
+    await expect(
+      service.explainStructure(student, 'urinary', 'aorta', {}),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(
+      service.generateStructureQuiz(student, 'urinary', 'aorta'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(ensureActiveForStudent).not.toHaveBeenCalled();
+    expect(findStructure).not.toHaveBeenCalled();
+    expect(explainAnatomyStructure).not.toHaveBeenCalled();
+    expect(generateAnatomyQuiz).not.toHaveBeenCalled();
+  });
+
   it('throws NotFound when the structure does not exist', async () => {
     findSystem.mockResolvedValue({
       id: 'system-1',

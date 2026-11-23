@@ -197,7 +197,12 @@ export class AnatomyService {
       where: { slug: systemSlug },
     });
 
-    if (!system || !system.isPublished) {
+    // Match the detail route's publication gate exactly. Teachers are allowed
+    // to open a draft in the viewer, so they must also be able to run the AI
+    // tools against it; otherwise the viewer renders the panel and every call
+    // fails with "Anatomy system not found". Students stay blocked from
+    // unpublished content here just as they are on the detail route.
+    if (!system || (!system.isPublished && !canPreviewUnpublished(user))) {
       throw new NotFoundException('Anatomy system not found');
     }
 
