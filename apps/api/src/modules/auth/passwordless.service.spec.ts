@@ -45,6 +45,10 @@ function buildHarness() {
       update: jest.fn(),
       create: jest.fn(),
     },
+    authChallenge: {
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      create: jest.fn().mockResolvedValue({}),
+    },
     $queryRaw: jest.fn().mockResolvedValue([]),
   };
 
@@ -123,7 +127,7 @@ const GRANT_TOKEN = 'grant-token-value-long-enough';
 
 describe('PasswordlessAuthService initiation', () => {
   it('returns the same observable shape for eligible and suppressed addresses', async () => {
-    const { service, prisma, users, mail } = buildHarness();
+    const { service, prisma, tx, users, mail } = buildHarness();
 
     const unknown = await service.startEmail('new@example.com');
 
@@ -145,8 +149,9 @@ describe('PasswordlessAuthService initiation', () => {
     expect(unknown.browserNonce).toEqual(expect.any(String));
 
     // The decoy row still exists, but only the worker knows not to send it.
-    expect(prisma.authChallenge.create).toHaveBeenCalledTimes(2);
-    const createCalls = prisma.authChallenge.create.mock.calls as Array<
+    expect(tx.authChallenge.create).toHaveBeenCalledTimes(2);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+    const createCalls = tx.authChallenge.create.mock.calls as Array<
       [{ data: { deliverable: boolean; email: string } }]
     >;
     const decoy = createCalls[1][0];
@@ -182,7 +187,7 @@ describe('PasswordlessAuthService initiation', () => {
   });
 
   it('reuses the active challenge and rotates the binding during cooldown', async () => {
-    const { service, prisma, mail } = buildHarness();
+    const { service, prisma, tx, mail } = buildHarness();
     prisma.authChallenge.findFirst.mockResolvedValue({
       id: 'active-challenge',
       createdAt: new Date(),
@@ -197,16 +202,18 @@ describe('PasswordlessAuthService initiation', () => {
     >;
     expect(updateCalls[0][0].where).toEqual({ id: 'active-challenge' });
     expect(updateCalls[0][0].data.browserNonceHash).toMatch(/^[a-f0-9]{64}$/);
-    expect(prisma.authChallenge.create).not.toHaveBeenCalled();
+    expect(tx.authChallenge.create).not.toHaveBeenCalled();
+    expect(tx.$queryRaw).not.toHaveBeenCalled();
     expect(mail.enqueue).not.toHaveBeenCalled();
   });
 
   it('creates a deliverable challenge for an eligible address', async () => {
-    const { service, prisma, mail } = buildHarness();
+    const { service, tx, mail } = buildHarness();
 
     await service.startEmail('student@example.com');
 
-    const createdCalls = prisma.authChallenge.create.mock.calls as Array<
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    const createdCalls = tx.authChallenge.create.mock.calls as Array<
       [{ data: { deliverable: boolean; purpose: string; email: string } }]
     >;
     const created = createdCalls[0][0];
@@ -225,7 +232,7 @@ describe('PasswordlessAuthService initiation', () => {
   });
 
   it('fails closed when the cross-instance limiter is unavailable', async () => {
-    const { service, prisma, limits, mail } = buildHarness();
+    const { service, tx, limits, mail } = buildHarness();
     limits.consumeAddressDelivery.mockRejectedValue(
       new ServiceUnavailableException('Sign-in is not available right now'),
     );
@@ -233,7 +240,7 @@ describe('PasswordlessAuthService initiation', () => {
     await expect(service.startEmail('student@example.com')).rejects.toThrow(
       ServiceUnavailableException,
     );
-    expect(prisma.authChallenge.create).not.toHaveBeenCalled();
+    expect(tx.authChallenge.create).not.toHaveBeenCalled();
     expect(mail.enqueue).not.toHaveBeenCalled();
   });
 });

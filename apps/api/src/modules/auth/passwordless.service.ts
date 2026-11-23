@@ -652,12 +652,23 @@ export class PasswordlessAuthService {
     const code = crypto.randomInt(0, 1_000_000).toString().padStart(6, '0');
     const codeHash = await hashChallengeCode(id, code, pepper);
 
-    await this.prisma.$transaction([
-      this.prisma.authChallenge.updateMany({
+    // One active challenge per address. Take a transaction-scoped advisory
+    // lock keyed by an HMAC of the address before superseding and inserting.
+    // Without it, two concurrent starts can both pass the cooldown read and
+    // both insert, leaving two active rows (P1-1). The lock is released when
+    // the transaction ends; a second caller simply waits its turn, then
+    // supersedes the first row before creating its own.
+    const lockKey = this.challengeLockKey(input.email);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT 1 AS locked FROM (SELECT pg_advisory_xact_lock(${lockKey}::bigint)) AS lock`;
+
+      await tx.authChallenge.updateMany({
         where: { email: input.email, consumedAt: null, supersededAt: null },
         data: { supersededAt: new Date() },
-      }),
-      this.prisma.authChallenge.create({
+      });
+
+      await tx.authChallenge.create({
         data: {
           id,
           purpose: input.purpose,
@@ -670,8 +681,8 @@ export class PasswordlessAuthService {
           expiresAt: new Date(Date.now() + CHALLENGE_TTL_MS),
           returnPath: input.returnPath ?? null,
         },
-      }),
-    ]);
+      });
+    });
 
     return { challenge: { id, code, linkToken }, browserNonce };
   }
@@ -953,6 +964,26 @@ export class PasswordlessAuthService {
       challengeId,
       retryAfterSeconds: RESEND_COOLDOWN_MS / 1000,
     };
+  }
+
+  /**
+   * Stable 64-bit advisory-lock key for an address. HMAC keeps the raw email
+   * out of the lock key and reuses the rate-limit secret that is already
+   * required whenever email sign-in is enabled.
+   */
+  private challengeLockKey(email: string): string {
+    const secret = this.methods.rateKeySecret();
+    if (!secret) {
+      // Fail closed: env validation requires this secret for email sign-in.
+      throw new ServiceUnavailableException(
+        'Sign-in is not available right now',
+      );
+    }
+    const digest = crypto
+      .createHmac('sha256', secret)
+      .update(`challenge-lock:${email}`, 'utf8')
+      .digest();
+    return digest.readBigInt64BE(0).toString();
   }
 
   private requirePepper(): string {
