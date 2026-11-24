@@ -33,7 +33,13 @@ export interface PasswordlessUser {
 }
 
 export type PasswordlessCompletion =
-  | { next: "signed_in"; redirectTo: string; user: PasswordlessUser }
+  | {
+      next: "signed_in";
+      redirectTo: string;
+      user: PasswordlessUser;
+      /** The browser held a different account's session; it was revoked. */
+      switchedAccount?: true;
+    }
   | { next: "complete_profile"; redirectTo: string };
 
 export interface ProfileCompletionStatus {

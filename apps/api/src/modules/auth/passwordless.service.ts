@@ -928,6 +928,35 @@ export class PasswordlessAuthService {
     return token;
   }
 
+  /**
+   * Revoke the refresh token this browser presented before a fresh sign-in
+   * (P1-7).
+   *
+   * A new cookie pair overwrites the browser's copy, but a previously captured
+   * token stays valid until it expires or rotates. Denylisting the presented
+   * `jti` closes that window and keeps the existing rotation behaviour.
+   *
+   * Returns true when the presented token belonged to a different account, so
+   * the caller can describe the switch (P1-6). An unreadable or expired token
+   * is ignored: there is nothing left to revoke. A Redis failure propagates:
+   * continuing would write a new session while silently leaving the old token
+   * alive.
+   */
+  async revokePresentedRefreshToken(
+    token: string | undefined,
+    newUserId: string,
+  ): Promise<boolean> {
+    if (!token) return false;
+    let payload: { sub: string; jti?: string; exp?: number };
+    try {
+      payload = await this.auth.verifyRefreshToken(token);
+    } catch {
+      return false;
+    }
+    await this.auth.revokeRefreshPayload(payload);
+    return payload.sub !== newUserId;
+  }
+
   /** Sign in an eligible user and hand the tokens back to the controller. */
   private async signedIn(
     user: Pick<User, 'id' | 'email' | 'fullName' | 'role'>,

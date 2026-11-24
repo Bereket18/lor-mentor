@@ -271,7 +271,7 @@ routes require JSON, an exact allowed `Origin`, and the double-submit CSRF heade
 | Method and path | As-built behaviour |
 |---|---|
 | `GET /methods` | 200 `{googleEnabled, emailLinkEnabled}`; flags only. Redis-backed 60/IP/minute; 503 if Redis is unavailable. |
-| `GET /csrf` | 200 `{csrfToken}`; sets the `auth_cs_` cookie (15-minute max age). 60/IP/minute. |
+| `GET /csrf` | 200 `{csrfToken}`; sets the `auth_bid_` cookie once (30 days) and the `auth_cs_` cookie (15-minute max age). 60/IP/minute. |
 | `POST /email/start` | 202 `{message, challengeId, retryAfterSeconds: 60}`. Always sets a fresh `auth_ch_` and persists a challenge-shaped record; suppressed addresses get a non-deliverable decoy. 10/IP/minute and 50/IP/hour. |
 | `POST /email/resend` | 202 with the same body shape; requires the original `auth_ch_` binding. 10/IP/minute and 50/IP/hour. |
 | `POST /email/code` | 200 completion on success; otherwise 400 generic proof failure. 30/IP/10 minutes, 10/browser/10 minutes, 20/address/hour. |
@@ -304,13 +304,14 @@ The generic initiation message is:
 
 ### 7.1 Cookies
 
-Base names are `auth_cs_`, `auth_ch_` and `auth_en_`. In production each is prefixed
-with `__Host-` and set with `Secure`, `HttpOnly`, `SameSite=Lax`, `Path=/` and no
-`Domain`. Development uses the unprefixed names without `Secure`.
+Base names are `auth_bid_`, `auth_cs_`, `auth_ch_` and `auth_en_`. In production each is
+prefixed with `__Host-` and set with `Secure`, `HttpOnly`, `SameSite=Lax`, `Path=/` and
+no `Domain`. Development uses the unprefixed names without `Secure`.
 
 | Cookie | Lifetime | Purpose |
 |---|---|---|
-| `auth_cs_` | 15 minutes | CSRF synchronizer value; also the current browser key for request budgets. |
+| `auth_bid_` | 30 days | Stable browser identifier for request budgets. Minted once by `GET /csrf` and never rotated. |
+| `auth_cs_` | 15 minutes | CSRF synchronizer value. |
 | `auth_ch_` | 15 minutes | Challenge browser binding; rotated on a new/resend-issued challenge. |
 | `auth_en_` | 10 minutes | Profile-completion grant token. |
 
@@ -325,10 +326,14 @@ access/refresh pair.
 1. `Content-Type` includes `application/json`;
 2. `Origin` is present and exactly matches one of `CORS_ORIGIN`, `WEB_PUBLIC_URL` or
    `API_PUBLIC_URL` (after trimming a trailing slash and lowercasing);
-3. the `x-auth-csrf` header equals the `auth_cs_` cookie in constant time.
+3. Fetch-Metadata, when the browser sends it, describes a same-origin (or same-site)
+   fetch: `Sec-Fetch-Site` must be `same-origin`/`same-site`, and a `navigate` mode or a
+   `document`/`iframe`/`frame`/`embed`/`object` destination is refused;
+4. the `x-auth-csrf` header equals the `auth_cs_` cookie in constant time.
 
-There is no Fetch-Metadata check. The guard is in addition to `SameSite=Lax` and CORS.
-It is attached to every passwordless POST. GET/HEAD/OPTIONS pass through.
+The guard is in addition to `SameSite=Lax` and CORS. It is attached to every passwordless
+POST. GET/HEAD/OPTIONS pass through. A request without Fetch-Metadata headers is not a
+browser document/fetch submission and is still held to rules 1, 2 and 4.
 
 ### 7.3 Redirect allowlist
 
@@ -373,10 +378,10 @@ still applies. See P1-2.
 | `AUTH_TRANSIENT_ENCRYPTION_KEY` and `AUTH_POST_LOGIN_PATHS` are configuration. | `AUTH_TRANSIENT_ENCRYPTION_KEY` now exists and is required when email sign-in is enabled; it encrypts queued mail. The path allowlist remains a fixed constant. | Contract corrected for the encryption key; post-login paths remain code. |
 | Mail is delivered by a bounded, encrypted BullMQ job. | The `auth-mail` queue carries AES-256-GCM envelopes only; a worker sends deliverable payloads with three bounded retries and skips decoys. | Closed; P0-3. |
 | A daily cleanup job removes expired challenges/grants. | No scheduled job exists. | Corrected; P1-4. |
-| Auth pages carry a restrictive CSP and Fetch-Metadata checks. | Next.js sets `Referrer-Policy`, `X-Robots-Tag` and `Cache-Control` on the three pages; there is no CSP and the guard does not inspect Fetch-Metadata. | Corrected; P1-5. |
+| Auth pages carry a restrictive CSP and Fetch-Metadata checks. | The three pages carry `Referrer-Policy`, `X-Robots-Tag`, `Cache-Control` and a self-only `Content-Security-Policy`; `AuthCsrfGuard` refuses cross-site/navigation Fetch-Metadata. | Closed; P1-5. |
 | The profile grant is consumed and the user is created in one transaction. | `completeProfile` re-reads the grant and locks an existing user inside one transaction, consumes only after checks, and lets a failure roll both back. | Closed; P1-3 and P0-2. |
-| A successful sign-in revokes the presented prior refresh token. | A new refresh cookie is written, but the previous refresh token is not explicitly denylisted at login. | Corrected; P1-7. |
-| A different signed-in user must confirm an account switch. | No account-switch confirmation exists; the new cookies overwrite the old session. | Corrected; P1-6. |
+| A successful sign-in revokes the presented prior refresh token. | Completion verifies and denylists the presented refresh `jti` before writing the new pair; the live run's old token returned 401. | Closed; P1-7. |
+| A different signed-in user must confirm an account switch. | Completion revokes the previous session and returns `switchedAccount`; the UI shows who is signed in now. | Closed; P1-6. |
 | The initiating response is identical in body, cookie and timing for eligible and suppressed addresses. | Suppressed addresses also get a challenge-shaped row, the same body, a fresh binding cookie and an enqueued decoy; the worker sends nothing. | Closed; P0-1/P0-3. |
 | Issuance and supersession are serialised per address. | There is no per-address lock or partial unique index; concurrent starts can create two active challenges. | **Open P1**; P1-1. |
 | Cross-device confirmation creates a fresh receiving-browser binding. | It clears the challenge cookie and issues the session; no new binding is minted. | Wording corrected; the link remains a bearer capability. |
@@ -531,17 +536,41 @@ via Next.js headers or middleware, with a nonce if inline scripts require it. Ke
 `default-src 'self'`, disallow third-party analytics/images on auth pages, and test
 that the confirmation page still hydrates.
 
+Closed 2026-11-24: the `/login`, `/auth/email/confirm` and `/complete-profile` responses
+now carry `default-src 'self'`; `object-src 'none'`, `base-uri 'self'`,
+`form-action 'self'`, `frame-ancestors 'none'`; and `script-src`/`style-src`/`img-src`/
+`font-src` restricted to self (plus `blob:`/`data:` images and the configured API origin
+for `connect-src`). No third-party origin is allowed. Inline script/style stays allowed
+because Next.js emits an inline RSC bootstrap and next-themes emits the no-flash theme
+script; `'unsafe-eval'` is added only when `NODE_ENV=development` (React's debug build).
+A nonce policy would require every page to be dynamically rendered - the root layout owns
+the theme script - so it is deferred to P2. Live browser check: all three pages return the
+header, hydrate, the email mode switch and input work, and there are no CSP violations.
+`AuthCsrfGuard` also enforces Fetch-Metadata (see 7.2); a live cross-site and a navigation
+POST both returned 403.
+
 **P1-6: No account-switch confirmation.**
 If a different user is already signed in, a successful passwordless completion
 overwrites the session cookies without an explicit switch. Fix: detect an existing
 session at completion and require an explicit confirmation before replacing it, or
 sign the old session out and show a clear "signed in as …" transition.
 
+Closed 2026-11-24: chose the documented second option. Completion now revokes the refresh
+token the browser presented and, when it belonged to a different account, adds
+`switchedAccount: true` to the response (never the previous identity). The three pages
+show "Signed in as <name>. The previous account was signed out." A live run signed in as
+A, completed B in the same jar, saw `switchedAccount: true`, and `/me` then returned B.
+
 **P1-7: The prior refresh token is not revoked on a new sign-in.**
 A new refresh cookie overwrites the browser's copy, but a previously captured refresh
 token remains valid until expiry or rotation. Fix: read the presented refresh cookie
 on successful completion and denylist its `jti` before writing the new pair; keep the
 existing refresh-rotation behaviour.
+
+Closed 2026-11-24: `revokePresentedRefreshToken` verifies the presented cookie and
+denylists its `jti` before the new pair is written; an unreadable or expired token is
+ignored, and a Redis failure propagates rather than silently leaving the old token alive.
+The live run kept A's pre-switch refresh token and `/auth/refresh` with it returned 401.
 
 **P1-8: No database CHECK on `attempts`.**
 The conditional update is correct, but a future code path or manual write could store
@@ -619,6 +648,10 @@ logs a warning and does not fail the reset. Both use the existing metadata allow
   per-challenge counter would make the abuse matrix uniform.
 - **P2-7:** The canary-secret redaction test and the screenshot/a11y manifest are
   still missing from the evidence set.
+- **P2-8:** The auth-page CSP allows inline script/style because Next.js and next-themes
+  emit inline code without a nonce. Migrate to a nonce (or SRI hash) policy once the root
+  layout's theme script no longer forces a nonce-free root: that requires the theme script
+  to be removed or the whole app to render dynamically.
 
 ## 10. Remaining implementation plan
 
@@ -669,7 +702,9 @@ until the P1 items below close.
    test the accepted trade-off. **Done (P1-2): stable `auth_bid_` cookie.**
 3. Add the scheduled cleanup job with a single-runner guard and metrics. **Done (P1-4).**
 4. Add CSP for the auth pages (and the app if feasible) without breaking hydration.
+   **Done (P1-5): self-only CSP + Fetch-Metadata; nonce policy deferred to P2.**
 5. Add account-switch confirmation and prior-refresh-token revocation on new sign-in.
+   **Done (P1-6, P1-7).**
 6. Add the DB CHECK on `attempts`, role-aware return-path validation, the profile GET
    rate limit, `no-store` on all passwordless responses, SMTP/queue boot validation,
    and the missing audit events. **Done (P1-8, P1-9, P1-10, P1-11, P1-12).**

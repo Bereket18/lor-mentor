@@ -24,6 +24,12 @@ function normalizeOrigin(value: string | undefined | null): string | null {
   return trimmed ? trimmed : null;
 }
 
+/** First value of a possibly repeated header, trimmed and lowercased. */
+function headerValue(value: string | string[] | undefined): string {
+  const first = Array.isArray(value) ? value[0] : value;
+  return (first ?? '').trim().toLowerCase();
+}
+
 /**
  * CSRF protection for the new passwordless endpoints.
  *
@@ -33,6 +39,8 @@ function normalizeOrigin(value: string | undefined | null): string | null {
  *
  *  - `Origin` must be present AND exactly one of our configured origins;
  *  - the body must be JSON (which also forces a CORS preflight cross-origin);
+ *  - Fetch-Metadata, when the browser sends it, must describe a same-origin
+ *    (or same-site) fetch and not a navigation or embedded document;
  *  - the `x-auth-csrf` header must equal the value of the bootstrap cookie,
  *    compared in constant time.
  *
@@ -75,6 +83,32 @@ export class AuthCsrfGuard implements CanActivate {
     }
     if (this.allowedOrigins.size === 0 || !this.allowedOrigins.has(origin)) {
       throw new ForbiddenException('Cross-origin request rejected');
+    }
+
+    // Fetch-Metadata (P1-5). Browsers attach these to every request; a request
+    // that arrives without them is not a browser form/fetch and is already
+    // constrained by the exact Origin and JSON checks above. When present:
+    //  - `cross-site` and `none` are refused. `none` means the user navigated
+    //    to the URL directly, which a JSON POST with our header cannot be.
+    //  - a navigation or embedded-document destination is refused, so a form
+    //    or frame cannot reach this endpoint even if the other checks regress.
+    const fetchSite = headerValue(request.headers['sec-fetch-site']);
+    if (fetchSite && fetchSite !== 'same-origin' && fetchSite !== 'same-site') {
+      throw new ForbiddenException('Cross-site request rejected');
+    }
+    const fetchMode = headerValue(request.headers['sec-fetch-mode']);
+    if (fetchMode === 'navigate') {
+      throw new ForbiddenException('Navigation requests are not accepted');
+    }
+    const fetchDest = headerValue(request.headers['sec-fetch-dest']);
+    if (
+      fetchDest === 'document' ||
+      fetchDest === 'iframe' ||
+      fetchDest === 'frame' ||
+      fetchDest === 'embed' ||
+      fetchDest === 'object'
+    ) {
+      throw new ForbiddenException('Embedded document requests are not accepted');
     }
 
     const cookies = (request.cookies ?? {}) as Record<string, string | undefined>;

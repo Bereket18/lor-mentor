@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Loader2, MailCheck } from "lucide-react";
+import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import {
   AuthButton,
@@ -97,6 +98,13 @@ export default function EmailConfirmPage() {
       // The session cookies are already set. Refresh the shared /me query so
       // the app shell does not render a logged-out frame after navigation.
       await checkAuth();
+      if (completion.switchedAccount) {
+        // P1-6: the browser arrived signed in as someone else. The API has
+        // already revoked that refresh token; say who is signed in now.
+        toast.success(
+          `Signed in as ${completion.user.fullName}. The previous account was signed out.`,
+        );
+      }
       router.replace(completion.redirectTo);
       return;
     }

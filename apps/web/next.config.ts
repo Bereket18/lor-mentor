@@ -42,10 +42,38 @@ const nextConfig: NextConfig = {
    * never sent to the server; these headers cover the rest.)
    */
   async headers() {
+    // The browser bundle calls the API either same-origin (through the
+    // rewrite) or directly at NEXT_PUBLIC_API_URL, so that origin is allowed
+    // for connections. No other origin is.
+    const apiOrigin = resolveApiOrigin();
+    // P1-5: the auth pages get a self-only policy. No third-party origin is
+    // allowed for scripts, images, fonts or connections, so a link to an
+    // attacker-controlled host cannot be injected into these pages as a
+    // resource. Inline scripts/styles stay allowed because Next.js emits an
+    // inline RSC bootstrap and next-themes emits a no-flash theme script;
+    // without a per-request nonce both would be blocked. A nonce policy
+    // requires every page to be dynamically rendered (the root layout owns the
+    // theme script), which is tracked separately as a P2 follow-up.
+    const isDev = process.env.NODE_ENV === "development";
+    const contentSecurityPolicy = [
+      "default-src 'self'",
+      // React's development build uses eval for enhanced stack traces; the
+      // production build does not, so this keyword is never shipped.
+      `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' blob: data:",
+      "font-src 'self'",
+      `connect-src 'self' ${apiOrigin}`,
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+    ].join("; ");
     const hardened = [
       { key: "Referrer-Policy", value: "no-referrer" },
       { key: "X-Robots-Tag", value: "noindex, nofollow" },
       { key: "Cache-Control", value: "no-store" },
+      { key: "Content-Security-Policy", value: contentSecurityPolicy },
     ];
     return [
       { source: "/login", headers: hardened },

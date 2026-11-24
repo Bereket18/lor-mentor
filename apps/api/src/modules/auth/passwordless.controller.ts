@@ -210,7 +210,7 @@ export class PasswordlessController {
       dto.code,
       this.readCookies(req)[this.challengeCookie()],
     );
-    return this.finish(completion, res);
+    return this.finish(req, completion, res);
   }
 
   @UseGuards(AuthCsrfGuard)
@@ -236,7 +236,7 @@ export class PasswordlessController {
       dto.challengeId,
       dto.token,
     );
-    return this.finish(completion, res);
+    return this.finish(req, completion, res);
   }
 
   /** Safe status for the profile page. No consumption; no session. */
@@ -283,19 +283,31 @@ export class PasswordlessController {
       this.readCookies(req)[this.enrollmentCookie()],
       dto,
     );
-    return this.finish(completion, res);
+    return this.finish(req, completion, res);
   }
 
   /**
    * Turn a service completion into cookies and a body that never contains a
    * token. The proof state (challenge or grant cookie) is always cleared.
    */
-  private finish(completion: AuthCompletion, res: Response) {
+  private async finish(
+    req: Request,
+    completion: AuthCompletion,
+    res: Response,
+  ) {
     // The proof has been consumed either way, so the transient cookies are
     // useless from here on.
     res.clearCookie(this.challengeCookie(), clearedAuthCookieOptions(this.config));
 
     if (completion.next === 'signed_in') {
+      // P1-6/P1-7: end the session this browser arrived with before writing
+      // the new one. The old refresh token stops working even if it had been
+      // copied, and a different account is reported as a switch so the UI can
+      // say who is now signed in.
+      const switchedAccount = await this.service.revokePresentedRefreshToken(
+        this.readCookies(req)['refresh_token'],
+        completion.user.id,
+      );
       writeSessionCookies(res, this.config, completion.session);
       res.clearCookie(
         this.enrollmentCookie(),
@@ -306,6 +318,7 @@ export class PasswordlessController {
         next: 'signed_in' as const,
         redirectTo: completion.redirectTo,
         user: completion.user,
+        ...(switchedAccount ? { switchedAccount: true } : {}),
       };
     }
 

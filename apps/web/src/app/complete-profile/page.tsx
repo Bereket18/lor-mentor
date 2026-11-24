@@ -7,6 +7,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { ArrowRight, Loader2, MailCheck } from "lucide-react";
+import { toast } from "sonner";
 import api from "@/lib/api";
 import type { AcademicYear, Department } from "@/types";
 import { useAuth } from "@/hooks/use-auth";
@@ -128,6 +129,13 @@ export default function CompleteProfilePage() {
       const completion: PasswordlessCompletion = await completeProfile(data);
       if (completion.next === "signed_in") {
         await checkAuth();
+        if (completion.switchedAccount) {
+          // P1-6: the browser held another account's session; the API revoked
+          // it before issuing this one.
+          toast.success(
+            `Signed in as ${completion.user.fullName}. The previous account was signed out.`,
+          );
+        }
       }
       router.replace(completion.redirectTo);
     } catch (err: unknown) {

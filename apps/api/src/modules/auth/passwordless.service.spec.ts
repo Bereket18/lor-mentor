@@ -398,3 +398,69 @@ describe('PasswordlessAuthService.completeProfile', () => {
     expect(tx.user.findUnique).not.toHaveBeenCalled();
   });
 });
+
+describe('PasswordlessAuthService prior refresh revocation', () => {
+  it('does nothing when the browser presented no refresh token', async () => {
+    const { service, auth } = buildHarness();
+    const verify = jest.fn();
+    (auth as unknown as Record<string, jest.Mock>).verifyRefreshToken = verify;
+
+    await expect(
+      service.revokePresentedRefreshToken(undefined, 'user-1'),
+    ).resolves.toBe(false);
+    expect(verify).not.toHaveBeenCalled();
+  });
+
+  it('ignores a token that cannot be verified', async () => {
+    const { service, auth } = buildHarness();
+    const mocked = auth as unknown as Record<string, jest.Mock>;
+    mocked.verifyRefreshToken = jest.fn().mockRejectedValue(new Error('bad'));
+    mocked.revokeRefreshPayload = jest.fn();
+
+    await expect(
+      service.revokePresentedRefreshToken('stale-token', 'user-1'),
+    ).resolves.toBe(false);
+    expect(mocked.revokeRefreshPayload).not.toHaveBeenCalled();
+  });
+
+  it('revokes the presented token and reports a same-user sign-in', async () => {
+    const { service, auth } = buildHarness();
+    const mocked = auth as unknown as Record<string, jest.Mock>;
+    const payload = { sub: 'user-1', jti: 'jti-1', exp: 2_000_000_000 };
+    mocked.verifyRefreshToken = jest.fn().mockResolvedValue(payload);
+    mocked.revokeRefreshPayload = jest.fn().mockResolvedValue(undefined);
+
+    await expect(
+      service.revokePresentedRefreshToken('old-token', 'user-1'),
+    ).resolves.toBe(false);
+    expect(mocked.revokeRefreshPayload).toHaveBeenCalledWith(payload);
+  });
+
+  it('reports a different account after revoking its token', async () => {
+    const { service, auth } = buildHarness();
+    const mocked = auth as unknown as Record<string, jest.Mock>;
+    mocked.verifyRefreshToken = jest
+      .fn()
+      .mockResolvedValue({ sub: 'user-2', jti: 'jti-2', exp: 2_000_000_000 });
+    mocked.revokeRefreshPayload = jest.fn().mockResolvedValue(undefined);
+
+    await expect(
+      service.revokePresentedRefreshToken('old-token', 'user-1'),
+    ).resolves.toBe(true);
+  });
+
+  it('propagates a revocation failure so the caller does not claim success', async () => {
+    const { service, auth } = buildHarness();
+    const mocked = auth as unknown as Record<string, jest.Mock>;
+    mocked.verifyRefreshToken = jest
+      .fn()
+      .mockResolvedValue({ sub: 'user-1', jti: 'jti-1', exp: 2_000_000_000 });
+    mocked.revokeRefreshPayload = jest
+      .fn()
+      .mockRejectedValue(new Error('redis down'));
+
+    await expect(
+      service.revokePresentedRefreshToken('old-token', 'user-1'),
+    ).rejects.toThrow('redis down');
+  });
+});

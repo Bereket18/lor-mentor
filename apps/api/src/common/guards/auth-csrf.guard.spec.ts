@@ -139,4 +139,59 @@ describe('AuthCsrfGuard', () => {
       ),
     ).toThrow(ForbiddenException);
   });
+
+  describe('Fetch-Metadata', () => {
+    function activate(extra: Record<string, string>) {
+      const guard = guardFor(BASE_CONFIG);
+      return guard.canActivate(
+        contextFor({
+          headers: {
+            origin: 'http://localhost:3000',
+            'content-type': 'application/json',
+            'x-auth-csrf': 'token-123',
+            ...extra,
+          },
+          cookies: { [CSRF_COOKIE]: 'token-123' },
+        }),
+      );
+    }
+
+    it('accepts a same-origin fetch', () => {
+      expect(
+        activate({
+          'sec-fetch-site': 'same-origin',
+          'sec-fetch-mode': 'cors',
+          'sec-fetch-dest': 'empty',
+        }),
+      ).toBe(true);
+    });
+
+    it('accepts a same-site fetch from the split web host', () => {
+      expect(
+        activate({
+          'sec-fetch-site': 'same-site',
+          'sec-fetch-mode': 'cors',
+        }),
+      ).toBe(true);
+    });
+
+    it('rejects cross-site and direct-navigation site values', () => {
+      for (const site of ['cross-site', 'none']) {
+        expect(() => activate({ 'sec-fetch-site': site })).toThrow(
+          ForbiddenException,
+        );
+      }
+    });
+
+    it('rejects a navigation or embedded-document destination', () => {
+      expect(() => activate({ 'sec-fetch-mode': 'navigate' })).toThrow(
+        ForbiddenException,
+      );
+      for (const dest of ['document', 'iframe', 'frame', 'embed', 'object']) {
+        expect(() => activate({ 'sec-fetch-dest': dest })).toThrow(
+          ForbiddenException,
+        );
+      }
+    });
+  });
 });

@@ -27,13 +27,25 @@ function harness(values: Record<string, string> = {}) {
   } as unknown as AuthRateLimitService;
   const service = {
     grantStatus: jest.fn().mockResolvedValue({ status: 'none' }),
+    verifyCode: jest.fn().mockResolvedValue({
+      next: 'signed_in',
+      redirectTo: '/dashboard',
+      user: {
+        id: 'user-1',
+        email: 'student@example.com',
+        fullName: 'Test Student',
+        role: 'STUDENT',
+      },
+      session: { accessToken: 'access', refreshToken: 'refresh' },
+    }),
+    revokePresentedRefreshToken: jest.fn().mockResolvedValue(false),
   } as unknown as PasswordlessAuthService;
   const controller = new PasswordlessController(
     service,
     limits,
     configFor(values),
   );
-  return { controller, res, cookie, setHeader, limits };
+  return { controller, res, cookie, setHeader, limits, service };
 }
 
 function requestWith(cookies: Record<string, string> = {}): Request {
@@ -107,5 +119,47 @@ describe('PasswordlessController profile status', () => {
     );
     expect(setHeader).toHaveBeenCalledWith('Cache-Control', 'no-store');
     expect(setHeader).toHaveBeenCalledWith('Referrer-Policy', 'no-referrer');
+  });
+});
+
+describe('PasswordlessController session replacement', () => {
+  it('revokes the presented refresh token before writing the new pair', async () => {
+    const { controller, res, service } = harness();
+    const revoke = (service as unknown as {
+      revokePresentedRefreshToken: jest.Mock;
+    }).revokePresentedRefreshToken;
+
+    const body = await controller.emailCode(
+      { challengeId: 'challenge-1', code: '123456' },
+      requestWith({ refresh_token: 'old-refresh' }),
+      res,
+    );
+
+    expect(revoke).toHaveBeenCalledWith('old-refresh', 'user-1');
+    expect(body).toEqual({
+      next: 'signed_in',
+      redirectTo: '/dashboard',
+      user: expect.objectContaining({ id: 'user-1' }),
+    });
+    expect(JSON.stringify(body)).not.toContain('old-refresh');
+    expect(JSON.stringify(body)).not.toContain('refresh');
+  });
+
+  it('reports an account switch without naming the previous user', async () => {
+    const { controller, res, service } = harness();
+    const revoke = (service as unknown as {
+      revokePresentedRefreshToken: jest.Mock;
+    }).revokePresentedRefreshToken;
+    revoke.mockResolvedValue(true);
+
+    const body = await controller.emailCode(
+      { challengeId: 'challenge-1', code: '123456' },
+      requestWith({ refresh_token: 'old-refresh' }),
+      res,
+    );
+
+    expect(body).toEqual(
+      expect.objectContaining({ next: 'signed_in', switchedAccount: true }),
+    );
   });
 });

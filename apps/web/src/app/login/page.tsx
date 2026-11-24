@@ -8,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, Loader2, ArrowRight, Mail } from "lucide-react";
+import { toast } from "sonner";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { BrandLogo } from "@/components/shared/brand-logo";
 import { useAuth } from "@/hooks/use-auth";
@@ -138,6 +139,13 @@ export default function LoginPage() {
       // Session cookies are already set; refresh the shared /me query so the
       // app shell does not paint a logged-out frame after navigation.
       await checkAuth();
+      if (completion.switchedAccount) {
+        // P1-6: the browser arrived signed in as someone else. The API has
+        // already revoked that refresh token; say who is signed in now.
+        toast.success(
+          `Signed in as ${completion.user.fullName}. The previous account was signed out.`,
+        );
+      }
     }
     router.push(completion.redirectTo);
   }
