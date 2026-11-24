@@ -509,3 +509,57 @@ describe('AuthService email verification', () => {
     expect(sendEmailVerification).not.toHaveBeenCalled();
   });
 });
+
+describe('AuthService password reset revocation', () => {
+  function harness(auditCreate: jest.Mock) {
+    const claimResetToken = jest.fn().mockResolvedValue('user-1');
+    const revokeUserSessions = jest.fn().mockResolvedValue(undefined);
+    const users = { claimResetToken } as unknown as UsersService;
+    const denylist = { revokeUserSessions } as unknown as TokenDenylistService;
+    const prisma = { auditLog: { create: auditCreate } } as unknown as PrismaService;
+    const config = {
+      get: jest.fn((key: string) =>
+        key === 'JWT_REFRESH_EXPIRES_IN' ? '7d' : undefined,
+      ),
+    } as unknown as ConfigService;
+    const service = new AuthService(
+      users,
+      {} as JwtService,
+      config,
+      prisma,
+      {} as MailService,
+      denylist,
+    );
+    return { service, claimResetToken, revokeUserSessions };
+  }
+
+  it('records AUTH_SESSIONS_REVOKED after revoking older sessions', async () => {
+    const auditCreate = jest.fn().mockResolvedValue({});
+    const { service, claimResetToken, revokeUserSessions } = harness(auditCreate);
+
+    await service.resetPassword('reset-token', 'NewStrongPass123!');
+
+    expect(claimResetToken).toHaveBeenCalledTimes(1);
+    expect(revokeUserSessions).toHaveBeenCalledTimes(1);
+    expect(auditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        actorId: 'user-1',
+        action: 'AUTH_SESSIONS_REVOKED',
+        entityType: 'User',
+        entityId: 'user-1',
+        meta: { reason: 'PASSWORD_RESET' },
+      }),
+    });
+  });
+
+  it('still completes the reset when the audit write fails', async () => {
+    const auditCreate = jest.fn().mockRejectedValue(new Error('audit down'));
+    const { service } = harness(auditCreate);
+
+    await expect(
+      service.resetPassword('reset-token', 'NewStrongPass123!'),
+    ).resolves.toEqual({
+      message: 'Password reset successful. You can now log in.',
+    });
+  });
+});

@@ -8,11 +8,13 @@ import {
   Req,
   Res,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { AuthCsrfGuard } from '../../common/guards/auth-csrf.guard';
+import { NoStoreInterceptor } from '../../common/interceptors/no-store.interceptor';
 import {
   authCookieName,
   authCookieOptions,
@@ -67,6 +69,7 @@ import {
  * HttpOnly cookies, and the profile grant token only as an HttpOnly cookie.
  */
 @Controller('auth')
+@UseInterceptors(NoStoreInterceptor)
 export class PasswordlessController {
   constructor(
     private readonly service: PasswordlessAuthService,
@@ -242,6 +245,11 @@ export class PasswordlessController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
+    // A grant cookie is not required to probe this route, so it needs the same
+    // public-read budget as `/methods` and `/csrf` (P1-10).
+    await this.limits.enforceRequest(req, 'profile:status', {
+      ip: { limit: PUBLIC_READ_IP_PER_MINUTE, windowMs: WINDOW_MINUTE_MS },
+    });
     const status = await this.service.grantStatus(
       this.readCookies(req)[this.enrollmentCookie()],
     );

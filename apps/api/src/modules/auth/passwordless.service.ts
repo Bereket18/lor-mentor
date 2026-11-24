@@ -33,11 +33,11 @@ import {
   type ChallengeStartResult,
   equalizeAuthTiming,
   hashChallengeCode,
-  homeForRole,
   isAdminRole,
   isPlausibleEmail,
   isWellFormedAuthCode,
   randomToken,
+  returnPathForRole,
   sanitizeReturnPath,
   sha256,
   verifyChallengeCode,
@@ -937,10 +937,7 @@ export class PasswordlessAuthService {
     const session = await this.auth.issueSession(user.id, method);
     return {
       next: 'signed_in',
-      redirectTo: sanitizeReturnPath(
-        returnPath ?? undefined,
-        homeForRole(user.role),
-      ),
+      redirectTo: returnPathForRole(returnPath, user.role),
       session,
       user: {
         id: user.id,

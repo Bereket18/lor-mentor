@@ -411,6 +411,33 @@ export function validateEnv(
         'AUTH_CODE_PEPPER, AUTH_RATE_KEY_SECRET and AUTH_TRANSIENT_ENCRYPTION_KEY must be independent secrets',
       );
     }
+
+    // Mail transport must exist before the flag is advertised (P1-11).
+    // MailService throws only when a send is attempted, and the worker records
+    // that as a delivery failure, so without this a deployment can look
+    // "enabled" while every sign-in email is dropped. Production already
+    // requires these for password reset; this covers every environment.
+    const smtpPort = stringValue(config.SMTP_PORT).trim();
+    if (smtpPort) {
+      const port = Number(smtpPort);
+      if (!Number.isInteger(port) || port < 1 || port > 65535) {
+        errors.push('SMTP_PORT must be an integer between 1 and 65535');
+      }
+    }
+    if (!isProd) {
+      for (const key of [
+        'SMTP_HOST',
+        'SMTP_USER',
+        'SMTP_PASS',
+        'SMTP_FROM',
+      ]) {
+        if (!stringValue(config[key]).trim()) {
+          errors.push(
+            `${key} is required when AUTH_EMAIL_LINK_ENABLED is true; the sign-in worker must be able to send mail`,
+          );
+        }
+      }
+    }
   }
 
   // Google sign-in has no verifier yet. Starting the API with the flag on would

@@ -1,4 +1,4 @@
-import { Logger } from '@nestjs/common';
+import { Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Prisma } from '@prisma/client';
@@ -19,7 +19,10 @@ import { AuthMailCryptoService } from './auth-mail.crypto';
  * provider error are never written to application or audit logs.
  */
 @Processor(AUTH_MAIL_QUEUE, { concurrency: 4 })
-export class AuthMailProcessor extends WorkerHost {
+export class AuthMailProcessor
+  extends WorkerHost
+  implements OnApplicationBootstrap
+{
   private readonly logger = new Logger(AuthMailProcessor.name);
 
   constructor(
@@ -28,6 +31,17 @@ export class AuthMailProcessor extends WorkerHost {
     private readonly prisma: PrismaService,
   ) {
     super();
+  }
+
+  /**
+   * One boot line that proves the worker registered with the queue. Readiness
+   * already checks Redis (the queue backend); this makes a missing worker
+   * visible in the log instead of only in a silent delivery failure (P1-11).
+   */
+  onApplicationBootstrap(): void {
+    this.logger.log(
+      `auth_mail_worker_ready queue=${AUTH_MAIL_QUEUE} concurrency=4`,
+    );
   }
 
   async process(job: Job<AuthMailJobData>): Promise<void> {

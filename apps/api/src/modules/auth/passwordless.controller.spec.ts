@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import { PasswordlessController } from './passwordless.controller';
 import type { PasswordlessAuthService } from './passwordless.service';
 import type { AuthRateLimitService } from './auth-rate-limit.service';
-import { BROWSER_ID_TTL_MS, CHALLENGE_TTL_MS } from './auth-policy';
+import { BROWSER_ID_TTL_MS, CHALLENGE_TTL_MS, PUBLIC_READ_IP_PER_MINUTE, WINDOW_MINUTE_MS } from './auth-policy';
 
 type CookieOptionsRecord = Record<string, unknown>;
 type CookieMock = jest.Mock<void, [string, string, CookieOptionsRecord]>;
@@ -16,20 +16,24 @@ function configFor(values: Record<string, string> = {}): ConfigService {
 
 function harness(values: Record<string, string> = {}) {
   const cookie: CookieMock = jest.fn();
+  const setHeader = jest.fn();
   const res = {
     cookie,
     clearCookie: jest.fn(),
-    setHeader: jest.fn(),
+    setHeader,
   } as unknown as Response;
   const limits = {
     enforceRequest: jest.fn().mockResolvedValue(undefined),
   } as unknown as AuthRateLimitService;
+  const service = {
+    grantStatus: jest.fn().mockResolvedValue({ status: 'none' }),
+  } as unknown as PasswordlessAuthService;
   const controller = new PasswordlessController(
-    {} as unknown as PasswordlessAuthService,
+    service,
     limits,
     configFor(values),
   );
-  return { controller, res, cookie };
+  return { controller, res, cookie, setHeader, limits };
 }
 
 function requestWith(cookies: Record<string, string> = {}): Request {
@@ -87,5 +91,21 @@ describe('PasswordlessController CSRF bootstrap', () => {
     for (const call of cookie.mock.calls) {
       expect(call[2]).toEqual(expect.objectContaining({ secure: true, path: '/' }));
     }
+  });
+});
+
+describe('PasswordlessController profile status', () => {
+  it('applies the public-read IP budget and no-store headers', async () => {
+    const { controller, res, limits, setHeader } = harness();
+
+    await controller.profileCompletion(requestWith(), res);
+
+    expect(limits.enforceRequest as jest.Mock).toHaveBeenCalledWith(
+      expect.anything(),
+      'profile:status',
+      { ip: { limit: PUBLIC_READ_IP_PER_MINUTE, windowMs: WINDOW_MINUTE_MS } },
+    );
+    expect(setHeader).toHaveBeenCalledWith('Cache-Control', 'no-store');
+    expect(setHeader).toHaveBeenCalledWith('Referrer-Policy', 'no-referrer');
   });
 });

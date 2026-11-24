@@ -606,6 +606,23 @@ export class AuthService {
       this.refreshRevocationTtlSeconds,
     );
 
+    // Durable record of the revocation (P1-12): the denylist marker is opaque
+    // and expires, so the audit row is what proves older sessions were ended.
+    // No address, token or hash is recorded.
+    try {
+      await this.prisma.auditLog.create({
+        data: {
+          actorId: userId,
+          action: 'AUTH_SESSIONS_REVOKED',
+          entityType: 'User',
+          entityId: userId,
+          meta: { reason: 'PASSWORD_RESET' },
+        },
+      });
+    } catch {
+      this.logger.warn('Could not write audit event AUTH_SESSIONS_REVOKED');
+    }
+
     return { message: 'Password reset successful. You can now log in.' };
   }
 

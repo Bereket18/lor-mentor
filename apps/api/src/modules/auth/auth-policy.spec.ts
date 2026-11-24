@@ -4,6 +4,7 @@ import {
   isAdminRole,
   isPlausibleEmail,
   isWellFormedAuthCode,
+  returnPathForRole,
   sanitizeReturnPath,
   verifyChallengeCode,
 } from './auth-policy';
@@ -71,6 +72,22 @@ describe('sanitizeReturnPath', () => {
 
   it('uses the caller fallback for an unknown role home', () => {
     expect(sanitizeReturnPath('/admin', '/teacher')).toBe('/teacher');
+  });
+
+  it('refuses a teacher-only destination for a student', () => {
+    expect(returnPathForRole('/teacher', 'STUDENT')).toBe('/dashboard');
+    expect(returnPathForRole('/teacher', 'ADMIN')).toBe('/dashboard');
+    // A path every role may use is kept.
+    expect(returnPathForRole('/support/tickets', 'STUDENT')).toBe(
+      '/support/tickets',
+    );
+  });
+
+  it('keeps an allowlisted destination for a teacher', () => {
+    expect(returnPathForRole('/teacher', 'TEACHER')).toBe('/teacher');
+    expect(returnPathForRole('/courses', 'TEACHER')).toBe('/courses');
+    // A path outside the allowlist still falls back to the role home.
+    expect(returnPathForRole('/admin', 'TEACHER')).toBe('/teacher');
   });
 });
 

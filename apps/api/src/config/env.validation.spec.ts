@@ -475,8 +475,50 @@ describe('validateEnv', () => {
       AUTH_CODE_PEPPER: 'p'.repeat(32),
       AUTH_RATE_KEY_SECRET: 'r'.repeat(32),
       AUTH_TRANSIENT_ENCRYPTION_KEY: 'e'.repeat(32),
+      SMTP_HOST: 'smtp.example.com',
+      SMTP_PORT: '1025',
+      SMTP_USER: 'mailer',
+      SMTP_PASS: 'mailer-secret',
+      SMTP_FROM: 'no-reply@example.com',
     };
 
     expect(validateEnv({ ...config })).toEqual(config);
+  });
+
+  it('requires a usable mail transport when email sign-in is enabled', () => {
+    expect(() =>
+      validateEnv({
+        NODE_ENV: 'test',
+        JWT_ACCESS_SECRET: 'test-access',
+        JWT_REFRESH_SECRET: 'test-refresh',
+        DATABASE_URL: 'postgresql://localhost/test',
+        AUTH_EMAIL_LINK_ENABLED: 'true',
+        AUTH_CODE_PEPPER: 'p'.repeat(32),
+        AUTH_RATE_KEY_SECRET: 'r'.repeat(32),
+        AUTH_TRANSIENT_ENCRYPTION_KEY: 'e'.repeat(32),
+      }),
+    ).toThrow(
+      /SMTP_HOST is required when AUTH_EMAIL_LINK_ENABLED is true[\s\S]*SMTP_USER is required[\s\S]*SMTP_PASS is required[\s\S]*SMTP_FROM is required/,
+    );
+  });
+
+  it('rejects an invalid SMTP_PORT when email sign-in is enabled', () => {
+    expect(() =>
+      validateEnv({
+        NODE_ENV: 'test',
+        JWT_ACCESS_SECRET: 'test-access',
+        JWT_REFRESH_SECRET: 'test-refresh',
+        DATABASE_URL: 'postgresql://localhost/test',
+        AUTH_EMAIL_LINK_ENABLED: 'true',
+        AUTH_CODE_PEPPER: 'p'.repeat(32),
+        AUTH_RATE_KEY_SECRET: 'r'.repeat(32),
+        AUTH_TRANSIENT_ENCRYPTION_KEY: 'e'.repeat(32),
+        SMTP_HOST: 'smtp.example.com',
+        SMTP_USER: 'mailer',
+        SMTP_PASS: 'mailer-secret',
+        SMTP_FROM: 'no-reply@example.com',
+        SMTP_PORT: '70000',
+      }),
+    ).toThrow(/SMTP_PORT must be an integer between 1 and 65535/);
   });
 });

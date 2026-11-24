@@ -560,11 +560,23 @@ cap no longer depends on every future code path using the right predicate.
 completion, compare the requested path with the role's allowed destinations and fall
 back to the role home. Keep `/admin` out of the allowlist.
 
+Closed 2026-11-24: `returnPathForRole` wraps `sanitizeReturnPath` with the role check;
+`/teacher` falls back to the student home for non-teachers, and every path outside the
+allowlist still falls back to the role home. `signedIn` is the only caller, so the
+redirect at completion cannot bypass it. The path stored on the challenge is unchanged;
+the decision is made against the role resolved at completion.
+
 **P1-10: Profile status GET is unthrottled, and `Cache-Control` is incomplete.**
 `GET /profile-completion` has no IP budget, and start/resend do not set
 `Cache-Control: no-store` themselves (only the completion paths and the Next.js page
 headers do). Fix: add the 60/IP/minute public-read budget and set `no-store` on every
 passwordless response, ideally with a controller-level interceptor.
+
+Closed 2026-11-24: `NoStoreInterceptor` is applied to the whole passwordless
+controller, so every response — including `/methods`, `/csrf` and the profile status —
+sets `Cache-Control: no-store` and `Referrer-Policy: no-referrer` before the handler
+runs. `GET /profile-completion` now consumes the 60/IP/minute public-read budget under
+`profile:status`. Handlers that set the same headers again keep working unchanged.
 
 **P1-11: Email enablement does not validate SMTP at boot.**
 `MailService` throws only when a send is attempted, and the service swallows that as a
@@ -572,10 +584,22 @@ delivery failure. A deployment can be "enabled" with no usable transport. Fix: v
 the required SMTP variables when `AUTH_EMAIL_LINK_ENABLED=true`, and surface queue/worker
 health in the same check.
 
+Closed 2026-11-24: `validateEnv` now requires `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS` and
+`SMTP_FROM` whenever `AUTH_EMAIL_LINK_ENABLED=true` (not only in production) and
+validates `SMTP_PORT` when present. The mail worker logs
+`auth_mail_worker_ready queue=… concurrency=…` once it registers, so a missing worker is
+visible in the boot log. Readiness (`GET /health/ready`) already fails when Redis — the
+queue backend — is unreachable; no second probe was added.
+
 **P1-12: Missing audit events.**
 `AUTH_EMAIL_SUPPRESSED` and `AUTH_SESSIONS_REVOKED` are listed in the design but not
 written. Fix: add them with the same metadata allowlist; do not include the address,
 challenge handle or token hash.
+
+Closed 2026-11-24: `AUTH_EMAIL_SUPPRESSED` was already written on both initiation paths
+in Phase 1. `AUTH_SESSIONS_REVOKED` is now written after a successful password reset,
+with `{ reason: 'PASSWORD_RESET' }` and no address, token or hash; a failed audit write
+logs a warning and does not fail the reset. Both use the existing metadata allowlist.
 
 ### P2 — correctness and polish
 
@@ -648,7 +672,7 @@ until the P1 items below close.
 5. Add account-switch confirmation and prior-refresh-token revocation on new sign-in.
 6. Add the DB CHECK on `attempts`, role-aware return-path validation, the profile GET
    rate limit, `no-store` on all passwordless responses, SMTP/queue boot validation,
-   and the missing audit events.
+   and the missing audit events. **Done (P1-8, P1-9, P1-10, P1-11, P1-12).**
 7. Add the canary redaction test and the accessibility/screenshot evidence at the
    required external path.
 

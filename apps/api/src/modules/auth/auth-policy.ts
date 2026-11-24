@@ -183,6 +183,26 @@ export function homeForRole(role: string): string {
   return role === 'TEACHER' ? DEFAULT_TEACHER_HOME : DEFAULT_STUDENT_HOME;
 }
 
+/** Destinations that only a teacher may be returned to. */
+const TEACHER_ONLY_PATHS: readonly string[] = [DEFAULT_TEACHER_HOME];
+
+/**
+ * Role-aware return path (P1-9).
+ *
+ * A path can pass the allowlist and still be wrong for this user: `/teacher`
+ * must never be the destination for a student, even though the page guard
+ * would also refuse it. Anything the role cannot open falls back to that role's
+ * home, so the destination guard is not the only defence.
+ */
+export function returnPathForRole(value: unknown, role: string): string {
+  const fallback = homeForRole(role);
+  const candidate = sanitizeReturnPath(value, fallback);
+  if (role !== 'TEACHER' && TEACHER_ONLY_PATHS.includes(candidate)) {
+    return fallback;
+  }
+  return candidate;
+}
+
 /**
  * Administrator sessions are password-only. This is the single predicate both
  * the issuing and the consuming path call, so there is one rule to audit.
