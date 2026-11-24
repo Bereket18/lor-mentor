@@ -287,7 +287,10 @@ model AuthChallenge {
   // exists so initiation has one observable shape; the worker never sends it.
   deliverable      Boolean              @default(true)
   // Submitted comparisons against this row. The claim and increment statements
-  // require attempts < 5, so the cap is enforced by the database.
+  // require attempts < 5, so the cap is enforced by the database. A CHECK
+  // constraint `AuthChallenge_attempts_range` (migration
+  // 20261124120000_auth_challenge_attempts_check) also makes an out-of-range
+  // value impossible to store; Prisma cannot express CHECK in the schema.
   attempts         Int                  @default(0)
   expiresAt        DateTime
   consumedAt       DateTime?

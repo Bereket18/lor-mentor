@@ -548,6 +548,12 @@ The conditional update is correct, but a future code path or manual write could 
 an out-of-range value. Fix: add a CHECK constraint `attempts >= 0 AND attempts <= 5`
 after confirming existing rows comply. This is a small, safe schema addition.
 
+Closed 2026-11-24: migration `20261124120000_auth_challenge_attempts_check` adds
+`CHECK ("attempts" >= 0 AND "attempts" <= 5)` as `AuthChallenge_attempts_range`.
+Existing rows were confirmed in range (min 0, max 0) before applying. A live probe
+showed both `attempts = 6` and `attempts = -1` rejected with a check violation, so the
+cap no longer depends on every future code path using the right predicate.
+
 **P1-9: Role-inaccessible return paths are not rejected.**
 `sanitizeReturnPath` is path-only; it does not know the role. A student can request
 `/teacher` and be sent there, relying on the destination page's guard. Fix: at
