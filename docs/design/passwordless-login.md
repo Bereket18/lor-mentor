@@ -164,11 +164,14 @@ detail is returned.
 
 `POST /api/v1/auth/email/confirm` accepts `{challengeId, token, destination}`. The
 token must be a string of at least 20 characters; its SHA-256 is compared with the
-stored unique digest in constant time. The original browser binding is intentionally
-not required, because the link may be opened on a phone after sign-in started on a
-laptop. The explicit `destination: "current-browser"` value is the consent record.
-On success the challenge is claimed atomically and finalised. The initiating device's
-code/link becomes invalid; no session is pushed to it.
+stored unique digest in constant time. As in 4.3, an attempt is reserved from the
+shared per-challenge budget (a conditional `UPDATE` while `attempts < 5`) before the
+comparison, so code guesses and link guesses draw on the same counter (P2-6). The
+original browser binding is intentionally not required, because the link may be opened
+on a phone after sign-in started on a laptop. The explicit
+`destination: "current-browser"` value is the consent record. On success the challenge
+is claimed atomically and finalised. The initiating device's code/link becomes invalid;
+no session is pushed to it.
 
 The current implementation does **not** mint a fresh receiving-browser binding on
 cross-device success; it clears the challenge cookie. That is consistent with the
@@ -634,18 +637,25 @@ logs a warning and does not fail the reset. Both use the existing metadata allow
 
 - **P2-1:** `EnrollmentGrant.browserNonceHash` duplicates `tokenHash`; either add an
   independent binding nonce or document the grant as a bearer cookie (this document
-  does the latter).
+  does the latter). **Closed:** documented as a bearer cookie in section 5.
 - **P2-2:** Department/year validation happens before the user transaction; an
-  archive can race the create. Re-read inside the transaction.
+  archive can race the create. Re-read inside the transaction. **Closed:**
+  `completeProfile` re-reads both rows (and rejects archived ones) inside the same
+  transaction that creates or updates the user.
 - **P2-3:** `confirmationLink` reads `process.env.WEB_PUBLIC_URL` directly instead of
-  `ConfigService`; use the validated configuration accessor.
+  `ConfigService`; use the validated configuration accessor. **Closed 2026-11-24:**
+  the service injects `ConfigService` and reads the validated value.
 - **P2-4:** `AuthMethodsConfig`'s comment says disabled methods return 404; the code
-  returns 503. Fix the comment.
+  returns 503. Fix the comment. **Closed:** the comment now states the uniform 503.
 - **P2-5:** `GET /profile-completion` uses 404 while the POST uses 400/409; this is
-  acceptable but should be documented as intentional and covered by tests.
+  acceptable but should be documented as intentional and covered by tests. **Closed
+  2026-11-24:** documented on the controller and covered by `grantStatus` tests.
 - **P2-6:** A failed link proof has no per-challenge attempt counter; only the
   IP/browser budgets apply. The 256-bit token makes guessing infeasible, but a
-  per-challenge counter would make the abuse matrix uniform.
+  per-challenge counter would make the abuse matrix uniform. **Closed 2026-11-24:**
+  `confirmLink` now reserves an attempt from the shared per-challenge budget before
+  the comparison, exactly like the code path, so both proofs draw on one
+  5-attempt counter. Covered by tests.
 - **P2-7:** The canary-secret redaction test and the screenshot/a11y manifest are
   still missing from the evidence set. **Closed 2026-11-24:** the live canary run,
   `passwordless.redaction.spec.ts`, and the 30-screenshot manifest at

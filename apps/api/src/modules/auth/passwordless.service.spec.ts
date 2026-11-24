@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -10,8 +11,9 @@ import type { AuthMailService } from './auth-mail.service';
 import type { AuthRateLimitService } from './auth-rate-limit.service';
 import type { AuthService } from './auth.service';
 import type { AuthMethodsConfig } from './auth-methods.config';
+import type { ConfigService } from '@nestjs/config';
 import { PasswordlessAuthService } from './passwordless.service';
-import { sha256 } from './auth-policy';
+import { MAX_CHALLENGE_ATTEMPTS, sha256 } from './auth-policy';
 
 const PROFILE = {
   fullName: 'Test Student',
@@ -94,6 +96,9 @@ function buildHarness() {
       refreshToken: 'refresh',
     }),
   };
+  const config = {
+    get: jest.fn().mockReturnValue('https://app.example.com'),
+  };
 
   const service = new PasswordlessAuthService(
     prisma as unknown as PrismaService,
@@ -102,9 +107,10 @@ function buildHarness() {
     methods as unknown as AuthMethodsConfig,
     limits as unknown as AuthRateLimitService,
     auth as unknown as AuthService,
+    config as unknown as ConfigService,
   );
 
-  return { service, prisma, tx, users, mail, limits, methods, auth };
+  return { service, prisma, tx, users, mail, limits, methods, auth, config };
 }
 
 function grantRow(overrides: Record<string, unknown> = {}) {
@@ -462,5 +468,105 @@ describe('PasswordlessAuthService prior refresh revocation', () => {
     await expect(
       service.revokePresentedRefreshToken('old-token', 'user-1'),
     ).rejects.toThrow('redis down');
+  });
+});
+
+describe('PasswordlessAuthService.confirmLink attempts', () => {
+  it('reserves a per-challenge attempt before comparing the link handle', async () => {
+    const { service, prisma } = buildHarness();
+    const id = 'challenge-0000000000000001';
+    prisma.authChallenge.findUnique.mockResolvedValue({
+      id,
+      userId: 'user-1',
+      email: 'student@example.com',
+      linkTokenHash: sha256('the-real-link-token-value-long-enough'),
+      codeHash: 'h',
+      browserNonceHash: 'b',
+      consumedAt: null,
+      supersededAt: null,
+      attempts: 0,
+      expiresAt: new Date(Date.now() + 600_000),
+    });
+    prisma.authChallenge.updateMany.mockResolvedValue({ count: 1 });
+
+    await expect(service.confirmLink(id, 'A'.repeat(43))).rejects.toThrow(
+      BadRequestException,
+    );
+
+    expect(prisma.authChallenge.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { attempts: { increment: 1 } },
+        where: expect.objectContaining({
+          id,
+          consumedAt: null,
+          supersededAt: null,
+        }),
+      }),
+    );
+    const actions = (
+      prisma.auditLog.create.mock.calls as Array<[{ data: { action: string } }]>
+    ).map((call) => call[0].data.action);
+    expect(actions).toContain('AUTH_CHALLENGE_REJECTED');
+  });
+
+  it('refuses once the per-challenge attempt budget is spent', async () => {
+    const { service, prisma } = buildHarness();
+    const id = 'challenge-0000000000000002';
+    prisma.authChallenge.findUnique.mockResolvedValue({
+      id,
+      userId: 'user-1',
+      email: 'student@example.com',
+      linkTokenHash: sha256('the-real-link-token-value-long-enough'),
+      codeHash: 'h',
+      browserNonceHash: 'b',
+      consumedAt: null,
+      supersededAt: null,
+      attempts: MAX_CHALLENGE_ATTEMPTS,
+      expiresAt: new Date(Date.now() + 600_000),
+    });
+    // The conditional UPDATE matched nothing: the budget is exhausted.
+    prisma.authChallenge.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(
+      service.confirmLink(id, 'A'.repeat(43)),
+    ).rejects.toThrow(BadRequestException);
+    // Rejected before the comparison, so no proof-failure audit is written.
+    expect(prisma.auditLog.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('PasswordlessAuthService.grantStatus', () => {
+  it('answers 404 for an invalid, expired or consumed grant', async () => {
+    const { service } = buildHarness();
+
+    await expect(
+      service.grantStatus('a-long-enough-grant-token'),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('returns only the safe status fields for a live grant', async () => {
+    const { service, prisma } = buildHarness();
+    const expiresAt = new Date(Date.now() + 600_000);
+    prisma.enrollmentGrant.findFirst.mockResolvedValue({
+      id: 'grant-1',
+      tokenHash: sha256('a-long-enough-grant-token'),
+      email: 'student@example.com',
+      userId: null,
+      method: 'EMAIL_LINK',
+      googleSubject: null,
+      browserNonceHash: 'nonce-hash',
+      returnPath: null,
+      expiresAt,
+      consumedAt: null,
+      createdAt: new Date(),
+    });
+
+    await expect(
+      service.grantStatus('a-long-enough-grant-token'),
+    ).resolves.toEqual({
+      email: 'student@example.com',
+      existingAccount: false,
+      expiresAt,
+    });
   });
 });

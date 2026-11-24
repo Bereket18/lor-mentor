@@ -5,6 +5,7 @@ import type { AuthMailService } from './auth-mail.service';
 import type { AuthRateLimitService } from './auth-rate-limit.service';
 import type { AuthService } from './auth.service';
 import type { AuthMethodsConfig } from './auth-methods.config';
+import type { ConfigService } from '@nestjs/config';
 import { PasswordlessAuthService } from './passwordless.service';
 import { AuthMailProcessor } from './auth-mail.processor';
 import { sha256 } from './auth-policy';
@@ -114,6 +115,7 @@ function buildHarness() {
     methods as unknown as AuthMethodsConfig,
     limits as unknown as AuthRateLimitService,
     auth as unknown as AuthService,
+    { get: jest.fn().mockReturnValue('https://app.example.com') } as unknown as ConfigService,
   );
 
   return { service, prisma, tx, users, mail, limits };
@@ -220,6 +222,8 @@ describe('PasswordlessAuthService canary redaction', () => {
       attempts: 0,
       expiresAt: new Date(Date.now() + 600_000),
     });
+    // Under budget, so the attempt is reserved and the comparison runs.
+    prisma.authChallenge.updateMany.mockResolvedValue({ count: 1 });
 
     await expect(
       service.confirmLink(challengeId, presentedToken),

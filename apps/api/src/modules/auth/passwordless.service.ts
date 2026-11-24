@@ -6,6 +6,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { AuthChallenge, User } from '@prisma/client';
 import { AuthChallengePurpose, AuthMethod } from '@prisma/client';
 import { Prisma } from '@prisma/client';
@@ -95,6 +96,7 @@ export class PasswordlessAuthService {
     private readonly methods: AuthMethodsConfig,
     private readonly limits: AuthRateLimitService,
     private readonly auth: AuthService,
+    private readonly config: ConfigService,
   ) {}
 
   /** Public method flags. Never account-dependent. */
@@ -376,6 +378,25 @@ export class PasswordlessAuthService {
 
     const challenge = await this.findChallenge(challengeId);
     if (!challenge) {
+      throw new BadRequestException(PROOF_FAILED_MESSAGE);
+    }
+
+    // Reserve an attempt before the comparison, exactly like the code path. The
+    // UPDATE requires attempts < MAX, so guessing the link handle shares the
+    // same per-challenge budget as guessing the code (P2-6). The 256-bit token
+    // makes a correct guess infeasible; this only keeps the abuse matrix
+    // uniform and still lets a genuine link redeem while under budget.
+    const reserved = await this.prisma.authChallenge.updateMany({
+      where: {
+        id: challenge.id,
+        consumedAt: null,
+        supersededAt: null,
+        expiresAt: { gt: new Date() },
+        attempts: { lt: MAX_CHALLENGE_ATTEMPTS },
+      },
+      data: { attempts: { increment: 1 } },
+    });
+    if (reserved.count !== 1) {
       throw new BadRequestException(PROOF_FAILED_MESSAGE);
     }
 
@@ -978,7 +999,10 @@ export class PasswordlessAuthService {
   }
 
   private confirmationLink(challengeId: string, linkToken: string): string {
-    const base = process.env.WEB_PUBLIC_URL?.trim() ?? 'http://localhost:3000';
+    // Read the validated configuration, not the raw process environment (P2-3).
+    const base =
+      this.config.get<string>('WEB_PUBLIC_URL')?.trim() ??
+      'http://localhost:3000';
     return `${base.replace(/\/$/, '')}/auth/email/confirm#challenge=${encodeURIComponent(
       challengeId,
     )}&token=${encodeURIComponent(linkToken)}`;

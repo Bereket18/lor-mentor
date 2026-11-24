@@ -239,7 +239,15 @@ export class PasswordlessController {
     return this.finish(req, completion, res);
   }
 
-  /** Safe status for the profile page. No consumption; no session. */
+  /**
+   * Safe status for the profile page. No consumption; no session.
+   *
+   * The status codes here are deliberately asymmetric with the POST below and
+   * that asymmetry is intentional (P2-5): this GET is a read-only probe, so a
+   * missing, expired or already-consumed grant is a flat 404 with no detail. The
+   * POST is an action, so it distinguishes 400 (bad grant or field) from 409
+   * (the address was taken). A probe must not leak which of those happened.
+   */
   @Get('profile-completion')
   async profileCompletion(
     @Req() req: Request,
