@@ -96,7 +96,7 @@ of the delivered history.
 | Initiation is indistinguishable for existing, unknown, inactive and administrator addresses. | Met. Every well-formed start after validation persists a challenge-shaped row and returns a handle plus a fresh binding cookie; suppressed rows are `deliverable=false` and enqueued as decoys the worker drops. |
 | One challenge per address is active at a time. | Met since P1-1: issuance takes a transaction-scoped advisory lock keyed by an HMAC of the address, so concurrent starts serialise and the later one supersedes the earlier. |
 | Profile completion cannot mutate an account that appeared mid-grant, including an administrator. | Met. One transaction re-reads and locks an existing user, refuses admin/inactive/identity mismatch before mutation, consumes the grant inside the transaction, and maps a create race to 409. |
-| No plaintext credential is logged. | Implemented by construction; a canary-secret test is still missing from the acceptance evidence. |
+| No plaintext credential is logged. | Met. The live canary run and `passwordless.redaction.spec.ts` assert that the address, code, token and link never reach the request log, the audit event, the mail payload or the worker log. |
 | Schema changes are additive. | Met. No drops, renames or nullability changes to existing columns. |
 | Password reset invalidates existing access and refresh tokens. | Met. `claimResetToken` increments `sessionVersion`; the denylist also revokes refresh tokens issued before the reset. |
 
@@ -647,11 +647,18 @@ logs a warning and does not fail the reset. Both use the existing metadata allow
   IP/browser budgets apply. The 256-bit token makes guessing infeasible, but a
   per-challenge counter would make the abuse matrix uniform.
 - **P2-7:** The canary-secret redaction test and the screenshot/a11y manifest are
-  still missing from the evidence set.
+  still missing from the evidence set. **Closed 2026-11-24:** the live canary run,
+  `passwordless.redaction.spec.ts`, and the 30-screenshot manifest at
+  `C:\Users\berek\Desktop\lor-screens\passwordless-login\` are recorded in the gate
+  report.
 - **P2-8:** The auth-page CSP allows inline script/style because Next.js and next-themes
   emit inline code without a nonce. Migrate to a nonce (or SRI hash) policy once the root
   layout's theme script no longer forces a nonce-free root: that requires the theme script
   to be removed or the whole app to render dynamically.
+- **P2-9:** The axios response interceptor redirected to `/login` on any `/me` 401 from a
+  non-login page, which bounced `/auth/email/confirm` and `/complete-profile` on a cold
+  load and broke cross-device link sign-in. **Closed 2026-11-24:** both paths are in the
+  interceptor's sessionless-page allowlist.
 
 ## 10. Remaining implementation plan
 
@@ -709,7 +716,9 @@ until the P1 items below close.
    rate limit, `no-store` on all passwordless responses, SMTP/queue boot validation,
    and the missing audit events. **Done (P1-8, P1-9, P1-10, P1-11, P1-12).**
 7. Add the canary redaction test and the accessibility/screenshot evidence at the
-   required external path.
+   required external path. **Done (P2-7): see the gate report.**
+8. Fix the axios `/me` 401 redirect that broke the cold-load passwordless pages.
+   **Done (P2-9).**
 
 Gate: P1 tests pass; a production-like standalone build serves the auth pages with the
 new headers; the abuse matrix includes concurrent starts, browser-budget reset,
@@ -773,24 +782,24 @@ Prerequisites: the Phase 3 work above, a maintained OIDC verifier, encrypted
 transaction storage, a local mock provider for tests, and deployer documentation for
 the consent screen and callback URIs.
 
-## 12. Acceptance evidence still required
+## 12. Acceptance evidence
 
-The current evidence covers unit tests (841 passed), typechecks, lint, two real-HTTP
-runs against the Phase 1 build (39 core checks and 18 initiation-parity checks), a
-production standalone page check and manual browser use. Before production
-enablement, add:
+The Phase 2 evidence pack is complete; the executed checks, the deliberate exclusions and
+the defect it uncovered are recorded in
+[`passwordless-login-gate-report.md`](./passwordless-login-gate-report.md).
 
-1. The P0/P1 tests named in section 10, including timing-distribution and concurrent
-   issuance checks.
-2. Playwright coverage for start, code, link, cross-device confirmation, profile
-   completion, expiry, supersession, wrong browser, admin refusal and Redis outage.
-3. Accessibility and 320px/390px/1280px light/dark screenshots, saved outside the
-   repository at `C:\Users\berek\Desktop\lor-screens\passwordless-login\`, with a
-   manifest. The directory does not currently exist.
-4. Log/artifact redaction assertions with injected canary values (no code, token,
-   cookie, link or raw email).
-5. A production-like build and smoke run with the new CSP and queue worker.
-6. A gate report distinguishing executed checks from exclusions; then stop and report.
+| Item | Status |
+|---|---|
+| 1. P0/P1 tests named in section 10, including concurrent issuance | Met. P1-1 … P1-12 closed with focused tests; concurrent issuance is covered by the advisory-lock test and the live four-simultaneous-start run. |
+| 2. Playwright coverage for start, code, link, cross-device confirmation, profile completion, wrong browser | Met (6/6, `e2e/passwordless.spec.ts`). Expiry, supersession, admin refusal and Redis outage are unit/integration-level and documented as exclusions (they need a clock jump, a second issuance or a stopped dependency). |
+| 3. Accessibility and 320/390/1280px light/dark screenshots outside the repository | Met. 30 screenshots and a manifest at `C:\Users\berek\Desktop\lor-screens\passwordless-login\`; 0 accessibility failures. |
+| 4. Log/artifact redaction with injected canary values | Met. Live check 10/10; `passwordless.redaction.spec.ts` adds five unit assertions. No code, token, cookie, link or raw email is emitted. |
+| 5. Production-like build and smoke with the new CSP and queue worker | Met. Standalone build exit 0; 40/40 header checks; 0 CSP violations on hydration; `auth_mail_worker_ready` logged at boot. |
+| 6. Gate report distinguishing executed checks from exclusions | Met (link above). |
+
+Production email enablement is still held: Phase 4 (staging with a real sink, the
+real-mail abuse matrix, and the final security review) must happen before
+`AUTH_EMAIL_LINK_ENABLED` is set true in production.
 
 ## 13. Approval record
 

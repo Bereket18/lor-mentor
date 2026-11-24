@@ -66,14 +66,23 @@ api.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      const isAuthPage =
+      // Pages that are legitimately opened with no session. A 401 there is the
+      // expected "not signed in yet" answer, not a reason to bounce the browser
+      // to the login form. This matters most for the emailed sign-in link and
+      // the profile step: both are opened cold on a device that has no session,
+      // and a forced redirect would make the link impossible to confirm.
+      // (`/auth/email/confirm` and `/complete-profile` are the passwordless
+      // pages; the rest predate them.)
+      const isSessionlessPage =
         typeof window !== "undefined" &&
         (window.location.pathname.startsWith("/login") ||
           window.location.pathname.startsWith("/register") ||
           window.location.pathname.startsWith("/admin-login") ||
-          window.location.pathname.startsWith("/pricing"));
+          window.location.pathname.startsWith("/pricing") ||
+          window.location.pathname.startsWith("/auth/email/confirm") ||
+          window.location.pathname.startsWith("/complete-profile"));
 
-      if (isAuthPage) {
+      if (isSessionlessPage) {
         isRefreshing = false;
         return Promise.reject(error);
       }
