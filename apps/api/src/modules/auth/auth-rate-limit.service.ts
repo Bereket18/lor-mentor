@@ -12,7 +12,7 @@ import * as crypto from 'crypto';
 import Redis from 'ioredis';
 import type { Request } from 'express';
 import { authCookieName } from '../../common/auth-cookies';
-import { CSRF_BASE } from '../../common/auth-cookie-names';
+import { BROWSER_BASE, CSRF_BASE } from '../../common/auth-cookie-names';
 
 /**
  * Injection token for the rate-limit Redis connection.
@@ -212,13 +212,19 @@ export class AuthRateLimitService implements OnModuleDestroy {
   }
 
   /**
-   * A browser is identified by its CSRF bootstrap value: it is minted once per
-   * tab, held in an HttpOnly cookie, and is already mandatory on every
-   * passwordless POST. Nothing new is set just for accounting.
+   * A browser is identified by its long-lived accounting cookie, minted on the
+   * first `GET /csrf` and kept across CSRF refreshes (P1-2). Requests that
+   * arrive without it — an older client, or a first request whose cookie was
+   * not yet stored — fall back to the CSRF bootstrap value so the budget is
+   * still enforced rather than skipped.
    */
   private browserId(req: Request): string | null {
     const cookies = (req.cookies ?? {}) as Record<string, string | undefined>;
-    return cookies[authCookieName(CSRF_BASE, this.config)] ?? null;
+    return (
+      cookies[authCookieName(BROWSER_BASE, this.config)] ??
+      cookies[authCookieName(CSRF_BASE, this.config)] ??
+      null
+    );
   }
 
   private reject(req: Request, retryAfterSeconds: number): never {

@@ -55,6 +55,12 @@ export const PROFILE_GRANT_PER_TEN_MINUTES = 5;
 /** CSRF bootstrap and other public reads: 60/IP/minute. */
 export const PUBLIC_READ_IP_PER_MINUTE = 60;
 
+/**
+ * How long a browser accounting id lives. Long enough that a returning user
+ * keeps one bucket, short enough to bound the cookie. It carries no authority.
+ */
+export const BROWSER_ID_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
 /** bcrypt cost for challenge code hashes (matches VerificationCode policy). */
 export const CODE_HASH_ROUNDS = 10;
 

@@ -491,6 +491,15 @@ not a stable identity. Fix: add a separate long-lived, HttpOnly browser id cooki
 on the first passwordless interaction, or key the browser bucket to the challenge
 binding and accept rotation on a new attempt. Document the chosen trade-off.
 
+Closed 2026-11-24: chose the separate cookie. `GET /csrf` mints `auth_bid_`
+(`__Host-` in production) once, valid 30 days, HttpOnly/Lax, and never rotates it on
+later bootstraps. The browser budget prefers that value and falls back to the CSRF
+value only when it is absent, so a request without the new cookie is still counted.
+Trade-off: clearing all cookies still yields a fresh browser bucket, exactly like a
+new device; the per-IP and per-address budgets are unaffected. The value authorises
+nothing, is HMAC'd before it reaches Redis, and is never compared with any server-side
+record.
+
 **P1-3: The grant is consumed outside the user transaction.**
 A validation, conflict or database failure after consumption burns the grant and
 forces a new email. Fix: consume the grant with the conditional update inside the same
@@ -627,7 +636,7 @@ until the P1 items below close.
 1. Serialise issuance per address (advisory lock or partial unique index) and add a
    concurrency test. **Done (P1-1).**
 2. Replace the resettable browser key with a stable browser identifier or document and
-   test the accepted trade-off.
+   test the accepted trade-off. **Done (P1-2): stable `auth_bid_` cookie.**
 3. Add the scheduled cleanup job with a single-runner guard and metrics. **Done (P1-4).**
 4. Add CSP for the auth pages (and the app if feasible) without breaking hydration.
 5. Add account-switch confirmation and prior-refresh-token revocation on new sign-in.

@@ -7,3 +7,9 @@
 export const CSRF_BASE = 'auth_cs_';
 export const CHALLENGE_BASE = 'auth_ch_';
 export const ENROLLMENT_BASE = 'auth_en_';
+/**
+ * Long-lived browser accounting id (P1-2). It is not a security token and
+ * never authorises anything; it only gives the per-browser rate-limit bucket a
+ * value that survives a CSRF refresh.
+ */
+export const BROWSER_BASE = 'auth_bid_';

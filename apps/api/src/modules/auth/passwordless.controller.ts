@@ -19,6 +19,7 @@ import {
   clearedAuthCookieOptions,
 } from '../../common/auth-cookies';
 import {
+  BROWSER_BASE,
   CHALLENGE_BASE,
   CSRF_BASE,
   ENROLLMENT_BASE,
@@ -34,6 +35,7 @@ import {
   StartEmailDto,
 } from './dto/passwordless.dto';
 import {
+  BROWSER_ID_TTL_MS,
   CHALLENGE_TTL_MS,
   CODE_BROWSER_PER_TEN_MINUTES,
   CODE_IP_PER_TEN_MINUTES,
@@ -84,6 +86,10 @@ export class PasswordlessController {
     return authCookieName(ENROLLMENT_BASE, this.config);
   }
 
+  private browserCookie(): string {
+    return authCookieName(BROWSER_BASE, this.config);
+  }
+
   /** Effective method flags. Public and never account-dependent. */
   @Get('methods')
   async methods(@Req() req: Request) {
@@ -103,6 +109,16 @@ export class PasswordlessController {
     await this.limits.enforceRequest(req, 'csrf', {
       ip: { limit: PUBLIC_READ_IP_PER_MINUTE, windowMs: WINDOW_MINUTE_MS },
     });
+    // Mint a stable browser id once. It survives CSRF refreshes, so a caller
+    // cannot reset the per-browser budget by asking for a new CSRF token
+    // (P1-2). It authorises nothing; it is only a bucket key.
+    if (!this.readCookies(req)[this.browserCookie()]) {
+      res.cookie(
+        this.browserCookie(),
+        randomToken(32),
+        authCookieOptions(this.config, BROWSER_ID_TTL_MS),
+      );
+    }
     const token = randomToken(32);
     res.cookie(
       authCookieName(CSRF_BASE, this.config),

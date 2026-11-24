@@ -5,6 +5,7 @@ import { AuthRateLimitService, type RateRule } from './auth-rate-limit.service';
 
 const SECRET = 'r'.repeat(48);
 const CSRF_COOKIE = 'auth_cs_';
+const BROWSER_COOKIE = 'auth_bid_';
 
 const configFor = (values: Record<string, string> = {}): ConfigService =>
   ({
@@ -148,33 +149,44 @@ describe('AuthRateLimitService', () => {
     expect(req.res?.setHeader).toHaveBeenCalledWith('Retry-After', '60');
   });
 
-  it('enforces a browser budget keyed by the CSRF cookie, per browser', async () => {
+  it('enforces a browser budget keyed to the stable browser id, not the CSRF token', async () => {
     const fake = new FakeRedis();
     const service = serviceFor(fake);
+    const rules = { ip: rule(100), browser: rule(1) };
 
-    const browserA = requestFor({ cookies: { [CSRF_COOKIE]: 'token-a' } });
-    const browserB = requestFor({ cookies: { [CSRF_COOKIE]: 'token-b' } });
+    const browserA = requestFor({
+      cookies: { [BROWSER_COOKIE]: 'bid-a', [CSRF_COOKIE]: 'csrf-1' },
+    });
+    await service.enforceRequest(browserA, 'email:code', rules);
 
-    await service.enforceRequest(browserA, 'email:code', {
-      ip: rule(100),
-      browser: rule(1),
+    // Refreshing the CSRF bootstrap must not return budget: the browser id is
+    // unchanged, so this is the same bucket (P1-2).
+    const sameBrowser = requestFor({
+      cookies: { [BROWSER_COOKIE]: 'bid-a', [CSRF_COOKIE]: 'csrf-2' },
     });
     expect(
-      await statusOf(
-        service.enforceRequest(browserA, 'email:code', {
-          ip: rule(100),
-          browser: rule(1),
-        }),
-      ),
+      await statusOf(service.enforceRequest(sameBrowser, 'email:code', rules)),
     ).toBe(429);
 
-    // A different browser (different CSRF bootstrap) is unaffected.
+    // A different browser id is unaffected.
+    const browserB = requestFor({
+      cookies: { [BROWSER_COOKIE]: 'bid-b', [CSRF_COOKIE]: 'csrf-3' },
+    });
     await expect(
-      service.enforceRequest(browserB, 'email:code', {
-        ip: rule(100),
-        browser: rule(1),
-      }),
+      service.enforceRequest(browserB, 'email:code', rules),
     ).resolves.toBeUndefined();
+  });
+
+  it('falls back to the CSRF value when no browser id cookie is present', async () => {
+    const fake = new FakeRedis();
+    const service = serviceFor(fake);
+    const rules = { ip: rule(100), browser: rule(1) };
+
+    const first = requestFor({ cookies: { [CSRF_COOKIE]: 'csrf-only' } });
+    await service.enforceRequest(first, 'email:code', rules);
+    expect(
+      await statusOf(service.enforceRequest(first, 'email:code', rules)),
+    ).toBe(429);
   });
 
   it('stops consuming the day bucket once the hourly cap already refuses', async () => {
