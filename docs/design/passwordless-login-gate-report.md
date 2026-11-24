@@ -24,7 +24,7 @@ raw email address. Counts and outcomes only.
 
 | # | Check | Command | Result |
 |---|---|---|---|
-| 1 | API unit/integration suite (includes the new canary redaction spec) | `npx jest --runInBand` (api) | 58 passed suites / 876 passed tests, 21 skipped; 60 suites / 897 tests total |
+| 1 | API unit/integration suite (includes the new canary redaction spec) | `npx jest --runInBand` (api) | 58 passed suites / 880 passed tests, 21 skipped; 60 suites / 901 tests total |
 | 2 | Web typecheck | `npx tsc --noEmit` (web) | exit 0 |
 | 3 | Web lint on the touched files | `npx eslint src/lib/api.ts e2e/passwordless*.ts` | exit 0 |
 | 4 | UI matrix — code, emailed link, inert page, cold profile load, wrong browser, newcomer step | `npx playwright test e2e/passwordless.spec.ts --workers=1` | 6 passed |
@@ -35,6 +35,9 @@ raw email address. Counts and outcomes only.
 | 9 | Hydration + CSP-violation probe on the standalone bundle | headless probe | 0 CSP violations; email-mode toggle and input work |
 | 10 | Queue-worker boot line | fresh API start | `auth_mail_worker_ready queue=auth-mail concurrency=4` logged |
 | 11 | API e2e authorization matrix on a disposable Postgres | `npx jest --config ./test/jest-e2e.json support-auth` | 21 passed |
+
+Check 1 is the branch-tip count after the P2 close-out; the pack was first captured at
+876 passed tests, and the follow-up added four (two `confirmLink`, two `grantStatus`).
 
 ### 2.1 UI matrix (check 4)
 
@@ -126,7 +129,7 @@ matrix passes 21/21 against a throwaway database.
 ## 5. Verdict
 
 - Phase 2 P1 items (P1-1 … P1-12) remain closed; no regression was observed.
-- The section-12 evidence pack is complete: executed checks 1–10 above, the exclusions
+- The section-12 evidence pack is complete: executed checks 1–11 above, the exclusions
   recorded, and the redaction/screenshot/manifest artifacts produced outside the
   repository.
 - Production email enablement stays held. Phase 4 (staging with a real sink, real-mail

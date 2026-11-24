@@ -1,8 +1,8 @@
 # Passwordless login: as-built design and remaining work
 
-Status: **approved for continued implementation; email link + six-digit code is implemented and its P0 defects are closed.**
-Production enablement: **not yet approved** until the remaining P1 items in section 9 are closed and a production-like smoke run passes.
-Date: 2026-11-21. Branch: `feat/passwordless-login`. Phase 1 closes P0-1 to P0-4.
+Status: **approved for continued implementation; email link + six-digit code is implemented and its P0, P1 and P2 correctness items are closed.**
+Production enablement: **not yet approved** until the Phase 4 staging gate (section 10) passes with a real mail sink and the final security review is recorded.
+Date: 2026-11-24. Branch: `feat/passwordless-login`. Phase 1 closes P0-1 to P0-4; Phase 2 closes P1-1 to P1-12 and the P2 correctness items (P2-1 to P2-9).
 Base: `origin/main` at `63e31f019490fa02e0ad34256d8815e72feef9b4`.
 
 This revision replaces the earlier "proposed — awaiting approval; no implementation
@@ -34,10 +34,12 @@ Deferred, not implemented:
 - Google/OIDC sign-in. The schema (`AuthIdentity`, `AuthProvider`, `AuthMethod.GOOGLE`)
   is additive and ready, but there are no routes, UI, transaction store or token
   verifier. `AUTH_GOOGLE_ENABLED=true` is refused at boot until that work is complete.
-- A scheduled cleanup job for expired challenges and grants (section 9, P1-4).
-- A Content-Security-Policy and Fetch-Metadata checks (section 9, P1-5).
-- Screenshot and accessibility evidence at the paths required by the acceptance plan
-  (section 12).
+- A nonce-based CSP (P2-8). The auth pages ship a self-only CSP now; the nonce variant
+  waits on the root layout's inline theme script.
+
+Closed since the earlier revision: the scheduled cleanup job (P1-4), the auth-page CSP
+and Fetch-Metadata checks (P1-5), and the screenshot/accessibility evidence (section 12).
+Those are implemented and recorded in the gate report, not deferred.
 
 Out of scope for this document: the separate account-cleanup script that is waiting
 on the user-marked list in `02-marking-sheet.sql`, and the role-scoped portal
@@ -45,8 +47,8 @@ enforcement study in `docs/design/role-scoped-sign-in.md`.
 
 ## 2. Verified implementation evidence
 
-The table below is the pre-Phase-1 baseline at `1c74a0b`. The Phase 1 re-verification
-is recorded after it.
+The table below is the pre-Phase-1 baseline at `1c74a0b`. The Phase 1 and Phase 2
+re-verifications are recorded after it.
 
 | Check | Result |
 |---|---|
@@ -79,6 +81,14 @@ the repository. No real credentials, production database or production mail
 transport was used. The Next.js security upgrade is commit `81da5a4` on this branch;
 the separate local branch `chore/next-security-upgrade-16.4.6` (`e06d5c8`) is not part
 of the delivered history.
+
+Phase 2 (2026-11-24) re-verified on the branch tip `4a8fb22`: the API suite is 58 passed
+suites / 880 passed tests / 21 skipped (901 total); the web unit suite is 89 passed; API
+and web `tsc --noEmit` are clean; the web production build exits 0; and GitHub Actions
+(the `CI` workflow) is green. The screenshot/a11y manifest now exists at
+`C:\Users\berek\Desktop\lor-screens\passwordless-login\` (30 screenshots, 0 failures), so
+the "not produced" line in the baseline table above is superseded. The executed Phase 2
+evidence, its exclusions and the defect it uncovered are in the gate report.
 
 ## 3. Invariants and their as-built status
 
@@ -249,7 +259,7 @@ The migration `20261116120000_passwordless_auth` is additive.
 | `linkTokenHash` | Unique SHA-256 of a 256-bit link secret. |
 | `codeHash` | bcrypt cost 10 over `HMAC-SHA256(AUTH_CODE_PEPPER, challengeId:code)`. |
 | `browserNonceHash` | SHA-256 of the 256-bit value in the `auth_ch_` cookie. |
-| `attempts` | Integer default 0. The cap is enforced by conditional updates requiring `attempts < 5`; there is **no** database CHECK constraint. |
+| `attempts` | Integer default 0. The cap is enforced by conditional updates requiring `attempts < 5`, and by the `CHECK ("attempts" >= 0 AND "attempts" <= 5)` constraint `AuthChallenge_attempts_range` (migration `20261124120000_auth_challenge_attempts_check`). |
 | `expiresAt`, `consumedAt`, `supersededAt`, `createdAt` | 15-minute fixed lifetime; nullable terminal timestamps; expiry checked on every claim. |
 | `returnPath?` | Canonical local path from the fixed allowlist. |
 | `AuthIdentity` | `id`, `userId`, `provider=GOOGLE`, `subject`, `createdAt`; unique `(provider, subject)` and `(userId, provider)`. Currently unused. |
@@ -263,8 +273,9 @@ value as `tokenHash`. There is no independent grant-binding nonce; the grant is 
 bearer capability held in an HttpOnly cookie. The implementation and documentation
 must describe it that way unless a separate nonce is added.
 
-There is no CHECK constraint on `attempts`. The conditional `UPDATE` is the effective
-control; a CHECK is recommended as defence in depth (P1-8).
+The `attempts` CHECK constraint (`AuthChallenge_attempts_range`, migration
+`20261124120000_auth_challenge_attempts_check`) is the defence-in-depth layer; the
+conditional `UPDATE` remains the effective control (P1-8, closed).
 
 ## 6. As-built API contract
 
@@ -279,13 +290,12 @@ routes require JSON, an exact allowed `Origin`, and the double-submit CSRF heade
 | `POST /email/resend` | 202 with the same body shape; requires the original `auth_ch_` binding. 10/IP/minute and 50/IP/hour. |
 | `POST /email/code` | 200 completion on success; otherwise 400 generic proof failure. 30/IP/10 minutes, 10/browser/10 minutes, 20/address/hour. |
 | `POST /email/confirm` | 200 completion on success; otherwise 400 generic proof failure. `destination` must be `"current-browser"`. 30/IP/10 minutes, 10/browser/10 minutes. |
-| `GET /profile-completion` | 200 `{email, existingAccount, expiresAt}`; **404** for an invalid/expired/consumed grant; 503 if the grant's method is disabled. No rate limit is applied. |
+| `GET /profile-completion` | 200 `{email, existingAccount, expiresAt}`; **404** for an invalid/expired/consumed grant; 503 if the grant's method is disabled. 60/IP/minute (`profile:status`). |
 | `POST /profile-completion` | 200 completion; 400 for an invalid grant or field error; 409 for the email-conflict path; 503 if the method is disabled. 30/IP/10 minutes and 5/grant/10 minutes. |
 
 A disabled method returns **503**
 `{"statusCode":503,"message":"Sign-in is not available right now"}`. It does not return
-404. The `AuthMethodsConfig` comment that still says 404 is a stale comment, not the
-contract.
+404. The `AuthMethodsConfig` comment now states the same uniform 503 (P2-4, closed).
 
 Success bodies:
 
@@ -359,28 +369,31 @@ remaining control. This is P1-9.
 | Code | 5 submitted comparisons/challenge (conditional `UPDATE`); 20/address/hour; 30/IP/10 minutes; 10/browser/10 minutes. |
 | Link confirm | 30/IP/10 minutes; 10/browser/10 minutes. |
 | Profile POST | 30/IP/10 minutes; 5/grant/10 minutes. |
+| Profile status (GET) | 60/IP/minute (`profile:status`). |
 | Methods/CSRF | 60/IP/minute. |
 
 Address caps, cooldowns and admin/inactive suppression return the generic 202. An
 IP/browser-wide limit returns 429 with `Retry-After`. A Redis failure returns a
 uniform 503; password and admin flows do not call this service and keep working.
 
-The browser bucket is keyed by the CSRF cookie. Because `GET /csrf` can mint a new
-value, a caller can reset the browser budget by fetching a new token. The IP budget
-still applies. See P1-2.
+The browser bucket is keyed by the stable `auth_bid_` cookie (P1-2, closed): `GET /csrf`
+mints it once and never rotates it, so refreshing the CSRF token no longer resets the
+browser budget. A request without it falls back to the CSRF bootstrap value so the budget
+is still enforced. Only clearing every cookie yields a fresh browser bucket, like a new
+device; the per-IP and per-address budgets are unaffected.
 
 ## 8. Corrections to the earlier design
 
 | Earlier claim | As-built reality | Action |
 |---|---|---|
 | Status was "proposed — awaiting approval; no implementation authorised". | The email flow, schema, UI, tests and Next.js upgrade are implemented and pushed at `1c74a0b`. | Replaced by this as-built document. |
-| Disabled methods return 404. | They return 503. | Contract corrected; stale code comment is P2-4. |
+| Disabled methods return 404. | They return 503. | Contract corrected; the `AuthMethodsConfig` comment now matches (P2-4, closed). |
 | `GET /profile-completion` returns 401 for an invalid grant. | It returns 404. | Contract corrected. |
 | `POST /profile-completion` returns 401 for an invalid grant. | It returns 400 (and 409 for the email-conflict case). | Contract corrected. |
-| `attempts` has a database 0–5 constraint. | A conditional `UPDATE ... WHERE attempts < 5` enforces the cap; there is no CHECK. | Document corrected; add CHECK as P1-8. |
+| `attempts` has a database 0–5 constraint. | A conditional `UPDATE ... WHERE attempts < 5` enforces the cap; the CHECK was absent at the time. | Document corrected; CHECK added as P1-8 (closed). |
 | `AUTH_TRANSIENT_ENCRYPTION_KEY` and `AUTH_POST_LOGIN_PATHS` are configuration. | `AUTH_TRANSIENT_ENCRYPTION_KEY` now exists and is required when email sign-in is enabled; it encrypts queued mail. The path allowlist remains a fixed constant. | Contract corrected for the encryption key; post-login paths remain code. |
 | Mail is delivered by a bounded, encrypted BullMQ job. | The `auth-mail` queue carries AES-256-GCM envelopes only; a worker sends deliverable payloads with three bounded retries and skips decoys. | Closed; P0-3. |
-| A daily cleanup job removes expired challenges/grants. | No scheduled job exists. | Corrected; P1-4. |
+| A daily cleanup job removes expired challenges/grants. | No scheduled job existed at the time. | Corrected; the hourly sweep `AuthCleanupService` now ships it (P1-4, closed). |
 | Auth pages carry a restrictive CSP and Fetch-Metadata checks. | The three pages carry `Referrer-Policy`, `X-Robots-Tag`, `Cache-Control` and a self-only `Content-Security-Policy`; `AuthCsrfGuard` refuses cross-site/navigation Fetch-Metadata. | Closed; P1-5. |
 | The profile grant is consumed and the user is created in one transaction. | `completeProfile` re-reads the grant and locks an existing user inside one transaction, consumes only after checks, and lets a failure roll both back. | Closed; P1-3 and P0-2. |
 | A successful sign-in revokes the presented prior refresh token. | Completion verifies and denylists the presented refresh `jti` before writing the new pair; the live run's old token returned 401. | Closed; P1-7. |
@@ -513,6 +526,11 @@ A validation, conflict or database failure after consumption burns the grant and
 forces a new email. Fix: consume the grant with the conditional update inside the same
 transaction that creates/updates the user, after all re-resolution checks, so a
 failure rolls back both.
+
+Closed 2026-11-21 (with P0-2): `completeProfile` consumes the grant with a conditional
+`UPDATE` inside the same interactive transaction that creates or updates the user, after
+the re-resolution and identity checks, so any later failure rolls back the consumption
+too.
 
 **P1-4: No cleanup job.**
 Expired/terminal challenges and grants accumulate indefinitely. Fix: a scheduled job
@@ -681,7 +699,8 @@ tests and a gate; do not enable production email sign-in before Phase 1 is compl
 - Mark the design approved for implementation, not for production enablement.
 - Record the verified evidence and the P0/P1 defects above.
 - Keep `AUTH_GOOGLE_ENABLED=false`.
-- Confirm the working tree and branch; do not push to any remote other than `origin`.
+- Confirm the working tree and branch; do not push to any remote other than `origin`
+  (superseded in Phase 2: the branch is now mirrored to the `github` remote as well).
 
 Gate: this document is committed and pushed; no code changes in this phase.
 
@@ -756,6 +775,10 @@ reviewed. Do not expose a button or a `/methods` true value earlier.
 
 ### Phase 4 — Production enablement
 
+The scoped, itemised staging checklist lives in
+[`passwordless-login-phase4-staging-checklist.md`](./passwordless-login-phase4-staging-checklist.md).
+The summary steps are:
+
 1. Apply the additive migration with both flags off.
 2. Deploy the version-aware auth code; verify password/admin login and session
    revocation behaviour.
@@ -763,7 +786,8 @@ reviewed. Do not expose a button or a `/methods` true value earlier.
    `AUTH_RATE_KEY_SECRET` and `AUTH_TRANSIENT_ENCRYPTION_KEY` values.
 4. Enable `AUTH_EMAIL_LINK_ENABLED` on a staging environment with a real sink; run the
    HTTP abuse matrix and Playwright; capture screenshots and a11y results.
-5. Enable in production only after the remaining P1 gate and the staged evidence.
+5. Enable in production only after the Phase 4 checklist passes and the staged evidence
+   exists.
 6. Rollback: disable issuance, let grants expire, keep the additive schema, the
    password-disable flag and the session-version checks. Never revert to authentication
    that ignores `sessionVersion` or `passwordLoginEnabled`. Queued jobs expire with the
@@ -830,17 +854,20 @@ Approved on 2026-11-19:
 
 Not approved:
 
-- Production enablement before the remaining P1 items in section 9 are closed and the
-  staged HTTP/Playwright evidence exists.
+- Production enablement before the Phase 4 staging gate (real sink, real-mail matrix,
+  final security review) passes.
 - Enabling Google before Phase 3 is complete; the flag is refused at boot until then.
 - Any rollback that removes `sessionVersion` or `passwordLoginEnabled` enforcement.
 - Any change that logs or returns a code, link, token, cookie or raw email address.
 
 Open decisions for the next review:
 
-1. Whether the browser budget should use a stable new cookie or the rotating challenge
-   binding (P1-2).
-2. Whether a newcomer grant that finds an existing account should hard-fail (safest) or
+1. Whether a newcomer grant that finds an existing account should hard-fail (safest) or
    enter a fresh recovery flow after a new proof.
-3. Whether the grant should remain a bearer cookie or gain an independent binding
-   nonce (P2-1).
+2. Whether the grant should gain an independent binding nonce; P2-1 closed it as a
+   documented bearer cookie, so reopening needs a concrete threat.
+3. When to remove the nonce-free root layout so the auth CSP can drop `'unsafe-inline'`
+   (P2-8).
+
+Resolved since the earlier revision: P1-2 (stable `auth_bid_` cookie) and P2-1 (grant
+documented as a bearer cookie).
