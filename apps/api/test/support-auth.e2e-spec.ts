@@ -147,6 +147,12 @@ if (!DATABASE_URL || !DISPOSABLE_DB) {
                     isEmailVerified: true,
                     isAnatomyReviewer: true,
                     createdAt: true,
+                    // Must mirror UsersService.findById: JwtStrategy.validate
+                    // reads sessionVersion to enforce revocation, so omitting it
+                    // makes every hand-signed token 401.
+                    sessionVersion: true,
+                    passwordLoginEnabled: true,
+                    profileCompletedAt: true,
                   },
                 }),
             },

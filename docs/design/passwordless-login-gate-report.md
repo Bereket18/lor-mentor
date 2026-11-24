@@ -34,6 +34,7 @@ raw email address. Counts and outcomes only.
 | 8 | Auth-page header/CSP smoke on the standalone bundle | header assertions | 40/40 passed |
 | 9 | Hydration + CSP-violation probe on the standalone bundle | headless probe | 0 CSP violations; email-mode toggle and input work |
 | 10 | Queue-worker boot line | fresh API start | `auth_mail_worker_ready queue=auth-mail concurrency=4` logged |
+| 11 | API e2e authorization matrix on a disposable Postgres | `npx jest --config ./test/jest-e2e.json support-auth` | 21 passed |
 
 ### 2.1 UI matrix (check 4)
 
@@ -114,6 +115,13 @@ Fix: the interceptor's sessionless-page allowlist now includes `/auth/email/conf
 `/complete-profile`, so a 401 there is the expected "not signed in yet" answer rather than
 a redirect trigger. Verified by UI-matrix tests 2–4 and by the standalone smoke probe
 (both pages stay put and render their headings on a cold load).
+
+A second, CI-only issue surfaced when validating the pipeline. The support-authorization
+e2e matrix builds a partial module graph and stubs `UsersService.findById` with a
+hand-written Prisma `select`; that select predated the strategy's `sessionVersion` check,
+so every hand-signed token was rejected with 401 and the suite failed. It now mirrors the
+real select (`sessionVersion`, `passwordLoginEnabled`, `profileCompletedAt`), and the
+matrix passes 21/21 against a throwaway database.
 
 ## 5. Verdict
 
