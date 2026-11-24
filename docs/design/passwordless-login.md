@@ -383,7 +383,7 @@ still applies. See P1-2.
 | A successful sign-in revokes the presented prior refresh token. | Completion verifies and denylists the presented refresh `jti` before writing the new pair; the live run's old token returned 401. | Closed; P1-7. |
 | A different signed-in user must confirm an account switch. | Completion revokes the previous session and returns `switchedAccount`; the UI shows who is signed in now. | Closed; P1-6. |
 | The initiating response is identical in body, cookie and timing for eligible and suppressed addresses. | Suppressed addresses also get a challenge-shaped row, the same body, a fresh binding cookie and an enqueued decoy; the worker sends nothing. | Closed; P0-1/P0-3. |
-| Issuance and supersession are serialised per address. | There is no per-address lock or partial unique index; concurrent starts can create two active challenges. | **Open P1**; P1-1. |
+| Issuance and supersession are serialised per address. | A per-address advisory lock inside the creating transaction serialises issuance; a live concurrency probe returned four 202s with one active challenge. | Closed; P1-1. |
 | Cross-device confirmation creates a fresh receiving-browser binding. | It clears the challenge cookie and issues the session; no new binding is minted. | Wording corrected; the link remains a bearer capability. |
 | The profile grant is browser-bound by an independent nonce. | `browserNonceHash` equals `sha256(grantToken)`; the grant is a bearer cookie. | Wording corrected; independent binding is optional P2-1. |
 
