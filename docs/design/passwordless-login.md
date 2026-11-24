@@ -94,7 +94,7 @@ of the delivered history.
 | Email-link secrets travel in a fragment and confirmation is an explicit CSRF-protected POST. | Met. |
 | Cross-device link confirmation is allowed only with `destination: "current-browser"`. | Met. The server ignores the original binding on `POST /email/confirm` but still requires the high-entropy link token and receiving-browser CSRF. |
 | Initiation is indistinguishable for existing, unknown, inactive and administrator addresses. | Met. Every well-formed start after validation persists a challenge-shaped row and returns a handle plus a fresh binding cookie; suppressed rows are `deliverable=false` and enqueued as decoys the worker drops. |
-| One challenge per address is active at a time. | **Not met under concurrency.** See P1-1. |
+| One challenge per address is active at a time. | Met since P1-1: issuance takes a transaction-scoped advisory lock keyed by an HMAC of the address, so concurrent starts serialise and the later one supersedes the earlier. |
 | Profile completion cannot mutate an account that appeared mid-grant, including an administrator. | Met. One transaction re-reads and locks an existing user, refuses admin/inactive/identity mismatch before mutation, consumes the grant inside the transaction, and maps a create race to 409. |
 | No plaintext credential is logged. | Implemented by construction; a canary-secret test is still missing from the acceptance evidence. |
 | Schema changes are additive. | Met. No drops, renames or nullability changes to existing columns. |
@@ -477,6 +477,13 @@ used. Fix: a transaction-scoped PostgreSQL advisory lock keyed by an HMAC of the
 address, or a partial unique index on active challenges for `(email)` where
 `consumedAt IS NULL AND supersededAt IS NULL`. Add a concurrent-start test.
 
+Closed 2026-11-23: `createChallenge` now runs in an interactive transaction and takes
+`pg_advisory_xact_lock` keyed by `HMAC-SHA256(AUTH_RATE_KEY_SECRET, "challenge-lock:" + email)`
+before superseding and inserting. The lock is released with the transaction, so a second
+caller waits and then supersedes the first row. A live run of four simultaneous starts
+for one address returned the same generic 202 every time and left exactly one active
+row. Unit coverage asserts the lock is taken only on the create path.
+
 **P1-2: The browser rate-limit bucket is resettable.**
 `browserId` returns the `auth_cs_` cookie. A caller can call `GET /csrf` for a new
 value and reset the browser budget. The IP budget remains, but the browser budget is
@@ -496,6 +503,17 @@ Expired/terminal challenges and grants accumulate indefinitely. Fix: a scheduled
 older than 24 hours and expired rows past a small grace period. Keep rate counters for
 their full windows; do not delete audit metadata early. Add an operational metric for
 rows removed and failures.
+
+Closed 2026-11-24: `auth-cleanup.ts` defines the single retention predicate and
+`AuthCleanupService` sweeps at boot and hourly. The sweep runs in one transaction that
+first takes a fixed transaction-scoped advisory lock, so every instance can schedule it
+and only one deletes. Challenges are removable only when terminal *and* older than 24
+hours, because the daily issuance cap counts rows by `createdAt`; deleting sooner would
+return issuance budget to the address. Consumed grants retire after 24 hours, expired
+grants an hour past expiry. Each run logs `auth_cleanup_removed challenges=… grants=…
+duration_ms=…`; failures log `auth_cleanup_failed` and never reject. `npm run
+auth:cleanup` provides a dry-run-first operator equivalent over the same predicate and
+lock.
 
 **P1-5: No CSP.**
 The pages have `Referrer-Policy`, `X-Robots-Tag` and `Cache-Control`, but no
@@ -607,10 +625,10 @@ until the P1 items below close.
 ### Phase 2 — P1 correctness and operations
 
 1. Serialise issuance per address (advisory lock or partial unique index) and add a
-   concurrency test.
+   concurrency test. **Done (P1-1).**
 2. Replace the resettable browser key with a stable browser identifier or document and
    test the accepted trade-off.
-3. Add the scheduled cleanup job with a single-runner guard and metrics.
+3. Add the scheduled cleanup job with a single-runner guard and metrics. **Done (P1-4).**
 4. Add CSP for the auth pages (and the app if feasible) without breaking hydration.
 5. Add account-switch confirmation and prior-refresh-token revocation on new sign-in.
 6. Add the DB CHECK on `attempts`, role-aware return-path validation, the profile GET

@@ -25,6 +25,7 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "support:retention": "ts-node src/scripts/support-retention.ts",
+    "auth:cleanup": "ts-node src/scripts/auth-cleanup.ts",
     "seed:support-fixtures": "ts-node src/scripts/seed-support-fixtures.ts"
   },
   "dependencies": {

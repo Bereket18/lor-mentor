@@ -13,6 +13,7 @@ import { AUTH_MAIL_QUEUE } from './auth-mail.constants';
 import { AuthMailCryptoService } from './auth-mail.crypto';
 import { AuthMailProcessor } from './auth-mail.processor';
 import { AuthMailService } from './auth-mail.service';
+import { AuthCleanupService } from './auth-cleanup.service';
 import {
   AUTH_RATE_LIMIT_CLIENT,
   AuthRateLimitService,
@@ -49,6 +50,7 @@ import { TokenDenylistService } from '../../common/redis/token-denylist.service'
     AuthMailCryptoService,
     AuthMailService,
     AuthMailProcessor,
+    AuthCleanupService,
     AuthRateLimitService,
     {
       // Dedicated connection: a slow rate-limit command must not queue behind
