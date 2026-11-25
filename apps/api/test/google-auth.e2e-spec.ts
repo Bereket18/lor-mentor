@@ -284,6 +284,11 @@ if (!DATABASE_URL || !DISPOSABLE_DB) {
       await prisma.enrollmentGrant.deleteMany({
         where: { email: { in: Object.values(emails) } },
       });
+      // Completing a profile can raise a welcome notification owned by the new
+      // user; clear it before the user row or the FK blocks the delete.
+      await prisma.notification.deleteMany({
+        where: { userId: { in: userIds } },
+      });
       await prisma.auditLog.deleteMany({
         where: { actorId: { in: userIds } },
       });
