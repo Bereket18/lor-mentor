@@ -24,7 +24,8 @@ Entry (all must already hold, verified on the branch tip):
 Exit (definition of done):
 
 - [ ] Every "real-mail matrix" row passes on staging with a **real** transport.
-- [ ] The final security review is recorded with a named approver and date.
+- [ ] The final security review is recorded with named signer(s) and date: the project
+      owner for staging, plus a second named human reviewer for production (§10, §11).
 - [ ] The rollback rehearsal passes without reverting any schema or dropping any token check.
 - [ ] The production enablement decision is recorded, with `AUTH_GOOGLE_ENABLED=false`.
 
@@ -118,9 +119,12 @@ correct content. Record pass/fail and a redacted artifact path per row.
 Notes on the ones Phase 2 marked as exclusions (they are the reason for this phase):
 
 - Rows 10–12 need a real budget spend, a clock jump or short TTL, and a stopped
-  dependency; use a staging TTL override or a DB backdate rather than editing policy.
+  dependency. **Decided (§11):** backdate the challenge/grant/transaction rows in the
+  staging database; never edit the shipping policy values or add a TTL override.
 - Row 3 must use a genuinely different mailbox/device — this is the cross-device defect
-  class (P2-9) that a single-browser test cannot see.
+  class (P2-9) that a single-browser test cannot see. **Decided (§11):** a second browser
+  profile (preferably a real phone) with a clean cookie jar using the same real mailbox,
+  plus a second-provider mailbox for the login-swap scenario.
 
 ## 6. Deliverability and edge infrastructure
 
@@ -138,9 +142,10 @@ Notes on the ones Phase 2 marked as exclusions (they are the reason for this pha
 
 - GitHub Actions is the CI of record for this branch and runs on every push.
 - GitLab (`.gitlab-ci.yml`) runs only on merge requests, `main`, or manual web pipelines,
-  so a feature-branch push intentionally produces no GitLab pipeline. If a GitLab
-  pipeline is wanted for this branch, add a rule **and** keep the matrix in sync with
-  `.github/workflows/ci.yml`.
+  so a feature-branch push intentionally produces no GitLab pipeline. **Decided (§11):**
+  keep `.gitlab-ci.yml` unchanged — GitLab has no compute minutes, so a push rule would
+  only fail with `ci_quota_exceeded`. If that changes, add a rule **and** keep the matrix
+  in sync with `.github/workflows/ci.yml`.
 
 ## 8. Final security review
 
@@ -169,15 +174,30 @@ Notes on the ones Phase 2 marked as exclusions (they are the reason for this pha
 
 - [ ] Named approver, date, and a link to the staging evidence pack.
 - [ ] Recorded decision: enable in production, or hold with a list of follow-ups.
+- [ ] The **project owner** signs the staging decision; production enablement additionally
+      requires a **second named human reviewer** (the college's technical lead or an
+      external security reviewer). Agent reviews are evidence, not sign-off. Record signer
+      names and dates in the gate-evidence report.
 
-## 11. Open scoping questions
+## 11. Scoping decisions (resolved 2026-11-25)
 
-1. **Transport:** provider sandbox vs. a controlled mailbox on a real domain — which one
-   satisfies "real sink" for the final review?
-2. **TTL/clock control:** short-TTL staging override vs. a DB backdate for the expiry rows
-   (must not touch the shipping policy values).
-3. **Second device:** a real second mailbox + browser, or a separate provider inbox — what
-   is the minimum acceptable for the cross-device row?
-4. **Reviewer:** who owns the final security review and signs the enablement decision?
-5. **GitLab pipeline:** whether to add a branch rule so GitLab also shows a pipeline for
-   this branch (see §7).
+1. **Transport — both.** A provider sandbox drives the bulk matrix; a controlled mailbox
+   on a real domain is the "real sink" used for SPF/DKIM/DMARC alignment and inbox/spam
+   placement. A local sink still does not satisfy this gate.
+2. **TTL/clock control — DB backdate.** Drive the expiry rows (10–12) by backdating the
+   challenge/grant/transaction timestamps in the staging database. Do not add a TTL
+   override and do not edit the shipping policy values.
+3. **Second device — a real second browser profile plus a second mailbox.** Start the
+   sign-in in one browser profile, then open the emailed link in a genuinely different
+   browser profile with a clean cookie jar (preferably a real phone) using the same real
+   mailbox. For the login-swap scenario, add one second mailbox on a **different provider**
+   as the attacker address and confirm the confirmation page shows the attacker's address
+   in the victim's browser. Record exactly which devices, browsers and providers were used.
+4. **Reviewer — two signers for production.** The project owner signs the staging decision
+   now. Production enablement additionally requires a second named human reviewer (the
+   college's technical lead or an external security reviewer). Agent reviews are evidence,
+   not sign-off. Record signer names and dates in the gate-evidence report (§10).
+5. **GitLab pipeline — keep `.gitlab-ci.yml` unchanged** (no `feat/**` branch rule).
+   GitLab has no compute minutes, so push rules would only fail with `ci_quota_exceeded`;
+   evidence continues to come from the GitHub Actions run of record and the gate-evidence
+   reports (§7).
