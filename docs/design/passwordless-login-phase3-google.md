@@ -106,6 +106,12 @@ same advisory-locked transaction, plus a unit test.
 
 ## 4. Slice plan (each slice is independently reviewable and keeps the flag off)
 
+Progress: **P3-A done** — `AuthOAuthTransaction` + additive migration + cleanup, committed
+`213bb2d` and pushed to both remotes (migration verified on a throwaway DB; `migrate diff`
+reports no drift against `schema.prisma`; cleanup spec 5/5). **P3-B done** — the
+`google-auth-library` wrapper and its unit spec (20 tests); full API unit suite green
+(59 passed / 2 skipped; 900 passed / 21 skipped of 921) and `tsc` clean.
+
 | Slice | Contents | Exit check |
 |---|---|---|
 | **P3-A** | `AuthOAuthTransaction` model + additive migration + cleanup extension. No runtime behaviour. | Migration applies on a disposable DB; cleanup unit test passes; `prisma validate` clean. |
