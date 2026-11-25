@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import { PasswordlessController } from './passwordless.controller';
 import type { PasswordlessAuthService } from './passwordless.service';
 import type { AuthRateLimitService } from './auth-rate-limit.service';
+import type { GoogleAuthService } from './google-auth.service';
 import { BROWSER_ID_TTL_MS, CHALLENGE_TTL_MS, PUBLIC_READ_IP_PER_MINUTE, WINDOW_MINUTE_MS } from './auth-policy';
 import { OAUTH_TRANSACTION_TTL_MS } from './google-auth.service';
 
@@ -63,7 +64,7 @@ function harness(values: Record<string, string> = {}) {
     service,
     limits,
     configFor(values),
-    google,
+    google as unknown as GoogleAuthService,
   );
   return { controller, res, cookie, setHeader, limits, service, google };
 }

@@ -75,6 +75,8 @@ function buildHarness() {
     },
     user: {
       findUnique: jest.fn().mockResolvedValue(null),
+      update: jest.fn().mockResolvedValue({}),
+      create: jest.fn().mockResolvedValue({}),
     },
     auditLog: {
       create: jest.fn().mockResolvedValue({}),
@@ -604,6 +606,81 @@ describe('PasswordlessAuthService.completeGoogleSignIn', () => {
       where: { email: 'student@example.com' },
       select: { id: true },
     });
+  });
+
+  it('resolves a linked account by subject even when the Google email changed', async () => {
+    const { service, prisma, auth } = buildHarness();
+    prisma.authIdentity.findUnique.mockResolvedValue({
+      user: linkedUser({ email: 'original@example.com' }),
+    });
+
+    const result = await service.completeGoogleSignIn({
+      email: 'renamed@example.com',
+      subject: 'google-subject-123',
+      returnPath: null,
+    });
+
+    expect(result.next).toBe('signed_in');
+    expect(auth.issueSession).toHaveBeenCalledWith('user-1', 'GOOGLE');
+    // The subject is the key; the claim never rewrites the local address.
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('never writes the Google claim onto a local account', async () => {
+    const { service, prisma } = buildHarness();
+    prisma.authIdentity.findUnique.mockResolvedValue(null);
+    prisma.user.findUnique.mockResolvedValue({ id: 'existing-user' });
+
+    await expect(
+      service.completeGoogleSignIn({
+        email: 'student@example.com',
+        subject: 'google-subject-123',
+        returnPath: null,
+      }),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(prisma.user.create).not.toHaveBeenCalled();
+  });
+
+  it('sends a linked account with an unfinished profile back to the profile step', async () => {
+    const { service, prisma } = buildHarness();
+    prisma.authIdentity.findUnique.mockResolvedValue({
+      user: linkedUser({
+        profileCompletedAt: null,
+        passwordLoginEnabled: false,
+      }),
+    });
+
+    const result = await service.completeGoogleSignIn(IDENTITY);
+
+    expect(result).toEqual({
+      next: 'complete_profile',
+      redirectTo: '/complete-profile',
+      grantToken: expect.any(String),
+    });
+    const createCalls = prisma.enrollmentGrant.create.mock.calls as Array<
+      [{ data: { method: string; googleSubject: string; userId: string } }]
+    >;
+    expect(createCalls[0][0].data).toMatchObject({
+      method: 'GOOGLE',
+      googleSubject: 'google-subject-123',
+      userId: 'user-1',
+    });
+  });
+
+  it('signs in a linked account that also has password login enabled', async () => {
+    const { service, prisma, auth } = buildHarness();
+    prisma.authIdentity.findUnique.mockResolvedValue({
+      user: linkedUser({ passwordLoginEnabled: true }),
+    });
+
+    const result = await service.completeGoogleSignIn(IDENTITY);
+
+    expect(result.next).toBe('signed_in');
+    expect(auth.issueSession).toHaveBeenCalledWith('user-1', 'GOOGLE');
+    expect(prisma.enrollmentGrant.create).not.toHaveBeenCalled();
   });
 });
 

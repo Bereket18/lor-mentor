@@ -118,14 +118,18 @@ AES-GCM envelope (`auth-envelope.ts`) extracted so mail and OAuth ciphertext sta
 domain-separated. `completeProfile` now records the `AuthIdentity` for a GOOGLE grant.
 Gate: both routes 503 unless `AUTH_GOOGLE_ENABLED` is on (still refused at boot).
 Verified: auth-module suite 187/187, `tsc` clean. No route is reachable in production
-while the flag stays false.
+while the flag stays false. **P3-D closed by decision** — linking is safe-fail only
+(§5.2): identity is resolved by `(GOOGLE, sub)`, a verified email matching an unlinked
+local account is refused and audited (`AUTH_GOOGLE_EMAIL_CONFLICT`), nothing is merged and
+no local email is ever rewritten from a claim. Covered by tests in P3-C; no separate
+linking endpoint is built in this phase.
 
 | Slice | Contents | Exit check |
 |---|---|---|
 | **P3-A** | `AuthOAuthTransaction` model + additive migration + cleanup extension. No runtime behaviour. | Migration applies on a disposable DB; cleanup unit test passes; `prisma validate` clean. |
 | **P3-B** | `GoogleOidcClient` wrapper (authorization URL, code exchange, ID-token verification) behind an injectable interface, plus the chosen verifier dependency. | Unit tests against a fake verifier; the `jose`-ESM/`require` problem resolved. |
 | **P3-C** | `start` + `callback` endpoints, transaction consume, identity resolution, session issuance. | Unit tests: happy path, expired, consumed, wrong binding cookie, nonce mismatch, `email_verified=false`, admin refusal, existing-email conflict. |
-| **P3-D** | Linking / recovery path (Q2). | Unit tests; no email-based auto-merge. |
+| **P3-D** | Linking / recovery path (Q2). **Closed by decision:** safe-fail only, no separate linking endpoint; identity-integrity and no-merge tests. | Unit tests; no email-based auto-merge. |
 | **P3-E** | Web: conditional "Continue with Google" button + inert callback page; e2e with a **local mock provider** (discovery/JWKS/token). | Playwright flow green on a disposable DB; canary/redaction extended. |
 
 ## 5. Decisions (resolved 2026-11-25)
