@@ -440,13 +440,55 @@ export function validateEnv(
     }
   }
 
-  // Google sign-in has no verifier yet. Starting the API with the flag on would
-  // advertise an endpoint that cannot complete a sign-in, so refuse at boot
-  // rather than failing per request.
+  // Google sign-in is implemented (Phase 3). When it is switched on, its OIDC
+  // client credentials and the key that seals OAuth transactions must exist:
+  // without them the routes would advertise a method that cannot complete.
   if (flagIsTrue(config.AUTH_GOOGLE_ENABLED)) {
-    errors.push(
-      'AUTH_GOOGLE_ENABLED=true is not supported yet; Google sign-in has no OIDC verifier',
-    );
+    for (const key of ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET']) {
+      const value = config[key];
+      if (typeof value !== 'string' || !value.trim()) {
+        errors.push(
+          `${key} is required when AUTH_GOOGLE_ENABLED is true`,
+        );
+      } else if (looksLikePlaceholder(value)) {
+        errors.push(
+          `${key} must not use a placeholder when AUTH_GOOGLE_ENABLED is true`,
+        );
+      }
+    }
+
+    const transientKey = stringValue(
+      config.AUTH_TRANSIENT_ENCRYPTION_KEY,
+    ).trim();
+    if (transientKey.length < 32) {
+      errors.push(
+        'AUTH_TRANSIENT_ENCRYPTION_KEY must be at least 32 characters when AUTH_GOOGLE_ENABLED is true',
+      );
+    } else if (looksLikePlaceholder(transientKey)) {
+      errors.push(
+        'AUTH_TRANSIENT_ENCRYPTION_KEY must not use a placeholder when AUTH_GOOGLE_ENABLED is true',
+      );
+    }
+
+    // The redirect URI is optional (it is derived from WEB_PUBLIC_URL), but an
+    // explicit value must be an absolute URL and must be HTTPS in production:
+    // it is where Google returns the authorization code.
+    const redirectUri = stringValue(config.GOOGLE_REDIRECT_URI).trim();
+    if (redirectUri) {
+      let parsed: URL | null = null;
+      try {
+        parsed = new URL(redirectUri);
+      } catch {
+        errors.push('GOOGLE_REDIRECT_URI must be an absolute URL');
+      }
+      if (parsed) {
+        if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+          errors.push('GOOGLE_REDIRECT_URI must use http or https');
+        } else if (isProd && parsed.protocol !== 'https:') {
+          errors.push('GOOGLE_REDIRECT_URI must use https in production');
+        }
+      }
+    }
   }
 
   if (errors.length > 0) {

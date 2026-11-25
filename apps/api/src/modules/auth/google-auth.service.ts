@@ -73,9 +73,9 @@ export class GoogleAuthService {
   }
 
   /**
-   * Refuse every Google route while the flag is off. The flag defaults to false
-   * and boot refuses `AUTH_GOOGLE_ENABLED=true` until Phase 3 is complete; this
-   * gate is what keeps a stale client from reaching the plumbing in between.
+   * Refuse every Google route while the flag is off. The flag defaults to false,
+   * so this gate keeps the method dark (a uniform 503) and is what stops a stale
+   * client from reaching the plumbing when the method is not advertised.
    */
   private assertEnabled(): void {
     if (!this.methods.googleEnabled) {

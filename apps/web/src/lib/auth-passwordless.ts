@@ -116,6 +116,33 @@ export async function getAuthMethods(): Promise<AuthMethods> {
   return res.data;
 }
 
+/**
+ * The API URL that begins a Google sign-in.
+ *
+ * This is a full-page navigation, not a fetch: the API creates a browser-bound
+ * transaction, sets its HttpOnly binding cookie and redirects to Google. Using
+ * a real navigation keeps the cookie and the redirect in one round-trip; a XHR
+ * would be blocked by CORS before the redirect happened.
+ */
+export function googleStartUrl(returnTo?: string): string {
+  const base = `${process.env.NEXT_PUBLIC_API_URL ?? ""}/api/v1/auth/google/start`;
+  return returnTo ? `${base}?returnTo=${encodeURIComponent(returnTo)}` : base;
+}
+
+/**
+ * Redeem the authorization response on the inert callback page.
+ *
+ * `code` and `state` are opaque, single-use values. The API also reads the
+ * binding cookie, so this POST only succeeds in the browser that started the
+ * flow.
+ */
+export async function completeGoogleSignIn(
+  code: string,
+  state: string,
+): Promise<PasswordlessCompletion> {
+  return post<PasswordlessCompletion>("/auth/google/callback", { code, state });
+}
+
 export async function startEmailSignIn(
   email: string,
   returnTo?: string,

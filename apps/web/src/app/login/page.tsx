@@ -16,6 +16,7 @@ import { useHydrated } from "@/hooks/use-hydrated";
 import {
   authErrorMessage,
   getAuthMethods,
+  googleStartUrl,
   resendEmailSignIn,
   startEmailSignIn,
   submitEmailCode,
@@ -71,6 +72,30 @@ const GlassInput = React.forwardRef<HTMLInputElement, GlassInputProps>(
   },
 );
 
+/* -- Google glyph (official mark, inline to avoid another dependency) -- */
+function GoogleGlyph() {
+  return (
+    <svg aria-hidden viewBox="0 0 24 24" className="h-4 w-4">
+      <path
+        fill="#4285F4"
+        d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47a5.53 5.53 0 0 1-2.4 3.63v3h3.87c2.27-2.09 3.55-5.17 3.55-8.87z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 24c3.24 0 5.95-1.08 7.94-2.91l-3.87-3c-1.08.72-2.45 1.15-4.07 1.15-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09A11.99 11.99 0 0 0 12 24z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.27 14.28A7.2 7.2 0 0 1 4.89 12c0-.79.14-1.56.38-2.28V6.63H1.29A11.99 11.99 0 0 0 0 12c0 1.94.46 3.77 1.29 5.37l3.98-3.09z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.69 1.29 6.63l3.98 3.09C6.22 6.86 8.87 4.75 12 4.75z"
+      />
+    </svg>
+  );
+}
+
 /* -- Page ------------------------------------------------------- */
 export default function LoginPage() {
   const router = useRouter();
@@ -87,6 +112,7 @@ export default function LoginPage() {
   // The flag is read from the API, not baked into the bundle: a disabled method
   // must not render an entry point that the server will refuse.
   const [emailEnabled, setEmailEnabled] = useState(false);
+  const [googleEnabled, setGoogleEnabled] = useState(false);
   const [mode, setMode] = useState<"password" | "email">("password");
   const [email, setEmail] = useState("");
   const [challengeId, setChallengeId] = useState<string | null>(null);
@@ -99,11 +125,17 @@ export default function LoginPage() {
     let active = true;
     getAuthMethods()
       .then((methods) => {
-        if (active) setEmailEnabled(methods.emailLinkEnabled);
+        if (active) {
+          setEmailEnabled(methods.emailLinkEnabled);
+          setGoogleEnabled(methods.googleEnabled);
+        }
       })
       .catch(() => {
         // The password form must keep working if the flag endpoint is down.
-        if (active) setEmailEnabled(false);
+        if (active) {
+          setEmailEnabled(false);
+          setGoogleEnabled(false);
+        }
       });
     return () => {
       active = false;
@@ -446,6 +478,52 @@ export default function LoginPage() {
               >
                 Email link or code
               </button>
+            </div>
+          )}
+
+          {/* Google: only when the API says the method is enabled. A full-page
+              navigation, so the API can set its binding cookie and redirect. */}
+          {googleEnabled && !challengeId && (
+            <div className="mb-5">
+              <a
+                href={googleStartUrl()}
+                onClick={(event) => {
+                  // Preserve the post-sign-in destination. The href stays a
+                  // plain link so middle-click and "open in new tab" work.
+                  const redirect = new URLSearchParams(
+                    window.location.search,
+                  ).get("redirect");
+                  if (!redirect) return;
+                  event.preventDefault();
+                  window.location.assign(googleStartUrl(redirect));
+                }}
+                className="flex items-center justify-center gap-2.5 w-full py-3 rounded-2xl text-sm font-semibold transition-all duration-200 hover:opacity-90"
+                style={{
+                  background: "var(--glass-input-bg)",
+                  border: "1px solid var(--glass-input-border)",
+                  color: "var(--text-primary)",
+                  backdropFilter: "blur(8px)",
+                  WebkitBackdropFilter: "blur(8px)",
+                }}
+              >
+                <GoogleGlyph />
+                Continue with Google
+              </a>
+              <div className="flex items-center gap-3 mt-4">
+                <span
+                  aria-hidden
+                  className="h-px flex-1"
+                  style={{ background: "var(--glass-input-border)" }}
+                />
+                <span className="text-[10px] font-semibold tracking-[0.2em] uppercase text-muted">
+                  or
+                </span>
+                <span
+                  aria-hidden
+                  className="h-px flex-1"
+                  style={{ background: "var(--glass-input-border)" }}
+                />
+              </div>
             </div>
           )}
 

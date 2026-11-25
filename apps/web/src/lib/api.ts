@@ -80,6 +80,7 @@ api.interceptors.response.use(
           window.location.pathname.startsWith("/admin-login") ||
           window.location.pathname.startsWith("/pricing") ||
           window.location.pathname.startsWith("/auth/email/confirm") ||
+          window.location.pathname.startsWith("/auth/google/callback") ||
           window.location.pathname.startsWith("/complete-profile"));
 
       if (isSessionlessPage) {

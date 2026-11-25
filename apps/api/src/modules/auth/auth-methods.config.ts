@@ -11,8 +11,9 @@ function readFlag(value: string | undefined): boolean {
  *
  * These are read from the environment at construction, never from the client.
  * A disabled method fails closed with a uniform 503 (a 404 would itself reveal
- * which methods an environment runs). Google has no verifier yet, so enabling
- * it is a boot error rather than a quietly unavailable endpoint.
+ * which methods an environment runs). Google's credentials are validated by
+ * `env.validation.ts` when the flag is on, and the OIDC client additionally
+ * fails closed per request if they are missing.
  */
 @Injectable()
 export class AuthMethodsConfig {
@@ -21,11 +22,6 @@ export class AuthMethodsConfig {
 
   constructor(private readonly config: ConfigService) {
     this.googleEnabled = readFlag(config.get<string>('AUTH_GOOGLE_ENABLED'));
-    if (this.googleEnabled) {
-      throw new Error(
-        'AUTH_GOOGLE_ENABLED=true is not supported yet; Google sign-in has no OIDC verifier',
-      );
-    }
     this.emailLinkEnabled = readFlag(
       config.get<string>('AUTH_EMAIL_LINK_ENABLED'),
     );

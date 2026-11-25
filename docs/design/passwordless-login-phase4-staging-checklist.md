@@ -38,7 +38,7 @@ In scope:
 
 Out of scope (unchanged):
 
-- Google/OIDC (Phase 3, deferred; flag refused at boot).
+- Google/OIDC (implemented in Phase 3, still disabled; enablement is a separate decision).
 - The account-cleanup script awaiting `02-marking-sheet.sql`.
 - Any change to the 17 draft anatomy systems or to admin password-only login.
 
@@ -74,7 +74,10 @@ Required environment (values distinct from dev; secrets not in the repo):
 - [ ] Deploy the version-aware auth code with **both** passwordless flags `false`.
 - [ ] Existing flows still work: password login, `/admin-login`, refresh, logout,
       password reset (which increments `sessionVersion` and emails the reset).
-- [ ] Boot refuses `AUTH_GOOGLE_ENABLED=true` (negative test; capture the error line only).
+- [ ] Boot refuses an incomplete Google configuration: with `AUTH_GOOGLE_ENABLED=true` but
+      `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` (or a ≥32-character
+      `AUTH_TRANSIENT_ENCRYPTION_KEY`) missing, startup fails with the actionable error
+      (negative test; capture the error line only).
 - [ ] Confirm an old (pre-`ver`) token is read as version 0 and method `PASSWORD`, and
       that a bumped `sessionVersion` invalidates it.
 

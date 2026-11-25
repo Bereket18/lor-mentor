@@ -407,7 +407,7 @@ describe('validateEnv', () => {
     );
   });
 
-  it('refuses to boot with Google sign-in advertised but unimplemented', () => {
+  it('requires Google client credentials when Google sign-in is enabled', () => {
     expect(() =>
       validateEnv({
         NODE_ENV: 'test',
@@ -415,8 +415,73 @@ describe('validateEnv', () => {
         JWT_REFRESH_SECRET: 'test-refresh',
         DATABASE_URL: 'postgresql://localhost/test',
         AUTH_GOOGLE_ENABLED: 'TRUE',
+        AUTH_TRANSIENT_ENCRYPTION_KEY: 'k'.repeat(32),
       }),
-    ).toThrow(/AUTH_GOOGLE_ENABLED=true is not supported yet/);
+    ).toThrow(/GOOGLE_CLIENT_ID is required when AUTH_GOOGLE_ENABLED is true/);
+  });
+
+  it('requires the transaction key when Google sign-in is enabled', () => {
+    expect(() =>
+      validateEnv({
+        NODE_ENV: 'test',
+        JWT_ACCESS_SECRET: 'test-access',
+        JWT_REFRESH_SECRET: 'test-refresh',
+        DATABASE_URL: 'postgresql://localhost/test',
+        AUTH_GOOGLE_ENABLED: 'true',
+        GOOGLE_CLIENT_ID: 'client-id.apps.googleusercontent.com',
+        GOOGLE_CLIENT_SECRET: 'client-secret',
+      }),
+    ).toThrow(
+      /AUTH_TRANSIENT_ENCRYPTION_KEY must be at least 32 characters when AUTH_GOOGLE_ENABLED is true/,
+    );
+  });
+
+  it('accepts a fully configured Google sign-in', () => {
+    const config = {
+      NODE_ENV: 'test',
+      JWT_ACCESS_SECRET: 'test-access',
+      JWT_REFRESH_SECRET: 'test-refresh',
+      DATABASE_URL: 'postgresql://localhost/test',
+      AUTH_GOOGLE_ENABLED: 'true',
+      GOOGLE_CLIENT_ID: 'client-id.apps.googleusercontent.com',
+      GOOGLE_CLIENT_SECRET: 'client-secret',
+      GOOGLE_REDIRECT_URI: 'https://app.example.com/auth/google/callback',
+      AUTH_TRANSIENT_ENCRYPTION_KEY: 'k'.repeat(32),
+    };
+
+    expect(validateEnv({ ...config })).toEqual(config);
+  });
+
+  it('rejects a non-absolute Google redirect URI', () => {
+    expect(() =>
+      validateEnv({
+        NODE_ENV: 'test',
+        JWT_ACCESS_SECRET: 'test-access',
+        JWT_REFRESH_SECRET: 'test-refresh',
+        DATABASE_URL: 'postgresql://localhost/test',
+        AUTH_GOOGLE_ENABLED: 'true',
+        GOOGLE_CLIENT_ID: 'client-id.apps.googleusercontent.com',
+        GOOGLE_CLIENT_SECRET: 'client-secret',
+        GOOGLE_REDIRECT_URI: '/auth/google/callback',
+        AUTH_TRANSIENT_ENCRYPTION_KEY: 'k'.repeat(32),
+      }),
+    ).toThrow(/GOOGLE_REDIRECT_URI must be an absolute URL/);
+  });
+
+  it('requires HTTPS for the Google redirect URI in production', () => {
+    expect(() =>
+      validateEnv({
+        NODE_ENV: 'production',
+        JWT_ACCESS_SECRET: 'prod-access',
+        JWT_REFRESH_SECRET: 'prod-refresh',
+        DATABASE_URL: 'postgresql://localhost/prod',
+        AUTH_GOOGLE_ENABLED: 'true',
+        GOOGLE_CLIENT_ID: 'client-id.apps.googleusercontent.com',
+        GOOGLE_CLIENT_SECRET: 'client-secret',
+        GOOGLE_REDIRECT_URI: 'http://app.example.com/auth/google/callback',
+        AUTH_TRANSIENT_ENCRYPTION_KEY: 'k'.repeat(32),
+      }),
+    ).toThrow(/GOOGLE_REDIRECT_URI must use https in production/);
   });
 
   it('still accepts an explicit false Google flag', () => {

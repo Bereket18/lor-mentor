@@ -26,11 +26,14 @@ describe('AuthMethodsConfig', () => {
     ).toBe(false);
   });
 
-  it('refuses to construct with Google enabled', () => {
-    // env.validation rejects the same value at boot; this keeps a module test or
-    // an alternate bootstrap from advertising a method with no verifier.
+  it('reads the Google flag as a strict boolean', () => {
     expect(
-      () => new AuthMethodsConfig(configWith({ AUTH_GOOGLE_ENABLED: 'true' })),
-    ).toThrow(/AUTH_GOOGLE_ENABLED=true is not supported yet/);
+      new AuthMethodsConfig(configWith({ AUTH_GOOGLE_ENABLED: 'true' }))
+        .googleEnabled,
+    ).toBe(true);
+    expect(
+      new AuthMethodsConfig(configWith({ AUTH_GOOGLE_ENABLED: '1' }))
+        .googleEnabled,
+    ).toBe(false);
   });
 });

@@ -31,11 +31,18 @@ Approved and implemented:
 
 Deferred, not implemented:
 
-- Google/OIDC sign-in. The schema (`AuthIdentity`, `AuthProvider`, `AuthMethod.GOOGLE`)
-  is additive and ready, but there are no routes, UI, transaction store or token
-  verifier. `AUTH_GOOGLE_ENABLED=true` is refused at boot until that work is complete.
 - A nonce-based CSP (P2-8). The auth pages ship a self-only CSP now; the nonce variant
   waits on the root layout's inline theme script.
+
+Implemented behind a disabled flag (section 9, Phase 3):
+
+- Google/OIDC sign-in. The schema (`AuthIdentity`, `AuthProvider`, `AuthMethod.GOOGLE`),
+  the `AuthOAuthTransaction` store, the server-side OIDC flow and the web button all
+  exist, but `AUTH_GOOGLE_ENABLED` stays false: the routes answer a uniform 503,
+  `/auth/methods` reports `googleEnabled: false` and the login page renders no Google
+  button. Turning it on is a Phase 4 enablement decision. Earlier revisions refused
+  `AUTH_GOOGLE_ENABLED=true` at boot; that refusal is now replaced by credential
+  validation (see section 9).
 
 Closed since the earlier revision: the scheduled cleanup job (P1-4), the auth-page CSP
 and Fetch-Metadata checks (P1-5), and the screenshot/accessibility evidence (section 12).
@@ -485,8 +492,11 @@ Fix: until the Google phase lands, reject `AUTH_GOOGLE_ENABLED=true` at boot wit
 actionable error and keep the flag out of the effective methods response. When Google
 is implemented, require the client id/secret/redirect URI at boot in the same change.
 
-Closed: both `validateEnv` and `AuthMethodsConfig` refuse `AUTH_GOOGLE_ENABLED=true`
-with a boot error; tests cover the refusal. The flag stays false in both env examples.
+Closed: `validateEnv` and `AuthMethodsConfig` initially refused
+`AUTH_GOOGLE_ENABLED=true` with a boot error; tests cover the refusal. The flag stays false
+in both env examples. Phase 3 replaced the refusal with credential validation (when the
+flag is true, the client id/secret and the transaction key are required, else the process
+refuses to boot) — see section 9, Phase 3.
 
 ### P1 — should close before production enablement or immediately after
 
@@ -720,6 +730,7 @@ Implemented on 2026-11-21:
    re-resolution, identity checks, admin/inactive refusal before mutation, consumption
    only after checks, and P2002-to-409 mapping.
 4. `validateEnv` and `AuthMethodsConfig` reject `AUTH_GOOGLE_ENABLED=true` at boot.
+   (Phase 3 replaced this refusal with credential validation — see section 9, Phase 3.)
 
 Verification: Prisma schema validates; all 26 migrations apply cleanly to a fresh
 disposable PostgreSQL database; `tsc --noEmit` and ESLint are clean on the touched
@@ -753,25 +764,39 @@ Gate: P1 tests pass; a production-like standalone build serves the auth pages wi
 new headers; the abuse matrix includes concurrent starts, browser-budget reset,
 account switch and cleanup.
 
-### Phase 3 — Google/OIDC (deferred feature)
+### Phase 3 — Google/OIDC (implemented behind a disabled flag)
 
-Use a maintained OIDC verifier; do not hand-write JWT signature verification. The
-implementation must add:
+A maintained OIDC verifier is used end to end; no JWT signature code is hand-written.
+`google-auth-library` performs the code exchange, JWKS caching and full ID-token
+verification, wrapped by `GoogleOidcClient` behind an injectable interface. Implemented:
 
-- A ten-minute, browser-bound, single-use OAuth transaction store with encrypted PKCE
-  verifier, state and nonce.
-- Fixed Google authorization/token/JWKS endpoints, exact redirect URI, `openid email
-  profile`, no offline access.
-- An inert callback page that captures `code`/`state`, scrubs the query, and requires
-  an explicit POST.
-- Server-side code exchange and ID-token verification (signature, issuer, audience,
+- A ten-minute, browser-bound, single-use OAuth transaction store (`AuthOAuthTransaction`)
+  with the S256 PKCE verifier and the OIDC `nonce` sealed under the shared AES-256-GCM
+  envelope. The `state` is the row's 256-bit id, not an encrypted blob: its security comes
+  from entropy, the browser-binding cookie and single use.
+- `GET /auth/google/start` (rate-limited, sets the binding cookie, 302 to Google with a
+  fixed authorization endpoint, `openid email profile`, S256 PKCE, no offline access) and
+  `POST /auth/google/callback` (same-origin JSON POST guarded by the binding cookie, the
+  single-use state and the `x-auth-csrf` token).
+- An inert web `/auth/google/callback` page that reads `code`/`state` from
+  `window.location`, scrubs the query and POSTs once; the API's redirect URI is
+  `${WEB_PUBLIC_URL}/auth/google/callback`.
+- Server-side code exchange and ID-token verification (signature, issuer, exact audience,
   expiry/issued-at with bounded skew, nonce, nonempty subject, `email_verified`).
-- Identity resolution by `(GOOGLE, subject)`, the same role/active/admin rules, and a
-  linking/recovery path that never merges by email.
-- Full tests with a local mock provider and the same canary/redaction rules.
+- Identity resolution by `(GOOGLE, subject)` only, the same role/active/admin rules, and
+  safe-fail when a verified email matches an unlinked local account: nothing is merged or
+  rewritten and the event is audited. New users receive the same restricted profile grant;
+  no partial user is created at start.
+- Tests: unit coverage for the verifier wrapper, the service and the endpoints;
+  `apps/api/test/google-auth.e2e-spec.ts` (real HTTP against a disposable database) for the
+  account outcomes; `apps/web/e2e/google-auth.spec.ts` for the flag-off UI and the inert
+  callback page, plus a gated start-redirect layer.
 
-Gate: the Google flag remains false until every item above is implemented, tested and
-reviewed. Do not expose a button or a `/methods` true value earlier.
+Gate: the Google flag stays false until the Phase 4 enablement decision. The boot refusal
+is replaced by credential validation: with `AUTH_GOOGLE_ENABLED=true`, `GOOGLE_CLIENT_ID`,
+`GOOGLE_CLIENT_SECRET` and a ≥32-character `AUTH_TRANSIENT_ENCRYPTION_KEY` are required
+(and an explicit `GOOGLE_REDIRECT_URI` must be absolute, HTTPS in production), and the
+routes fail closed per request if a credential is missing.
 
 ### Phase 4 — Production enablement
 
@@ -793,10 +818,11 @@ The summary steps are:
    that ignores `sessionVersion` or `passwordLoginEnabled`. Queued jobs expire with the
    challenges; rotating `AUTH_TRANSIENT_ENCRYPTION_KEY` abandons undelivered jobs.
 
-## 11. Google sign-in: deferred design (not implemented)
+## 11. Google sign-in: design (implemented behind the flag)
 
-This section is retained so the schema and security decisions are not lost; it is not
-a description of shipped behaviour.
+This section records the security decisions. As of Phase 3 the flow is implemented and
+stays dark while `AUTH_GOOGLE_ENABLED` is false; section 9 (Phase 3) is the as-built
+summary.
 
 - Google is a separate server-side OIDC flow with state, nonce and S256 PKCE, a
   browser-bound ten-minute transaction and a fixed redirect URI.
@@ -812,9 +838,10 @@ a description of shipped behaviour.
   OAuth start.
 - Do not retain Google access/refresh/ID tokens after completion.
 
-Prerequisites: the Phase 3 work above, a maintained OIDC verifier, encrypted
-transaction storage, a local mock provider for tests, and deployer documentation for
-the consent screen and callback URIs.
+Prerequisites (all met in Phase 3, except enablement): a maintained OIDC verifier
+(`google-auth-library`), encrypted transaction storage, tests that substitute the verifier
+rather than Google's fixed HTTP endpoints, and deployer documentation for the consent
+screen and callback URIs. Turning the flag on remains the Phase 4 decision.
 
 ## 12. Acceptance evidence
 

@@ -1,13 +1,16 @@
 # Phase 3 — Google/OIDC sign-in: implementation plan
 
-Status: **draft for review** (nothing implemented). Branch: `feat/passwordless-login`.
-Companion documents: [`passwordless-login.md`](./passwordless-login.md) (as-built design,
+Status: **implemented behind a disabled flag, pending Phase 4**. Branch:
+`feat/passwordless-login`. Companion documents:
+[`passwordless-login.md`](./passwordless-login.md) (as-built design,
 section 9 Phase 3 and section 11 deferred design) and
 [`passwordless-login-gate-report.md`](./passwordless-login-gate-report.md) (Phase 2 evidence).
 
-The Google flag (`AUTH_GOOGLE_ENABLED`) stays **false** and is still refused at boot until
-every slice below is complete, tested and reviewed. This document does not change that; it
-is the plan to lift it.
+All slices (**P3-A ... P3-E**) are implemented, tested and committed. The Google flag
+(`AUTH_GOOGLE_ENABLED`) is still **false** and is the only thing keeping the method
+dark: `/auth/methods` reports `googleEnabled: false`, the two API routes answer a
+uniform 503 and the web login page renders no button. Turning it on is a Phase 4
+enablement decision, not part of this phase.
 
 ## 1. Scope
 
@@ -33,7 +36,7 @@ Google token after completion; a generic "connect any identity provider" abstrac
 | `AuthRateLimitService`, `NoStoreInterceptor`, CSRF cookie/guard, browser-id cookie | Present; reused for the new endpoints. |
 | `auth-cleanup.ts` sweep | Present; must be extended to purge expired OAuth transactions. |
 | `@nestjs/jwt` → `jsonwebtoken@9.0.3` (CJS) | Present (transitive) with `@types/jsonwebtoken`. |
-| A maintained OIDC verifier | **Not present.** `jose` 6 is in the tree but is ESM-only and cannot be `require`d from the CommonJS Nest build. `google-auth-library`, `jwks-rsa`, `openid-client` are absent. This is open decision **Q1**. |
+| A maintained OIDC verifier | **Present.** `google-auth-library@11.3.4` is the chosen verifier (official, CommonJS). `GoogleOidcClient` wraps it behind an injectable interface. Resolved as decision **Q1**. |
 
 ## 3. Design
 
@@ -63,8 +66,8 @@ Consumption is a single conditional `updateMany` (`consumedAt: null` **and**
 
 | Method | Path | Behaviour |
 |---|---|---|
-| GET | `/auth/google/start?returnPath=` | Rate-limited. Creates a transaction, sets the binding cookie, **302** to Google's authorization URL with `state=<id>`, `code_challenge` (S256), `nonce`, fixed scope `openid email profile`, no `access_type=offline`. |
-| POST | `/auth/google/callback` | Body `{ code, state }`. Authenticated by the binding cookie + single-use state (the OAuth CSRF defence), **not** by the generic `x-auth-csrf` header; documented as such. Loads and consumes the transaction, exchanges the code, verifies the ID token, resolves identity, and returns the same `AuthCompletion` shape as the email flow. |
+| GET | `/auth/google/start?returnTo=` | Rate-limited. Creates a transaction, sets the binding cookie, **302** to Google's authorization URL with `state=<id>`, `code_challenge` (S256), `nonce`, fixed scope `openid email profile`, no `access_type=offline`. |
+| POST | `/auth/google/callback` | Body `{ code, state }`. Authenticated by the browser-binding cookie and the single-use `state` (the OAuth CSRF defence) **and** the same-origin `x-auth-csrf` synchronizer token, so it must be a deliberate same-origin JSON POST. Loads and consumes the transaction, exchanges the code, verifies the ID token, resolves identity, and returns the same `AuthCompletion` shape as the email flow. |
 | (web) | `/auth/google/callback` page | Inert Next.js page: reads `code`/`state`, scrubs the query via `history.replaceState`, then POSTs to the API. Holds no secret and renders nothing sensitive. |
 
 The API's `redirect_uri` sent to Google is exactly
@@ -90,14 +93,18 @@ non-empty `sub`, and `email_verified === true`. The `sub` is the only identity k
    message, no account created, no link). Linking is a deliberate, separately-authenticated
    action (Q2).
 
-### 3.5 Config and flag changes
+### 3.5 Config and flag changes (**done in P3-E**)
 
-- Remove the boot refusal in `AuthMethodsConfig` and `env.validation.ts`; when
-  `AUTH_GOOGLE_ENABLED=true`, require `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and a
-  valid `AUTH_TRANSIENT_ENCRYPTION_KEY` (the last already required for email), else fail
-  closed at boot with an actionable message.
-- `GET /auth/methods` reports `googleEnabled: true` only when the flag is true **and** the
-  config is complete.
+- The boot refusal has been replaced by validation: when `AUTH_GOOGLE_ENABLED=true`,
+  `env.validation.ts` requires `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (non-placeholder)
+  and an `AUTH_TRANSIENT_ENCRYPTION_KEY` of at least 32 characters; an explicit
+  `GOOGLE_REDIRECT_URI` must be an absolute URL and HTTPS in production. Anything else is
+  a boot error with an actionable message. When the flag is false none of these are
+  required.
+- `AuthMethodsConfig` reports `googleEnabled` from the flag alone; `env.validation.ts`
+  guarantees the config is complete before the process starts, and the OIDC client and
+  routes still fail closed per request if a credential is somehow absent.
+- `GET /auth/methods` reports `googleEnabled: true` only when the flag is true.
 
 ### 3.6 Cleanup
 
@@ -116,13 +123,23 @@ browser-bound single-use transaction consume, PKCE/nonce redemption, identity re
 by `(GOOGLE, sub)` in `PasswordlessAuthService.completeGoogleSignIn`, and the shared
 AES-GCM envelope (`auth-envelope.ts`) extracted so mail and OAuth ciphertext stay
 domain-separated. `completeProfile` now records the `AuthIdentity` for a GOOGLE grant.
-Gate: both routes 503 unless `AUTH_GOOGLE_ENABLED` is on (still refused at boot).
+Gate: both routes 503 unless `AUTH_GOOGLE_ENABLED` is on (at that point still refused at
+boot; P3-E replaced the refusal with credential validation).
 Verified: auth-module suite 187/187, `tsc` clean. No route is reachable in production
 while the flag stays false. **P3-D closed by decision** — linking is safe-fail only
 (§5.2): identity is resolved by `(GOOGLE, sub)`, a verified email matching an unlinked
 local account is refused and audited (`AUTH_GOOGLE_EMAIL_CONFLICT`), nothing is merged and
 no local email is ever rewritten from a claim. Covered by tests in P3-C; no separate
-linking endpoint is built in this phase.
+linking endpoint is built in this phase. **P3-E done** — the web login page renders a
+"Continue with Google" link only when `GET /auth/methods` reports the method on, the inert
+`/auth/google/callback` page reads `code`/`state` via `window.location`, scrubs the query
+and POSTs once to the API, and the boot refusal is lifted in favour of the credential
+validation above. Tests: `apps/api/test/google-auth.e2e-spec.ts` (9/9, real HTTP + real
+Prisma on a disposable database) proves the start redirect, PKCE/binding cookie, newcomer
+grant and profile step, linked sign-in, replay and wrong-browser refusal, safe-fail on an
+existing email, admin refusal and a rejected code exchange;
+`apps/web/e2e/google-auth.spec.ts` proves the flag-off UI and the inert callback page, and
+an `E2E_RUN_GOOGLE=1` layer asserts the authorization request the button produces.
 
 | Slice | Contents | Exit check |
 |---|---|---|
@@ -130,7 +147,7 @@ linking endpoint is built in this phase.
 | **P3-B** | `GoogleOidcClient` wrapper (authorization URL, code exchange, ID-token verification) behind an injectable interface, plus the chosen verifier dependency. | Unit tests against a fake verifier; the `jose`-ESM/`require` problem resolved. |
 | **P3-C** | `start` + `callback` endpoints, transaction consume, identity resolution, session issuance. | Unit tests: happy path, expired, consumed, wrong binding cookie, nonce mismatch, `email_verified=false`, admin refusal, existing-email conflict. |
 | **P3-D** | Linking / recovery path (Q2). **Closed by decision:** safe-fail only, no separate linking endpoint; identity-integrity and no-merge tests. | Unit tests; no email-based auto-merge. |
-| **P3-E** | Web: conditional "Continue with Google" button + inert callback page; e2e with a **local mock provider** (discovery/JWKS/token). | Playwright flow green on a disposable DB; canary/redaction extended. |
+| **P3-E** | Web: conditional "Continue with Google" button + inert callback page; credential validation replaces the boot refusal; HTTP/DB e2e and flag-off UI e2e. | API e2e green on a disposable DB; Playwright flag-off flow green; gated start-redirect assertions green with dummy credentials. |
 
 ## 5. Decisions (resolved 2026-11-25)
 
@@ -145,6 +162,12 @@ linking endpoint is built in this phase.
    `${WEB_PUBLIC_URL}/auth/google/callback`; the inert Next.js page captures `code`/`state`
    and POSTs them to the API, keeping auth cookies first-party. The value is fixed and must
    be registered verbatim on the Google client.
+4. **Tests substitute the verifier, not Google's HTTP endpoints.** `google-auth-library`
+   pins Google's token and JWKS URLs, so a local mock discovery/JWKS/token server cannot
+   stand in for it from outside the client boundary. The account outcomes are therefore
+   proven end to end in `apps/api/test/google-auth.e2e-spec.ts` by replacing only
+   `GoogleOidcClient` and keeping everything after it real; the browser layer
+   (`apps/web/e2e/google-auth.spec.ts`) proves the UI and the request we send to Google.
 
 Execution: slice-by-slice (P3-A … P3-E). Each slice is committed and pushed to both
 remotes with CI green before the next begins. The flag stays false throughout.
