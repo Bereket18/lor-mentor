@@ -51,6 +51,9 @@ function buildHarness() {
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       create: jest.fn().mockResolvedValue({}),
     },
+    authIdentity: {
+      create: jest.fn().mockResolvedValue({}),
+    },
     $queryRaw: jest.fn().mockResolvedValue([]),
   };
 
@@ -65,6 +68,13 @@ function buildHarness() {
     },
     enrollmentGrant: {
       findFirst: jest.fn().mockResolvedValue(null),
+      create: jest.fn().mockResolvedValue({}),
+    },
+    authIdentity: {
+      findUnique: jest.fn().mockResolvedValue(null),
+    },
+    user: {
+      findUnique: jest.fn().mockResolvedValue(null),
     },
     auditLog: {
       create: jest.fn().mockResolvedValue({}),
@@ -402,6 +412,198 @@ describe('PasswordlessAuthService.completeProfile', () => {
       BadRequestException,
     );
     expect(tx.user.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('links the Google identity while completing a Google grant', async () => {
+    const { service, tx, prisma, methods } = profileHarness();
+    methods.googleEnabled = true;
+    const grant = grantRow({
+      method: 'GOOGLE',
+      googleSubject: 'google-subject-123',
+    });
+    prisma.enrollmentGrant.findFirst.mockResolvedValue(grant);
+    tx.enrollmentGrant.findFirst.mockResolvedValue(grant);
+    tx.user.create.mockResolvedValue({
+      id: 'new-user',
+      email: 'student@example.com',
+      fullName: PROFILE.fullName,
+      role: 'STUDENT',
+    });
+
+    const result = await service.completeProfile(GRANT_TOKEN, PROFILE);
+
+    expect(result.next).toBe('signed_in');
+    expect(tx.authIdentity.create).toHaveBeenCalledWith({
+      data: {
+        userId: 'new-user',
+        provider: 'GOOGLE',
+        subject: 'google-subject-123',
+      },
+    });
+  });
+
+  it('does not create an identity for an email-link grant', async () => {
+    const { service, tx } = profileHarness();
+    tx.user.create.mockResolvedValue({
+      id: 'new-user',
+      email: 'student@example.com',
+      fullName: PROFILE.fullName,
+      role: 'STUDENT',
+    });
+
+    await service.completeProfile(GRANT_TOKEN, PROFILE);
+
+    expect(tx.authIdentity.create).not.toHaveBeenCalled();
+  });
+
+  it('maps a duplicate Google link to a conflict', async () => {
+    const { service, tx, prisma, methods } = profileHarness();
+    methods.googleEnabled = true;
+    const grant = grantRow({
+      method: 'GOOGLE',
+      googleSubject: 'google-subject-123',
+    });
+    prisma.enrollmentGrant.findFirst.mockResolvedValue(grant);
+    tx.enrollmentGrant.findFirst.mockResolvedValue(grant);
+    tx.user.create.mockResolvedValue({
+      id: 'new-user',
+      email: 'student@example.com',
+      fullName: PROFILE.fullName,
+      role: 'STUDENT',
+    });
+    tx.authIdentity.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: 'test',
+      }),
+    );
+
+    await expect(service.completeProfile(GRANT_TOKEN, PROFILE)).rejects.toThrow(
+      ConflictException,
+    );
+  });
+});
+
+describe('PasswordlessAuthService.completeGoogleSignIn', () => {
+  const IDENTITY = {
+    email: 'student@example.com',
+    subject: 'google-subject-123',
+    returnPath: null as string | null,
+  };
+
+  function linkedUser(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'user-1',
+      email: 'student@example.com',
+      fullName: 'Test Student',
+      role: 'STUDENT',
+      isActive: true,
+      profileCompletedAt: new Date(),
+      passwordLoginEnabled: false,
+      ...overrides,
+    };
+  }
+
+  it('signs in a linked, eligible user with a GOOGLE session', async () => {
+    const { service, prisma, auth } = buildHarness();
+    prisma.authIdentity.findUnique.mockResolvedValue({
+      user: linkedUser(),
+    });
+
+    const result = await service.completeGoogleSignIn(IDENTITY);
+
+    expect(result.next).toBe('signed_in');
+    expect(auth.issueSession).toHaveBeenCalledWith('user-1', 'GOOGLE');
+    expect(prisma.authIdentity.findUnique).toHaveBeenCalledWith({
+      where: {
+        provider_subject: { provider: 'GOOGLE', subject: 'google-subject-123' },
+      },
+      include: { user: true },
+    });
+  });
+
+  it('refuses a linked administrator', async () => {
+    const { service, prisma } = buildHarness();
+    prisma.authIdentity.findUnique.mockResolvedValue({
+      user: linkedUser({ id: 'admin-1', role: 'ADMIN' }),
+    });
+
+    await expect(service.completeGoogleSignIn(IDENTITY)).rejects.toThrow(
+      BadRequestException,
+    );
+    const audits = prisma.auditLog.create.mock.calls as Array<
+      [{ data: { action: string } }]
+    >;
+    expect(audits.map((call) => call[0].data.action)).toContain(
+      'AUTH_PASSWORDLESS_ADMIN_REFUSED',
+    );
+  });
+
+  it('refuses a linked inactive account', async () => {
+    const { service, prisma } = buildHarness();
+    prisma.authIdentity.findUnique.mockResolvedValue({
+      user: linkedUser({ isActive: false }),
+    });
+
+    await expect(service.completeGoogleSignIn(IDENTITY)).rejects.toThrow(
+      BadRequestException,
+    );
+  });
+
+  it('issues a profile grant for a Google newcomer without creating a user', async () => {
+    const { service, prisma } = buildHarness();
+    prisma.authIdentity.findUnique.mockResolvedValue(null);
+    prisma.user.findUnique.mockResolvedValue(null);
+
+    const result = await service.completeGoogleSignIn(IDENTITY);
+
+    expect(result).toEqual({
+      next: 'complete_profile',
+      redirectTo: '/complete-profile',
+      grantToken: expect.any(String),
+    });
+    const createCalls = prisma.enrollmentGrant.create.mock.calls as Array<
+      [{ data: { method: string; googleSubject: string; userId: string | null } }]
+    >;
+    expect(createCalls[0][0].data).toMatchObject({
+      method: 'GOOGLE',
+      googleSubject: 'google-subject-123',
+      userId: null,
+    });
+  });
+
+  it('never merges by email: an existing local account fails safely', async () => {
+    const { service, prisma } = buildHarness();
+    prisma.authIdentity.findUnique.mockResolvedValue(null);
+    prisma.user.findUnique.mockResolvedValue({ id: 'existing-user' });
+
+    await expect(service.completeGoogleSignIn(IDENTITY)).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(prisma.enrollmentGrant.create).not.toHaveBeenCalled();
+    const audits = prisma.auditLog.create.mock.calls as Array<
+      [{ data: { action: string } }]
+    >;
+    expect(audits.map((call) => call[0].data.action)).toContain(
+      'AUTH_GOOGLE_EMAIL_CONFLICT',
+    );
+  });
+
+  it('normalises the verified email before any lookup', async () => {
+    const { service, prisma } = buildHarness();
+    prisma.authIdentity.findUnique.mockResolvedValue(null);
+    prisma.user.findUnique.mockResolvedValue(null);
+
+    await service.completeGoogleSignIn({
+      email: 'Student@Example.com',
+      subject: 'google-subject-123',
+      returnPath: null,
+    });
+
+    expect(prisma.user.findUnique).toHaveBeenCalledWith({
+      where: { email: 'student@example.com' },
+      select: { id: true },
+    });
   });
 });
 

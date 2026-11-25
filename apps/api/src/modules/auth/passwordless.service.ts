@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { AuthChallenge, User } from '@prisma/client';
-import { AuthChallengePurpose, AuthMethod } from '@prisma/client';
+import { AuthChallengePurpose, AuthMethod, AuthProvider } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
@@ -551,11 +551,12 @@ export class PasswordlessAuthService {
         throw new BadRequestException('Invalid or expired profile link');
       }
 
+      let user: User;
       if (existing) {
         // Recovery path: trust only the fields the student just re-entered;
         // never the preparer's values. Password login is already disabled by
         // the recovery step; do not change it again here.
-        return tx.user.update({
+        user = await tx.user.update({
           where: { id: existing.id },
           data: {
             fullName: input.fullName,
@@ -566,38 +567,66 @@ export class PasswordlessAuthService {
             profileCompletedAt: new Date(),
           },
         });
+      } else {
+        // New passwordless account: no usable password. The stored hash is of a
+        // discarded random secret, so password login cannot succeed until the
+        // student deliberately sets one through the reset flow.
+        const discarded = await bcrypt.hash(randomToken(32), 12);
+        try {
+          user = await tx.user.create({
+            data: {
+              email: current.email,
+              passwordHash: discarded,
+              fullName: input.fullName,
+              phoneNumber: input.phoneNumber,
+              departmentId: input.departmentId,
+              academicYearId: input.academicYearId,
+              isEmailVerified: true,
+              passwordLoginEnabled: false,
+              profileCompletedAt: new Date(),
+              role: 'STUDENT',
+            },
+          });
+        } catch (error) {
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === 'P2002'
+          ) {
+            throw new ConflictException(
+              'This email address is no longer available. Start again.',
+            );
+          }
+          throw error;
+        }
       }
 
-      // New passwordless account: no usable password. The stored hash is of a
-      // discarded random secret, so password login cannot succeed until the
-      // student deliberately sets one through the reset flow.
-      const discarded = await bcrypt.hash(randomToken(32), 12);
-      try {
-        return await tx.user.create({
-          data: {
-            email: current.email,
-            passwordHash: discarded,
-            fullName: input.fullName,
-            phoneNumber: input.phoneNumber,
-            departmentId: input.departmentId,
-            academicYearId: input.academicYearId,
-            isEmailVerified: true,
-            passwordLoginEnabled: false,
-            profileCompletedAt: new Date(),
-            role: 'STUDENT',
-          },
-        });
-      } catch (error) {
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === 'P2002'
-        ) {
-          throw new ConflictException(
-            'This email address is no longer available. Start again.',
-          );
+      // Record the Google identity that produced a Google grant, in the same
+      // transaction that creates the account (Phase 3). Without this the subject
+      // is never linked and the next Google sign-in would only see the email and
+      // fail safely. The unique key is `(provider, subject)`.
+      if (current.method === AuthMethod.GOOGLE && current.googleSubject) {
+        try {
+          await tx.authIdentity.create({
+            data: {
+              userId: user.id,
+              provider: AuthProvider.GOOGLE,
+              subject: current.googleSubject,
+            },
+          });
+        } catch (error) {
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === 'P2002'
+          ) {
+            throw new ConflictException(
+              'This Google account is already linked. Start again or contact support.',
+            );
+          }
+          throw error;
         }
-        throw error;
       }
+
+      return user;
     });
 
     await this.audit('AUTH_PROFILE_COMPLETED', user.id, {
@@ -927,11 +956,98 @@ export class PasswordlessAuthService {
     ]);
   }
 
+  // ── Google sign-in outcome (Phase 3) ────────────────────────────
+
+  /**
+   * Conclude a Google sign-in once the ID token has been verified.
+   *
+   * The verified identity is the only trusted input. Identity is resolved by
+   * `(GOOGLE, subject)`, never by email: an address that already belongs to a
+   * local account fails safely and is never merged. Role, activity and admin
+   * rules are re-read here, exactly as on the email path.
+   */
+  async completeGoogleSignIn(input: {
+    email: string;
+    subject: string;
+    returnPath: string | null;
+  }): Promise<AuthCompletion> {
+    const identity = await this.prisma.authIdentity.findUnique({
+      where: {
+        provider_subject: {
+          provider: AuthProvider.GOOGLE,
+          subject: input.subject,
+        },
+      },
+      include: { user: true },
+    });
+
+    if (identity) {
+      const user = identity.user;
+      if (isAdminRole(user.role)) {
+        await this.audit('AUTH_PASSWORDLESS_ADMIN_REFUSED', user.id, {
+          method: 'GOOGLE',
+        });
+        throw new BadRequestException(PROOF_FAILED_MESSAGE);
+      }
+      if (!user.isActive) {
+        throw new BadRequestException(PROOF_FAILED_MESSAGE);
+      }
+      // A Google signup whose profile step was never finished.
+      if (!user.profileCompletedAt && !user.passwordLoginEnabled) {
+        const grantToken = await this.issueGrant({
+          email: user.email,
+          userId: user.id,
+          method: AuthMethod.GOOGLE,
+          googleSubject: input.subject,
+          returnPath: input.returnPath ?? undefined,
+        });
+        return {
+          next: 'complete_profile',
+          redirectTo: '/complete-profile',
+          grantToken,
+        };
+      }
+      await this.audit('AUTH_PASSWORDLESS_LOGIN_SUCCEEDED', user.id, {
+        method: 'GOOGLE',
+      });
+      return this.signedIn(user, AuthMethod.GOOGLE, input.returnPath);
+    }
+
+    // No linked identity. Never merge by email: a local account holding this
+    // verified address must link deliberately, not implicitly.
+    const existing = await this.prisma.user.findUnique({
+      where: { email: normalizeEmail(input.email) },
+      select: { id: true },
+    });
+    if (existing) {
+      await this.audit('AUTH_GOOGLE_EMAIL_CONFLICT', existing.id, {
+        method: 'GOOGLE',
+      });
+      throw new BadRequestException(PROOF_FAILED_MESSAGE);
+    }
+
+    // Newcomer: the same restricted profile grant as an email signup. No user
+    // row is created here.
+    const grantToken = await this.issueGrant({
+      email: normalizeEmail(input.email),
+      userId: null,
+      method: AuthMethod.GOOGLE,
+      googleSubject: input.subject,
+      returnPath: input.returnPath ?? undefined,
+    });
+    return {
+      next: 'complete_profile',
+      redirectTo: '/complete-profile',
+      grantToken,
+    };
+  }
+
   private async issueGrant(input: {
     email: string;
     userId: string | null;
     method: AuthMethod;
     returnPath?: string;
+    googleSubject?: string | null;
   }): Promise<string> {
     const token = randomToken(32);
     await this.prisma.enrollmentGrant.create({
@@ -941,6 +1057,7 @@ export class PasswordlessAuthService {
         email: input.email,
         userId: input.userId,
         method: input.method,
+        googleSubject: input.googleSubject ?? null,
         browserNonceHash: sha256(token),
         returnPath: input.returnPath ?? null,
         expiresAt: new Date(Date.now() + ENROLLMENT_TTL_MS),

@@ -4,6 +4,7 @@ import { PasswordlessController } from './passwordless.controller';
 import type { PasswordlessAuthService } from './passwordless.service';
 import type { AuthRateLimitService } from './auth-rate-limit.service';
 import { BROWSER_ID_TTL_MS, CHALLENGE_TTL_MS, PUBLIC_READ_IP_PER_MINUTE, WINDOW_MINUTE_MS } from './auth-policy';
+import { OAUTH_TRANSACTION_TTL_MS } from './google-auth.service';
 
 type CookieOptionsRecord = Record<string, unknown>;
 type CookieMock = jest.Mock<void, [string, string, CookieOptionsRecord]>;
@@ -21,6 +22,7 @@ function harness(values: Record<string, string> = {}) {
     cookie,
     clearCookie: jest.fn(),
     setHeader,
+    redirect: jest.fn(),
   } as unknown as Response;
   const limits = {
     enforceRequest: jest.fn().mockResolvedValue(undefined),
@@ -40,12 +42,30 @@ function harness(values: Record<string, string> = {}) {
     }),
     revokePresentedRefreshToken: jest.fn().mockResolvedValue(false),
   } as unknown as PasswordlessAuthService;
+  const google = {
+    start: jest.fn().mockResolvedValue({
+      authorizationUrl: 'https://accounts.google.com/o/oauth2/v2/auth?x=1',
+      browserNonce: 'browser-nonce',
+    }),
+    complete: jest.fn().mockResolvedValue({
+      next: 'signed_in',
+      redirectTo: '/dashboard',
+      user: {
+        id: 'user-1',
+        email: 'student@example.com',
+        fullName: 'Test Student',
+        role: 'STUDENT',
+      },
+      session: { accessToken: 'access', refreshToken: 'refresh' },
+    }),
+  };
   const controller = new PasswordlessController(
     service,
     limits,
     configFor(values),
+    google,
   );
-  return { controller, res, cookie, setHeader, limits, service };
+  return { controller, res, cookie, setHeader, limits, service, google };
 }
 
 function requestWith(cookies: Record<string, string> = {}): Request {
@@ -160,6 +180,79 @@ describe('PasswordlessController session replacement', () => {
 
     expect(body).toEqual(
       expect.objectContaining({ next: 'signed_in', switchedAccount: true }),
+    );
+  });
+});
+
+describe('PasswordlessController Google OAuth', () => {
+  it('starts a sign-in by binding the transaction to this browser and redirecting', async () => {
+    const { controller, res, cookie, google, limits } = harness();
+
+    await controller.startGoogle('/courses', requestWith(), res);
+
+    expect(limits.enforceRequest).toHaveBeenCalledWith(
+      expect.anything(),
+      'google:start',
+      expect.objectContaining({ ip: expect.any(Object) }),
+    );
+    const [name, value, options] = cookie.mock.calls[0];
+    expect(name).toBe('auth_go_');
+    expect(value).toBe('browser-nonce');
+    expect(options).toEqual(
+      expect.objectContaining({ httpOnly: true, maxAge: OAUTH_TRANSACTION_TTL_MS }),
+    );
+    expect((google as unknown as { start: jest.Mock }).start).toHaveBeenCalledWith(
+      '/courses',
+    );
+    expect(res.redirect).toHaveBeenCalledWith(
+      302,
+      'https://accounts.google.com/o/oauth2/v2/auth?x=1',
+    );
+  });
+
+  it('redeems a callback and writes the session, clearing the binding cookie', async () => {
+    const { controller, res, google } = harness();
+
+    const body = await controller.googleCallback(
+      { code: 'auth-code', state: 'state-value-long-enough' },
+      requestWith({ auth_go_: 'browser-nonce' }),
+      res,
+    );
+
+    expect(
+      (google as unknown as { complete: jest.Mock }).complete,
+    ).toHaveBeenCalledWith({
+      code: 'auth-code',
+      state: 'state-value-long-enough',
+      browserNonce: 'browser-nonce',
+    });
+    expect(body).toEqual({
+      next: 'signed_in',
+      redirectTo: '/dashboard',
+      user: expect.objectContaining({ id: 'user-1' }),
+    });
+    expect(res.clearCookie).toHaveBeenCalledWith(
+      'auth_go_',
+      expect.any(Object),
+    );
+  });
+
+  it('clears the binding cookie even when the callback is rejected', async () => {
+    const { controller, res, google } = harness();
+    (google as unknown as { complete: jest.Mock }).complete.mockRejectedValue(
+      new Error('rejected'),
+    );
+
+    await expect(
+      controller.googleCallback(
+        { code: 'auth-code', state: 'state-value-long-enough' },
+        requestWith({ auth_go_: 'browser-nonce' }),
+        res,
+      ),
+    ).rejects.toThrow('rejected');
+    expect(res.clearCookie).toHaveBeenCalledWith(
+      'auth_go_',
+      expect.any(Object),
     );
   });
 });

@@ -1,18 +1,17 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as crypto from 'crypto';
 import type { AuthMailPayload } from './auth-mail.constants';
+import {
+  deriveTransientKey,
+  openString,
+  sealString,
+} from './auth-envelope';
 
-const ALGORITHM = 'aes-256-gcm';
+/**
+ * AAD label for sign-in mail. It separates mail ciphertext from every other
+ * envelope sealed under the same key (for example the OAuth transactions).
+ */
 const AAD = Buffer.from('lor-mentor-auth-mail:v1', 'utf8');
-const VERSION = 1;
-
-interface EncryptedEnvelope {
-  v: number;
-  iv: string;
-  tag: string;
-  data: string;
-}
 
 /**
  * Authenticated encryption for transient sign-in mail payloads.
@@ -27,11 +26,9 @@ export class AuthMailCryptoService {
   private readonly key: Buffer | null;
 
   constructor(config: ConfigService) {
-    const secret = config.get<string>('AUTH_TRANSIENT_ENCRYPTION_KEY')?.trim();
-    this.key =
-      secret && secret.length >= 32
-        ? crypto.createHash('sha256').update(secret, 'utf8').digest()
-        : null;
+    this.key = deriveTransientKey(
+      config.get<string>('AUTH_TRANSIENT_ENCRYPTION_KEY'),
+    );
   }
 
   encrypt(payload: AuthMailPayload): string {
@@ -40,21 +37,7 @@ export class AuthMailCryptoService {
         'Sign-in is not available right now',
       );
     }
-
-    const iv = crypto.randomBytes(12);
-    const cipher = crypto.createCipheriv(ALGORITHM, this.key, iv);
-    cipher.setAAD(AAD);
-    const encrypted = Buffer.concat([
-      cipher.update(JSON.stringify(payload), 'utf8'),
-      cipher.final(),
-    ]);
-    const envelope: EncryptedEnvelope = {
-      v: VERSION,
-      iv: iv.toString('base64url'),
-      tag: cipher.getAuthTag().toString('base64url'),
-      data: encrypted.toString('base64url'),
-    };
-    return JSON.stringify(envelope);
+    return sealString(this.key, AAD, JSON.stringify(payload));
   }
 
   decrypt(value: string): AuthMailPayload {
@@ -64,35 +47,20 @@ export class AuthMailCryptoService {
       );
     }
 
-    let envelope: EncryptedEnvelope;
+    let plaintext: string;
     try {
-      envelope = JSON.parse(value) as EncryptedEnvelope;
+      plaintext = openString(this.key, AAD, value);
     } catch {
       throw new Error('Invalid encrypted auth-mail payload');
     }
 
-    if (
-      envelope.v !== VERSION ||
-      typeof envelope.iv !== 'string' ||
-      typeof envelope.tag !== 'string' ||
-      typeof envelope.data !== 'string'
-    ) {
+    let parsed: Partial<AuthMailPayload>;
+    try {
+      parsed = JSON.parse(plaintext) as Partial<AuthMailPayload>;
+    } catch {
       throw new Error('Invalid encrypted auth-mail payload');
     }
 
-    const decipher = crypto.createDecipheriv(
-      ALGORITHM,
-      this.key,
-      Buffer.from(envelope.iv, 'base64url'),
-    );
-    decipher.setAAD(AAD);
-    decipher.setAuthTag(Buffer.from(envelope.tag, 'base64url'));
-    const plaintext = Buffer.concat([
-      decipher.update(Buffer.from(envelope.data, 'base64url')),
-      decipher.final(),
-    ]).toString('utf8');
-
-    const parsed = JSON.parse(plaintext) as Partial<AuthMailPayload>;
     if (
       typeof parsed.challengeId !== 'string' ||
       typeof parsed.to !== 'string' ||

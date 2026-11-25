@@ -8,6 +8,12 @@ export const CSRF_BASE = 'auth_cs_';
 export const CHALLENGE_BASE = 'auth_ch_';
 export const ENROLLMENT_BASE = 'auth_en_';
 /**
+ * Browser-binding nonce for a Google OAuth transaction (Phase 3). It exists
+ * only for the ten minutes of one authorization round-trip and authorises
+ * nothing on its own; it makes a stolen `state` value unredeemable.
+ */
+export const OAUTH_BASE = 'auth_go_';
+/**
  * Long-lived browser accounting id (P1-2). It is not a security token and
  * never authorises anything; it only gives the per-browser rate-limit bucket a
  * value that survives a CSRF refresh.

@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Query,
   Req,
   Res,
   UseGuards,
@@ -25,10 +26,12 @@ import {
   CHALLENGE_BASE,
   CSRF_BASE,
   ENROLLMENT_BASE,
+  OAUTH_BASE,
 } from '../../common/auth-cookie-names';
 import { writeSessionCookies } from '../../common/session-cookies';
 import { AuthRateLimitService } from './auth-rate-limit.service';
 import { PasswordlessAuthService, type AuthCompletion } from './passwordless.service';
+import { GoogleAuthService, OAUTH_TRANSACTION_TTL_MS } from './google-auth.service';
 import {
   CompleteProfileDto,
   EmailCodeDto,
@@ -36,6 +39,7 @@ import {
   ResendEmailDto,
   StartEmailDto,
 } from './dto/passwordless.dto';
+import { GoogleCallbackDto } from './dto/google.dto';
 import {
   BROWSER_ID_TTL_MS,
   CHALLENGE_TTL_MS,
@@ -44,6 +48,8 @@ import {
   CONFIRM_BROWSER_PER_TEN_MINUTES,
   CONFIRM_IP_PER_TEN_MINUTES,
   ENROLLMENT_TTL_MS,
+  GOOGLE_CALLBACK_IP_PER_TEN_MINUTES,
+  GOOGLE_START_IP_PER_MINUTE,
   PROFILE_GRANT_PER_TEN_MINUTES,
   PROFILE_IP_PER_TEN_MINUTES,
   PUBLIC_READ_IP_PER_MINUTE,
@@ -75,6 +81,7 @@ export class PasswordlessController {
     private readonly service: PasswordlessAuthService,
     private readonly limits: AuthRateLimitService,
     private readonly config: ConfigService,
+    private readonly google: GoogleAuthService,
   ) {}
 
   private readCookies(req: Request): Record<string, string | undefined> {
@@ -91,6 +98,10 @@ export class PasswordlessController {
 
   private browserCookie(): string {
     return authCookieName(BROWSER_BASE, this.config);
+  }
+
+  private oauthCookie(): string {
+    return authCookieName(OAUTH_BASE, this.config);
   }
 
   /** Effective method flags. Public and never account-dependent. */
@@ -129,6 +140,68 @@ export class PasswordlessController {
       authCookieOptions(this.config, CHALLENGE_TTL_MS),
     );
     return { csrfToken: token };
+  }
+
+  /**
+   * Begin a Google sign-in (Phase 3).
+   *
+   * A top-level browser navigation, so it is a GET and is not behind the CSRF
+   * guard. It only creates a browser-bound transaction and redirects; nothing
+   * about the caller is trusted until the callback verifies a Google ID token.
+   */
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @Get('google/start')
+  async startGoogle(
+    @Query('returnTo') returnTo: string | undefined,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    await this.limits.enforceRequest(req, 'google:start', {
+      ip: { limit: GOOGLE_START_IP_PER_MINUTE, windowMs: WINDOW_MINUTE_MS },
+    });
+    const { authorizationUrl, browserNonce } = await this.google.start(returnTo);
+    res.cookie(
+      this.oauthCookie(),
+      browserNonce,
+      authCookieOptions(this.config, OAUTH_TRANSACTION_TTL_MS),
+    );
+    res.redirect(HttpStatus.FOUND, authorizationUrl);
+  }
+
+  /**
+   * Redeem a Google callback (Phase 3).
+   *
+   * The POST is deliberate: the redirect from Google is inert and carries only
+   * `code`/`state`. The browser-binding cookie plus the single-use `state` are
+   * the OAuth CSRF defence; the synchronizer token is required too, so the
+   * request must also be a same-origin JSON POST.
+   */
+  @UseGuards(AuthCsrfGuard)
+  @Throttle({ default: { limit: 60, ttl: 600_000 } })
+  @Post('google/callback')
+  @HttpCode(HttpStatus.OK)
+  async googleCallback(
+    @Body() dto: GoogleCallbackDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    await this.limits.enforceRequest(req, 'google:callback', {
+      ip: {
+        limit: GOOGLE_CALLBACK_IP_PER_TEN_MINUTES,
+        windowMs: WINDOW_TEN_MINUTES_MS,
+      },
+    });
+    try {
+      const completion = await this.google.complete({
+        code: dto.code,
+        state: dto.state,
+        browserNonce: this.readCookies(req)[this.oauthCookie()],
+      });
+      return await this.finish(req, completion, res);
+    } finally {
+      // The transaction is single-use; its binding cookie is useless either way.
+      res.clearCookie(this.oauthCookie(), clearedAuthCookieOptions(this.config));
+    }
   }
 
   @UseGuards(AuthCsrfGuard)

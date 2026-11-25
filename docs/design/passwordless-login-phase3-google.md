@@ -110,7 +110,15 @@ Progress: **P3-A done** — `AuthOAuthTransaction` + additive migration + cleanu
 `213bb2d` and pushed to both remotes (migration verified on a throwaway DB; `migrate diff`
 reports no drift against `schema.prisma`; cleanup spec 5/5). **P3-B done** — the
 `google-auth-library` wrapper and its unit spec (20 tests); full API unit suite green
-(59 passed / 2 skipped; 900 passed / 21 skipped of 921) and `tsc` clean.
+(59 passed / 2 skipped; 900 passed / 21 skipped of 921) and `tsc` clean, committed
+`e180dc3`. **P3-C done** — `GET /auth/google/start` and `POST /auth/google/callback`,
+browser-bound single-use transaction consume, PKCE/nonce redemption, identity resolution
+by `(GOOGLE, sub)` in `PasswordlessAuthService.completeGoogleSignIn`, and the shared
+AES-GCM envelope (`auth-envelope.ts`) extracted so mail and OAuth ciphertext stay
+domain-separated. `completeProfile` now records the `AuthIdentity` for a GOOGLE grant.
+Gate: both routes 503 unless `AUTH_GOOGLE_ENABLED` is on (still refused at boot).
+Verified: auth-module suite 187/187, `tsc` clean. No route is reachable in production
+while the flag stays false.
 
 | Slice | Contents | Exit check |
 |---|---|---|

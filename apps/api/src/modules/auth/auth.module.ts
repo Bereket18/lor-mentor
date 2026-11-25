@@ -19,6 +19,7 @@ import {
   AuthRateLimitService,
 } from './auth-rate-limit.service';
 import { GoogleOidcClient } from './google-oidc.client';
+import { GoogleAuthService } from './google-auth.service';
 import { UsersModule } from '../users/users.module';
 import { MailModule } from '../mail/mail.module';
 import { JwtStrategy } from '../../common/strategies/jwt.strategy';
@@ -54,6 +55,7 @@ import { TokenDenylistService } from '../../common/redis/token-denylist.service'
     AuthCleanupService,
     AuthRateLimitService,
     GoogleOidcClient,
+    GoogleAuthService,
     {
       // Dedicated connection: a slow rate-limit command must not queue behind
       // other Redis users, and shutdown closes only this client.

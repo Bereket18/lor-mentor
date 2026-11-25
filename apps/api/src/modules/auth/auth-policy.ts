@@ -52,6 +52,11 @@ export const CONFIRM_BROWSER_PER_TEN_MINUTES = 10;
 export const PROFILE_IP_PER_TEN_MINUTES = 30;
 export const PROFILE_GRANT_PER_TEN_MINUTES = 5;
 
+// Google OAuth requests are low-volume user navigations, not credential
+// guesses; the budget only has to stop a trivial loop (Phase 3).
+export const GOOGLE_START_IP_PER_MINUTE = 20;
+export const GOOGLE_CALLBACK_IP_PER_TEN_MINUTES = 60;
+
 /** CSRF bootstrap and other public reads: 60/IP/minute. */
 export const PUBLIC_READ_IP_PER_MINUTE = 60;
 
