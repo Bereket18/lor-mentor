@@ -345,6 +345,33 @@ model EnrollmentGrant {
   @@index([userId])
 }
 
+// One row per Google OAuth authorization start (Phase 3). It is the
+// browser-bound, single-use anti-CSRF `state` for the authorization-code flow.
+// Google-only for now: non-Google providers are an explicit non-goal, so no
+// provider column is carried speculatively.
+//
+// Nothing about the caller is verified at start, so no email, subject or user
+// reference is stored. Two values are sealed under AUTH_TRANSIENT_ENCRYPTION_KEY:
+//   - encryptedVerifier is the S256 PKCE code verifier.
+//   - encryptedNonce is the OIDC nonce compared against the ID token's claim.
+// The handle (`id`) doubles as the OAuth `state`: 256 random bits, the
+// application-generated value, unguessable before the row exists. It is not
+// encrypted because it round-trips through the browser by design.
+model AuthOAuthTransaction {
+  id                String    @id
+  browserNonceHash  String
+  encryptedVerifier String
+  encryptedNonce    String
+  returnPath        String?
+  // Ten minutes. Rechecked, never trusted, at consumption.
+  expiresAt         DateTime
+  consumedAt        DateTime?
+  createdAt         DateTime  @default(now())
+
+  // Supports the expiry sweep without a sequential scan.
+  @@index([expiresAt])
+}
+
 // ─── SUBSCRIPTIONS ────────────────────────────
 model SubscriptionPlan {
   id             String   @id @default(cuid())

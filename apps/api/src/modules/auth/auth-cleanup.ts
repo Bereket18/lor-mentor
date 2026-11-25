@@ -32,6 +32,12 @@ export const ENROLLMENT_TERMINAL_RETENTION_MS = 24 * 60 * 60 * 1000;
 export const ENROLLMENT_EXPIRED_GRACE_MS = 60 * 60 * 1000;
 
 /**
+ * Expired OAuth transactions are removed an hour after expiry. They can no
+ * longer be redeemed, and no cap is counted from transaction rows.
+ */
+export const OAUTH_TX_EXPIRED_GRACE_MS = 60 * 60 * 1000;
+
+/**
  * Advisory-lock key that makes the sweep single-runner. A constant, unlike the
  * per-address issuance lock, because the job is global.
  */
@@ -43,6 +49,7 @@ export const AUTH_CLEANUP_TX_TIMEOUT_MS = 30_000;
 export interface AuthCleanupResult {
   challenges: number;
   grants: number;
+  oauthTransactions: number;
   durationMs: number;
 }
 
@@ -88,6 +95,20 @@ export function grantCleanupWhere(now: Date): Prisma.EnrollmentGrantWhereInput {
 }
 
 /**
+ * Expired transactions after grace. A consumed row is already terminal and is
+ * removed by the same expiry filter once its (ten-minute) lifetime lapses.
+ */
+export function oauthTransactionCleanupWhere(
+  now: Date,
+): Prisma.AuthOAuthTransactionWhereInput {
+  return {
+    expiresAt: {
+      lt: new Date(now.getTime() - OAUTH_TX_EXPIRED_GRACE_MS),
+    },
+  };
+}
+
+/**
  * Delete removable rows in one transaction that first tries a transaction-
  * scoped advisory lock. Returns `null` when another instance holds the lock, so
  * concurrent schedulers never double-delete or block each other.
@@ -99,6 +120,7 @@ export async function purgeExpiredAuthRows(
   const startedAt = Date.now();
   const challengesWhere = challengeCleanupWhere(now);
   const grantsWhere = grantCleanupWhere(now);
+  const oauthWhere = oauthTransactionCleanupWhere(now);
 
   return prisma.$transaction(
     async (tx) => {
@@ -114,10 +136,14 @@ export async function purgeExpiredAuthRows(
       const grants = await tx.enrollmentGrant.deleteMany({
         where: grantsWhere,
       });
+      const oauthTransactions = await tx.authOAuthTransaction.deleteMany({
+        where: oauthWhere,
+      });
 
       return {
         challenges: challenges.count,
         grants: grants.count,
+        oauthTransactions: oauthTransactions.count,
         durationMs: Date.now() - startedAt,
       };
     },

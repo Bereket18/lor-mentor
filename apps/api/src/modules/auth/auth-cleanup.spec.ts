@@ -18,6 +18,9 @@ function buildPrisma(options: { acquired?: boolean } = {}) {
     enrollmentGrant: {
       deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
+    authOAuthTransaction: {
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
   };
 
   const prisma = {
@@ -35,6 +38,7 @@ describe('purgeExpiredAuthRows', () => {
     const { prisma, tx } = buildPrisma();
     tx.authChallenge.deleteMany.mockResolvedValue({ count: 3 });
     tx.enrollmentGrant.deleteMany.mockResolvedValue({ count: 2 });
+    tx.authOAuthTransaction.deleteMany.mockResolvedValue({ count: 1 });
     const now = new Date('2026-11-23T12:00:00.000Z');
 
     const result = await purgeExpiredAuthRows(
@@ -45,6 +49,7 @@ describe('purgeExpiredAuthRows', () => {
     expect(result).toEqual({
       challenges: 3,
       grants: 2,
+      oauthTransactions: 1,
       durationMs: expect.any(Number),
     });
     expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
@@ -74,6 +79,13 @@ describe('purgeExpiredAuthRows', () => {
       },
       { expiresAt: { lt: new Date('2026-11-23T11:00:00.000Z') } },
     ]);
+
+    // Expired OAuth transactions are removed a fixed hour after expiry.
+    const oauthWhere =
+      tx.authOAuthTransaction.deleteMany.mock.calls[0][0].where;
+    expect(oauthWhere.expiresAt.lt.toISOString()).toBe(
+      '2026-11-23T11:00:00.000Z',
+    );
   });
 
   it('deletes nothing when another instance holds the lock', async () => {
@@ -86,6 +98,7 @@ describe('purgeExpiredAuthRows', () => {
     expect(result).toBeNull();
     expect(tx.authChallenge.deleteMany).not.toHaveBeenCalled();
     expect(tx.enrollmentGrant.deleteMany).not.toHaveBeenCalled();
+    expect(tx.authOAuthTransaction.deleteMany).not.toHaveBeenCalled();
   });
 });
 
@@ -94,6 +107,7 @@ describe('AuthCleanupService', () => {
     const { prisma, tx } = buildPrisma();
     tx.authChallenge.deleteMany.mockResolvedValue({ count: 4 });
     tx.enrollmentGrant.deleteMany.mockResolvedValue({ count: 1 });
+    tx.authOAuthTransaction.deleteMany.mockResolvedValue({ count: 2 });
     const log = jest.spyOn(Logger.prototype, 'log').mockImplementation();
     const service = new AuthCleanupService(
       prisma as unknown as PrismaService,
@@ -103,8 +117,11 @@ describe('AuthCleanupService', () => {
 
     expect(result?.challenges).toBe(4);
     expect(result?.grants).toBe(1);
+    expect(result?.oauthTransactions).toBe(2);
     expect(log).toHaveBeenCalledWith(
-      expect.stringContaining('auth_cleanup_removed challenges=4 grants=1'),
+      expect.stringContaining(
+        'auth_cleanup_removed challenges=4 grants=1 oauth_transactions=2',
+      ),
     );
     log.mockRestore();
   });

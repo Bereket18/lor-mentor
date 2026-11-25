@@ -56,8 +56,13 @@ export class AuthCleanupService implements OnModuleInit, OnModuleDestroy {
 
       const message =
         `auth_cleanup_removed challenges=${result.challenges} ` +
-        `grants=${result.grants} duration_ms=${result.durationMs}`;
-      if (result.challenges > 0 || result.grants > 0) {
+        `grants=${result.grants} oauth_transactions=${result.oauthTransactions} ` +
+        `duration_ms=${result.durationMs}`;
+      if (
+        result.challenges > 0 ||
+        result.grants > 0 ||
+        result.oauthTransactions > 0
+      ) {
         this.logger.log(message);
       } else {
         this.logger.debug(message);
